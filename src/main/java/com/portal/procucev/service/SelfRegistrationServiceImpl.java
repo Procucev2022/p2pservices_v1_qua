@@ -1,0 +1,379 @@
+package com.portal.procucev.service;
+
+import java.io.UnsupportedEncodingException;
+import java.text.SimpleDateFormat;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Random;
+
+import jakarta.mail.internet.InternetAddress;
+
+import org.apache.commons.lang3.StringUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpStatus;
+import org.springframework.mail.javamail.JavaMailSender;
+import org.springframework.stereotype.Service;
+import org.springframework.util.CollectionUtils;
+
+import com.portal.procucev.customexception.AppException;
+import com.portal.procucev.dao.ClientDao;
+import com.portal.procucev.dao.MasterStatusDao;
+import com.portal.procucev.dao.OrgDao;
+import com.portal.procucev.dao.OrgTypeDao;
+import com.portal.procucev.dao.RoleDao;
+import com.portal.procucev.dao.UserDao;
+import com.portal.procucev.model.MasterStatus;
+import com.portal.procucev.model.OrgType;
+import com.portal.procucev.model.Organization;
+import com.portal.procucev.model.OtpDetails;
+import com.portal.procucev.model.Role;
+import com.portal.procucev.model.User;
+import com.portal.procucev.utils.ApplicationConstants;
+import com.portal.procucev.utils.MailUtility;
+import com.portal.procucev.utils.ProcucevUtils;
+import com.portal.procucev.utils.StatusConstants;
+
+import jakarta.servlet.http.HttpServletRequest;
+
+@Service
+public class SelfRegistrationServiceImpl implements SelfRegistrationService {
+	private static final Logger logger = LoggerFactory.getLogger(SelfRegistrationServiceImpl.class);
+	
+	@Value("${toAddress}")
+	String toAddress;
+
+	@Autowired
+	JavaMailSender javaMailSender;
+
+	@Autowired
+	private OrgTypeDao orgTypeDao;
+
+	@Autowired
+	private MasterStatusDao masterStatusDao;
+
+	@Value("${spring.mail.username}")
+	String mailFom;
+
+	@Value("${mailid}")
+	String mailid; 
+	
+	@Value("${host}")
+	String host;
+
+	@Autowired
+	private OrgDao orgDao;
+	
+	@Autowired
+	private UserDao userDao;
+	
+	@Autowired
+	private RoleDao roleDao;
+	
+	@Autowired
+	private ClientDao clientDao;
+	
+	private Map<String, OtpDetails> otpMap = new HashMap<>();
+	
+	@Override
+	public boolean selfclientRegistration(Organization organization) {
+		// TODO Auto-generated method stub
+		return false;
+	}
+
+	@Override
+	public boolean selfclientRegistrationData(Organization organization) {
+		// TODO Auto-generated method stub
+		logger.info("Entered to self client registration");
+		try {
+			// if (organization.getId() == null) {
+			logger.info("Saving Client For First Time");
+			List<Organization> orgList = new ArrayList<>();
+			OrgType orgTypeObject = orgTypeDao.findByTypeName(ApplicationConstants.CLIENT);
+			if (organization.isIndia()) {
+				logger.info("Organization is in India Checking PAN Validation");
+				orgList = orgDao.findByPanAndOrgType(organization.getPan(), orgTypeObject);
+			} else {
+				orgList = orgDao.findByCrnAndOrgType(organization.getCrn(), orgTypeObject);
+			}
+			if (orgList.isEmpty()) {
+				organization.setOrgType(orgTypeObject);
+				organization.setSelfClient(true);
+				organization.setGmtName("GMT Basic");
+				organization.setBfsName(StatusConstants.BFS_PRO);
+				String companyid =generateId(organization.getCompanyName());
+				logger.info("Company Id::" + companyid);
+				organization.setCompanyId(companyid);
+				logger.info("Saving Client Organization");
+				Organization savedOrg = clientDao.save(organization);
+				logger.info("id of org::" + savedOrg.getId());
+
+				User user = new User();
+				user.setOrg(savedOrg);
+				// user.setSelfClient(true);
+				setUserDetails(organization, user);
+
+			} else {
+				logger.info("Saving User For Existed Client");
+
+				User user = new User();
+				user.setOrg(orgList.get(0));
+				setUserDetails(organization, user);
+			}
+			InternetAddress add = new InternetAddress(mailid, "Procucev Notifications");
+			// String toAddress = "srinivas.mukku@procucev.com";
+			MailUtility.sendClientEmailForCM2("New Client Registration ", toAddress, organization, javaMailSender, add,
+					host);
+			return true;
+		} catch (Exception e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+		return false;
+	}
+	
+	public String generateId(String company) throws Exception {
+
+		try {
+			String companyLetters = "";
+			if (StringUtils.isNotEmpty(company)) {
+				if (company.length() >= 3) {
+					companyLetters = company.substring(0, 3);
+				} else {
+					companyLetters = company;
+				}
+
+			}
+			String companyId = companyLetters.toUpperCase().trim()
+					+ new SimpleDateFormat("yyMMddHHmmss").format(new Date());
+			return companyId;
+
+		} catch (NullPointerException nullpointerException) {
+			throw new AppException(HttpStatus.NO_CONTENT.value(), ApplicationConstants.NO_DATA_FOUND,
+					ApplicationConstants.BUSSINESS_EXCEPTION, ApplicationConstants.FAILURE);
+		}
+	}
+	
+	public void setUserDetails(Organization organization, User user) {
+		logger.info("Setting User Details::");
+		MasterStatus status = masterStatusDao.findByStatus(StatusConstants.CLIENT_NEW);
+		Role Initiatordetails = roleDao.findByRoleNameAndActive(StatusConstants.ClientInitiator, true);
+		user.setUsername(organization.getEmail());
+		user.setFullName(organization.getName());
+		user.setPhone(organization.getOrganizationPhonenumber());
+		user.setResetPassword(true);
+		user.setActive(true);
+		user.setSelfClient(true);
+		user.setClientStatus(status);
+		user.setRole(Initiatordetails);
+		char[] pswd = ProcucevUtils.generatePassword(8);
+		user.setPassword(pswd.toString());
+		logger.info("saving User Details");
+		userDao.save(user);
+	}
+
+	@Override
+	public boolean validateClient(Organization org) {
+		logger.info("Entered to validate client");
+
+		if (org.getCompanyName() != null) {
+			if (checkOrgexist(org.getCompanyName())) {
+				return true; // Organization with the same name already exists
+			}
+		}
+
+		if (org.getPan() != null) {
+			OrgType orgTypeObject = orgTypeDao.findByTypeName(ApplicationConstants.CLIENT);
+			List<Organization> orgList = orgDao.findByPanAndOrgType(org.getPan(), orgTypeObject);
+			if (!orgList.isEmpty()) {
+				return true; // Organization with the same PAN already exists
+			}
+		}
+
+		if (org.getCrn() != null) {
+			OrgType orgTypeObject = orgTypeDao.findByTypeName(ApplicationConstants.CLIENT);
+			List<Organization> orgList = orgDao.findByCrnAndOrgType(org.getCrn(), orgTypeObject);
+			if (!orgList.isEmpty()) {
+				return true; // Organization with the same PAN already exists
+			}
+		}
+
+		if (org.getEmail() != null) {
+			if (checkUserexist(org.getEmail())) {
+				return true; // User associated with the email already exists
+			}
+		}
+
+		return false; // Organization does not exist
+	}
+
+	@Override
+	public Organization getClientByPan(Organization org) {
+		// TODO Auto-generated method stub
+		logger.info("Entered to get client by pan");
+		OrgType orgTypeObject = orgTypeDao.findByTypeName(ApplicationConstants.CLIENT);
+		if (org != null && org.getPan() != null) {
+			logger.info("Entered To Get Client Details By PAN::");
+			List<Organization> orgList = orgDao.findByPanAndOrgType(org.getPan(), orgTypeObject);
+			if (!CollectionUtils.isEmpty(orgList)) {
+				Organization organization = orgList.get(0);
+				return organization;
+			}
+		} else if (org != null && org.getCrn() != null) {
+			logger.info("Entered To Get Client Details By CRN::");
+			List<Organization> orgDataList = orgDao.findByCrnAndOrgType(org.getPan(), orgTypeObject);
+			if (!CollectionUtils.isEmpty(orgDataList)) {
+				Organization organization = orgDataList.get(0);
+				return organization;
+			}
+		} else {
+			logger.error("No clients available in the database");
+			throw new AppException(HttpStatus.NO_CONTENT.value(), ApplicationConstants.NO_DATA_FOUND,
+					ApplicationConstants.BUSSINESS_EXCEPTION, ApplicationConstants.FAILURE);
+		}
+		return org;
+
+	}
+
+	public boolean generateOtp(Organization organization, HttpServletRequest request) {
+		logger.info("Entered to generate OTP");
+		try {
+			if (organization != null) {
+				// Generate OTP
+				String otp = generateOTPForEmail();
+				LocalDateTime expirationTime = LocalDateTime.now().plusMinutes(15);
+
+				// Store OTP and its expiration time in the map
+				otpMap.put(organization.getEmail(), new OtpDetails(otp, expirationTime));
+
+				// Send OTP via email
+				InternetAddress add = new InternetAddress(mailFom, "Procucev Notifications");
+				MailUtility.sendOtpForEmail("OTP", organization.getEmail(), javaMailSender, add, host, otp);
+				return true;
+			} else {
+				logger.error("No Vendors available in the Database");
+				throw new AppException(HttpStatus.NO_CONTENT.value(), ApplicationConstants.NO_DATA_FOUND,
+						ApplicationConstants.BUSINESS_EXCEPTION, ApplicationConstants.FAILURE);
+			}
+		} catch (UnsupportedEncodingException e) {
+			e.printStackTrace();
+		}
+		return false;
+	}
+
+
+
+	@Override
+	public boolean submitUpgradeVendor(Organization organization) {
+		// TODO Auto-generated method stub
+		return false;
+	}
+
+	@Override
+	public boolean upGradeVendorJob() {
+		// TODO Auto-generated method stub
+		return false;
+	}
+
+	@Override
+	public boolean vendorRegistration(Organization organization) throws UnsupportedEncodingException {
+		// TODO Auto-generated method stub
+		if (checkOrgexist(organization.getCompanyName().trim())) {
+
+			// throws exception when org name already exist in database
+			throw new AppException(HttpStatus.INTERNAL_SERVER_ERROR.value() + organization.getCompanyName(),
+					ApplicationConstants.VENDOR_ALREADY_EXISTS, ApplicationConstants.BUSSINESS_EXCEPTION,
+					ApplicationConstants.FAILURE);
+		}
+
+		// Check if User exist already in the database
+		if (checkUserexist(organization.getEmail().trim())) {
+
+			// Exception occurs when User is already associated to an Account/registered
+			throw new AppException(HttpStatus.INTERNAL_SERVER_ERROR.value(),
+					ApplicationConstants.USER_ALREADY_ASSOCIATED_TO_ACCOUNT, ApplicationConstants.BUSSINESS_EXCEPTION,
+					ApplicationConstants.FAILURE);
+		}
+		if (organization != null) {
+			OrgType orgTypeObject = orgTypeDao.findByTypeName(ApplicationConstants.VENDOR);
+			MasterStatus resultStatus = masterStatusDao.findByStatus(StatusConstants.SELF_REGISTER);
+			MasterStatus resultStatus1 = masterStatusDao.findByStatus(StatusConstants.EVALUATION_NOT_STARTED);
+			organization.setOrgType(orgTypeObject);
+			organization.setVendorStatus(resultStatus);
+			organization.setStatus(resultStatus1);
+			organization.setGmtName(StatusConstants.GMT_Basic);
+			organization.setBfsName(StatusConstants.BFS_PRO);
+			organization.setSubCategory(organization.getDetails());
+			orgDao.save(organization);
+
+					InternetAddress add = new InternetAddress(mailFom, "Procucev Notifications");
+					MailUtility.emailForVendor("Vendor Registration Successfull", organization.getEmail(),
+							javaMailSender, add, host);
+					MailUtility.sendVendorEmailForCM2("Self Register Vendor", toAddress, organization, javaMailSender, add,
+							host);
+
+			
+		}
+
+		return true;
+	}
+	
+	
+	public boolean checkOrgexist(String orgName) {
+
+		boolean orgexist = false;
+
+		Organization orgfound = orgDao.findByCompanyName(orgName);
+		if (orgfound != null) {
+			orgexist = true;
+		}
+
+		return orgexist;
+	}
+	
+	public boolean checkUserexist(String useremail) {
+
+		User userfound = userDao.findByUsernameAndActive(useremail, true);
+		if (userfound != null) {
+			return true;
+		}
+		return false;
+	}
+	private static String generateOTPForEmail() {
+		Random random = new Random();
+		int otpLength = 6;
+		StringBuilder otp = new StringBuilder();
+
+		for (int i = 0; i < otpLength; i++) {
+			otp.append(random.nextInt(10));
+		}
+
+		return otp.toString();
+	}
+
+	@Override
+	public boolean validateOtp(Organization organization) {
+		OtpDetails otpDetails = otpMap.get(organization.getEmail());
+
+		// Validate OTP
+		if (otpDetails != null) {
+			LocalDateTime expirationTime = otpDetails.getExpirationTime();
+			LocalDateTime now = LocalDateTime.now();
+
+			// Check if OTP is still valid (not expired)
+			if (now.isBefore(expirationTime) && otpDetails.getOtp().equals(organization.getUserOtp())) {
+				// Remove OTP from the map after successful validation
+				otpMap.remove(organization.getEmail());
+				return true;
+			}
+		}
+		return false;
+	}
+
+}
