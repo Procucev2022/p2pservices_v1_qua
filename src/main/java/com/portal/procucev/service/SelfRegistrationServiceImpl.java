@@ -138,6 +138,7 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 		return false;
 	}
 	
+	@Override
 	public String generateId(String company) throws Exception {
 
 		try {

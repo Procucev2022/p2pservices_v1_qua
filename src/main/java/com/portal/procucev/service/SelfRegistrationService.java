@@ -26,4 +26,6 @@ public interface SelfRegistrationService {
 
 	boolean vendorRegistration(Organization organization) throws UnsupportedEncodingException;
 
+	String generateId(String company) throws Exception;
+
 }

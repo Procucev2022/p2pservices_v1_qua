@@ -17,7 +17,7 @@ public interface ClientDao extends JpaRepository<Organization, String> {
 //	List<Organization> findByCategoryManagerIn(List<User> categoryManager);
 	
 	
-	List<Organization> findByCategoryManager(User categoryManager);
+//	List<Organization> findByCategoryManager(User categoryManager);
 
 	List<Organization> findByOrgType(OrgType orgTypeObject, Sort sort);
 

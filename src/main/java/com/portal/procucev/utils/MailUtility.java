@@ -3,6 +3,8 @@ package com.portal.procucev.utils;
 import org.springframework.mail.javamail.JavaMailSender;
 
 import com.portal.procucev.model.Organization;
+import com.portal.procucev.model.Rfq;
+import com.portal.procucev.model.User;
 
 import jakarta.mail.internet.InternetAddress;
 
@@ -28,6 +30,25 @@ public class MailUtility {
 
 	public static void sendClientEmailForCM2(String string, String toAddress, Organization organization,
 			JavaMailSender javaMailSender, InternetAddress add, String host) {
+		// TODO Auto-generated method stub
+		
+	}
+
+	public static void mailingGMTClientRFQMailToinfoTeam(String string, String toEmail, JavaMailSender javaMailSender,
+			InternetAddress add, String host, User user) {
+		// TODO Auto-generated method stub
+		
+	}
+
+	public static void emailNewGMTRfqForNoPR(String string, JavaMailSender javaMailSender, Rfq rfq, String host,
+			String email, String otherEmails, String mailFom, String emailPassword, String rfqDueDate) {
+		// TODO Auto-generated method stub
+		
+	}
+
+	public static void emailNewRfqForNoPR(String string, JavaMailSender javaMailSender, Rfq rfqData, String host,
+			String email, String username, String otherEmails, String phoneNumber, String rfqDueDate, String fullName,
+			String string2, String string3) {
 		// TODO Auto-generated method stub
 		
 	}
