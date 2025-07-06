@@ -326,6 +326,7 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 	}
 	
 	
+	@Override
 	public boolean checkOrgexist(String orgName) {
 
 		boolean orgexist = false;

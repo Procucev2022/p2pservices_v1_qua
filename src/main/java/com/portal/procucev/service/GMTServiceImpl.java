@@ -19,8 +19,17 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Properties;
 import java.util.function.Function;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
+
+import jakarta.mail.Flags;
+import jakarta.mail.Folder;
+import jakarta.mail.Message;
+import jakarta.mail.Session;
+import jakarta.mail.Store;
+import jakarta.mail.search.SubjectTerm;
 
 import jakarta.mail.MessagingException;
 
@@ -52,10 +61,13 @@ import com.portal.procucev.Dto.RfqDTO;
 import com.portal.procucev.Dto.VendorRFQDto;
 import com.portal.procucev.customexception.AppException;
 import com.portal.procucev.dao.CategoryDivisionDao;
+import com.portal.procucev.dao.EmailUserRepo;
 import com.portal.procucev.dao.GmtItemsDao;
 import com.portal.procucev.dao.GmtRfqVendorDao;
 import com.portal.procucev.dao.MasterStatusDao;
 import com.portal.procucev.dao.OrgDao;
+import com.portal.procucev.dao.OrgTypeDao;
+import com.portal.procucev.dao.RFQItemsDao;
 import com.portal.procucev.dao.RfqDao;
 import com.portal.procucev.dao.RfqVendorDao;
 import com.portal.procucev.dao.UserDao;
@@ -107,6 +119,11 @@ public class GMTServiceImpl implements GMTService {
 	@Autowired
 	private UserDao userDao;
 	
+	@Autowired
+	private OrgTypeDao orgTypeDao;
+	
+	@Autowired
+	private RFQItemsDao rfqItemsDao;
 
 	@Value("${spring.mail.username}")
 	String mailFom;
@@ -128,6 +145,9 @@ public class GMTServiceImpl implements GMTService {
 	
 	@Autowired
 	private JavaMailSender javaMailSender;
+	
+	@Autowired
+	private EmailUserRepo emailUserRepo;
 	
 	@Override
 	public List<String> getClientRfqIds(User user) {
@@ -1093,198 +1113,294 @@ public class GMTServiceImpl implements GMTService {
 					ApplicationConstants.BUSSINESS_EXCEPTION, ApplicationConstants.FAILURE);
 		}
 	}
-//	@Override
-//	public boolean createRFQWithNoPr(Rfq rfq) {
-//
-//		logger.info("Request recieved  for RFQ creation with No PR " + rfq.toString());
-//		boolean status = false;
-//
-//		// Get PR Status for PR Inprogress
-//		MasterStatus resultStatus = masterStatusDao.findByStatus(StatusConstants.pcprinprogress);
-//
-//		// Set Procucev status to RFQ
-//		rfq.setStatus(resultStatus);
-//		try {
-//			// Get Total counts for PR
-//			String rfqId = vendorManagerService.generateId("RFQ");
-//			logger.info("Generated RFQ Id{}", rfqId);
-//			rfq.setRfqId(rfqId);
-//
-////			if (rfq.getBoqfile() != null && rfq.getBoqfile().length > 0) {
-////				
-////				List<RfqItem> rfqItems = processBOQFiles(rfq.getBoqfile());
-////				rfqItemValidation(rfqItems);
-////				rfq.setRfqItem(rfqItems);
-////			} else {
-//			List<RfqItem> rfqItem = rfq.getRfqItem();
-//			rfqItemValidation(rfqItem);
-//
-//			Rfq savedRfq = rfqdao.save(rfq);
-//
-//			status = saveVendorsForRfq(rfq, savedRfq);
-//		} catch (Exception e) {
-//			e.printStackTrace();
-//			return status;
-//		}
-//		return status;
-//	}
-//	private void rfqItemValidation(List<RfqItem> rfqItem) {
-//		log.info("Entered to validate RFQ Item");
-//		for (RfqItem rfqItem2 : rfqItem) {
-//			if (rfqItem2.getDescription() != null) {
-//				String itemId = itemMasterDao.findByDesc(rfqItem2.getDescription());
-//				if (itemId == null) {
-//					log.info("RFQ Item is not present in item master");
-//					MasterStatus itemNew = masterStatusDao.findByStatus(StatusConstants.ITEM_NEW);
-//					ItemMaster itemMaster = new ItemMaster();
-//					itemMaster.setDescription(rfqItem2.getDescription());
-//					itemMaster.setSpecification(rfqItem2.getBrand());
-//					itemMaster.setNoCategoryFlag(true);
-//					itemMaster.setActive(true);
-//					itemMaster.setStatus(itemNew);
-//					itemMasterDao.save(itemMaster);
-//				}
-//			}
-//		}
-//	}
-//	private boolean saveVendorsForRfq(Rfq rfq, Rfq savedRfq) {
-//		logger.info("Entered to save Vendors For RFQ");
-//		List<RfqVendor> rfqVendors = new ArrayList<>();
-//		List<Organization> vendorList = rfq.getVendors();
-//		boolean status = false;
-//
-//		if (!CollectionUtils.isEmpty(vendorList)) {
-//			vendorList.forEach(vendor -> {
-//				Organization savedVendor;
-//
-//				if (vendor.getId() == null) {
-//					// Save the new organization
-//					OrgType orgTypeObject = orgTypeDao.findByTypeName(ApplicationConstants.VENDOR);
-//					MasterStatus vendorStatus = masterStatusDao.findByStatus(StatusConstants.VENDOR_ADDED);
-//					MasterStatus evalStatus = masterStatusDao.findByStatus(StatusConstants.EVALUATION_NOT_STARTED);
-//
-//					if (prevendorService.checkOrgexist(vendor.getCompanyName())) {
-//						// Exception occurs when User is already associated to an Account/registered
-//						throw new AppException(HttpStatus.INTERNAL_SERVER_ERROR.value(),
-//								"Vendor Already Registered with name " + vendor.getCompanyName(),
-//								ApplicationConstants.BUSSINESS_EXCEPTION, ApplicationConstants.FAILURE);
-//					}
-//
-//					vendor.setOrgType(orgTypeObject);
-//					vendor.setVendorStatus(vendorStatus);
-//					vendor.setStatus(evalStatus);
-//					vendor.setVendorcategory(savedRfq.getCategory());
-//					savedVendor = orgDao.save(vendor);
-//				} else {
-//					// Use the existing organization
-//					logger.info("Saving the existing vendor with other email");
-//					savedVendor = vendor;
-//					if (vendor.getOtherEmails() != null) {
-//						orgDao.updateOtherEmail(vendor.getOtherEmails(), vendor.getId());
-//					}
-//				}
-//
-//				// Build and save the RfqVendor object
-//				// Build the RfqVendor object
-//				savedVendor = orgDao.findById(savedVendor.getId());
-//				RfqVendor rfqVendor = new RfqVendor();
-//				logger.info("setting vendor id to rfqvendor{}", savedVendor.getId());
-//				rfqVendor.setOrganization(savedVendor);
-//				rfqVendor.setRfq(savedRfq);
-//
-//				// Collect RfqVendor object
-//				rfqVendors.add(rfqVendor);
-//			});
-//		}
-//
-//		// here need to set rfqvendors object
-//		sendRfqToVendors(rfqVendors, savedRfq);
-//
-//		// sendRfqToVendors(rfq.getRfqVendors());
-//		logger.info("RFQ Created Successfully" + rfq.toString());
-//		status = true;
-//
-//		return status;
-//	}
-//	public boolean sendRfqToVendors(List<RfqVendor> rfq, Rfq rfqData) {
-//		logger.info("Entered to sendRfqToVendors()");
-//		UserDetails userDetails = (UserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
-//		String username = userDetails.getUsername();
-//		String[] mailIdWrapper = new String[1]; // Using an array to wrap mailId
-//		String[] passwordWrapper = new String[1];
-//
-//		String rfqDueDate = buildingRfqDueDate();
-//		logger.info("username-->", username);
-//		EmailUser res = emailUserRepo.findByEmail(username);
-//		if (res != null) {
-//			mailIdWrapper[0] = res.getEmail();
-//			passwordWrapper[0] = res.getPassword();
-//		} else {
-//			mailIdWrapper[0] = mailFom;
-//			passwordWrapper[0] = emailPassword;
-//		}
-//		logger.info("Mail is sending from::", mailIdWrapper[0]);
-//		MasterStatus pcRfqSent = null, vendorRfqNew = null;
-//		List<String> inputStatus = new ArrayList<>();
-//		List<RfqVendor> sendVendors = new ArrayList<>();
-//		inputStatus.add(StatusConstants.pcRfqSent);
-//		inputStatus.add(StatusConstants.vendorRfqNew);
-//
-//		List<MasterStatus> statusList = masterStatusDao.findByStatusIn(inputStatus);
-//		if (!CollectionUtils.isEmpty(statusList)) {
-//			for (MasterStatus status : statusList) {
-//				if (status.getStatus().equals(StatusConstants.pcRfqSent)) {
-//					pcRfqSent = status;
-//				}
-//				if (status.getStatus().equals(StatusConstants.vendorRfqNew)) {
-//					vendorRfqNew = status;
-//				}
-//			}
-//		}
-//
-//		List<RfqVendor> vendorList = rfq;
-//		for (RfqVendor vendor : vendorList) {
-//			Optional<Rfq> rfqs = rfqDao.findById(vendor.getRfq().getId());
-//			vendor.setRfqId(rfqs.get().getRfqId());
-//			vendor.setProcucevStatus(pcRfqSent);
-//			vendor.setVendorStatus(vendorRfqNew);
-//			vendor.setVendorResponseDate(vendor.getVendorResponseDate());
-//			sendVendors.add(vendor);
-//		}
-//		try {
-//			logger.info("Saving data in RFQ Vendors");
-//			rfqVendorDao.saveAll(sendVendors);
-//			List<Organization> vendors = rfqData.getVendors();
-//			User users = userDao.findByUsernameAndActive(username, true);
-//			final String phoneNumber; // Declare phoneNumber as final
-//			final String fullName;
-//
-//			if (users != null) {
-//				phoneNumber = users.getPhone();
-//				fullName = users.getFullName();
-//				logger.info("Phone number of user", phoneNumber);
-//				logger.info("Full Name: ", fullName);
-//			} else {
-//				phoneNumber = null; // Initialize phoneNumber
-//				fullName = null;
-//			}
-//
-//			logger.info("Size of vendors List-->" + vendors.size());
-//			vendors.forEach(vendor -> {
-//				try {
-//					MailUtility.emailNewRfqForNoPR("NewRfq", javaMailSender, rfqData, host, vendor.getEmail(), username,
-//							vendor.getOtherEmails(), phoneNumber, rfqDueDate, fullName, mailIdWrapper[0],
-//							passwordWrapper[0]);
-//				} catch (MessagingException e) {
-//					e.printStackTrace();
-//				}
-//			});
-//
-//			return true;
-//		} catch (Exception e) {
-//			return false;
-//		}
-//
-//	}
+	
+	@Override
+	public boolean createRFQWithNoPr(Rfq rfq) {
 
+		logger.info("Request recieved  for RFQ creation with No PR " + rfq.toString());
+		boolean status = false;
+
+		// Get PR Status for PR Inprogress
+		MasterStatus resultStatus = masterStatusDao.findByStatus(StatusConstants.pcprinprogress);
+
+		// Set Procucev status to RFQ
+		rfq.setStatus(resultStatus);
+		try {
+			// Get Total counts for PR
+			String rfqId = selfRegistrationService.generateId("RFQ");
+			logger.info("Generated RFQ Id{}", rfqId);
+			rfq.setRfqId(rfqId);
+
+//			if (rfq.getBoqfile() != null && rfq.getBoqfile().length > 0) {
+//				
+//				List<RfqItem> rfqItems = processBOQFiles(rfq.getBoqfile());
+//				rfqItemValidation(rfqItems);
+//				rfq.setRfqItem(rfqItems);
+//			} else {
+			List<RfqItem> rfqItem = rfq.getRfqItem();
+			//rfqItemValidation(rfqItem);
+
+			Rfq savedRfq = rfqDao.save(rfq);
+
+			status = saveVendorsForRfq(rfq, savedRfq);
+		} catch (Exception e) {
+			e.printStackTrace();
+			return status;
+		}
+		return status;
+	}
+
+
+	private boolean saveVendorsForRfq(Rfq rfq, Rfq savedRfq) {
+		logger.info("Entered to save Vendors For RFQ");
+		List<RfqVendor> rfqVendors = new ArrayList<>();
+		List<Organization> vendorList = rfq.getVendors();
+		boolean status = false;
+
+		if (!CollectionUtils.isEmpty(vendorList)) {
+			vendorList.forEach(vendor -> {
+				Organization savedVendor;
+
+				if (vendor.getId() == null) {
+					// Save the new organization
+					OrgType orgTypeObject = orgTypeDao.findByTypeName(ApplicationConstants.VENDOR);
+					MasterStatus vendorStatus = masterStatusDao.findByStatus(StatusConstants.VENDOR_ADDED);
+					MasterStatus evalStatus = masterStatusDao.findByStatus(StatusConstants.EVALUATION_NOT_STARTED);
+
+					if (selfRegistrationService.checkOrgexist(vendor.getCompanyName())) {
+						// Exception occurs when User is already associated to an Account/registered
+						throw new AppException(HttpStatus.INTERNAL_SERVER_ERROR.value(),
+								"Vendor Already Registered with name " + vendor.getCompanyName(),
+								ApplicationConstants.BUSSINESS_EXCEPTION, ApplicationConstants.FAILURE);
+					}
+
+					vendor.setOrgType(orgTypeObject);
+					vendor.setVendorStatus(vendorStatus);
+					vendor.setStatus(evalStatus);
+					vendor.setVendorcategory(savedRfq.getCategory());
+					savedVendor = orgDao.save(vendor);
+				} else {
+					// Use the existing organization
+					logger.info("Saving the existing vendor with other email");
+					savedVendor = vendor;
+					if (vendor.getOtherEmails() != null) {
+						orgDao.updateOtherEmail(vendor.getOtherEmails(), vendor.getId());
+					}
+				}
+
+				// Build and save the RfqVendor object
+				// Build the RfqVendor object
+				savedVendor = orgDao.findById(savedVendor.getId()).get();
+				RfqVendor rfqVendor = new RfqVendor();
+				logger.info("setting vendor id to rfqvendor{}", savedVendor.getId());
+				rfqVendor.setOrganization(savedVendor);
+				rfqVendor.setRfq(savedRfq);
+
+				// Collect RfqVendor object
+				rfqVendors.add(rfqVendor);
+			});
+		}
+
+		// here need to set rfqvendors object
+		try {
+			sendRfqToVendors(rfqVendors, savedRfq);
+		} catch (MessagingException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+
+		// sendRfqToVendors(rfq.getRfqVendors());
+		logger.info("RFQ Created Successfully" + rfq.toString());
+		status = true;
+
+		return status;
+	}
+	public boolean sendRfqToVendors(List<RfqVendor> rfq, Rfq rfqData) throws MessagingException {
+		logger.info("Entered to sendRfqToVendors()");
+		UserDetails userDetails = (UserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+		String username = userDetails.getUsername();
+		String[] mailIdWrapper = new String[1]; // Using an array to wrap mailId
+		String[] passwordWrapper = new String[1];
+
+		String rfqDueDate = buildingRfqDueDate();
+		logger.info("username-->", username);
+		EmailUser res = emailUserRepo.findByEmail(username);
+		if (res != null) {
+			mailIdWrapper[0] = res.getEmail();
+			passwordWrapper[0] = res.getPassword();
+		} else {
+			mailIdWrapper[0] = mailFom;
+			passwordWrapper[0] = emailPassword;
+		}
+		logger.info("Mail is sending from::", mailIdWrapper[0]);
+		MasterStatus pcRfqSent = null, vendorRfqNew = null;
+		List<String> inputStatus = new ArrayList<>();
+		List<RfqVendor> sendVendors = new ArrayList<>();
+		inputStatus.add(StatusConstants.pcRfqSent);
+		inputStatus.add(StatusConstants.vendorRfqNew);
+
+		List<MasterStatus> statusList = masterStatusDao.findByStatusIn(inputStatus);
+		if (!CollectionUtils.isEmpty(statusList)) {
+			for (MasterStatus status : statusList) {
+				if (status.getStatus().equals(StatusConstants.pcRfqSent)) {
+					pcRfqSent = status;
+				}
+				if (status.getStatus().equals(StatusConstants.vendorRfqNew)) {
+					vendorRfqNew = status;
+				}
+			}
+		}
+
+		List<RfqVendor> vendorList = rfq;
+		for (RfqVendor vendor : vendorList) {
+			Optional<Rfq> rfqs = rfqDao.findById(vendor.getRfq().getId());
+			vendor.setRfqId(rfqs.get().getRfqId());
+			vendor.setProcucevStatus(pcRfqSent);
+			vendor.setVendorStatus(vendorRfqNew);
+			vendor.setVendorResponseDate(vendor.getVendorResponseDate());
+			sendVendors.add(vendor);
+		}
+		try {
+			logger.info("Saving data in RFQ Vendors");
+			rfqVendorDao.saveAll(sendVendors);
+			List<Organization> vendors = rfqData.getVendors();
+			User users = userDao.findByUsernameAndActive(username, true);
+			final String phoneNumber; // Declare phoneNumber as final
+			final String fullName;
+
+			if (users != null) {
+				phoneNumber = users.getPhone();
+				fullName = users.getFullName();
+				logger.info("Phone number of user", phoneNumber);
+				logger.info("Full Name: ", fullName);
+			} else {
+				phoneNumber = null; // Initialize phoneNumber
+				fullName = null;
+			}
+
+			logger.info("Size of vendors List-->" + vendors.size());
+			vendors.forEach(vendor -> {
+				MailUtility.emailNewRfqForNoPR("NewRfq", javaMailSender, rfqData, host, vendor.getEmail(), username,
+						vendor.getOtherEmails(), phoneNumber, rfqDueDate, fullName, mailIdWrapper[0],
+						passwordWrapper[0]);
+			});
+
+			return true;
+		} catch (Exception e) {
+			return false;
+		}
+
+	}
+	@Override
+	public boolean forwardRfqForNoPr(Rfq rfq) {
+		logger.info("Entered to forwardRfqForNoPr{}");
+		try {
+			if (rfq.getId() != null) {
+				Optional<Rfq> rfqData = rfqDao.findById(rfq.getId());
+				if (rfqData.isPresent()) {
+					Rfq rfqResponse = rfqData.get();
+					rfqResponse.setVendors(rfq.getVendors());
+					saveVendorsForRfq(rfq, rfqResponse);
+				} else {
+					logger.info("No RFQ's Found");
+				}
+
+			}
+			return true;
+		} catch (Exception e) {
+			throw new AppException(HttpStatus.NO_CONTENT.value(), ApplicationConstants.No_RFQ_FOUND,
+					ApplicationConstants.BUSSINESS_EXCEPTION, ApplicationConstants.FAILURE);
+
+		}
+		// TODO Auto-generated method stub
+
+	}
+	
+	@Override
+	public void emailForwarder() {
+	    logger.info("Entered into emailForwarder()");
+	    String subjectPattern = "You have an Enquiry RFQ No";
+
+	    Properties properties = new Properties();
+	    properties.put("mail.store.protocol", "imaps");
+	    properties.put("mail.imaps.host", "imap.gmail.com");
+	    properties.put("mail.imaps.port", "993");
+	    properties.put("mail.imaps.ssl.enable", "true");
+	    properties.put("mail.imaps.ssl.trust", "imap.gmail.com");
+
+	    Session emailSession = Session.getInstance(properties);
+
+	    try (Store store = emailSession.getStore("imaps")) {
+	        store.connect(mailFom, emailPassword);
+
+	        Folder inbox = store.getFolder("INBOX");
+	        inbox.open(Folder.READ_WRITE);
+
+	        Message[] allMessages = inbox.getMessages();
+	        logger.info("Total messages in inbox: " + allMessages.length);
+
+	        // Search for messages containing the specified subject pattern
+	        Message[] messages = inbox.search(new SubjectTerm(subjectPattern));
+	        logger.info("Total messages with Subject Term: " + messages.length);
+
+	        Flags customFlag = new Flags("Processed");
+
+	        // Forward matching messages to the specified email address
+	        for (Message message : messages) {
+	            // Check if the message has already been processed
+	            if (!message.getFlags().contains(customFlag)) {
+	            	logger.info("Sending Mail To User Updating Flag");
+	                String subject = message.getSubject();
+	                String rfqId = extractRfqId(subject);
+	                if (rfqId != null) {
+	                	logger.info("RFQID===>" + rfqId);
+	                    // Forward matching messages to the specified email address
+	                    rfqDao.updateRfqByRfqId(rfqId);
+	                    // Use the RFQ ID to retrieve client address and forward the message
+	                    List<String> users = rfqDao.findRFQByRfQId(rfqId);
+	                    if (users != null && !CollectionUtils.isEmpty(users)) {
+	                        String userId = users.get(0);
+	                        if (userId != null) {
+	                            String forwardAddress = userDao.findEmailById(users.get(0));
+	                            logger.info("forward address======>" + forwardAddress);
+	                            MailUtility.forwardMessage(forwardAddress, javaMailSender, mailFom, message);
+
+	                            // Mark the message as processed
+	                            message.setFlags(customFlag, true);
+	                        }
+	                    } else {
+	                    	logger.info("user object is empty");
+	                    }
+	                }
+	            }
+	        }
+
+	        // Close the folders and store
+	        inbox.close(false);
+	    } catch (Exception e) {
+	        e.printStackTrace();
+	    }
+	}
+
+	private static String extractRfqId(String subject) {
+		Pattern pattern = Pattern.compile("RFQ No ([A-Za-z0-9]+)");
+		Matcher matcher = pattern.matcher(subject);
+		if (matcher.find()) {
+			return matcher.group(1);
+		}
+		return null;
+	}
+	
+	@Override
+	public List<RfqItem> getItemsbyrfqrid(Rfq rfq) {
+		// Optional<Rfq> rfqList = rfqdao.findById(rfq.getId( ))
+		List<RfqItem> rfqItems = rfqItemsDao.findByRfq(rfq);
+
+		if (!CollectionUtils.isEmpty(rfqItems)) {
+			return rfqItems;
+		} else {
+			throw new AppException(HttpStatus.NO_CONTENT.value(), ApplicationConstants.NO_DATA_FOUND,
+					ApplicationConstants.BUSSINESS_EXCEPTION, ApplicationConstants.FAILURE);
+		}
+	}
 }

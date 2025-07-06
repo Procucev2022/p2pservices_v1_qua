@@ -77,6 +77,13 @@ public interface GMTService {
 
 	List<VendorRFQDto> getAllVendorsByCategory(Organization organization);
 
-//	boolean createRFQWithNoPr(Rfq rfq);
+	boolean createRFQWithNoPr(Rfq rfq);
+
+	boolean forwardRfqForNoPr(Rfq rfq);
+
+	void emailForwarder();
+
+	List<RfqItem> getItemsbyrfqrid(Rfq rfq);
+
 
 }

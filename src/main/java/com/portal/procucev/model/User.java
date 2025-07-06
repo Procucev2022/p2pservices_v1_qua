@@ -2,7 +2,15 @@ package com.portal.procucev.model;
 
 
 
+import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
+
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.JoinTable;
+import jakarta.persistence.ManyToMany;
+
+import jakarta.persistence.Transient;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 
@@ -51,7 +59,7 @@ public class User extends Procucev {
 	@ManyToOne(fetch = FetchType.LAZY)
 	private Organization org;
 
-	@ManyToOne(fetch = FetchType.LAZY)
+	@ManyToOne(fetch = FetchType.EAGER)
 	private Role role;
 
 	@Column(name = "dept_name")
@@ -62,5 +70,37 @@ public class User extends Procucev {
 	
 	@Column(name = "reset_password")
 	private boolean resetPassword = true;
+	
+//	@ManyToMany(fetch = FetchType.EAGER)
+//	@JoinTable(name = "user_permission", joinColumns = {
+//			@JoinColumn(referencedColumnName = "uuid") }, inverseJoinColumns = {
+//					@JoinColumn(referencedColumnName = "uuid") })
+//	private List<Permission> ownPermissionList = new ArrayList<Permission>();
+	
+	@Transient
+	private List<String> listofPermission = new ArrayList<String>();
+	
+	@Transient
+	private boolean isAuth;
+	
+	@Transient
+	private List<String> ownPermissions = new ArrayList<String>();
+	
+	@JsonIgnore
+	public String getPassword() {
+	    return password;
+	}
 
+	public User(String id,Date createdTS,String username, MasterStatus clientStatus, String phone, boolean selfClient, String fullName,
+			boolean active) {
+		super();
+		this.id=id;
+		this.createdTS=createdTS;
+		this.username = username;
+		this.clientStatus = clientStatus;
+		this.phone = phone;
+		this.selfClient = selfClient;
+		this.fullName = fullName;
+		this.active = active;
+	}
 }

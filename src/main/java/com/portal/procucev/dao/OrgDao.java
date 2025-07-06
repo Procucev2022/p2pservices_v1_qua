@@ -1,7 +1,10 @@
 package com.portal.procucev.dao;
 import java.util.List;
 
+import jakarta.transaction.Transactional;
+
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -30,4 +33,14 @@ public interface OrgDao  extends JpaRepository<Organization, String> {
 	        "WHERE v.vendorcategory LIKE CONCAT('%', :category, '%') OR v.subCategory LIKE CONCAT('%', :category, '%') " +
 	        "ORDER BY v.createdTS DESC")
 	List<Object[]> getAllVendorByCategory(@Param("category") String category);
+	
+	@Transactional
+	@Modifying
+	@Query("update Organization o set o.email = :email where o.id=:id")
+	void updateEmailByOrg(String id, String email);
+	
+	@Transactional
+	@Modifying
+	@Query("update Organization o set o.otherEmails = :otherEmails where o.id=:id")
+	void updateOtherEmail(String otherEmails, String id);
 }

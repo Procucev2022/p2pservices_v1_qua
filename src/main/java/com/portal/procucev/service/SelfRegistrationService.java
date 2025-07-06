@@ -28,4 +28,6 @@ public interface SelfRegistrationService {
 
 	String generateId(String company) throws Exception;
 
+	boolean checkOrgexist(String orgName);
+
 }

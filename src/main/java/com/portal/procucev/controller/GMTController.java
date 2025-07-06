@@ -243,14 +243,31 @@ public class GMTController {
 		return new ResponseEntity<>(response, HttpStatus.OK);
 	}
 	
-//	@PostMapping(value = "/createRFQForNoPrWithItems")
-//	public ResponseEntity<?> createRFQForNoPrWithItems(@RequestBody Rfq rfq) {
-//		boolean response = gmtService.createRFQWithNoPr(rfq);
-//		String statusCode = response ? String.valueOf(ApplicationConstants.SUCCESS)
-//				: String.valueOf(ApplicationConstants.FAILURE);
-//		String msg = response ? String.format(ApplicationConstants.RFQ_CREATED_SUCCESS, "")
-//				: String.format(ApplicationConstants.RFQ_CREATED_FAILURE, "");
-//		MessageResponse responseObj = new MessageResponse(StatusCodes.CLIENT_PR_CLOSED_code, msg, null, statusCode);
-//		return new ResponseEntity<>(responseObj, HttpStatus.OK);
-//	}
+	@PostMapping(value = "/createRFQForNoPrWithItems")
+	public ResponseEntity<?> createRFQForNoPrWithItems(@RequestBody Rfq rfq) {
+		boolean response = gmtService.createRFQWithNoPr(rfq);
+		String statusCode = response ? String.valueOf(ApplicationConstants.SUCCESS)
+				: String.valueOf(ApplicationConstants.FAILURE);
+		String msg = response ? String.format(ApplicationConstants.RFQ_CREATED_SUCCESS, "")
+				: String.format(ApplicationConstants.RFQ_CREATED_FAILURE, "");
+		MessageResponse responseObj = new MessageResponse(StatusCodes.CLIENT_PR_CLOSED_code, msg, null, statusCode);
+		return new ResponseEntity<>(responseObj, HttpStatus.OK);
+	}
+	
+	@PostMapping(value = "/forwardRfq")
+	public ResponseEntity<?> forwardRfqForNoPr(@RequestBody Rfq rfq) {
+		boolean response = gmtService.forwardRfqForNoPr(rfq);
+		String statusCode = response ? String.valueOf(ApplicationConstants.SUCCESS)
+				: String.valueOf(ApplicationConstants.FAILURE);
+		String msg = response ? String.format(ApplicationConstants.RFQ_FORWARD_SUCCESS, "")
+				: String.format(ApplicationConstants.RFQ_FORWARD_FAILURE, "");
+		MessageResponse responseObj = new MessageResponse(StatusCodes.CLIENT_PR_CLOSED_code, msg, null, statusCode);
+		return new ResponseEntity<>(responseObj, HttpStatus.OK);
+	}
+
+	@PostMapping(value = "/getItemsbyrfqid")
+	public ResponseEntity<?> getItemsbyrfqid(@RequestBody Rfq rfq) {
+		List<RfqItem> status = gmtService.getItemsbyrfqrid(rfq);
+		return new ResponseEntity<>(status, HttpStatus.OK);
+	}
 }

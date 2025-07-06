@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 import java.util.*;
 
+import com.portal.procucev.model.AuthRequest;
 import com.portal.procucev.model.User;
 
 @CrossOrigin
@@ -29,7 +30,7 @@ public class AuthController {
     private UserDetailsService userDetailsService;
 
     @PostMapping("/authenticate")
-    public ResponseEntity<Map<String, Object>> authenticate(@RequestBody User authRequest) {
+    public ResponseEntity<Map<String, Object>> authenticate(@RequestBody AuthRequest authRequest) {
         try {
             authenticationManager.authenticate(
                     new UsernamePasswordAuthenticationToken(authRequest.getUsername(), authRequest.getPassword())
