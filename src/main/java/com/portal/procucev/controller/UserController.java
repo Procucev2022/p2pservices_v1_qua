@@ -24,7 +24,6 @@ import com.portal.procucev.service.UserService;
 import com.portal.procucev.utils.ApplicationConstants;
 
 @RestController
-
 @RequestMapping("/rest/users")
 @CrossOrigin
 public class UserController {
