@@ -243,9 +243,8 @@ public class GMTServiceImpl implements GMTService {
 			List<GmtItems> gmtItems = rfqItems.stream().map(this::mapRfqItemToGmtItem).collect(Collectors.toList());
 			gmtItemsDao.saveAll(gmtItems);
 			logger.info("Saved RFQ items in GMT Items");
-
+			rfqDao.save(rfq);
 			logger.info("Completed Saving RFQ");
-
 			return true;
 		} catch (DataAccessException e) {
 			logger.error("Error occurred while creating RFQ: {}", e.getMessage());
