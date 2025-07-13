@@ -10,6 +10,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import com.portal.procucev.model.MasterStatus;
 import com.portal.procucev.model.Organization;
 import com.portal.procucev.model.User;
 
@@ -49,5 +50,29 @@ public interface UserDao extends JpaRepository<User, String> {
 	
 	@Query("select u.username from User u where u.id=:id")
 	String findEmailById(@Param("id") String id);
+	
+	@Modifying
+	@Transactional
+	@Query("UPDATE User u SET u.username = :username, u.fullName = :fullName, u.phone = :phone, u.clientStatus = :status WHERE u.id = :id")
+	void updateUserDetailsAndStatus(
+	    @Param("id") String id,
+	    @Param("username") String username,
+	    @Param("fullName") String fullName,
+	    @Param("phone") String phone,
+	    @Param("status") MasterStatus status
+	);
+	
+	@Modifying
+	@Transactional
+	@Query("UPDATE User u SET u.username = :username,u.fullName =:fullName,u.phone =:phone  WHERE u.id=:id")
+	void updateUserDetails(@Param("id") String id,
+		    @Param("username") String username,
+		    @Param("fullName") String fullName,
+		    @Param("phone") String phone);
+
+	@Modifying
+	@Transactional
+	@Query("UPDATE User u SET u.clientStatus = :status  WHERE u=:user")
+	void updateClientStatus(@Param("user") User user, @Param("status") MasterStatus status);
 
 }

@@ -3,11 +3,13 @@ import java.util.List;
 
 import jakarta.transaction.Transactional;
 
+import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import com.portal.procucev.model.MasterStatus;
 import com.portal.procucev.model.OrgType;
 import com.portal.procucev.model.Organization;
 
@@ -20,10 +22,10 @@ public interface OrgDao  extends JpaRepository<Organization, String> {
 	List<Organization> findByCrnAndOrgType(String crn, OrgType orgTypeObject);
 
 	@Query("select o.email from Organization o where o.id=:id")
-	String findEmailById(String id);
+	String findEmailById(@Param("id") String id);
 
 	@Query("select o.otherEmails from Organization o where o.id=:id")
-	String findOtherEmailById(String id);
+	String findOtherEmailById(@Param("id") String id);
 
 	@Query("SELECT v.id,v.companyName,v.companyId,v.organizationPhonenumber,v.city,v.email from Organization v Order By v.createdTS DESC")
 	List<Object[]> getAllVendor();
@@ -37,10 +39,18 @@ public interface OrgDao  extends JpaRepository<Organization, String> {
 	@Transactional
 	@Modifying
 	@Query("update Organization o set o.email = :email where o.id=:id")
-	void updateEmailByOrg(String id, String email);
+	void updateEmailByOrg(@Param("id") String id,@Param("email") String email);
 	
 	@Transactional
 	@Modifying
 	@Query("update Organization o set o.otherEmails = :otherEmails where o.id=:id")
-	void updateOtherEmail(String otherEmails, String id);
+	void updateOtherEmail(@Param("otherEmails") String otherEmails, @Param("id") String id);
+
+	List<Organization> findByOrgTypeAndSelfClient(OrgType orgTypeObject, boolean b, Sort by);
+
+	@Transactional
+	@Modifying
+	@Query("update Organization o set o.clientStatus = :status where o.id=:id")
+	void updateClientStatus(@Param("status") MasterStatus status, @Param("id") String id);
+
 }

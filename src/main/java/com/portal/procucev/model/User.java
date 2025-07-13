@@ -71,6 +71,22 @@ public class User extends Procucev {
 	@Column(name = "reset_password")
 	private boolean resetPassword = true;
 	
+	@Transient
+	private boolean emailMatched;
+	
+	@Transient
+	private String subject;
+	
+	@Transient
+	private String message;
+	
+	@Transient
+	private String companyName;
+	
+	@Transient
+	private String rfqId;
+	
+	
 //	@ManyToMany(fetch = FetchType.EAGER)
 //	@JoinTable(name = "user_permission", joinColumns = {
 //			@JoinColumn(referencedColumnName = "uuid") }, inverseJoinColumns = {

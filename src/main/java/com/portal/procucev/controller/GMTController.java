@@ -270,4 +270,79 @@ public class GMTController {
 		List<RfqItem> status = gmtService.getItemsbyrfqrid(rfq);
 		return new ResponseEntity<>(status, HttpStatus.OK);
 	}
+	
+	@GetMapping("/getSelfRegisterClients")
+	public ResponseEntity<?> getSelfRegisterClients() throws AppException {
+		logger.info("Enters to fetch Self Register client list");
+		List<Organization> clientList = gmtService.fetchSelfRegisterClients();
+		return new ResponseEntity<>(clientList, HttpStatus.OK);
+	}
+	
+	@PostMapping(value = "/editUser")
+	public ResponseEntity<?> editUser(@RequestBody User user) throws AppException {
+		boolean prList = gmtService.editUser(user);
+		String statusCode = prList ? String.valueOf(ApplicationConstants.SUCCESS)
+				: String.valueOf(ApplicationConstants.FAILURE);
+		String msg = prList ? String.format(ApplicationConstants.USER_EDIT_SUCCESS, "")
+				: String.format(ApplicationConstants.USER_EDIT_FAILED, "");
+		String code = prList ? String.valueOf(HttpStatus.OK.value())
+				: String.valueOf(HttpStatus.INTERNAL_SERVER_ERROR.value());
+		MessageResponse response = new MessageResponse(code, msg, null, statusCode);
+		return new ResponseEntity<>(response, HttpStatus.OK);
+	}
+	
+	@PostMapping(value = "/acceptSelfRegisterClient")
+	public ResponseEntity<?> acceptClient(@RequestBody User user) throws AppException, UnsupportedEncodingException {
+		boolean prList = gmtService.acceptSelfClient(user);
+		String statusCode = prList ? String.valueOf(ApplicationConstants.SUCCESS)
+				: String.valueOf(ApplicationConstants.FAILURE);
+		String msg = prList ? String.format(ApplicationConstants.USER_ACCEPT_SUCCESS, "")
+				: String.format(ApplicationConstants.USER_ACCEPT_FAILED, "");
+		String code = prList ? String.valueOf(HttpStatus.OK.value())
+				: String.valueOf(HttpStatus.INTERNAL_SERVER_ERROR.value());
+		MessageResponse response = new MessageResponse(code, msg, null, statusCode);
+		return new ResponseEntity<>(response, HttpStatus.OK);
+	}
+
+	@PostMapping(value = "/ignoreSelfRegisterClient")
+	public ResponseEntity<?> ignoreClient(@RequestBody User user) throws AppException {
+		boolean prList = gmtService.ignoreClient(user);
+		String statusCode = prList ? String.valueOf(ApplicationConstants.SUCCESS)
+				: String.valueOf(ApplicationConstants.FAILURE);
+		String msg = prList ? String.format(ApplicationConstants.USER_IGNORED_SUCCESS, "")
+				: String.format(ApplicationConstants.USER_IGNORED_FAILED, "");
+		String code = prList ? String.valueOf(HttpStatus.OK.value())
+				: String.valueOf(HttpStatus.INTERNAL_SERVER_ERROR.value());
+		MessageResponse response = new MessageResponse(code, msg, null, statusCode);
+		return new ResponseEntity<>(response, HttpStatus.OK);
+	}
+	@PostMapping(value = "/disableUser")
+	public ResponseEntity<?> disableUser(@RequestBody User user) {
+		boolean status = gmtService.disableUser(user);
+		String statusCode = status ? String.valueOf(ApplicationConstants.SUCCESS)
+				: String.valueOf(ApplicationConstants.FAILURE);
+		String msg = status ? String.format(ApplicationConstants.USER_DELETE_SUCCESS, "")
+				: String.format(ApplicationConstants.USER_DELETE_UNSUCCESS, "");
+		AppException response = new AppException(statusCode, msg, null, null);
+		return new ResponseEntity<>(response, HttpStatus.OK);
+
+	}
+	
+	@PostMapping("/getclientusersByclient")
+	public ResponseEntity<?> getclientusersByclient(@RequestBody Organization org) {
+		Object clientList = gmtService.getclientusersByClientId(org);
+		return new ResponseEntity<>(clientList, HttpStatus.OK);
+	}
+
+	@PostMapping(value = "/editAndResendRfqByCM")
+	public ResponseEntity<?> editAndResendRfq(@RequestBody Rfq rfq) throws MessagingException {
+		boolean response = gmtService.editAndResendRfq(rfq);
+		String statusCode = response ? String.valueOf(ApplicationConstants.SUCCESS)
+				: String.valueOf(ApplicationConstants.FAILURE);
+		String msg = response ? String.format(ApplicationConstants.RFQ_EDIT_SUCCESS, "")
+				: String.format(ApplicationConstants.RFQ_EDIT_FAILURE, "");
+		MessageResponse responseObj = new MessageResponse(StatusCodes.CLIENT_PR_CLOSED_code, msg, null, statusCode);
+		return new ResponseEntity<>(responseObj, HttpStatus.OK);
+	}
+
 }

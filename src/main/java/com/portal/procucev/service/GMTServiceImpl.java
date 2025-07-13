@@ -47,6 +47,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DataAccessException;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.mail.javamail.JavaMailSender;
@@ -1279,9 +1280,14 @@ public class GMTServiceImpl implements GMTService {
 
 			logger.info("Size of vendors List-->" + vendors.size());
 			vendors.forEach(vendor -> {
-				MailUtility.emailNewRfqForNoPR("NewRfq", javaMailSender, rfqData, host, vendor.getEmail(), username,
-						vendor.getOtherEmails(), phoneNumber, rfqDueDate, fullName, mailIdWrapper[0],
-						passwordWrapper[0]);
+				try {
+					MailUtility.emailNewRfqForNoPR("NewRfq", javaMailSender, rfqData, host, vendor.getEmail(), username,
+							vendor.getOtherEmails(), phoneNumber, rfqDueDate, fullName, mailIdWrapper[0],
+							passwordWrapper[0]);
+				} catch (MessagingException e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+				}
 			});
 
 			return true;
@@ -1401,5 +1407,286 @@ public class GMTServiceImpl implements GMTService {
 			throw new AppException(HttpStatus.NO_CONTENT.value(), ApplicationConstants.NO_DATA_FOUND,
 					ApplicationConstants.BUSSINESS_EXCEPTION, ApplicationConstants.FAILURE);
 		}
+	}
+	
+	@Override
+	public List<Organization> fetchSelfRegisterClients() {
+		logger.info("Entered To Fetch Self Register Clients");
+
+		// Fetch the organization type object for clients
+		OrgType orgTypeObject = orgTypeDao.findByTypeName(ApplicationConstants.CLIENT);
+
+		// Fetch the list of clients with the specified org type and self-client flag,
+		// sorted by created timestamp
+		List<Organization> clientList = orgDao.findByOrgTypeAndSelfClient(orgTypeObject, true,
+				Sort.by(Sort.Direction.DESC, "createdTS"));
+
+		if (!CollectionUtils.isEmpty(clientList)) {
+
+			logger.info("Returning Client List Response size: {}", clientList.size());
+			return clientList;
+		} else {
+			logger.error("No clients available in the database");
+			throw new AppException(HttpStatus.NO_CONTENT.value(), ApplicationConstants.NO_DATA_FOUND,
+					ApplicationConstants.BUSINESS_EXCEPTION, ApplicationConstants.FAILURE);
+		}
+	}
+	
+	@Override
+	public boolean editUser(User user) {
+		// TODO Auto-generated method stub
+		logger.info("Entered To Edit User");
+		if (user != null) {
+			// User with new email we are changing status to new if it is accepted/ignored
+			if (!user.isEmailMatched()) {
+				MasterStatus status = masterStatusDao.findByStatus(StatusConstants.CLIENT_NEW);
+				userDao.updateUserDetailsAndStatus(user.getId(), user.getUsername(), user.getFullName(),
+						user.getPhone(), status);
+			} else {
+				userDao.updateUserDetails(user.getId(), user.getUsername(), user.getFullName(), user.getPhone());
+			}
+			String orgId = userDao.findOrgIdByUser(user.getId());
+			orgDao.updateEmailByOrg(orgId, user.getUsername());
+			logger.info("Updated Client Details Successfully");
+			return true;
+		} else {
+			logger.error("No clients available in the database");
+			throw new AppException(HttpStatus.NO_CONTENT.value(), ApplicationConstants.NO_DATA_FOUND,
+					ApplicationConstants.BUSSINESS_EXCEPTION, ApplicationConstants.FAILURE);
+		}
+	}
+
+	@Override
+	public boolean acceptSelfClient(User user) throws UnsupportedEncodingException {
+		// TODO Auto-generated method stub
+		logger.info("Entered To Accept Self Client");
+		if (user != null) {
+			Optional<User> userData = userDao.findById(user.getId());
+			Organization org = userData.get().getOrg();
+			if (org != null) {
+				logger.info("Updating Client Status To Approved");
+				MasterStatus status = masterStatusDao.findByStatus(StatusConstants.CLIENT_USER_APPROVED);
+				orgDao.updateClientStatus(status, org.getId());
+			}
+			logger.info("Updating Client User Status To Accepted");
+			MasterStatus status = masterStatusDao.findByStatus(StatusConstants.USER_ACCEPTED);
+			if (userData.isPresent()) {
+				userDao.updateClientStatus(user, status);
+				InternetAddress add = new InternetAddress(mail, "<DO-NOT-REPLY>");
+				MailUtility.mailingVerificationLinkWithSelfUserLogin(javaMailSender, mail, add, pswd, host,
+						userData.get());
+			}
+			return true;
+		} else {
+			logger.error("No clients available in the database");
+			throw new AppException(HttpStatus.NO_CONTENT.value(), ApplicationConstants.NO_DATA_FOUND,
+					ApplicationConstants.BUSSINESS_EXCEPTION, ApplicationConstants.FAILURE);
+		}
+
+	}
+
+	@Override
+	public boolean ignoreClient(User user) {
+		// TODO Auto-generated method stub
+		logger.info("Entered To Ignore Self Client");
+		if (user != null) {
+			Optional<User> userData = userDao.findById(user.getId());
+			MasterStatus status = masterStatusDao.findByStatus(StatusConstants.USER_IGNORED);
+			if (userData.isPresent()) {
+				userDao.updateClientStatus(user, status);
+			}
+			return true;
+		} else {
+			logger.error("No clients available in the database");
+			throw new AppException(HttpStatus.NO_CONTENT.value(), ApplicationConstants.NO_DATA_FOUND,
+					ApplicationConstants.BUSSINESS_EXCEPTION, ApplicationConstants.FAILURE);
+		}
+
+	}
+	@Override
+	public boolean disableUser(User user) {
+		// TODO Auto-generated method stub
+		logger.info("Entered To Disable User");
+
+		Optional<User> userfound = userDao.findById(user.getId());
+		if (userfound.isPresent()) {
+			userDao.deactiveUser(user.getId());
+			logger.info("Deactivated User");
+			String orgId = userDao.findOrgIdByUser(user.getId());
+			List<String> emails = userDao.findByOrg(orgId);
+			if(!emails.isEmpty() && emails!=null) {
+				 orgDao.updateEmailByOrg(orgId,emails.get(0));
+			}
+			else {
+				String email=null;
+				orgDao.updateEmailByOrg(orgId,email);
+			}
+			return true;
+		} else {
+			throw new AppException(HttpStatus.NO_CONTENT.value(), ApplicationConstants.NO_DATA_FOUND,
+					ApplicationConstants.BUSSINESS_EXCEPTION, ApplicationConstants.FAILURE);
+		}
+
+	}
+	@Override
+	public List<User> getclientusersByClientId(Organization org) {
+		logger.info("Entered to getclientusersByClientId");
+		List<User> usersList = userDao.findByOrgAndActive(org.getId());
+		if (usersList != null) {
+			logger.info("Eompleted and returning response");
+			return usersList;
+		} else {
+			throw new AppException(HttpStatus.NO_CONTENT.value(), ApplicationConstants.NO_DATA_FOUND,
+					ApplicationConstants.BUSSINESS_EXCEPTION, ApplicationConstants.FAILURE);
+		}
+	}
+	@Override
+	public boolean editAndResendRfq(Rfq updatedRfq) throws MessagingException {
+		// TODO Auto-generated method stub
+		logger.info("Request received for editing RFQ {}", updatedRfq.getRfqId());
+
+		try {
+			// Fetch the existing RFQ from the database
+			Rfq existingRfq = rfqDao.findById(updatedRfq.getId()).orElse(null);
+			if (existingRfq == null) {
+				logger.error("RFQ with ID {} not found", updatedRfq.getId());
+				return false; // RFQ not found
+			}
+			MasterStatus resultStatus = masterStatusDao.findByStatus(StatusConstants.pcprinprogress);
+
+			MasterStatus acceptStatus = masterStatusDao.findByStatus(StatusConstants.CM_RFQ_ACCEPTED);
+			updatedRfq.setClientStatus(acceptStatus);
+
+			updatedRfq.setByClient(true);
+			updatedRfq.setStatus(resultStatus);
+
+			// Update RFQ items
+			List<RfqItem> updatedRfqItems = updatedRfq.getRfqItem();
+			List<GmtItems> existingGmtItems = gmtItemsDao
+					.findByRfqItemIdIn(updatedRfqItems.stream().map(RfqItem::getId).collect(Collectors.toList()));
+
+			// Map existing GmtItems to their corresponding RfqItem IDs for efficient
+			// updates
+			Map<String, GmtItems> rfqItemIdToGmtItemMap = existingGmtItems.stream()
+					.collect(Collectors.toMap(GmtItems::getRfqItemId, Function.identity()));
+
+			// Iterate over updated RFQ items
+			for (RfqItem updatedItem : updatedRfqItems) {
+				GmtItems existingGmtItem = rfqItemIdToGmtItemMap.get(updatedItem.getId());
+				if (existingGmtItem != null) {
+					// Update existing GmtItem with new values from updated RFQ item
+					existingGmtItem.setBrand(updatedItem.getBrand());
+					existingGmtItem.setDescription(updatedItem.getDescription());
+					existingGmtItem.setQuantity(updatedItem.getQuantity());
+					existingGmtItem.setRemarks(updatedItem.getRemarks());
+					existingGmtItem.setUnitofMeasures(updatedItem.getUnitofMeasures());
+					// Save or update the existing GmtItem
+					gmtItemsDao.save(existingGmtItem);
+				} else {
+					// Handle the case where the item in the updated RFQ is new and not in existing
+					// GmtItems
+					// You may choose to create a new GmtItems entry here if necessary
+					logger.info("No New Items To Be Added");
+
+				}
+			}
+			// Set RFQ ID for RFQ items
+
+			if (!CollectionUtils.isEmpty(updatedRfqItems) && updatedRfqItems != null) {
+				updatedRfqItems.forEach(rfqItem -> rfqItem.setRfq(updatedRfq));
+			}
+
+			// Set RFQ ID for documents
+			List<RFQDocument> updatedRFQDocuments = updatedRfq.getRfqDocument();
+			if (!CollectionUtils.isEmpty(updatedRFQDocuments) && updatedRFQDocuments != null) {
+				updatedRFQDocuments.forEach(rfqDocument -> rfqDocument.setRfq(updatedRfq));
+			}
+			// Set RFQ Delivery Location
+			List<ClientDeliveryLocationRfq> updatedDeliveryLocation = updatedRfq.getClientdeliverylocationrfq();
+			if (!CollectionUtils.isEmpty(updatedDeliveryLocation) && updatedDeliveryLocation != null) {
+				updatedDeliveryLocation.forEach(clientDeliveryLocation -> clientDeliveryLocation.setRfq(updatedRfq));
+			}
+			// Set RFQ Vendors
+			List<RfqVendor> updatedRFQVendors = rfqVendorDao.findDataByRfqId(updatedRfq.getId());
+			logger.info("Size of updatedRFQVendors{}" + updatedRFQVendors.size());
+			if (!CollectionUtils.isEmpty(updatedRFQVendors) && updatedRFQVendors != null) {
+				updatedRFQVendors.forEach(rfqVendor -> rfqVendor.setRfq(updatedRfq));
+			}
+
+			// Save the updated RFQ
+			updatedRfq.setClientdeliverylocationrfq(updatedDeliveryLocation);
+			updatedRfq.setRfqItem(updatedRfqItems); // Set the RFQ items directly to the RFQ object
+			updatedRfq.setRfqDocument(updatedRFQDocuments);
+			updatedRfq.setRfqVendor(updatedRFQVendors);
+
+			// Save the updated RFQ
+			rfqDao.save(updatedRfq);
+			logger.info("Getting Vendors By RFQ Id");
+			List<GmtRfqVendors> vendors = getVendorsByGmtRfq(updatedRfq);
+			if (vendors != null && !CollectionUtils.isEmpty(vendors)) {
+				logger.info("Vendors List Size to Resend Emails::", vendors.size());
+				resendRfqToVendors(vendors, updatedRfq);
+			} else {
+				throw new AppException(HttpStatus.NO_CONTENT.value(), ApplicationConstants.NO_VENDORS_FOUND,
+						ApplicationConstants.BUSSINESS_EXCEPTION, ApplicationConstants.FAILURE);
+			}
+			logger.info("Vendors List Size", vendors.size());
+			logger.info("Completed Editing RFQ {}", updatedRfq.getRfqId());
+
+			return true;
+		} catch (DataAccessException e) {
+			logger.error("Error occurred while editing RFQ: {}", e.getMessage());
+			return false;
+		}
+	}
+	public boolean resendRfqToVendors(List<GmtRfqVendors> gmtVendors, Rfq rfqData) throws MessagingException {
+		logger.info("Entered to sendRfqToVendors()");
+		try {
+			UserDetails userDetails = (UserDetails) SecurityContextHolder.getContext().getAuthentication()
+					.getPrincipal();
+			String username = userDetails.getUsername();
+			String[] mailIdWrapper = new String[1]; // Using an array to wrap mailId
+			String[] passwordWrapper = new String[1];
+
+			String rfqDueDate = buildingRfqDueDate();
+			logger.info("username-->", username);
+			EmailUser res = emailUserRepo.findByEmail(username);
+			if (res != null) {
+				mailIdWrapper[0] = res.getEmail();
+				passwordWrapper[0] = res.getPassword();
+			} else {
+				mailIdWrapper[0] = mailFom;
+				passwordWrapper[0] = emailPassword;
+			}
+			logger.info("Mail is sending from::", mailIdWrapper[0]);
+
+			User users = userDao.findByUsernameAndActive(username, true);
+			final String phoneNumber; // Declare phoneNumber as final
+			final String fullName;
+
+			if (users != null) {
+				phoneNumber = users.getPhone();
+				fullName = users.getFullName();
+				logger.info("Phone number of user", phoneNumber);
+				logger.info("Full Name: ", fullName);
+			} else {
+				phoneNumber = null; // Initialize phoneNumber
+				fullName = null;
+			}
+			for (GmtRfqVendors gmtVendor : gmtVendors) {
+				String vendorId = gmtVendor.getVendorUuid();
+				logger.info("Getting Users List");
+				List<String> usersList = userDao.findByOrg(vendorId);
+				if (!CollectionUtils.isEmpty(usersList)) {
+					MailUtility.emailNewRfqForNoPR("NewRfq", javaMailSender, rfqData, host, usersList.get(0),
+							username, gmtVendor.getOtherEmails(), phoneNumber, rfqDueDate, fullName,
+							mailIdWrapper[0], passwordWrapper[0]);
+				}
+			}
+			return true;
+		} catch (Exception e) {
+			return false;
+		}
+
 	}
 }

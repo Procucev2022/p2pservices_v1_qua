@@ -85,5 +85,19 @@ public interface GMTService {
 
 	List<RfqItem> getItemsbyrfqrid(Rfq rfq);
 
+	List<Organization> fetchSelfRegisterClients();
+
+	boolean editUser(User user);
+
+	boolean acceptSelfClient(User user) throws UnsupportedEncodingException;
+
+	boolean ignoreClient(User user);
+
+	boolean disableUser(User user);
+
+	Object getclientusersByClientId(Organization org);
+
+	boolean editAndResendRfq(Rfq rfq) throws MessagingException;
+
 
 }
