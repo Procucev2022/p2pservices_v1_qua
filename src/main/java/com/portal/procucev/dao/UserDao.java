@@ -75,4 +75,6 @@ public interface UserDao extends JpaRepository<User, String> {
 	@Query("UPDATE User u SET u.clientStatus = :status  WHERE u=:user")
 	void updateClientStatus(@Param("user") User user, @Param("status") MasterStatus status);
 
+	List<User> findByUsernameAndPhone(String email, String organizationPhonenumber);
+
 }

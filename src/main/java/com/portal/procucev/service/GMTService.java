@@ -15,6 +15,7 @@ import com.portal.procucev.model.GmtRfqVendors;
 import com.portal.procucev.model.Organization;
 import com.portal.procucev.model.Rfq;
 import com.portal.procucev.model.RfqItem;
+import com.portal.procucev.model.RfqVendor;
 import com.portal.procucev.model.User;
 
 import jakarta.mail.MessagingException;
@@ -98,6 +99,8 @@ public interface GMTService {
 	Object getclientusersByClientId(Organization org);
 
 	boolean editAndResendRfq(Rfq rfq) throws MessagingException;
+
+	List<RfqVendor> getVendorsbyRFQ(Rfq rfq);
 
 
 }

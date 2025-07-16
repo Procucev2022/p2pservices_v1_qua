@@ -90,22 +90,47 @@ public class PartialVendorController {
 	    return ResponseEntity.ok(responseBody);
 	}
 	
+//	@PostMapping(value = "/SelfClientRegistration")
+//	public ResponseEntity<?> clientRegistration(@RequestBody Organization organization) throws IOException {
+//
+//		logger.info("Entered to save the client details");
+//
+//		boolean status = regService.selfclientRegistrationData(organization);
+//
+//		String statusCode = status ? String.valueOf(ApplicationConstants.SUCCESS)
+//				: String.valueOf(ApplicationConstants.FAILURE);
+//		String msg = status ? String.format(ApplicationConstants.CREATE_SELF_CLIENT, "")
+//				: String.format(ApplicationConstants.SELF_CLIENT_FAILED, "");
+//		String code = status ? String.valueOf(HttpStatus.OK.value())
+//				: String.valueOf(HttpStatus.INTERNAL_SERVER_ERROR.value());
+//		MessageResponse response = new MessageResponse(code, msg, null, statusCode);
+//		return new ResponseEntity<>(response, HttpStatus.OK);
+//
+//	}
 	@PostMapping(value = "/SelfClientRegistration")
-	public ResponseEntity<?> clientRegistration(@RequestBody Organization organization) throws IOException {
-
-		logger.info("Entered to save the client details");
-
-		boolean status = regService.selfclientRegistrationData(organization);
-
-		String statusCode = status ? String.valueOf(ApplicationConstants.SUCCESS)
-				: String.valueOf(ApplicationConstants.FAILURE);
-		String msg = status ? String.format(ApplicationConstants.CREATE_SELF_CLIENT, "")
-				: String.format(ApplicationConstants.SELF_CLIENT_FAILED, "");
-		String code = status ? String.valueOf(HttpStatus.OK.value())
-				: String.valueOf(HttpStatus.INTERNAL_SERVER_ERROR.value());
-		MessageResponse response = new MessageResponse(code, msg, null, statusCode);
-		return new ResponseEntity<>(response, HttpStatus.OK);
-
+	public ResponseEntity<?> clientRegistration(@RequestBody Organization organization) {
+	    logger.info("Entered to save the client details");
+	    try {
+	        boolean status = regService.selfclientRegistrationData(organization);
+	        String statusCode = status ? String.valueOf(ApplicationConstants.SUCCESS)
+	                : String.valueOf(ApplicationConstants.FAILURE);
+	        String msg = status ? String.format(ApplicationConstants.CREATE_SELF_CLIENT, "")
+	                : String.format(ApplicationConstants.SELF_CLIENT_FAILED, "");
+	        String code = status ? String.valueOf(HttpStatus.OK.value())
+	                : String.valueOf(HttpStatus.BAD_REQUEST.value()); // or leave this out if you handle via exception
+	        MessageResponse response = new MessageResponse(code, msg, null, statusCode);
+	        return new ResponseEntity<>(response, HttpStatus.OK);
+	    } catch (AppException e) {
+	        logger.error("Business validation error: {}", e.getMessage());
+	        return ResponseEntity
+	                .status(HttpStatus.CONFLICT) // or HttpStatus.BAD_REQUEST if it's a 400-type error
+	                .body(new MessageResponse("409", e.getMessage(), null, ApplicationConstants.FAILURE));
+	    } catch (Exception e) {
+	        logger.error("Unexpected error: ", e);
+	        return ResponseEntity
+	                .status(HttpStatus.INTERNAL_SERVER_ERROR)
+	                .body(new MessageResponse("500", "Something went wrong while processing the request", null, ApplicationConstants.FAILURE));
+	    }
 	}
 
 	@PostMapping("/getClientByPan")

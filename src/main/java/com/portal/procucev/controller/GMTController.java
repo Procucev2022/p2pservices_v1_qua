@@ -344,5 +344,9 @@ public class GMTController {
 		MessageResponse responseObj = new MessageResponse(StatusCodes.CLIENT_PR_CLOSED_code, msg, null, statusCode);
 		return new ResponseEntity<>(responseObj, HttpStatus.OK);
 	}
-
+	@PostMapping(value = "/getVendorbyRFQ")
+	public ResponseEntity<?> getVendorbyRFQ(@RequestBody Rfq rfq) {
+		List<RfqVendor> status = gmtService.getVendorsbyRFQ(rfq);
+		return new ResponseEntity<>(status, HttpStatus.OK);
+	}
 }

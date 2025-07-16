@@ -917,6 +917,8 @@ public class GMTServiceImpl implements GMTService {
 		return rfqsList.stream().map(this::mapToClientDto).collect(Collectors.toList());
 
 	}
+	
+	@Override
 	public List<RfqVendor> getVendorsbyRFQ(Rfq rfq) {
 		logger.info("Entered To Get Vendors By RFQ");
 		Optional<Rfq> rfqList = rfqDao.findById(rfq.getId());

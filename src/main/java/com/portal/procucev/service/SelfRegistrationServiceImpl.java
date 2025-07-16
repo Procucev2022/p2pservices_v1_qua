@@ -96,12 +96,14 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 			logger.info("Saving Client For First Time");
 			List<Organization> orgList = new ArrayList<>();
 			OrgType orgTypeObject = orgTypeDao.findByTypeName(ApplicationConstants.CLIENT);
-			if (organization.isIndia()) {
-				logger.info("Organization is in India Checking PAN Validation");
-				orgList = orgDao.findByPanAndOrgType(organization.getPan(), orgTypeObject);
-			} else {
-				orgList = orgDao.findByCrnAndOrgType(organization.getCrn(), orgTypeObject);
-			}
+			if (organization.getCompanyName()!=null) {
+				logger.info("Validating Company Name");
+				//orgList = orgDao.findByPanAndOrgType(organization.getPan(), orgTypeObject);
+				orgList = orgDao.findByCompanyNameAndOrgType(organization.getCompanyName(), orgTypeObject);
+		}
+			//else {
+//				orgList = orgDao.findByCrnAndOrgType(organization.getCrn(), orgTypeObject);
+//			}
 			if (orgList.isEmpty()) {
 				organization.setOrgType(orgTypeObject);
 				organization.setSelfClient(true);
@@ -163,6 +165,14 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 	
 	public void setUserDetails(Organization organization, User user) {
 		logger.info("Setting User Details::");
+		List<User> existingUsers = userDao.findByUsernameAndPhone(
+	            organization.getEmail(),  
+	            organization.getOrganizationPhonenumber());
+
+	    if (!existingUsers.isEmpty()) {
+	        logger.warn("User already exists with the given email and phone");
+	        throw new AppException("409", "User with the same email and phone number already exists", null, null);
+	    }
 		MasterStatus status = masterStatusDao.findByStatus(StatusConstants.CLIENT_NEW);
 		Role Initiatordetails = roleDao.findByRoleNameAndActive(StatusConstants.ClientInitiator, true);
 		user.setUsername(organization.getEmail());

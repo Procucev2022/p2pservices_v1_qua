@@ -53,4 +53,6 @@ public interface OrgDao  extends JpaRepository<Organization, String> {
 	@Query("update Organization o set o.clientStatus = :status where o.id=:id")
 	void updateClientStatus(@Param("status") MasterStatus status, @Param("id") String id);
 
+	List<Organization> findByCompanyNameAndOrgType(String companyName, OrgType orgTypeObject);
+
 }
