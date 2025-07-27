@@ -137,6 +137,14 @@ public class Organization extends Procucev {
 	private String name;
 	
 	@Transient
+	private String tempEmail;
+	
+	
+	@Transient
+	private String tempPhone;
+	
+	
+	@Transient
 	private String userOtp;
 
 	private String vendorcategory;
@@ -258,5 +266,11 @@ public class Organization extends Procucev {
 	
 	@Transient
 	private List<String> subcategories;
+	
+	@Transient
+	private String emailOtp;
+	
+	@Transient
+	private String mobileOtp;
 
 }

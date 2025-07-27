@@ -3,6 +3,7 @@ package com.portal.procucev.service;
 import java.io.UnsupportedEncodingException;
 
 import com.portal.procucev.model.Organization;
+import com.portal.procucev.model.User;
 
 import jakarta.servlet.http.HttpServletRequest;
 
@@ -29,5 +30,13 @@ public interface SelfRegistrationService {
 	String generateId(String company) throws Exception;
 
 	boolean checkOrgexist(String orgName);
+
+	boolean validateUser(String username, String phoneNumber);
+
+	String fetchPasswordByEmailAndPhone(String username, String phone);
+
+	boolean generateEmailOtp(String email, HttpServletRequest request);
+
+	boolean userExistsByEmailAndPhone(String email, String organizationPhonenumber);
 
 }

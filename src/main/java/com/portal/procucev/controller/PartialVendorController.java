@@ -5,21 +5,27 @@ import java.util.HashMap;
 import java.util.Map;
 
 import jakarta.servlet.http.HttpServletRequest;
-
+import org.springframework.web.client.RestTemplate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.CrossOrigin;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import com.portal.procucev.customexception.AppException;
 import com.portal.procucev.customexception.MessageResponse;
+import com.portal.procucev.model.ApiResponse;
 import com.portal.procucev.model.Organization;
+import com.portal.procucev.model.PostOffice;
 import com.portal.procucev.service.SelfRegistrationService;
+import com.portal.procucev.service.SmsService;
 import com.portal.procucev.utils.ApplicationConstants;
 import com.portal.procucev.utils.StatusCodes;
 
@@ -32,6 +38,9 @@ public class PartialVendorController {
 
 	@Autowired
 	SelfRegistrationService regService;
+	
+	@Autowired
+	SmsService smsService;
 	
 
 	@PostMapping(value = "/SelfVendorRegistration")
@@ -140,4 +149,66 @@ public class PartialVendorController {
 		return new ResponseEntity<>(client, HttpStatus.OK);
 	}
 
+	@PostMapping("/validateClient")
+	public ResponseEntity<Map<String, Object>> validateClientDetails(@RequestBody Organization org, HttpServletRequest request) {
+	    Map<String, Object> response = new HashMap<>();
+
+	    // Step 1: If user already exists with same email and phone, throw exception
+	    if (regService.userExistsByEmailAndPhone(org.getEmail(), org.getOrganizationPhonenumber())) {
+	        throw new RuntimeException("User with provided email and phone number already exists.");
+	    }
+
+	    // Step 2: Generate and send OTP to email only
+	    boolean otpGenerated = regService.generateOtp(org, request);
+
+	    // Step 3: Send OTP to mobile and capture SMS API response
+	    ResponseEntity<String> smsResponse = smsService.sendOtpToMobile(org);
+
+	    response.put("otpSentToEmail", otpGenerated);
+	    response.put("otpSentToMobile", smsResponse.getStatusCode().is2xxSuccessful());
+	    response.put("smsApiResponse", smsResponse.getBody());
+
+	    return ResponseEntity.ok(response);
+	}
+
+	@PostMapping("/validateAllOtps")
+	public ResponseEntity<Map<String, Object>> validateAllOtps(@RequestBody Organization org) {
+	    Map<String, Object> response = new HashMap<>();
+
+	    boolean isEmailOtpValid = regService.validateOtp(org);
+	    boolean isMobileOtpValid = smsService.validateOtp(org.getOrganizationPhonenumber(), org.getMobileOtp());
+
+	    if (isEmailOtpValid && isMobileOtpValid) {
+	        response.put("status", "success");
+	        response.put("message", "Both OTPs are valid.");
+	        return ResponseEntity.ok(response);
+	    } else {
+	        response.put("status", "failure");
+	        response.put("message", "Invalid OTP(s)");
+	        if (!isEmailOtpValid) response.put("emailOtpValid", false);
+	        if (!isMobileOtpValid) response.put("mobileOtpValid", false);
+	        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
+	    }
+	}
+	  @GetMapping("/{pincode}")
+	    public ResponseEntity<?> getCityAndState(@PathVariable("pincode") String pincode) {
+	        try {
+	            RestTemplate restTemplate = new RestTemplate();
+	            String url = "https://api.postalpincode.in/pincode/" + pincode;
+	            ResponseEntity<ApiResponse[]> response = restTemplate.getForEntity(url, ApiResponse[].class);
+	            ApiResponse[] body = response.getBody();
+
+	            if (body != null && body.length > 0 && body[0].getPostOffice() != null && !body[0].getPostOffice().isEmpty()) {
+	                PostOffice po = body[0].getPostOffice().get(0);
+	                Map<String, String> result = new HashMap<>();
+	                result.put("city", po.getName());
+	                result.put("state", po.getState());
+	                return ResponseEntity.ok(result);
+	            } else {
+	                return ResponseEntity.status(404).body(Map.of("error", "No data found for the given pincode"));
+	            }
+	        } catch (Exception e) {
+	            return ResponseEntity.status(500).body(Map.of("error", "Error fetching data", "details", e.getMessage()));
+	        }
+	    }
 }

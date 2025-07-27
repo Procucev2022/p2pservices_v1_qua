@@ -9,7 +9,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
-
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.client.RestTemplate;
+import java.util.List;
 import jakarta.mail.internet.InternetAddress;
 
 import org.apache.commons.lang3.StringUtils;
@@ -19,6 +21,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.mail.javamail.JavaMailSender;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
 
@@ -29,10 +32,12 @@ import com.portal.procucev.dao.OrgDao;
 import com.portal.procucev.dao.OrgTypeDao;
 import com.portal.procucev.dao.RoleDao;
 import com.portal.procucev.dao.UserDao;
+import com.portal.procucev.model.ApiResponse;
 import com.portal.procucev.model.MasterStatus;
 import com.portal.procucev.model.OrgType;
 import com.portal.procucev.model.Organization;
 import com.portal.procucev.model.OtpDetails;
+import com.portal.procucev.model.PostOffice;
 import com.portal.procucev.model.Role;
 import com.portal.procucev.model.User;
 import com.portal.procucev.utils.ApplicationConstants;
@@ -109,6 +114,7 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 				organization.setSelfClient(true);
 				organization.setGmtName("GMT Basic");
 				organization.setBfsName(StatusConstants.BFS_PRO);
+				//enrichWithLocation(organization);
 				String companyid =generateId(organization.getCompanyName());
 				logger.info("Company Id::" + companyid);
 				organization.setCompanyId(companyid);
@@ -139,6 +145,27 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 		}
 		return false;
 	}
+	
+//	private void enrichWithLocation(Organization org) {
+//        String pincode = org.getZipCode();
+//        if (pincode == null || pincode.isBlank()) return;
+//
+//        try {
+//            RestTemplate restTemplate = new RestTemplate();
+//            String url = "https://api.postalpincode.in/pincode/" + pincode;
+//            ResponseEntity<ApiResponse[]> response = restTemplate.getForEntity(url, ApiResponse[].class);
+//            ApiResponse[] body = response.getBody();
+//
+//            if (body != null && body.length > 0 && body[0].getPostOffice() != null && !body[0].getPostOffice().isEmpty()) {
+//                PostOffice po = body[0].getPostOffice().get(0);
+//                org.setCity(po.getName());
+//                org.setState(po.getState());
+//            }
+//        } catch (Exception e) {
+//            e.printStackTrace();
+//            // Log failure to fetch city/state
+//        }
+//    }
 	
 	@Override
 	public String generateId(String company) throws Exception {
@@ -254,18 +281,25 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 
 	public boolean generateOtp(Organization organization, HttpServletRequest request) {
 		logger.info("Entered to generate OTP");
+		String email=null;
 		try {
 			if (organization != null) {
 				// Generate OTP
 				String otp = generateOTPForEmail();
 				LocalDateTime expirationTime = LocalDateTime.now().plusMinutes(15);
 
+				if(organization.getTempEmail()!=null) {
+					email=organization.getTempEmail();
+				}
+				else {
+					email=organization.getEmail();
+				}
 				// Store OTP and its expiration time in the map
-				otpMap.put(organization.getEmail(), new OtpDetails(otp, expirationTime));
+				otpMap.put(email, new OtpDetails(otp, expirationTime));
 
 				// Send OTP via email
 				InternetAddress add = new InternetAddress(mailFom, "Procucev Notifications");
-				MailUtility.sendOtpForEmail("OTP", organization.getEmail(), javaMailSender, add, host, otp);
+				MailUtility.sendOtpForEmail("OTP", email, javaMailSender, add, host, otp);
 				return true;
 			} else {
 				logger.error("No Vendors available in the Database");
@@ -379,13 +413,70 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 			LocalDateTime now = LocalDateTime.now();
 
 			// Check if OTP is still valid (not expired)
-			if (now.isBefore(expirationTime) && otpDetails.getOtp().equals(organization.getUserOtp())) {
+			if (now.isBefore(expirationTime) && otpDetails.getOtp().equals(organization.getEmailOtp())) {
 				// Remove OTP from the map after successful validation
 				otpMap.remove(organization.getEmail());
 				return true;
 			}
 		}
 		return false;
+	}
+	
+	@Override
+	public boolean validateUser(String username, String phoneNumber) {
+	  User user = userDao.findByUsernameAndPhoneAndActive(username, phoneNumber,true);
+	  return user != null;
+	}
+
+	@Override
+	public boolean generateEmailOtp(String email, HttpServletRequest request) {
+		logger.info("Entered to generate OTP");
+		try {
+			if (email != null) {
+				// Generate OTP
+				String otp = generateOTPForEmail();
+				LocalDateTime expirationTime = LocalDateTime.now().plusMinutes(15);
+
+				// Store OTP and its expiration time in the map
+				otpMap.put(email, new OtpDetails(otp, expirationTime));
+
+				// Send OTP via email
+				InternetAddress add = new InternetAddress(mailFom, "Procucev Notifications");
+				MailUtility.sendOtpForEmail("OTP", email, javaMailSender, add, host, otp);
+				return true;
+			} else {
+				logger.error("No Vendors available in the Database");
+				throw new AppException(HttpStatus.NO_CONTENT.value(), ApplicationConstants.NO_DATA_FOUND,
+						ApplicationConstants.BUSINESS_EXCEPTION, ApplicationConstants.FAILURE);
+			}
+		} catch (UnsupportedEncodingException e) {
+			e.printStackTrace();
+		}
+		return false;
+	}
+
+	@Override
+	public String fetchPasswordByEmailAndPhone(String email, String phone) {
+	    if (email == null || phone == null) {
+	        throw new IllegalArgumentException("Email and phone must not be null");
+	    }
+
+	   User userOpt = userDao.findByUsernameAndPhoneAndActive(email, phone, true);
+	    if (userOpt!=null) {
+	        return userOpt.getPassword(); // Assuming getPassword() returns encoded password
+	    } else {
+	        throw new UsernameNotFoundException("No active user found with provided email and phone");
+	    }
+	}
+
+	@Override
+	public boolean userExistsByEmailAndPhone(String email, String organizationPhonenumber) {
+	    if (email == null || organizationPhonenumber == null) {
+	        return false;
+	    }
+
+	    User user = userDao.findByUsernameAndPhoneAndActive(email, organizationPhonenumber, true);
+	    return user != null;
 	}
 
 }

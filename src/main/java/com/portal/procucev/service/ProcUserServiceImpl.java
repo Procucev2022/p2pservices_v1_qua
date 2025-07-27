@@ -1,5 +1,6 @@
 package com.portal.procucev.service;
 
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -7,6 +8,11 @@ import java.util.Optional;
 import jakarta.mail.internet.InternetAddress;
 
 import org.apache.commons.lang3.StringUtils;
+import org.apache.poi.ss.usermodel.Cell;
+import org.apache.poi.ss.usermodel.CellType;
+import org.apache.poi.ss.usermodel.Row;
+import org.apache.poi.ss.usermodel.Workbook;
+import org.apache.poi.ss.usermodel.WorkbookFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -15,12 +21,14 @@ import org.springframework.http.HttpStatus;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
+import org.springframework.web.multipart.MultipartFile;
 
 import com.portal.procucev.customexception.AppException;
 import com.portal.procucev.dao.EmailUserRepo;
 import com.portal.procucev.dao.OrgDao;
 import com.portal.procucev.dao.UserDao;
 import com.portal.procucev.model.EmailUser;
+import com.portal.procucev.model.OrgType;
 import com.portal.procucev.model.Organization;
 import com.portal.procucev.model.Permission;
 import com.portal.procucev.model.ResetPassword;
@@ -90,7 +98,8 @@ public class ProcUserServiceImpl implements UserService {
 	@Override
 	public User getUserByEmail(User user) {
 
-		User userObject = userDao.findByUsernameAndActive(user.getUsername(), true);
+		//User userObject = userDao.findByUsernameAndActive(user.getUsername(), true);
+		User userObject = userDao.findByUsernameAndPhoneAndActive(user.getUsername(),user.getPhone(), true);
 		if (userObject != null) {
 
 			List<String> permissionDetails = new ArrayList<>();
@@ -273,5 +282,86 @@ public class ProcUserServiceImpl implements UserService {
 		}
 
 	}
+	
+
+//	    public String processBuyerExcel(MultipartFile file) throws Exception {
+//	        Workbook workbook = WorkbookFactory.create(file.getInputStream());
+//	        Sheet sheet = workbook.getSheetAt(0);
+//	        OrgType clientType = orgTypeDao.findByTypeName("CLIENT");
+//	        int success = 0, failed = 0;
+//
+//	        for (int i = 1; i <= sheet.getLastRowNum(); i++) {
+//	            try {
+//	                Row row = sheet.getRow(i);
+//	                if (row == null) continue;
+//
+//	                String fullName = row.getCell(2).getStringCellValue(); // full_name
+//	                String companyName = row.getCell(3).getStringCellValue();
+//	                String companyId = row.getCell(4).getStringCellValue();
+//	                String state = row.getCell(6).getStringCellValue();
+//	                String address1 = row.getCell(7).getStringCellValue();
+//	                String phone = getNumericCellAsString(row.getCell(8));
+//	                String email = row.getCell(1).getStringCellValue(); // email (also username)
+//	                String sector = row.getCell(9).getStringCellValue();
+//
+//	                // Skip if required values are missing
+//	                if (email == null || phone == null) {
+//	                    failed++;
+//	                    continue;
+//	                }
+//
+//	                List<Organization> existingOrgs = clientDao.findByCompanyNameAndOrgType(companyName, clientType);
+//	                Organization org = existingOrgs.isEmpty() ? new Organization() : existingOrgs.get(0);
+//	                org.setCompanyName(companyName);
+//	                org.setCompanyId(companyId);
+//	                org.setState(state);
+//	                org.setAddress1(address1);
+//	                org.setOrganizationPhonenumber(phone);
+//	                org.setEmail(email);
+//	                org.setClientSector(sector);
+//	                org.setOrgType(clientType);
+//	                org.setSelfClient(true);
+//
+//	                if (existingOrgs.isEmpty()) {
+//	                    org = clientDao.save(org);
+//	                }
+//
+//	                List<User> existingUsers = userDao.findByUsernameAndPhone(email, phone);
+//	                if (existingUsers.isEmpty()) {
+//	                    User user = new User();
+//	                    user.setOrg(org);
+//	                    user.setUsername(email);
+//	                    user.setFullName(fullName);
+//	                    user.setPhone(phone);
+//	                    user.setResetPassword(true);
+//	                    user.setActive(true);
+//	                    user.setSelfClient(true);
+//	                    user.setClientStatus(masterStatusDao.findByStatus("CLIENT_NEW"));
+//	                    user.setRole(roleDao.findByRoleNameAndActive("ClientInitiator", true));
+//	                    char[] password = ProcucevUtils.generatePassword(8);
+//	                    user.setPassword(new String(password));
+//	                    userDao.save(user);
+//	                }
+//
+//	                success++;
+//
+//	            } catch (Exception e) {
+//	                failed++;
+//	                continue;
+//	            }
+//	        }
+//
+//	        return "Upload complete: Success = " + success + ", Failed = " + failed;
+//	    }
+//
+//	    private String getNumericCellAsString(Cell cell) {
+//	        if (cell == null) return null;
+//	        if (cell.getCellType() == CellType.STRING) { 
+//	            return BigDecimal.valueOf(cell.getNumericCellValue()).toPlainString();
+//	        } else {
+//	            return cell.getStringCellValue();
+//	        }
+//	    }
+//	}
 
 }

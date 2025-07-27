@@ -2,8 +2,6 @@ package com.portal.procucev.dao;
 
 import java.util.List;
 
-import jakarta.transaction.Transactional;
-
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -13,6 +11,8 @@ import org.springframework.stereotype.Repository;
 import com.portal.procucev.model.MasterStatus;
 import com.portal.procucev.model.Organization;
 import com.portal.procucev.model.User;
+
+import jakarta.transaction.Transactional;
 
 @Repository("userDao")
 public interface UserDao extends JpaRepository<User, String> {
@@ -76,5 +76,7 @@ public interface UserDao extends JpaRepository<User, String> {
 	void updateClientStatus(@Param("user") User user, @Param("status") MasterStatus status);
 
 	List<User> findByUsernameAndPhone(String email, String organizationPhonenumber);
+
+	User findByUsernameAndPhoneAndActive(String username, String phoneNumber, boolean b);
 
 }
