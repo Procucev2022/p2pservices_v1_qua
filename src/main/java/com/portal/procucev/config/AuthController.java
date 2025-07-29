@@ -74,8 +74,10 @@ public class AuthController {
             // 1. Validate if user with given email (username) and phone exists
             boolean isUserValid = userService.validateUser(authRequest.getUsername(), authRequest.getPhone());
             if (!isUserValid) {
-                response.put("error", "Invalid phone number and Username");
-                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
+            	  response.put("status", "error");
+                  response.put("message", "Invalid phone number and username");
+                  response.put("methodType", "validate");
+                return ResponseEntity.ok(response);
             }
 
             // 2. If OTP flag is true, send OTP and exit
@@ -89,11 +91,15 @@ public class AuthController {
             	}
                 boolean otpSent = userService.generateEmailOtp(email,request);
                 if (otpSent) {
-                    response.put("message", "OTP sent successfully to registered email.");
-                    return ResponseEntity.ok(response);
+                	 response.put("status", "success");
+                     response.put("message", "OTP sent successfully to registered email.");
+                     response.put("methodType", "otp");
+                     return ResponseEntity.ok(response);
                 } else {
-                    response.put("error", "Failed to send OTP.");
-                    return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
+                	  response.put("status", "error");
+                      response.put("message", "Failed to send OTP.");
+                      response.put("methodType", "otp");
+                      return ResponseEntity.ok(response);
                 }
             }
 
@@ -104,8 +110,10 @@ public class AuthController {
             if (passwordToUse == null || passwordToUse.isBlank()) {
                 passwordToUse = userService.fetchPasswordByEmailAndPhone(authRequest.getUsername(), authRequest.getPhone());
                 if (passwordToUse == null) {
-                    response.put("error", "Password not found for the given user.");
-                    return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
+                	response.put("status", "error");
+                    response.put("message", "Password not found for the given user.");
+                    response.put("methodType", "validate");
+                    return ResponseEntity.ok(response);
                 }
             }
 
@@ -117,19 +125,24 @@ public class AuthController {
             // 4. Generate JWT Token
             final UserDetails userDetails = userDetailsService.loadUserByUsername(authRequest.getUsername());
             final String jwt = jwtUtil.generateToken(userDetails);
-
+            response.put("status", "success");
             response.put("access_token", jwt);
             response.put("token_type", "Bearer");
             response.put("expires_in", 36000); // 10 hours
+            response.put("methodType", "authenticated");
             return ResponseEntity.ok(response);
 
         } catch (BadCredentialsException e) {
-            response.put("error", "Invalid credentials");
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
+        	response.put("status", "error");
+            response.put("message", "Invalid credentials");
+            response.put("methodType", "authenticated");
+            return ResponseEntity.ok(response);
 
         } catch (Exception e) {
-            response.put("error", "Authentication failed: " + e.getMessage());
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
+        	  response.put("status", "error");
+              response.put("message", "Authentication failed: " + e.getMessage());
+              response.put("methodType", "error");
+              return ResponseEntity.ok(response);
         }
     }
 

@@ -1,5 +1,6 @@
 package com.portal.procucev.service;
 
+import java.io.InputStreamReader;
 import java.io.UnsupportedEncodingException;
 import java.text.SimpleDateFormat;
 import java.time.LocalDateTime;
@@ -11,9 +12,13 @@ import java.util.Map;
 import java.util.Random;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.client.RestTemplate;
+import org.springframework.web.multipart.MultipartFile;
+
 import java.util.List;
 import jakarta.mail.internet.InternetAddress;
 
+import org.apache.commons.csv.CSVFormat;
+import org.apache.commons.csv.CSVRecord;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -30,8 +35,10 @@ import com.portal.procucev.dao.ClientDao;
 import com.portal.procucev.dao.MasterStatusDao;
 import com.portal.procucev.dao.OrgDao;
 import com.portal.procucev.dao.OrgTypeDao;
+import com.portal.procucev.dao.PincodeDao;
 import com.portal.procucev.dao.RoleDao;
 import com.portal.procucev.dao.UserDao;
+import com.portal.procucev.model.PincodeData;
 import com.portal.procucev.model.ApiResponse;
 import com.portal.procucev.model.MasterStatus;
 import com.portal.procucev.model.OrgType;
@@ -44,7 +51,9 @@ import com.portal.procucev.utils.ApplicationConstants;
 import com.portal.procucev.utils.MailUtility;
 import com.portal.procucev.utils.ProcucevUtils;
 import com.portal.procucev.utils.StatusConstants;
-
+import java.io.BufferedReader;
+import java.io.InputStream;
+import java.io.IOException;
 import jakarta.servlet.http.HttpServletRequest;
 
 @Service
@@ -84,6 +93,9 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 	@Autowired
 	private ClientDao clientDao;
 	
+	@Autowired
+	private PincodeDao pinCodeDao;
+	
 	private Map<String, OtpDetails> otpMap = new HashMap<>();
 	
 	@Override
@@ -119,6 +131,7 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 				logger.info("Company Id::" + companyid);
 				organization.setCompanyId(companyid);
 				logger.info("Saving Client Organization");
+				getCityByPincode(organization.getZipCode());
 				Organization savedOrg = clientDao.save(organization);
 				logger.info("id of org::" + savedOrg.getId());
 
@@ -405,7 +418,15 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 
 	@Override
 	public boolean validateOtp(Organization organization) {
-		OtpDetails otpDetails = otpMap.get(organization.getEmail());
+		String email=null;
+		if(organization.getTempEmail()!=null)
+		{
+			 email=organization.getTempEmail();
+		}
+		else {
+			 email=organization.getEmail();
+		}
+		OtpDetails otpDetails = otpMap.get(email);
 
 		// Validate OTP
 		if (otpDetails != null) {
@@ -479,4 +500,48 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 	    return user != null;
 	}
 
+
+	
+	@Override
+	 public int importFromCsv(MultipartFile file) {
+	        int inserted = 0;
+	        try (BufferedReader reader = new BufferedReader(new InputStreamReader(file.getInputStream()))) {
+	            Iterable<CSVRecord> records = CSVFormat.DEFAULT
+	                    .withFirstRecordAsHeader()
+	                    .parse(reader);
+
+	            for (CSVRecord record : records) {
+	                String pincode = record.get("Pincode").trim();
+	                String city = record.get("District").trim(); // Office Name
+	                String state = record.get("StateName").trim();
+
+	                if (!pinCodeDao.existsByPincode(pincode)) {
+	                    PincodeData entry = new PincodeData(pincode, city, state);
+	                    pinCodeDao.save(entry);
+	                    inserted++;
+	                }
+	            }
+	        } catch (Exception e) {
+	            e.printStackTrace();
+	        }
+	        return inserted;
+	    }
+
+
+	public PincodeData getCityByPincode(String pincode) {
+		// TODO Auto-generated method stub
+		if(pincode!=null) {
+			PincodeData data = pinCodeDao.findByPincode(pincode);
+		
+			return data;}
+		return null;
+		
+	}
+
+	@Override
+	public PincodeData getCityByPincode(PincodeData pincode) {
+		// TODO Auto-generated method stub
+		return null;
+	}
+	
 }

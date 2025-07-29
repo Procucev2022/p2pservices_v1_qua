@@ -96,10 +96,17 @@ public class SmsServiceImpl implements SmsService {
 	    }
 	    
 	    @Override
-	    public boolean validateOtp(String phoneNumber, String enteredOtp) {
+	    public boolean validateOtp(Organization org) {
+	    	String phoneNumber=null;
+	    	if(org.getTempPhone()!=null) {
+	    		phoneNumber=org.getTempPhone();
+	    	}
+	    	else {
+	    		phoneNumber=org.getOrganizationPhonenumber();
+	    	}
 	        String storedOtp = otpCache.get(phoneNumber);
 
-	        if (storedOtp != null && storedOtp.equals(enteredOtp)) {
+	        if (storedOtp != null && storedOtp.equals(org.getMobileOtp())) {
 	            otpCache.remove(phoneNumber); // Remove OTP after successful validation
 	            return true;
 	        }
