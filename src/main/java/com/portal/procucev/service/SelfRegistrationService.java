@@ -2,7 +2,10 @@ package com.portal.procucev.service;
 
 import java.io.UnsupportedEncodingException;
 
+import org.springframework.web.multipart.MultipartFile;
+
 import com.portal.procucev.model.Organization;
+import com.portal.procucev.model.PincodeData;
 import com.portal.procucev.model.User;
 
 import jakarta.servlet.http.HttpServletRequest;
@@ -38,5 +41,9 @@ public interface SelfRegistrationService {
 	boolean generateEmailOtp(String email, HttpServletRequest request);
 
 	boolean userExistsByEmailAndPhone(String email, String organizationPhonenumber);
+
+	int importFromCsv(MultipartFile file);
+
+	PincodeData getCityByPincode(PincodeData pincode);
 
 }

@@ -8,6 +8,7 @@ public interface SmsService {
 
 	ResponseEntity<String> sendOtpToMobile(Organization org);
 
-	boolean validateOtp(String phoneNumber, String enteredOtp);
+	boolean validateOtp(Organization org);
+
 
 }

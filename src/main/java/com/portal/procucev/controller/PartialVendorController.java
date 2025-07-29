@@ -6,6 +6,7 @@ import java.util.Map;
 
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.web.client.RestTemplate;
+import org.springframework.web.multipart.MultipartFile;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -23,6 +24,7 @@ import com.portal.procucev.customexception.AppException;
 import com.portal.procucev.customexception.MessageResponse;
 import com.portal.procucev.model.ApiResponse;
 import com.portal.procucev.model.Organization;
+import com.portal.procucev.model.PincodeData;
 import com.portal.procucev.model.PostOffice;
 import com.portal.procucev.service.SelfRegistrationService;
 import com.portal.procucev.service.SmsService;
@@ -176,7 +178,7 @@ public class PartialVendorController {
 	    Map<String, Object> response = new HashMap<>();
 
 	    boolean isEmailOtpValid = regService.validateOtp(org);
-	    boolean isMobileOtpValid = smsService.validateOtp(org.getOrganizationPhonenumber(), org.getMobileOtp());
+	    boolean isMobileOtpValid = smsService.validateOtp(org);
 
 	    if (isEmailOtpValid && isMobileOtpValid) {
 	        response.put("status", "success");
@@ -187,7 +189,7 @@ public class PartialVendorController {
 	        response.put("message", "Invalid OTP(s)");
 	        if (!isEmailOtpValid) response.put("emailOtpValid", false);
 	        if (!isMobileOtpValid) response.put("mobileOtpValid", false);
-	        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
+	        return ResponseEntity.ok(response); 
 	    }
 	}
 	  @GetMapping("/{pincode}")
@@ -211,4 +213,17 @@ public class PartialVendorController {
 	            return ResponseEntity.status(500).body(Map.of("error", "Error fetching data", "details", e.getMessage()));
 	        }
 	    }
+	  
+	  @PostMapping("/upload")
+	    public ResponseEntity<String> uploadCsv(@RequestParam("file") MultipartFile file) {
+	        int inserted = regService.importFromCsv(file);
+	        return ResponseEntity.ok("Inserted " + inserted + " pincode records.");
+	    }
+	  
+//	  @PostMapping("/getPincodeData")
+//		public ResponseEntity<?> getPincodeData(@RequestBody PincodeData pincode) throws AppException {
+//			logger.info("Enters to fetch the city and state By pincode::");
+//			PincodeData client = regService.getCityByPincode(pincode);
+//			return new ResponseEntity<>(client, HttpStatus.OK);
+//		}
 }
