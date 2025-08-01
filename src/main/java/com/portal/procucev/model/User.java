@@ -6,6 +6,8 @@ import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 
+import org.hibernate.annotations.UpdateTimestamp;
+
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.JoinTable;
 import jakarta.persistence.ManyToMany;
@@ -86,6 +88,14 @@ public class User extends Procucev {
 	@Transient
 	private String rfqId;
 	
+	@Transient
+	private String orgId;
+	
+	@Column(name="unique_id")
+	private String uniqueId;
+	
+	@Column(name = "activity_ts")
+	private Date activityTs;
 	
 //	@ManyToMany(fetch = FetchType.EAGER)
 //	@JoinTable(name = "user_permission", joinColumns = {
@@ -106,6 +116,8 @@ public class User extends Procucev {
 	public String getPassword() {
 	    return password;
 	}
+	
+	
 
 	public User(String id,Date createdTS,String username, MasterStatus clientStatus, String phone, boolean selfClient, String fullName,
 			boolean active) {
@@ -119,4 +131,27 @@ public class User extends Procucev {
 		this.fullName = fullName;
 		this.active = active;
 	}
+
+
+
+	public User(String id,String username, String phone,String companyName, String fullName, String orgId, String uniqueId, Date activityTs) {
+		super();
+		this.id =id;
+		this.username = username;
+		this.phone = phone;
+		this.companyName=companyName;
+		this.fullName = fullName;
+		this.orgId = orgId;
+		this.uniqueId = uniqueId;
+		this.activityTs = activityTs;
+	}
+
+
+
+
+
+
+
+	
+	
 }

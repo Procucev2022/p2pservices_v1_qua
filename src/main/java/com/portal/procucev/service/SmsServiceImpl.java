@@ -37,7 +37,7 @@ public class SmsServiceImpl implements SmsService {
 	    @Override
 	    public ResponseEntity<String> sendOtpToMobile(Organization org) {
 	    	String phoneNumber=null;
-	    	if(org.getTempPhone()!=null) {
+	    	if(org.getTempPhone()!=null  && !org.getTempPhone().isEmpty()) {
 	    		phoneNumber=org.getTempPhone();
 	    	}else {
 	    		phoneNumber=org.getOrganizationPhonenumber();
@@ -98,7 +98,7 @@ public class SmsServiceImpl implements SmsService {
 	    @Override
 	    public boolean validateOtp(Organization org) {
 	    	String phoneNumber=null;
-	    	if(org.getTempPhone()!=null) {
+	    	if(org.getTempPhone()!=null &&  !org.getTempPhone().isEmpty()) {
 	    		phoneNumber=org.getTempPhone();
 	    	}
 	    	else {

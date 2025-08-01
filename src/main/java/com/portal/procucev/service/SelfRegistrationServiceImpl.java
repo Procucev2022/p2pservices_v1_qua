@@ -131,7 +131,11 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 				logger.info("Company Id::" + companyid);
 				organization.setCompanyId(companyid);
 				logger.info("Saving Client Organization");
-				getCityByPincode(organization.getZipCode());
+				PincodeData pincodeData = getCityByPincode(organization.getZipCode());
+				if(pincodeData!=null) {
+				organization.setCity(pincodeData.getCity());
+				organization.setState(pincodeData.getState());
+				}
 				Organization savedOrg = clientDao.save(organization);
 				logger.info("id of org::" + savedOrg.getId());
 
@@ -215,6 +219,7 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 	    }
 		MasterStatus status = masterStatusDao.findByStatus(StatusConstants.CLIENT_NEW);
 		Role Initiatordetails = roleDao.findByRoleNameAndActive(StatusConstants.ClientInitiator, true);
+		String uniqueId = generateUserId(organization.getOrganizationPhonenumber());
 		user.setUsername(organization.getEmail());
 		user.setFullName(organization.getName());
 		user.setPhone(organization.getOrganizationPhonenumber());
@@ -223,6 +228,7 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 		user.setSelfClient(true);
 		user.setClientStatus(status);
 		user.setRole(Initiatordetails);
+		user.setUniqueId(uniqueId);
 		char[] pswd = ProcucevUtils.generatePassword(8);
 		user.setPassword(pswd.toString());
 		logger.info("saving User Details");
@@ -301,7 +307,7 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 				String otp = generateOTPForEmail();
 				LocalDateTime expirationTime = LocalDateTime.now().plusMinutes(15);
 
-				if(organization.getTempEmail()!=null) {
+				if(organization.getTempEmail()!=null && !organization.getTempEmail().isEmpty()) {
 					email=organization.getTempEmail();
 				}
 				else {
@@ -367,7 +373,13 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 			organization.setStatus(resultStatus1);
 			organization.setGmtName(StatusConstants.GMT_Basic);
 			organization.setBfsName(StatusConstants.BFS_PRO);
+			PincodeData pincodeData = getCityByPincode(organization.getZipCode());
+			if(pincodeData!=null) {
+			organization.setCity(pincodeData.getCity());
+			organization.setState(pincodeData.getState());
+			}
 			organization.setSubCategory(organization.getDetails());
+			
 			orgDao.save(organization);
 
 					InternetAddress add = new InternetAddress(mailFom, "Procucev Notifications");
@@ -419,7 +431,7 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 	@Override
 	public boolean validateOtp(Organization organization) {
 		String email=null;
-		if(organization.getTempEmail()!=null)
+		if(organization.getTempEmail()!=null && !organization.getTempPhone().isEmpty())
 		{
 			 email=organization.getTempEmail();
 		}
@@ -436,7 +448,7 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 			// Check if OTP is still valid (not expired)
 			if (now.isBefore(expirationTime) && otpDetails.getOtp().equals(organization.getEmailOtp())) {
 				// Remove OTP from the map after successful validation
-				otpMap.remove(organization.getEmail());
+				otpMap.remove(email);
 				return true;
 			}
 		}
@@ -511,8 +523,9 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 	                    .parse(reader);
 
 	            for (CSVRecord record : records) {
+	            	 String city = record.get("City/Town/Village").trim();
 	                String pincode = record.get("Pincode").trim();
-	                String city = record.get("District").trim(); // Office Name
+	                // Office Name
 	                String state = record.get("StateName").trim();
 
 	                if (!pinCodeDao.existsByPincode(pincode)) {
@@ -538,10 +551,37 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 		
 	}
 
+	
+
+	@Override
+	public List<User> getUserByPhoneNumber(String phone) {
+	    return userDao.findByPhone(phone);
+	}
+	
+	 public String generateUserId(String mobileNumber) {
+	        // Validate mobile number length
+	        if (mobileNumber == null || mobileNumber.length() < 4) {
+	            throw new IllegalArgumentException("Invalid mobile number");
+	        }
+
+	        // Get last 4 digits
+	        String last4Digits = mobileNumber.substring(mobileNumber.length() - 4);
+
+	        // Get current timestamp
+	        String timestamp = String.valueOf(System.currentTimeMillis());
+
+	        // Generate 3-digit random number
+	        int randomSuffix = new Random().nextInt(900) + 100;  // Range: 100–999
+
+	        // Concatenate to form user ID
+	        String userId = "USR" + timestamp + last4Digits + randomSuffix;
+
+	        return userId;
+	    }
+
 	@Override
 	public PincodeData getCityByPincode(PincodeData pincode) {
 		// TODO Auto-generated method stub
 		return null;
 	}
-	
 }
