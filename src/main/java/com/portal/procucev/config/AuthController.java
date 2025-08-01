@@ -82,7 +82,7 @@ public class AuthController {
 
             // 2. If OTP flag is true, send OTP and exit
             if (authRequest.isOtp()) {
-            	if(authRequest.getTempEmail()!=null)
+            	if(authRequest.getTempEmail()!=null && !authRequest.getTempEmail().isEmpty())
             	{
             		email=authRequest.getTempEmail();
             	}
