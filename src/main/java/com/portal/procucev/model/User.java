@@ -134,11 +134,12 @@ public class User extends Procucev {
 
 
 
-	public User(String id,String username, String phone, String fullName, String orgId, String uniqueId, Date activityTs) {
+	public User(String id,String username, String phone,String companyName, String fullName, String orgId, String uniqueId, Date activityTs) {
 		super();
 		this.id =id;
 		this.username = username;
 		this.phone = phone;
+		this.companyName=companyName;
 		this.fullName = fullName;
 		this.orgId = orgId;
 		this.uniqueId = uniqueId;

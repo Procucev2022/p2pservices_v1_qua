@@ -555,7 +555,7 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 
 	@Override
 	public List<User> getUserByPhoneNumber(String phone) {
-	    return userDao.findByPhoneNumber(phone);
+	    return userDao.findByPhone(phone);
 	}
 	
 	 public String generateUserId(String mobileNumber) {

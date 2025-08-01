@@ -80,7 +80,7 @@ public interface UserDao extends JpaRepository<User, String> {
 	User findByUsernameAndPhoneAndActive(String username, String phoneNumber, boolean b);
 
 
-	@Query("SELECT  new User(u.id,u.username,u.phone,u.fullName,u.orgId,u.orgId,u.uniqueId,u.activityTs) from User u where u.phone=:phone and u.active = true")
-	List<User> findByPhoneNumber(@Param("phone") String phone);
+	@Query("SELECT  new User(u.id,u.username,u.phone,u.org.companyName,u.fullName,u.org.id,u.uniqueId,u.activityTs) from User u where u.phone=:phone and u.active = true")
+	List<User> findByPhone(@Param("phone") String phone);
 
 }
