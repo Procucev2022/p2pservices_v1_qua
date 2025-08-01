@@ -1,6 +1,7 @@
 package com.portal.procucev.service;
 
 import java.io.UnsupportedEncodingException;
+import java.util.List;
 
 import org.springframework.web.multipart.MultipartFile;
 
@@ -45,5 +46,7 @@ public interface SelfRegistrationService {
 	int importFromCsv(MultipartFile file);
 
 	PincodeData getCityByPincode(PincodeData pincode);
+
+	List<User> getUserByPhoneNumber(String phone);
 
 }

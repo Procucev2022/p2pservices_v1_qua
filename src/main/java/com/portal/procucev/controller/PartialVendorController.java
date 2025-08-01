@@ -2,6 +2,7 @@ package com.portal.procucev.controller;
 
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import jakarta.servlet.http.HttpServletRequest;
@@ -26,6 +27,7 @@ import com.portal.procucev.model.ApiResponse;
 import com.portal.procucev.model.Organization;
 import com.portal.procucev.model.PincodeData;
 import com.portal.procucev.model.PostOffice;
+import com.portal.procucev.model.User;
 import com.portal.procucev.service.SelfRegistrationService;
 import com.portal.procucev.service.SmsService;
 import com.portal.procucev.utils.ApplicationConstants;
@@ -226,4 +228,19 @@ public class PartialVendorController {
 //			PincodeData client = regService.getCityByPincode(pincode);
 //			return new ResponseEntity<>(client, HttpStatus.OK);
 //		}
+	  
+	  @GetMapping("/getUsersByphone")
+	  public ResponseEntity<?> getUserByPhone(@RequestParam String phone) {
+	      Map<String, Object> response = new HashMap<>();
+	      List<User> users = regService.getUserByPhoneNumber(phone);
+
+	      if (users == null || users.isEmpty()) {
+	          response.put("status", "failure");
+	          response.put("message", "No user found with phone number: " + phone);
+	          return ResponseEntity.status(HttpStatus.OK).body(response); // 200 OK with message
+	      }
+
+	      return ResponseEntity.ok(users); // returns list of users
+	  }
+	
 }
