@@ -431,7 +431,7 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 	@Override
 	public boolean validateOtp(Organization organization) {
 		String email=null;
-		if(organization.getTempEmail()!=null && !organization.getTempPhone().isEmpty())
+		if(organization.getTempEmail()!=null && !organization.getTempEmail().isEmpty())
 		{
 			 email=organization.getTempEmail();
 		}
