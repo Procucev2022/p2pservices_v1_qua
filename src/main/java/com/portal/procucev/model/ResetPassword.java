@@ -5,6 +5,8 @@ public class ResetPassword {
 
 	private String userName;
 	
+	private String phone;
+	
 	private String password;
 	
 	private String newpassword;
@@ -43,10 +45,18 @@ public class ResetPassword {
 		this.confirmpassword = confirmpassword;
 	}
 
+	public String getPhone() {
+		return phone;
+	}
+
+	public void setPhone(String phone) {
+		this.phone = phone;
+	}
+
 	@Override
 	public String toString() {
-		return "ResetPassword [userName=" + userName + ", password=" + password + ", newpassword=" + newpassword
-				+ ", confirmpassword=" + confirmpassword + "]";
+		return "ResetPassword [userName=" + userName + ", phone=" + phone + ", password=" + password + ", newpassword="
+				+ newpassword + ", confirmpassword=" + confirmpassword + "]";
 	}
 
 	public ResetPassword() {

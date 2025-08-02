@@ -145,7 +145,9 @@ public class ProcUserServiceImpl implements UserService {
 
 		String pass = reset.getPassword();
 		String newPass = reset.getNewpassword();
-		User users = userDao.findByUsernameAndActive(reset.getUserName(), true);
+		//User users = userDao.findByUsernameAndActive(reset.getUserName(), true);
+		User users = userDao.findByUsernameAndPhoneAndActive(reset.getUserName(),reset.getPhone(), true);
+		
 		if (users != null) {
 			String password = users.getPassword();
 			if (pass.equals(password)) {
@@ -205,7 +207,8 @@ public class ProcUserServiceImpl implements UserService {
 	public boolean forgotPassword(User users) {
 		boolean status = false;
 
-		User user = userDao.findByUsernameAndActive(users.getUsername(), true);
+		//User user = userDao.findByUsernameAndActive(users.getUsername(), true);
+		User user = userDao.findByUsernameAndPhoneAndActive(users.getUsername(),users.getPhone(), true);
 		if (user == null) {
 			throw new AppException(HttpStatus.NO_CONTENT.value(), ApplicationConstants.NO_USER_FOUND,
 					ApplicationConstants.BUSSINESS_EXCEPTION, ApplicationConstants.FAILURE);
