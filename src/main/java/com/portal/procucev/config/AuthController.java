@@ -7,6 +7,7 @@ import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -35,6 +36,13 @@ public class AuthController {
     
     @Autowired
     SelfRegistrationService userService;
+    
+    @Autowired
+    private CustomUserDetailsService customDetailService;
+    
+    @Autowired
+    private PasswordEncoder passwordEncoder;
+    
 //
 //    @PostMapping("/authenticate")
 //    public ResponseEntity<Map<String, Object>> authenticate(@RequestBody AuthRequest authRequest) {
@@ -117,14 +125,25 @@ public class AuthController {
                 }
             }
 
-            // Authenticate with available password
-            authenticationManager.authenticate(
-                    new UsernamePasswordAuthenticationToken(authRequest.getUsername(), passwordToUse)
-            );
+            // Authenticate with available password not working because of 
+//            authenticationManager.authenticate(
+//                    new UsernamePasswordAuthenticationToken(authRequest.getUsername(), passwordToUse)
+//            );
+            // 4. Load exact user (email + phone)
+            UserDetails userDetails = customDetailService.loadUserByUsernameAndPhone(authRequest.getUsername(), authRequest.getPhone());
 
+            // 5. Compare passwords manually
+            if (!passwordEncoder.matches(passwordToUse, userDetails.getPassword())) {
+                response.put("status", "error");
+                response.put("message", "Invalid credentials");
+                response.put("methodType", "authenticated");
+                return ResponseEntity.ok(response);
+            }
             // 4. Generate JWT Token
-            final UserDetails userDetails = userDetailsService.loadUserByUsername(authRequest.getUsername());
-            final String jwt = jwtUtil.generateToken(userDetails);
+            //final UserDetails userDetails = userDetailsService.loadUserByUsername(authRequest.getUsername());
+            //UserDetails userDetails = customDetailService.loadUserByUsernameAndPhone(authRequest.getUsername(), authRequest.getPhone());
+           System.out.println("User Details ==> "+userDetails);
+            final String jwt = jwtUtil.generateToken(userDetails,authRequest.getPhone());
             response.put("status", "success");
             response.put("access_token", jwt);
             response.put("token_type", "Bearer");

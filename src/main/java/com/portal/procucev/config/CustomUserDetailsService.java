@@ -1,10 +1,12 @@
 package com.portal.procucev.config;
 
+import java.util.ArrayList;
+
 import org.springframework.beans.factory.annotation.Autowired;
+
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import com.portal.procucev.dao.UserDao;
@@ -19,18 +21,31 @@ public class CustomUserDetailsService implements UserDetailsService {
         this.userRepository = userRepository;
     }
 
+
+    public UserDetails loadUserByUsernameAndPhone(String username, String phone) {
+        User user = userRepository.findByUsernameAndPhoneAndActive(username, phone, true);
+
+        if (user == null) {
+            throw new UsernameNotFoundException("User not found with username and phone");
+        }
+        else {
+        	System.out.println("username ===>"+user.getUsername());
+        	System.out.println("phone ===>"+user.getPhone());
+        }
+        return new org.springframework.security.core.userdetails.User(
+                user.getUsername(),
+                user.getPassword(),
+                new ArrayList<>()
+        );
+    }
+
+
     @Override
     public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
-       User user = userRepository.findByUsername(username);
-        System.out.println("Size of users==>"+user.getUsername());
-        if (user == null) {
-            throw new UsernameNotFoundException("User not found: " + username);
-        }
-
-        return org.springframework.security.core.userdetails.User.builder()
-                .username(user.getUsername())
-                .password(user.getPassword()) // hashed password from DB
-                .roles(user.getRole().getDescription()) // example: "VM"
-                .build();
+        // You may not want to support this if you always use phone + username
+    	  // Not used in your flow; throw or implement fallback
+        throw new UsernameNotFoundException("Username-only login is not supported. Use phone number too.");
     }
+
+       
 }

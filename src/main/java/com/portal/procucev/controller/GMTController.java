@@ -349,4 +349,10 @@ public class GMTController {
 		List<RfqVendor> status = gmtService.getVendorsbyRFQ(rfq);
 		return new ResponseEntity<>(status, HttpStatus.OK);
 	}
+	
+	@GetMapping(value = "/getGmtBuyers")
+	public ResponseEntity<?> getGmtBuyers() {
+		List<User> status = gmtService.getGmtBuyers();
+		return new ResponseEntity<>(status, HttpStatus.OK);
+	}
 }

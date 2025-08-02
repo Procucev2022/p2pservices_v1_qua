@@ -102,5 +102,7 @@ public interface GMTService {
 
 	List<RfqVendor> getVendorsbyRFQ(Rfq rfq);
 
+	List<User> getGmtBuyers();
+
 
 }
