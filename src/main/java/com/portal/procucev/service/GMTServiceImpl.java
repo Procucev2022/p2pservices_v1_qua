@@ -71,6 +71,7 @@ import com.portal.procucev.dao.OrgTypeDao;
 import com.portal.procucev.dao.RFQItemsDao;
 import com.portal.procucev.dao.RfqDao;
 import com.portal.procucev.dao.RfqVendorDao;
+import com.portal.procucev.dao.RoleDao;
 import com.portal.procucev.dao.UserDao;
 import com.portal.procucev.model.CategoryDivision;
 import com.portal.procucev.model.ClientDeliveryLocationRfq;
@@ -84,6 +85,7 @@ import com.portal.procucev.model.RFQDocument;
 import com.portal.procucev.model.Rfq;
 import com.portal.procucev.model.RfqItem;
 import com.portal.procucev.model.RfqVendor;
+import com.portal.procucev.model.Role;
 import com.portal.procucev.model.User;
 import com.portal.procucev.utils.ApplicationConstants;
 import com.portal.procucev.utils.MailUtility;
@@ -95,6 +97,9 @@ public class GMTServiceImpl implements GMTService {
 	
 	@Autowired
 	private RfqDao rfqDao;
+	
+	@Autowired
+	private RoleDao roleDao;
 	
 	@Autowired
 	private CategoryDivisionDao categoryDivisionDao;
@@ -1691,4 +1696,32 @@ public class GMTServiceImpl implements GMTService {
 		}
 
 	}
+
+	@Override
+    public List<User> getGmtBuyers() {
+        logger.info("Fetching GMT users with role: {}", ApplicationConstants.ClientInitiator);
+
+        List<User> usersList = new ArrayList<>();
+        try {
+            Role role = roleDao.findByRoleNameAndActive(ApplicationConstants.ClientInitiator, true);
+
+            if (role == null) {
+                logger.warn("No active role found with name: {}", ApplicationConstants.ClientInitiator);
+                return usersList;
+            }
+
+            usersList = userDao.getUsersBySelfClientAndRole(role);
+
+            if (usersList == null || usersList.isEmpty()) {
+                logger.info("No users found for role: {}", ApplicationConstants.ClientInitiator);
+            } else {
+                logger.info("Found {} user(s) for role: {}", usersList.size(), ApplicationConstants.ClientInitiator);
+            }
+
+        } catch (Exception e) {
+            logger.error("Error while fetching GMT users: {}", e.getMessage(), e);
+        }
+
+        return usersList;
+    }
 }

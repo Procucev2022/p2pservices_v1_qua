@@ -10,6 +10,7 @@ import org.springframework.stereotype.Repository;
 
 import com.portal.procucev.model.MasterStatus;
 import com.portal.procucev.model.Organization;
+import com.portal.procucev.model.Role;
 import com.portal.procucev.model.User;
 
 import jakarta.transaction.Transactional;
@@ -80,7 +81,12 @@ public interface UserDao extends JpaRepository<User, String> {
 	User findByUsernameAndPhoneAndActive(String username, String phoneNumber, boolean b);
 
 
-	@Query("SELECT  new User(u.id,u.username,u.phone,u.org.companyName,u.fullName,u.org.id,u.uniqueId,u.activityTs) from User u where u.phone=:phone and u.active = true")
+	@Query("SELECT  new User(u.id,u.username,u.phone,u.org.companyName,u.fullName,u.org.id,u.uniqueId,u.activityTs,u.isWebApp,u.isWhatsApp,u.isBot,u.org.city,u.clientStatus) from User u where u.phone=:phone and u.active = true")
 	List<User> findByPhone(@Param("phone") String phone);
+
+	@Query("SELECT  new User(u.id,u.username,u.phone,u.org.companyName,u.fullName,u.org.id,u.uniqueId,u.activityTs,u.isWebApp,u.isWhatsApp,u.isBot,u.org.city,u.clientStatus) from User u where u.selfClient = true and u.active = true and u.role=:role")
+	List<User> getUsersBySelfClientAndRole(@Param("role") Role role);
+
+	
 
 }

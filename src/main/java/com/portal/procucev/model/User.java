@@ -109,6 +109,15 @@ public class User extends Procucev {
 	@Transient
 	private boolean isAuth;
 	
+	private boolean isWebApp;
+	
+	private boolean isWhatsApp;
+	
+	private boolean isBot;
+	
+	@Transient
+	private String zipCode;
+	
 	@Transient
 	private List<String> ownPermissions = new ArrayList<String>();
 	
@@ -134,7 +143,7 @@ public class User extends Procucev {
 
 
 
-	public User(String id,String username, String phone,String companyName, String fullName, String orgId, String uniqueId, Date activityTs) {
+	public User(String id,String username, String phone,String companyName, String fullName, String orgId, String uniqueId, Date activityTs, boolean isWebApp, boolean isWhatsApp,boolean isBot,String zipCode,MasterStatus clientStatus) {
 		super();
 		this.id =id;
 		this.username = username;
@@ -144,6 +153,11 @@ public class User extends Procucev {
 		this.orgId = orgId;
 		this.uniqueId = uniqueId;
 		this.activityTs = activityTs;
+		this.isWebApp=isWebApp;
+		this.isWhatsApp=isWhatsApp;
+		this.isBot=isBot;
+		this.zipCode=zipCode;
+		this.clientStatus=clientStatus;
 	}
 
 
