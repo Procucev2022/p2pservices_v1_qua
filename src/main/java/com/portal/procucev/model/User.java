@@ -115,6 +115,8 @@ public class User extends Procucev {
 	
 	private boolean isBot;
 	
+	private boolean isApproved;
+	
 	@Transient
 	private String zipCode;
 	
@@ -158,6 +160,24 @@ public class User extends Procucev {
 		this.isBot=isBot;
 		this.zipCode=zipCode;
 		this.clientStatus=clientStatus;
+	}
+
+	public User(String id,String username, String phone,String companyName, String fullName, String orgId, String uniqueId, Date activityTs, boolean isWebApp, boolean isWhatsApp,boolean isBot,String zipCode,boolean isApproved,boolean selfClient) {
+		super();
+		this.id =id;
+		this.username = username;
+		this.phone = phone;
+		this.companyName=companyName;
+		this.fullName = fullName;
+		this.orgId = orgId;
+		this.uniqueId = uniqueId;
+		this.activityTs = activityTs;
+		this.isWebApp=isWebApp;
+		this.isWhatsApp=isWhatsApp;
+		this.isBot=isBot;
+		this.zipCode=zipCode;
+		this.isApproved=isApproved;
+		this.selfClient=selfClient;
 	}
 
 

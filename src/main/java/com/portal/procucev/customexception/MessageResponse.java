@@ -3,6 +3,7 @@ package com.portal.procucev.customexception;
 import java.io.Serializable;
 import java.util.Date;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Class to handle all response messages for Errors
@@ -16,11 +17,9 @@ public class MessageResponse implements Serializable {
 	private Date timestamp = new Date();
 	private String status;
 	private String type;
+	 private Map<String, Object> data;
 
-	public MessageResponse() {
-		super();
-		// TODO Auto-generated constructor stub
-	}
+	
 
 	public String getType() {
 		return type;
@@ -36,6 +35,14 @@ public class MessageResponse implements Serializable {
 
 	public void setStatus(String status) {
 		this.status = status;
+	}
+
+	public Map<String, Object> getData() {
+		return data;
+	}
+
+	public void setData(Map<String, Object> data) {
+		this.data = data;
 	}
 
 	public MessageResponse(String statusCode, String message, List<String> errorMsg, String status) {
@@ -72,6 +79,14 @@ public class MessageResponse implements Serializable {
 		this.type = type;
 	}
 
+	public MessageResponse(String statusCode, String message, Map<String, Object> data, String status,Date timestamp) {
+	    super();
+	    this.statusCode = statusCode;
+	    this.message = message;
+	    this.status = status;
+	    this.data = data;
+	    this.timestamp = timestamp;
+	}
 	/**
 	 * @return the statusCode
 	 */

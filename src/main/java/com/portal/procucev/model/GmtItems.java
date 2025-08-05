@@ -17,6 +17,7 @@ public class GmtItems extends Procucev{
 	 */
 	private static final long serialVersionUID = 1L;
 	private String description;
+	private String category;
 	private String brand;
 	private String remarks;
 	private double quantity;
