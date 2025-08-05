@@ -5,6 +5,7 @@ import java.io.UnsupportedEncodingException;
 import java.text.SimpleDateFormat;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
@@ -348,16 +349,16 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 	@Override
 	public boolean vendorRegistration(Organization organization) throws UnsupportedEncodingException {
 		// TODO Auto-generated method stub
-		if (checkOrgexist(organization.getCompanyName().trim())) {
-
-			// throws exception when org name already exist in database
-			throw new AppException(HttpStatus.INTERNAL_SERVER_ERROR.value() + organization.getCompanyName(),
-					ApplicationConstants.VENDOR_ALREADY_EXISTS, ApplicationConstants.BUSSINESS_EXCEPTION,
-					ApplicationConstants.FAILURE);
-		}
+//		if (checkOrgexist(organization.getCompanyName().trim())) {
+//
+//			// throws exception when org name already exist in database
+//			throw new AppException(HttpStatus.INTERNAL_SERVER_ERROR.value() + organization.getCompanyName(),
+//					ApplicationConstants.VENDOR_ALREADY_EXISTS, ApplicationConstants.BUSSINESS_EXCEPTION,
+//					ApplicationConstants.FAILURE);
+//		}
 
 		// Check if User exist already in the database
-		if (checkUserexist(organization.getEmail().trim())) {
+		if (checkUserexistWithPhone(organization.getEmail().trim(),organization.getOrganizationPhonenumber())) {
 
 			// Exception occurs when User is already associated to an Account/registered
 			throw new AppException(HttpStatus.INTERNAL_SERVER_ERROR.value(),
@@ -408,6 +409,16 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 		return orgexist;
 	}
 	
+	public boolean checkUserexistWithPhone(String useremail, String phone) {
+
+		User userfound = userDao.findByUsernameAndPhoneAndActive(useremail,phone,
+				
+				true);
+		if (userfound != null) {
+			return true;
+		}
+		return false;
+	}
 	public boolean checkUserexist(String useremail) {
 
 		User userfound = userDao.findByUsernameAndActive(useremail, true);
@@ -552,11 +563,26 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 	}
 
 	
+	 @Override
+	    public List<User> getUsersByPhoneNumber(String phoneNumber) {
+	        logger.info("Fetching users with phone number: {}", phoneNumber);
 
-	@Override
-	public List<User> getUserByPhoneNumber(String phone) {
-	    return userDao.findByPhone(phone);
-	}
+	        if (phoneNumber == null || phoneNumber.isBlank()) {
+	            logger.warn("Phone number is null or blank");
+	            return Collections.emptyList();
+	        }
+
+	        List<User> users = userDao.findByPhone(phoneNumber);
+
+	        if (users == null || users.isEmpty()) {
+	            logger.info("No users found with phone number: {}", phoneNumber);
+	            return Collections.emptyList();
+	        }
+
+	        logger.info("Found {} user(s) with phone number: {}", users.size(), phoneNumber);
+	        return users;
+	    }
+	
 	
 	 public String generateUserId(String mobileNumber) {
 	        // Validate mobile number length
@@ -584,4 +610,75 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 		// TODO Auto-generated method stub
 		return null;
 	}
+	
+	@Override
+	public Map<String, Object> selfclientRegistrationDataByApp(Organization organization) {
+	    logger.info("Entered self client registration");
+
+	    Map<String, Object> response = new HashMap<>();
+
+	    try {
+	        List<Organization> orgList = new ArrayList<>();
+	        OrgType orgTypeObject = orgTypeDao.findByTypeName(ApplicationConstants.CLIENT);
+
+	        if (organization.getCompanyName() != null) {
+	            logger.info("Validating Company Name");
+	            orgList = orgDao.findByCompanyNameAndOrgType(organization.getCompanyName(), orgTypeObject);
+	        }
+
+	        User user = new User();
+
+	        if (orgList.isEmpty()) {
+	            logger.info("Saving Client For First Time");
+
+	            organization.setOrgType(orgTypeObject);
+	            organization.setSelfClient(true);
+	            organization.setGmtName("GMT Basic");
+	            organization.setBfsName(StatusConstants.BFS_PRO);
+
+	            String companyId = generateId(organization.getCompanyName());
+	            organization.setCompanyId(companyId);
+	            logger.info("Company Id: {}", companyId);
+
+	            PincodeData pincodeData = getCityByPincode(organization.getZipCode());
+	            if (pincodeData != null) {
+	                organization.setCity(pincodeData.getCity());
+	                organization.setState(pincodeData.getState());
+	            }
+
+	            Organization savedOrg = clientDao.save(organization);
+	            logger.info("Saved Org ID: {}", savedOrg.getId());
+
+	            user.setOrg(savedOrg);
+	            setUserDetails(organization, user);
+
+	            response.put("orgId", savedOrg.getId());
+	            response.put("companyId", savedOrg.getCompanyId());
+	        } else {
+	            logger.info("Saving User For Existing Client");
+	            user.setOrg(orgList.get(0));
+	            setUserDetails(organization, user);
+
+	            response.put("orgId", orgList.get(0).getId());
+	            response.put("companyId", orgList.get(0).getCompanyId());
+	        }
+	        response.put("clientId", user.getId());
+	        response.put("email", user.getUsername());
+	        response.put("uniqueId", user.getUniqueId());  
+	        response.put("confirmationFlag", true);
+
+	        InternetAddress add = new InternetAddress(mailid, "Procucev Notifications");
+	        MailUtility.sendClientEmailForCM2(
+	                "New Client Registration", toAddress, organization, javaMailSender, add, host
+	        );
+
+	        return response;
+	    } catch (Exception e) {
+	        logger.error("Error during self client registration", e);
+	        response.put("confirmationFlag", false);
+	        response.put("error", e.getMessage());
+	        return response;
+	    }
+	}
+
 }

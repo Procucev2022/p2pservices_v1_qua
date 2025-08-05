@@ -73,7 +73,7 @@ public interface UserDao extends JpaRepository<User, String> {
 
 	@Modifying
 	@Transactional
-	@Query("UPDATE User u SET u.clientStatus = :status  WHERE u=:user")
+	@Query("UPDATE User u SET u.clientStatus = :status, u.isApproved = true  WHERE u=:user")
 	void updateClientStatus(@Param("user") User user, @Param("status") MasterStatus status);
 
 	List<User> findByUsernameAndPhone(String email, String organizationPhonenumber);
@@ -81,7 +81,7 @@ public interface UserDao extends JpaRepository<User, String> {
 	User findByUsernameAndPhoneAndActive(String username, String phoneNumber, boolean b);
 
 
-	@Query("SELECT  new User(u.id,u.username,u.phone,u.org.companyName,u.fullName,u.org.id,u.uniqueId,u.activityTs,u.isWebApp,u.isWhatsApp,u.isBot,u.org.city,u.clientStatus) from User u where u.phone=:phone and u.active = true")
+	@Query("SELECT  new User(u.id,u.username,u.phone,u.org.companyName,u.fullName,u.org.id,u.uniqueId,u.activityTs,u.isWebApp,u.isWhatsApp,u.isBot,u.org.city,u.isApproved,u.selfClient) from User u where u.phone=:phone and u.active = true")
 	List<User> findByPhone(@Param("phone") String phone);
 
 	@Query("SELECT  new User(u.id,u.username,u.phone,u.org.companyName,u.fullName,u.org.id,u.uniqueId,u.activityTs,u.isWebApp,u.isWhatsApp,u.isBot,u.org.city,u.clientStatus) from User u where u.selfClient = true and u.active = true and u.role=:role")
