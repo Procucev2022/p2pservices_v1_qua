@@ -104,5 +104,7 @@ public interface GMTService {
 
 	List<User> getGmtBuyers();
 
+	String createRFQByClient(Rfq rfq) throws Exception;
+
 
 }

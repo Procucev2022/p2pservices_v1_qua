@@ -616,7 +616,14 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 	    logger.info("Entered self client registration");
 
 	    Map<String, Object> response = new HashMap<>();
+	    User userData = userDao.findByUsernameAndPhoneAndActive(organization.getEmail(), organization.getOrganizationPhonenumber(), true);
 
+        if (userData != null) {
+            logger.warn("User already exists with given email and phone");
+            response.put("confirmationFlag", false);
+            response.put("error", "User already exists with this email and phone number.");
+            return response;
+        }
 	    try {
 	        List<Organization> orgList = new ArrayList<>();
 	        OrgType orgTypeObject = orgTypeDao.findByTypeName(ApplicationConstants.CLIENT);
@@ -680,5 +687,97 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 	        return response;
 	    }
 	}
+
+	@Override
+	public Map<String, Object> sellerRegistration(Organization organization) {
+		// TODO Auto-generated method stub
+		logger.info("Entered Buyer registration");
+		MasterStatus vendorstatus = masterStatusDao.findByStatus(StatusConstants.SELF_REGISTER_VC_ACCEPTED);
+	    Map<String, Object> response = new HashMap<>();
+	    User userData = userDao.findByUsernameAndPhoneAndActive(organization.getEmail(), organization.getOrganizationPhonenumber(), true);
+
+        if (userData != null) {
+            logger.warn("User already exists with given email and phone");
+            response.put("confirmationFlag", false);
+            response.put("error", "User already exists with this email and phone number.");
+            return response;
+        }
+	    try {
+	        List<Organization> orgList = new ArrayList<>();
+	        OrgType orgTypeObject = orgTypeDao.findByTypeName(ApplicationConstants.VENDOR);
+	        //SELF_REGISTER_VC_ACCEPTED
+	       
+	        User user = new User();
+
+	            logger.info("Saving Client For First Time");
+
+	            organization.setOrgType(orgTypeObject);
+	            organization.setGmtName("GMT Basic");
+	            organization.setBfsName(StatusConstants.BFS_PRO);
+	            organization.setProcucevStatus(vendorstatus);
+	            organization.setVendorStatus(vendorstatus);
+	            String companyId = generateId(organization.getCompanyName());
+	            organization.setCompanyId(companyId);
+	            logger.info("Company Id: {}", companyId);
+
+	            PincodeData pincodeData = getCityByPincode(organization.getZipCode());
+	            if (pincodeData != null) {
+	                organization.setCity(pincodeData.getCity());
+	                organization.setState(pincodeData.getState());
+	            }
+
+	            Organization savedOrg = clientDao.save(organization);
+	            logger.info("Saved Org ID: {}", savedOrg.getId());
+
+	            user.setOrg(savedOrg);
+	            User savedUser = setSellerUserDetails(organization, user);
+
+	            response.put("orgId", savedOrg.getId());
+	            response.put("companyId", savedOrg.getCompanyId());
+	            response.put("sellerId", user.getId());
+	            response.put("email", user.getUsername());
+	            response.put("uniqueId", user.getUniqueId());  
+	            response.put("confirmationFlag", true);
+
+//	        InternetAddress add = new InternetAddress(mailid, "Procucev Notifications");
+//	        MailUtility.mailingVerificationLinkWithUser( javaMailSender, add, host, savedUser);
+
+
+	        return response;
+	    } catch (Exception e) {
+	        logger.error("Error during seller registration", e);
+	        response.put("confirmationFlag", false);
+	        response.put("error", e.getMessage());
+	        return response;
+	    }
+}
+	    
+	    public User setSellerUserDetails(Organization organization, User user) {
+			logger.info("Setting User Details::");
+			List<User> existingUsers = userDao.findByUsernameAndPhone(
+		            organization.getEmail(),  
+		            organization.getOrganizationPhonenumber());
+
+		    if (!existingUsers.isEmpty()) {
+		        logger.warn("User already exists with the given email and phone");
+		        throw new AppException("409", "User with the same email and phone number already exists", null, null);
+		    }
+			//MasterStatus status = masterStatusDao.findByStatus(StatusConstants.CLIENT_NEW);
+			Role vendor = roleDao.findByRoleNameAndActive(StatusConstants.VENDOR, true);
+			String uniqueId = generateUserId(organization.getOrganizationPhonenumber());
+			user.setUsername(organization.getEmail());
+			user.setFullName(organization.getName());
+			user.setPhone(organization.getOrganizationPhonenumber());
+			user.setResetPassword(true);
+			user.setActive(true);
+			//user.setClientStatus(status);
+			user.setRole(vendor);
+			user.setUniqueId(uniqueId);
+			char[] pswd = ProcucevUtils.generatePassword(8);
+			user.setPassword(pswd.toString());
+			logger.info("saving User Details");
+			User savedUser = userDao.save(user);
+			return savedUser;
+		}
 
 }

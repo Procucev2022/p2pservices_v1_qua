@@ -1,7 +1,9 @@
 package com.portal.procucev.controller;
 
 import java.io.UnsupportedEncodingException;
+import java.util.Date;
 import java.util.List;
+import java.util.Map;
 
 import jakarta.mail.MessagingException;
 
@@ -355,4 +357,34 @@ public class GMTController {
 		List<User> status = gmtService.getGmtBuyers();
 		return new ResponseEntity<>(status, HttpStatus.OK);
 	}
+	
+	@PostMapping(value = "/createRFQByClient")
+	public ResponseEntity<?> createRFQByClient(@RequestBody Rfq rfq) throws Exception {
+	    // Call service to create RFQ and return rfqId (null if failed)
+	    String rfqId = gmtService.createRFQByClient(rfq);
+
+	    boolean success = rfqId != null;
+
+	    String statusCode = success ? String.valueOf(ApplicationConstants.SUCCESS)
+	                                : String.valueOf(ApplicationConstants.FAILURE);
+
+	    String msg = success
+	        ? String.format(ApplicationConstants.RFQ_CREATED_SUCCESS, "")
+	        : String.format(ApplicationConstants.RFQ_CREATED_FAILURE, "");
+
+	    // 👇 Build response with rfqId in a Map
+	    Map<String, Object> data = success ? Map.of("rfqId", rfqId) : null;
+
+	    // Create MessageResponse using your matching constructor
+	    MessageResponse response = new MessageResponse(
+	        statusCode,
+	        msg,
+	        data,
+	        statusCode,
+	        new Date()
+	    );
+
+	    return new ResponseEntity<>(response, HttpStatus.OK);
+	}
+
 }

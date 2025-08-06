@@ -704,6 +704,10 @@ public interface ApplicationConstants {
 	public String Project_Item_Number = "Project Item Number";
 
 	public String UPDATE_PPO = "PPO Updated Successfully";
+
+	public String CREATE_SELLER_SUCCESS = "Seller Created Successfully";
+
+	public String CREATE_SELLER_FAILED = "Failed To Create the Seller";
 		
 	
 

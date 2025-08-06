@@ -3,6 +3,8 @@ package com.portal.procucev.controller;
 
 import java.util.List;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -18,16 +20,20 @@ import com.portal.procucev.customexception.AppException;
 import com.portal.procucev.customexception.MessageResponse;
 import com.portal.procucev.dao.EmailUserRepo;
 import com.portal.procucev.model.EmailUser;
+import com.portal.procucev.model.Organization;
 import com.portal.procucev.model.ResetPassword;
 import com.portal.procucev.model.User;
 import com.portal.procucev.service.UserService;
 import com.portal.procucev.utils.ApplicationConstants;
+import com.portal.procucev.utils.StatusCodes;
+
+import jakarta.servlet.http.HttpServletRequest;
 
 @RestController
 @RequestMapping("/rest/users")
 @CrossOrigin
 public class UserController {
-
+	private static final Logger logger = LoggerFactory.getLogger(UserController.class);
 	@Autowired
 	private UserService userServices;
 
@@ -119,5 +125,38 @@ public class UserController {
 
 	}
 	
+	@PostMapping(value = "/sendOtp")
+	public ResponseEntity<?> sendOtp(@RequestBody Organization organization, HttpServletRequest request) {
+
+	    logger.info("Entered to send OTP");
+
+	    boolean status = userServices.generateOtp(organization, request);
+
+	    String statusCode = status ? String.valueOf(ApplicationConstants.SUCCESS)
+	                               : String.valueOf(ApplicationConstants.FAILURE);
+
+	    String msg = status 
+	        ? String.format(ApplicationConstants.OTP_GENERATE_SUCCESS, "") 
+	        : "User not registered or OTP could not be sent.";
+
+	    MessageResponse response = new MessageResponse(StatusCodes.NEW_VENDOR_CODE, msg, null, statusCode);
+	    return ResponseEntity.ok(response);  //  Always return 200 OK
+	}
+	@PostMapping(value = "/validateOtp")
+	public ResponseEntity<?> validateOtp(@RequestBody Organization organization) {
+
+		logger.info("Entered to send OTP");
+
+		boolean status = userServices.validateEmailOtp(organization);
+
+		String statusCode = status ? String.valueOf(ApplicationConstants.SUCCESS)
+				: String.valueOf(ApplicationConstants.FAILURE);
+		String msg = status ? String.format(ApplicationConstants.OTP_VALID_SUCCESS, "")
+				: String.format(ApplicationConstants.OTP_VALID_FAILED, "");
+		MessageResponse response = new MessageResponse(StatusCodes.NEW_VENDOR_CODE, msg, null, statusCode);
+		return new ResponseEntity<>(response, HttpStatus.OK);
+
+	}
+
 	
 }

@@ -275,41 +275,88 @@ public class PartialVendorController {
 		return ResponseEntity.ok(users); // returns list of users
 	}
 
+//	@PostMapping(value = "/buyerRegistration")
+//	public ResponseEntity<?> buyerRegistration(@RequestBody Organization organization) {
+//		logger.info("Entered to save the client details");
+//
+//		try {
+//			Map<String, Object> registrationResponse = regService.selfclientRegistrationDataByApp(organization);
+//
+//			boolean confirmationFlag = registrationResponse.get("confirmationFlag") != null
+//					&& Boolean.TRUE.equals(registrationResponse.get("confirmationFlag"));
+//
+//			String statusCode = confirmationFlag ? String.valueOf(ApplicationConstants.SUCCESS)
+//					: String.valueOf(ApplicationConstants.FAILURE);
+//
+//			String msg = confirmationFlag ? String.format(ApplicationConstants.CREATE_SELF_CLIENT, "")
+//					: String.format(ApplicationConstants.SELF_CLIENT_FAILED, "");
+//
+//			String code = confirmationFlag ? String.valueOf(HttpStatus.OK.value())
+//					: String.valueOf(HttpStatus.BAD_REQUEST.value());
+//
+//			MessageResponse response = new MessageResponse(code, msg, registrationResponse, statusCode, new Date());
+//
+//			HttpStatus httpStatus = confirmationFlag ? HttpStatus.OK : HttpStatus.BAD_REQUEST;
+//
+//			return new ResponseEntity<>(response, httpStatus);
+//
+//		} catch (AppException e) {
+//			logger.error("Business validation error: {}", e.getMessage());
+//			return ResponseEntity.status(HttpStatus.CONFLICT)
+//					.body(new MessageResponse("409", e.getMessage(), null, ApplicationConstants.FAILURE));
+//		} catch (Exception e) {
+//			logger.error("Unexpected error: ", e);
+//			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(new MessageResponse("500",
+//					"Something went wrong while processing the request", null, ApplicationConstants.FAILURE));
+//		}
+//	}
+	
 	@PostMapping(value = "/buyerRegistration")
 	public ResponseEntity<?> buyerRegistration(@RequestBody Organization organization) {
-		logger.info("Entered to save the client details");
+	    logger.info("Entered to save the client details");
 
-		try {
-			Map<String, Object> registrationResponse = regService.selfclientRegistrationDataByApp(organization);
+	    Map<String, Object> registrationResponse;
+	    String statusCode;
+	    String msg;
 
-			boolean confirmationFlag = registrationResponse.get("confirmationFlag") != null
-					&& Boolean.TRUE.equals(registrationResponse.get("confirmationFlag"));
+	    try {
+	        registrationResponse = regService.selfclientRegistrationDataByApp(organization);
 
-			String statusCode = confirmationFlag ? String.valueOf(ApplicationConstants.SUCCESS)
-					: String.valueOf(ApplicationConstants.FAILURE);
+	        boolean confirmationFlag = Boolean.TRUE.equals(registrationResponse.get("confirmationFlag"));
 
-			String msg = confirmationFlag ? String.format(ApplicationConstants.CREATE_SELF_CLIENT, "")
-					: String.format(ApplicationConstants.SELF_CLIENT_FAILED, "");
+	        if (confirmationFlag) {
+	            statusCode = ApplicationConstants.SUCCESS;
+	            msg = String.format(ApplicationConstants.CREATE_SELF_CLIENT, "");
+	        } else {
+	            statusCode = ApplicationConstants.FAILURE;
+	            msg = registrationResponse.get("error") != null
+	                    ? registrationResponse.get("error").toString()
+	                    : String.format(ApplicationConstants.SELF_CLIENT_FAILED, "");
+	        }
 
-			String code = confirmationFlag ? String.valueOf(HttpStatus.OK.value())
-					: String.valueOf(HttpStatus.BAD_REQUEST.value());
+	        MessageResponse response = new MessageResponse(
+	                String.valueOf(HttpStatus.OK.value()), // Always 200
+	                msg,
+	                registrationResponse,
+	                statusCode,
+	                new Date()
+	        );
 
-			MessageResponse response = new MessageResponse(code, msg, registrationResponse, statusCode, new Date());
+	        return ResponseEntity.ok(response); // Always return 200
 
-			HttpStatus httpStatus = confirmationFlag ? HttpStatus.OK : HttpStatus.BAD_REQUEST;
-
-			return new ResponseEntity<>(response, httpStatus);
-
-		} catch (AppException e) {
-			logger.error("Business validation error: {}", e.getMessage());
-			return ResponseEntity.status(HttpStatus.CONFLICT)
-					.body(new MessageResponse("409", e.getMessage(), null, ApplicationConstants.FAILURE));
-		} catch (Exception e) {
-			logger.error("Unexpected error: ", e);
-			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(new MessageResponse("500",
-					"Something went wrong while processing the request", null, ApplicationConstants.FAILURE));
-		}
+	    } catch (AppException e) {
+	        logger.error("Business validation error: {}", e.getMessage());
+	        return ResponseEntity.ok(
+	                new MessageResponse("409", e.getMessage(), null, ApplicationConstants.FAILURE, new Date())
+	        );
+	    } catch (Exception e) {
+	        logger.error("Unexpected error: ", e);
+	        return ResponseEntity.ok(
+	                new MessageResponse("500", "Something went wrong", null, ApplicationConstants.FAILURE, new Date())
+	        );
+	    }
 	}
+
 
 	@PostMapping(value = "/forgotPassword")
 	public ResponseEntity<?> forgotPassword(@RequestBody User user) {
@@ -320,6 +367,53 @@ public class PartialVendorController {
 				: String.format(ApplicationConstants.MAIL_SENT_UNSUCCESS, "");
 		AppException response = new AppException(statusCode, msg, null, null);
 		return new ResponseEntity<>(response, HttpStatus.OK);
+	}
+
+
+	@PostMapping(value = "/sellerRegistration")
+	public ResponseEntity<?> sellerRegistration(@RequestBody Organization organization) {
+	    logger.info("Entered to save the Seller details");
+
+	    Map<String, Object> registrationResponse;
+	    String statusCode;
+	    String msg;
+
+	    try {
+	        registrationResponse = regService.sellerRegistration(organization);
+
+	        boolean confirmationFlag = Boolean.TRUE.equals(registrationResponse.get("confirmationFlag"));
+
+	        if (confirmationFlag) {
+	            statusCode = ApplicationConstants.SUCCESS;
+	            msg = String.format(ApplicationConstants.CREATE_SELLER_SUCCESS, "");
+	        } else {
+	            statusCode = ApplicationConstants.FAILURE;
+	            msg = registrationResponse.get("error") != null
+	                    ? registrationResponse.get("error").toString()
+	                    : String.format(ApplicationConstants.CREATE_SELLER_FAILED, "");
+	        }
+
+	        MessageResponse response = new MessageResponse(
+	                String.valueOf(HttpStatus.OK.value()), // Always 200
+	                msg,
+	                registrationResponse,
+	                statusCode,
+	                new Date()
+	        );
+
+	        return ResponseEntity.ok(response); // Always return 200
+
+	    } catch (AppException e) {
+	        logger.error("Business validation error: {}", e.getMessage());
+	        return ResponseEntity.ok(
+	                new MessageResponse("409", e.getMessage(), null, ApplicationConstants.FAILURE, new Date())
+	        );
+	    } catch (Exception e) {
+	        logger.error("Unexpected error: ", e);
+	        return ResponseEntity.ok(
+	                new MessageResponse("500", "Something went wrong", null, ApplicationConstants.FAILURE, new Date())
+	        );
+	    }
 	}
 
 }
