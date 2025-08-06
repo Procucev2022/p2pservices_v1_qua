@@ -18,6 +18,7 @@ import com.portal.procucev.model.Rfq;
 import com.portal.procucev.model.RfqItem;
 import com.portal.procucev.model.User;
 
+
 import jakarta.activation.DataHandler;
 import jakarta.mail.Message;
 import jakarta.mail.MessagingException;
@@ -1355,5 +1356,40 @@ public class MailUtility {
 //		// TODO Auto-generated method stub
 //		
 //	}
+	
+
+	public static void mailingVerificationLinkWithUser( JavaMailSender javaMailSender,
+			InternetAddress add, String hostName, User user) {
+		System.out.println("pswdd mail---" + user.getPassword());
+		String verificationTemplate = "<!DOCTYPE html>\n" + "<html>\n" + "<body>\n" + "\n" + "Dear " + "Partner"
+				+ ", <br><br>\n" + "\n" + "Greetings from Procucev!!" + "<br><br>\n" + "\n"
+				+ "<b>Please click on the below link to start creating your Seller profile with Procucev Solutions</b>\n"
+				+ "\n" + "<p><a href=\"" + hostName + "/login?regId=" + user.getOrg().getId()
+				+ "\">Create your account !!</a></p>\n" + "<b>Use the login details mentioned below to proceed:</b>\n"
+				+ ",<br><br>\n" + "<b>UserName " + user.getUsername() + ",<br><br></b>\n" + "\n" + "<b>Password "
+				+ user.getPassword() + "<br><br></b>\n" + "\n"
+
+				+ "<b>Thanks, <br></b>\n" + "\n" + "<b>Procucev Solutions</b>\n" + "\n" + "\n" + "</body>\n"
+				+ "</html>";
+
+		System.out.println(verificationTemplate);
+		// http://localhost:4201/vendorRegistration?regId=r123
+
+		MimeMessage mimeMessage = javaMailSender.createMimeMessage();
+		MimeMessageHelper mimeMessageHelper = new MimeMessageHelper(mimeMessage);
+		try {
+			mimeMessageHelper.setTo(user.getUsername());
+			mimeMessageHelper.setFrom(add); // from Address
+			mimeMessageHelper.setSubject("Procucev Portal Account Creation !!");
+			mimeMessageHelper.setText(verificationTemplate, true);
+			javaMailSender.send(mimeMessage);
+		} catch (Exception e) {
+			LOGGER.error("Error in sending creation mail -- " + e.getMessage());
+			throw new AppException(StatusCodes.MAIL_SEND_ERROR, ApplicationConstants.MAIL_SENDING_FAILURE,
+					ApplicationConstants.BUSSINESS_EXCEPTION, ApplicationConstants.FAILURE);
+		}
+		LOGGER.info("Sent verifiation mail successfully");
+	}
+
 }
 

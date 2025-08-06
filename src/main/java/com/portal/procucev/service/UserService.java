@@ -7,6 +7,8 @@ import com.portal.procucev.model.ResetPassword;
 import com.portal.procucev.model.Role;
 import com.portal.procucev.model.User;
 
+import jakarta.servlet.http.HttpServletRequest;
+
 
 public interface UserService {
 
@@ -42,5 +44,11 @@ public interface UserService {
 	boolean updateEmailUserPswd(EmailUser user);
 
 	boolean disableUser(User user);
+
+	boolean generateOtp(Organization organization, HttpServletRequest request);
+
+	boolean validateEmailOtp(Organization organization);
+
+	boolean validateOtp(Organization organization);
 
 }

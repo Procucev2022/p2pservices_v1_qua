@@ -52,4 +52,6 @@ public interface SelfRegistrationService {
 
 	Map<String, Object> selfclientRegistrationDataByApp(Organization organization);
 
+	Map<String, Object> sellerRegistration(Organization organization);
+
 }

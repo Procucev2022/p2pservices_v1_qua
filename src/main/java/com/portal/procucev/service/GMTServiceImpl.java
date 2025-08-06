@@ -1724,4 +1724,36 @@ public class GMTServiceImpl implements GMTService {
 
         return usersList;
     }
+
+	@Override
+	public String createRFQByClient(Rfq rfq) throws Exception {
+		// TODO Auto-generated method stub
+		logger.info("Request received for RFQ creation with No PR by client {}", rfq);
+
+	    try {
+	        MasterStatus resultStatus = masterStatusDao.findByStatus(StatusConstants.pcprinprogress);
+	        MasterStatus newStatus = masterStatusDao.findByStatus(StatusConstants.CLIENT_RFQ_NEW);
+
+	        rfq.setByClient(true);
+	        rfq.setStatus(resultStatus);
+	        rfq.setClientStatus(newStatus);
+
+	        String rfqId = selfRegistrationService.generateId("RFQ");
+	        logger.info("Generated RFQ Id: {}", rfqId);
+	        rfq.setRfqId(rfqId);
+
+	        List<RfqItem> rfqItems = rfq.getRfqItem();
+	        List<GmtItems> gmtItems = rfqItems.stream().map(this::mapRfqItemToGmtItem).collect(Collectors.toList());
+	        gmtItemsDao.saveAll(gmtItems);
+	        logger.info("Saved RFQ items in GMT Items");
+
+	        rfqDao.save(rfq);
+	        logger.info("Completed Saving RFQ");
+
+	        return rfqId;
+	    } catch (DataAccessException e) {
+	        logger.error("Error occurred while creating RFQ: {}", e.getMessage());
+	        return null;
+	    }
+	}
 }

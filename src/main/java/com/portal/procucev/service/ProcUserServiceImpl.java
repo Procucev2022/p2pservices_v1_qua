@@ -1,11 +1,17 @@
 package com.portal.procucev.service;
 
+import java.io.UnsupportedEncodingException;
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.Random;
 
 import jakarta.mail.internet.InternetAddress;
+import jakarta.servlet.http.HttpServletRequest;
 
 import org.apache.commons.lang3.StringUtils;
 import org.apache.poi.ss.usermodel.Cell;
@@ -30,6 +36,7 @@ import com.portal.procucev.dao.UserDao;
 import com.portal.procucev.model.EmailUser;
 import com.portal.procucev.model.OrgType;
 import com.portal.procucev.model.Organization;
+import com.portal.procucev.model.OtpDetails;
 import com.portal.procucev.model.Permission;
 import com.portal.procucev.model.ResetPassword;
 import com.portal.procucev.model.Role;
@@ -60,6 +67,8 @@ public class ProcUserServiceImpl implements UserService {
 
 	@Value("${host}")
 	String host;
+	
+	private Map<String, OtpDetails> otpsMap = new HashMap<>();
 
 	@Override
 	public User save(User user) {
@@ -285,7 +294,146 @@ public class ProcUserServiceImpl implements UserService {
 		}
 
 	}
+
+	public boolean generateOtp(Organization organization, HttpServletRequest request) {
+	    log.info("Entered to generate OTP");
+
+	    try {
+	        if (organization != null) {
+	            String email = organization.getEmail();
+	            String phone = organization.getOrganizationPhonenumber();
+
+	            //  Check if user exists
+	            User user = userDao.findByUsernameAndPhoneAndActive(email, phone, true);
+	            if (user == null) {
+	                log.error("User not found for email: {} and phone: {}", email, phone);
+	                return false;
+	            }
+
+	            //  Generate OTP
+	            String otp = generateOTPForEmail();
+	            LocalDateTime expirationTime = LocalDateTime.now().plusMinutes(15);
+
+	            //  Store OTP
+	            // Store using unique key (email + phone)
+	            String otpKey = email + "|" + phone;
+	            otpsMap.put(otpKey, new OtpDetails(otp, expirationTime));
+	            //otpsMap.put(email, new OtpDetails(otp, expirationTime));
+
+	            // Send OTP
+	            InternetAddress fromAddress = new InternetAddress(mailFom, "Procucev Notifications");
+	            MailUtility.sendOtpForEmail("OTP", email, javaMailSender, fromAddress, host, otp);
+
+	            log.info("OTP sent successfully to {}", email);
+	            return true;
+
+	        } else {
+	            log.error("Organization object is null");
+	            throw new AppException(
+	                    HttpStatus.NO_CONTENT.value(),
+	                    ApplicationConstants.NO_DATA_FOUND,
+	                    ApplicationConstants.BUSINESS_EXCEPTION,
+	                    ApplicationConstants.FAILURE
+	            );
+	        }
+	    } catch (UnsupportedEncodingException e) {
+	        log.error("Encoding error while sending OTP", e);
+	    } catch (Exception ex) {
+	        log.error("Unexpected error while sending OTP", ex);
+	    }
+
+	    return false;
+	}
+
+	private static String generateOTPForEmail() {
+		Random random = new Random();
+		int otpLength = 6;
+		StringBuilder otp = new StringBuilder();
+
+		for (int i = 0; i < otpLength; i++) {
+			otp.append(random.nextInt(10));
+		}
+
+		return otp.toString();
+	}
+	@Override
+	public boolean validateOtp(Organization organization) {
+	    if (organization == null) {
+	        log.error("Organization object is null in validateOtp()");
+	        return false;
+	    }
+
+	    String email = organization.getEmail();
+	    String phone = organization.getOrganizationPhonenumber();
+
+	    if (email == null || phone == null || organization.getEmailOtp() == null) {
+	        log.warn("Missing email, phone, or OTP in request");
+	        return false;
+	    }
+
+	    String key = email + "|" + phone;
+	    OtpDetails otpDetails = otpsMap.get(key);
+
+	    // Validate OTP
+	    if (otpDetails != null) {
+	        LocalDateTime expirationTime = otpDetails.getExpirationTime();
+	        LocalDateTime now = LocalDateTime.now();
+
+	        // Check if OTP is still valid (not expired) and matches
+	        if (now.isBefore(expirationTime) && otpDetails.getOtp().equals(organization.getEmailOtp())) {
+	            // Remove OTP from the map after successful validation
+	            otpsMap.remove(key);
+	            log.info("OTP validated successfully for key: {}", key);
+	            return true;
+	        } else {
+	            log.warn("OTP expired or mismatch for key: {}", key);
+	        }
+	    } else {
+	        log.warn("No OTP entry found for key: {}", key);
+	    }
+
+	    return false;
+	}
 	
+	@Override
+	public boolean validateEmailOtp(Organization organization) {
+	    if (organization == null) {
+	        log.error("Organization object is null in validateOtp()");
+	        return false;
+	    }
+
+	    String email = organization.getEmail();
+	    String phone = organization.getOrganizationPhonenumber();
+
+	    if (email == null || phone == null || organization.getEmailOtp() == null) {
+	        log.warn("Missing email, phone, or OTP in request");
+	        return false;
+	    }
+
+	    String key = email + "|" + phone;
+	    OtpDetails otpDetails = otpsMap.get(key);
+
+	    // Validate OTP
+	    if (otpDetails != null) {
+	        LocalDateTime expirationTime = otpDetails.getExpirationTime();
+	        LocalDateTime now = LocalDateTime.now();
+
+	        // Check if OTP is still valid (not expired) and matches
+	        if (now.isBefore(expirationTime) && otpDetails.getOtp().equals(organization.getEmailOtp())) {
+	            // Remove OTP from the map after successful validation
+	            otpsMap.remove(key);
+	            log.info("OTP validated successfully for key: {}", key);
+	            return true;
+	        } else {
+	            log.warn("OTP expired or mismatch for key: {}", key);
+	        }
+	    } else {
+	        log.warn("No OTP entry found for key: {}", key);
+	    }
+
+	    return false;
+	}
+
 
 //	    public String processBuyerExcel(MultipartFile file) throws Exception {
 //	        Workbook workbook = WorkbookFactory.create(file.getInputStream());
