@@ -139,7 +139,7 @@ public class UserController {
 	        ? String.format(ApplicationConstants.OTP_GENERATE_SUCCESS, "") 
 	        : "User not registered or OTP could not be sent.";
 
-	    MessageResponse response = new MessageResponse(StatusCodes.NEW_VENDOR_CODE, msg, null, statusCode);
+	    MessageResponse response = new MessageResponse(StatusCodes.OK_VENDOR_CODE, msg, null, statusCode);
 	    return ResponseEntity.ok(response);  //  Always return 200 OK
 	}
 	@PostMapping(value = "/validateOtp")
@@ -153,7 +153,7 @@ public class UserController {
 				: String.valueOf(ApplicationConstants.FAILURE);
 		String msg = status ? String.format(ApplicationConstants.OTP_VALID_SUCCESS, "")
 				: String.format(ApplicationConstants.OTP_VALID_FAILED, "");
-		MessageResponse response = new MessageResponse(StatusCodes.NEW_VENDOR_CODE, msg, null, statusCode);
+		MessageResponse response = new MessageResponse(StatusCodes.OK_VENDOR_CODE, msg, null, statusCode);
 		return new ResponseEntity<>(response, HttpStatus.OK);
 
 	}

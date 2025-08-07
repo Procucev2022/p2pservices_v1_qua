@@ -377,7 +377,7 @@ public class GMTController {
 
 	    // Create MessageResponse using your matching constructor
 	    MessageResponse response = new MessageResponse(
-	        statusCode,
+	    	StatusCodes.OK_VENDOR_CODE,
 	        msg,
 	        data,
 	        statusCode,
