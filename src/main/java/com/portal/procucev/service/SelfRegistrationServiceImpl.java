@@ -669,7 +669,7 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 	            response.put("orgId", orgList.get(0).getId());
 	            response.put("companyId", orgList.get(0).getCompanyId());
 	        }
-	        response.put("clientId", user.getId());
+	        response.put("userId", user.getId());
 	        response.put("email", user.getUsername());
 	        response.put("uniqueId", user.getUniqueId());  
 	        response.put("confirmationFlag", true);
@@ -734,7 +734,7 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 
 	            response.put("orgId", savedOrg.getId());
 	            response.put("companyId", savedOrg.getCompanyId());
-	            response.put("sellerId", user.getId());
+	            response.put("userId", user.getId());
 	            response.put("email", user.getUsername());
 	            response.put("uniqueId", user.getUniqueId());  
 	            response.put("confirmationFlag", true);
