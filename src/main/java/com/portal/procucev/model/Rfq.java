@@ -48,6 +48,12 @@ public class Rfq extends Procucev {
 	@Column(name="quotation_received")
 	private boolean quotationReceived;
 	
+	private boolean isWebApp;
+	
+	private boolean isWhatsApp;
+	
+	private boolean isBot;
+	
 	private String user;
 	
 	private int count;

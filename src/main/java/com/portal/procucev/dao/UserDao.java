@@ -87,6 +87,11 @@ public interface UserDao extends JpaRepository<User, String> {
 	@Query("SELECT  new User(u.id,u.username,u.phone,u.org.companyName,u.fullName,u.org.id,u.uniqueId,u.activityTs,u.isWebApp,u.isWhatsApp,u.isBot,u.org.city,u.clientStatus) from User u where u.selfClient = true and u.active = true and u.role=:role")
 	List<User> getUsersBySelfClientAndRole(@Param("role") Role role);
 
+	@Modifying
+	@Transactional
+	@Query("UPDATE User u SET u.activityTs = CURRENT_TIMESTAMP WHERE u.username=:email and u.phone=:phone and u.active = true")
+	void updateActivityTs(@Param("email") String email, @Param("phone") String phone);
+
 	
 
 }

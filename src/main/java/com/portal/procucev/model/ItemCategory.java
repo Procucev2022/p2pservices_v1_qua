@@ -16,10 +16,12 @@ public class ItemCategory extends Procucev{/**
 	private static final long serialVersionUID = 1L;
 	
 	@Column(name="serial_no")
-	private String serialNo;
+	private int serialNo;
 	
 	private String item;
 	
 	private String category;
+	
+	private String division;
 
 }

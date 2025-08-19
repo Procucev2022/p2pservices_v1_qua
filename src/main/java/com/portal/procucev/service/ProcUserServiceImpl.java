@@ -12,6 +12,7 @@ import java.util.Random;
 
 import jakarta.mail.internet.InternetAddress;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.transaction.Transactional;
 
 import org.apache.commons.lang3.StringUtils;
 import org.apache.poi.ss.usermodel.Cell;
@@ -120,6 +121,8 @@ public class ProcUserServiceImpl implements UserService {
 					}
 				});
 			}
+			// To update last activity
+			userDao.updateActivityTs(user.getUsername(),user.getPhone());
 			EmailUser res = emailUserRepo.findByEmail(user.getUsername());
 			if (res != null) {
 				userObject.setAuth(true);
@@ -422,6 +425,7 @@ public class ProcUserServiceImpl implements UserService {
 	        if (now.isBefore(expirationTime) && otpDetails.getOtp().equals(organization.getEmailOtp())) {
 	            // Remove OTP from the map after successful validation
 	            otpsMap.remove(key);
+	            userDao.updateActivityTs(email,phone);
 	            log.info("OTP validated successfully for key: {}", key);
 	            return true;
 	        } else {
@@ -514,5 +518,42 @@ public class ProcUserServiceImpl implements UserService {
 //	        }
 //	    }
 //	}
+	
+	
+	@Transactional
+	public Organization updateOrganization(Organization updatedOrg) {
+	    Organization existingOrg = orgDao.findById(updatedOrg.getId())
+	            .orElseThrow(() -> new RuntimeException("Organization not found"));
+
+	    // Overwrite only the fields you care about
+	    if (updatedOrg.getCompanyName() != null) existingOrg.setCompanyName(updatedOrg.getCompanyName());
+	    if (updatedOrg.getDetails() != null) existingOrg.setDetails(updatedOrg.getDetails());
+	    if (updatedOrg.getGstin() != null) existingOrg.setGstin(updatedOrg.getGstin());
+	    if (updatedOrg.getAddress1() != null) existingOrg.setAddress1(updatedOrg.getAddress1());
+	    if (updatedOrg.getState() != null) existingOrg.setState(updatedOrg.getState());
+	    if (updatedOrg.getCity() != null) existingOrg.setCity(updatedOrg.getCity());
+	    if (updatedOrg.getZipCode() != null) existingOrg.setZipCode(updatedOrg.getZipCode());
+	    if (updatedOrg.getContactPerson() != null) existingOrg.setContactPerson(updatedOrg.getContactPerson());
+	    if (updatedOrg.getEmail() != null) existingOrg.setEmail(updatedOrg.getEmail());
+	    if (updatedOrg.getOrganizationPhonenumber() != null) existingOrg.setOrganizationPhonenumber(updatedOrg.getOrganizationPhonenumber());
+	  
+
+	    // Optional: if nested collections are passed, handle them
+	    if (updatedOrg.getBranches() != null) {
+	        existingOrg.getBranches().clear();
+	        existingOrg.getBranches().addAll(updatedOrg.getBranches());
+	    }
+
+	    if (updatedOrg.getDivisionCategories() != null) {
+	        existingOrg.getDivisionCategories().clear();
+	        existingOrg.getDivisionCategories().addAll(updatedOrg.getDivisionCategories());
+	    }
+
+	    if (updatedOrg.getSubscriptionPlan() != null) {
+	        existingOrg.setSubscriptionPlan(updatedOrg.getSubscriptionPlan());
+	    }
+	    return orgDao.save(existingOrg);
+	}
+
 
 }

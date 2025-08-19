@@ -28,6 +28,7 @@ import com.portal.procucev.model.Organization;
 import com.portal.procucev.model.PincodeData;
 import com.portal.procucev.model.PostOffice;
 import com.portal.procucev.model.User;
+import com.portal.procucev.service.ExcelReader;
 import com.portal.procucev.service.SelfRegistrationService;
 import com.portal.procucev.service.SmsService;
 import com.portal.procucev.service.UserService;
@@ -49,6 +50,9 @@ public class PartialVendorController {
 
 	@Autowired
 	UserService userServices;
+	
+	@Autowired
+    private ExcelReader excelReader;
 
 	@PostMapping(value = "/SelfVendorRegistration")
 	public ResponseEntity<?> vendorRegistration(@RequestBody Organization organization) throws IOException {
@@ -415,5 +419,12 @@ public class PartialVendorController {
 	        );
 	    }
 	}
+	
+	@PostMapping("/uploadexcel")
+    public String uploadExcel() {
+        String excelPath = "C:\\Users\\nagen\\Downloads\\Division.xlsx";
+        excelReader.uploadExcelToDB(excelPath);
+        return "Excel data inserted into DB successfully.";
+    }
 
 }

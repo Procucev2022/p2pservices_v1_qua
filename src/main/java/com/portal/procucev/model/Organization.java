@@ -7,11 +7,13 @@ import java.util.List;
 import org.springframework.web.multipart.MultipartFile;
 
 import jakarta.persistence.Basic;
+import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.Lob;
 import jakarta.persistence.ManyToOne;
+import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
 import jakarta.persistence.Transient;
 import lombok.Data;
@@ -230,7 +232,7 @@ public class Organization extends Procucev {
 	private String companyId;
 	
 	@Column(name="details")
-	private String details;
+	private String details;//products and service details
 
 	@Column(name="item_desc")
 	private String itemDesc;
@@ -243,6 +245,9 @@ public class Organization extends Procucev {
 	
 	@ManyToOne
 	private MasterStatus status;
+	
+	@ManyToOne
+	private SubscriptionPlan subscriptionPlan;
 	
 	@Column(name="DPS_Name")
 	private String dpsName;
@@ -272,5 +277,11 @@ public class Organization extends Procucev {
 	
 	@Transient
 	private String mobileOtp;
+	
+	@OneToMany(mappedBy = "organization", cascade = CascadeType.ALL, orphanRemoval = true)
+	private List<OrgDivisionCategory> divisionCategories;
+
+	@OneToMany(mappedBy = "organization", cascade = CascadeType.ALL, orphanRemoval = true)
+	private List<OrgBranches> branches;
 
 }

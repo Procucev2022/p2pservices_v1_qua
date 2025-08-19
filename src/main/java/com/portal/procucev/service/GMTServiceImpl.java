@@ -23,21 +23,26 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
-
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.util.UUID;
 import jakarta.mail.Flags;
 import jakarta.mail.Folder;
 import jakarta.mail.Message;
 import jakarta.mail.Session;
 import jakarta.mail.Store;
 import jakarta.mail.search.SubjectTerm;
-
+import jakarta.transaction.Transactional;
 import jakarta.mail.MessagingException;
-
+import org.apache.poi.ss.usermodel.Workbook;
+import org.apache.poi.ss.usermodel.WorkbookFactory;
 import jakarta.mail.internet.InternetAddress;
 
 import org.apache.commons.lang3.StringUtils;
+import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.DataFormatter;
+import org.apache.poi.ss.usermodel.DateUtil;
 import org.apache.poi.ss.usermodel.RichTextString;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.xssf.usermodel.XSSFSheet;
@@ -65,6 +70,7 @@ import com.portal.procucev.dao.CategoryDivisionDao;
 import com.portal.procucev.dao.EmailUserRepo;
 import com.portal.procucev.dao.GmtItemsDao;
 import com.portal.procucev.dao.GmtRfqVendorDao;
+import com.portal.procucev.dao.ItemCategoryDao;
 import com.portal.procucev.dao.MasterStatusDao;
 import com.portal.procucev.dao.OrgDao;
 import com.portal.procucev.dao.OrgTypeDao;
@@ -72,9 +78,11 @@ import com.portal.procucev.dao.RFQItemsDao;
 import com.portal.procucev.dao.RfqDao;
 import com.portal.procucev.dao.RfqVendorDao;
 import com.portal.procucev.dao.RoleDao;
+import com.portal.procucev.dao.SubscriptionPlanDao;
 import com.portal.procucev.dao.UserDao;
 import com.portal.procucev.model.CategoryDivision;
 import com.portal.procucev.model.ClientDeliveryLocationRfq;
+import com.portal.procucev.model.EmailRequest;
 import com.portal.procucev.model.EmailUser;
 import com.portal.procucev.model.GmtItems;
 import com.portal.procucev.model.GmtRfqVendors;
@@ -86,10 +94,13 @@ import com.portal.procucev.model.Rfq;
 import com.portal.procucev.model.RfqItem;
 import com.portal.procucev.model.RfqVendor;
 import com.portal.procucev.model.Role;
+import com.portal.procucev.model.SubscriptionPlan;
+import com.portal.procucev.model.ItemCategory;
 import com.portal.procucev.model.User;
 import com.portal.procucev.utils.ApplicationConstants;
 import com.portal.procucev.utils.MailUtility;
 import com.portal.procucev.utils.StatusConstants;
+import org.springframework.mail.SimpleMailMessage;
 
 @Service
 public class GMTServiceImpl implements GMTService {
@@ -100,6 +111,9 @@ public class GMTServiceImpl implements GMTService {
 	
 	@Autowired
 	private RoleDao roleDao;
+	
+	@Autowired
+	private SubscriptionPlanDao subscriptionPlanDao;
 	
 	@Autowired
 	private CategoryDivisionDao categoryDivisionDao;
@@ -118,6 +132,9 @@ public class GMTServiceImpl implements GMTService {
 	
 	@Autowired
 	private GmtRfqVendorDao gmtRfqVendorDao;
+	
+	@Autowired
+	private ItemCategoryDao itemCategoryDao;
 	
 	@Autowired
 	private OrgDao orgDao;
@@ -1756,4 +1773,96 @@ public class GMTServiceImpl implements GMTService {
 	        return null;
 	    }
 	}
+//	
+//	@Transactional
+//	public void uploadExcelToDB(String excelPath) {
+//	    try (FileInputStream fis = new FileInputStream(excelPath);
+//	         Workbook workbook = new XSSFWorkbook(fis)) {
+//
+//	        Sheet sheet = workbook.getSheetAt(0);
+//
+//	        for (int i = 1; i <= sheet.getLastRowNum(); i++) { // Skip header row
+//	            Row row = sheet.getRow(i);
+//
+//	            if (row != null) {
+//	            	ItemCategory item = new ItemCategory();
+//	                item.setId(UUID.randomUUID().toString());
+//	                item.setSerialNo(getCellValue(row.getCell(0)));
+//	                item.setDivision(getCellValue(row.getCell(1)));
+//	                item.setCategory(getCellValue(row.getCell(2)));
+//	                item.setItem(getCellValue(row.getCell(3)));
+//	                item.setCreatedTS(new Date());
+//
+//	                itemCategoryDao.save(item);
+//	            }
+//	        }
+//
+//	    } catch (Exception e) {
+//	        e.printStackTrace();
+//	    }
+//	}
+//
+//	private String getCellValue(Cell cell) {
+//	    if (cell == null) {
+//	        return "";
+//	    }
+//
+//	    switch (cell.getCellType()) {
+//	        case Cell.CELL_TYPE_STRING:
+//	            return cell.getStringCellValue().trim();
+//	        case Cell.CELL_TYPE_NUMERIC:
+//	            if (DateUtil.isCellDateFormatted(cell)) {
+//	                return cell.getDateCellValue().toString();
+//	            } else {
+//	                return String.valueOf(cell.getNumericCellValue());
+//	            }
+//	        case Cell.CELL_TYPE_BOOLEAN:
+//	            return String.valueOf(cell.getBooleanCellValue());
+//	       
+//	        default:
+//	            return "";
+//	    }
+//
+//	}
+
+	@Override
+	public boolean sendEmail(EmailRequest emailRequest) {
+		// TODO Auto-generated method stub
+		 try {
+	            SimpleMailMessage message = new SimpleMailMessage();
+	            
+	            // Set recipients
+	            if (emailRequest.getTo() != null && !emailRequest.getTo().isEmpty()) {
+	                message.setTo(emailRequest.getTo().toArray(new String[0]));
+	            }
+
+	            if (emailRequest.getCc() != null && !emailRequest.getCc().isEmpty()) {
+	                message.setCc(emailRequest.getCc().toArray(new String[0]));
+	            }
+
+	            if (emailRequest.getBcc() != null && !emailRequest.getBcc().isEmpty()) {
+	                message.setBcc(emailRequest.getBcc().toArray(new String[0]));
+	            }
+
+	            // Set subject and body
+	            message.setSubject(emailRequest.getSubject());
+	            message.setText(emailRequest.getBody());
+
+	            // Send email
+	            javaMailSender.send(message);
+
+	            return true;
+	        } catch (Exception e) {
+	            e.printStackTrace();
+	            return false;
+	        }
+	    }
+
+	@Override
+	public List<SubscriptionPlan> getSubscriptionPlans() {
+		// TODO Auto-generated method stub
+		  return subscriptionPlanDao.findAll();
+    }
+	
+
 }

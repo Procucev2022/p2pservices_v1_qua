@@ -26,12 +26,14 @@ import com.portal.procucev.Dto.VendorRFQDto;
 import com.portal.procucev.customexception.AppException;
 import com.portal.procucev.customexception.MessageResponse;
 import com.portal.procucev.model.CategoryDivision;
+import com.portal.procucev.model.EmailRequest;
 import com.portal.procucev.model.GmtItems;
 import com.portal.procucev.model.GmtRfqVendors;
 import com.portal.procucev.model.Organization;
 import com.portal.procucev.model.Rfq;
 import com.portal.procucev.model.RfqItem;
 import com.portal.procucev.model.RfqVendor;
+import com.portal.procucev.model.SubscriptionPlan;
 import com.portal.procucev.model.User;
 import com.portal.procucev.service.GMTService;
 import com.portal.procucev.service.GMTServiceImpl;
@@ -263,7 +265,7 @@ public class GMTController {
 				: String.valueOf(ApplicationConstants.FAILURE);
 		String msg = response ? String.format(ApplicationConstants.RFQ_FORWARD_SUCCESS, "")
 				: String.format(ApplicationConstants.RFQ_FORWARD_FAILURE, "");
-		MessageResponse responseObj = new MessageResponse(StatusCodes.CLIENT_PR_CLOSED_code, msg, null, statusCode);
+		MessageResponse responseObj = new MessageResponse(StatusCodes.OK_VENDOR_CODE, msg, null, statusCode);
 		return new ResponseEntity<>(responseObj, HttpStatus.OK);
 	}
 
@@ -385,6 +387,61 @@ public class GMTController {
 	    );
 
 	    return new ResponseEntity<>(response, HttpStatus.OK);
+	}
+	
+
+	@PostMapping("/sendEmail")
+	public ResponseEntity<?> sendEmail(@RequestBody EmailRequest request) {
+	    boolean status = gmtService.sendEmail(request);
+	    String statusCode = status ? String.valueOf(ApplicationConstants.SUCCESS)
+				: String.valueOf(ApplicationConstants.FAILURE);
+		String msg = status ? String.format(ApplicationConstants.EMAIL_SENT_SUCCESS, "")
+				: String.format(ApplicationConstants.EMAIL_SENT_UNSUCCESS, "");
+		MessageResponse response = new MessageResponse(StatusCodes.OK_VENDOR_CODE, msg,new Date(),statusCode,null);
+		return new ResponseEntity<>(response, HttpStatus.OK);
+	}
+	
+	@GetMapping(value = "/getSubscriptionPlans")
+	public ResponseEntity<?> getSubscriptionPlans() {
+	    try {
+	        // Call service to fetch all subscription plans
+	        List<SubscriptionPlan> plans = gmtService.getSubscriptionPlans();
+
+	        boolean success = (plans != null && !plans.isEmpty());
+
+	        String statusCode = success
+	                ? String.valueOf(ApplicationConstants.SUCCESS)
+	                : String.valueOf(ApplicationConstants.FAILURE);
+
+	        String msg = success
+	                ? String.format("Subscription plans fetched successfully")
+	                : String.format("No subscription plans found");
+
+	        // 👇 Wrap data in a Map like you did with rfqId
+	        Map<String, Object> data = success ? Map.of("plans", plans) : null;
+
+	        // Build standard response
+	        MessageResponse response = new MessageResponse(
+	                StatusCodes.OK_VENDOR_CODE,
+	                msg,
+	                data,
+	                statusCode,
+	                new Date()
+	        );
+
+	        return new ResponseEntity<>(response, HttpStatus.OK);
+
+	    } catch (Exception e) {
+	        // In case of error, return failure response
+	        MessageResponse response = new MessageResponse(
+	                StatusCodes.OK_VENDOR_CODE,
+	                "Error fetching subscription plans: " + e.getMessage(),
+	                null,
+	                String.valueOf(ApplicationConstants.FAILURE),
+	                new Date()
+	        );
+	        return new ResponseEntity<>(response, HttpStatus.INTERNAL_SERVER_ERROR);
+	    }
 	}
 
 }
