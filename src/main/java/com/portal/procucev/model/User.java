@@ -117,6 +117,9 @@ public class User extends Procucev {
 	
 	private boolean isApproved;
 	
+	@Column(name="source_type")
+	private String sourceType;
+	
 	@Transient
 	private String zipCode;
 	
@@ -162,7 +165,7 @@ public class User extends Procucev {
 		this.clientStatus=clientStatus;
 	}
 
-	public User(String id,String username, String phone,String companyName, String fullName, String orgId, String uniqueId, Date activityTs, boolean isWebApp, boolean isWhatsApp,boolean isBot,String zipCode,boolean isApproved,boolean selfClient) {
+	public User(String id,String username, String phone,String companyName, String fullName, String orgId, String uniqueId, Date activityTs, boolean isWebApp, boolean isWhatsApp,boolean isBot,String zipCode,boolean isApproved,boolean selfClient, boolean active,String sourceType) {
 		super();
 		this.id =id;
 		this.username = username;
@@ -178,6 +181,8 @@ public class User extends Procucev {
 		this.zipCode=zipCode;
 		this.isApproved=isApproved;
 		this.selfClient=selfClient;
+		this.active=active;
+		this.sourceType=sourceType;
 	}
 
 

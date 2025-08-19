@@ -9,6 +9,7 @@ import com.portal.procucev.Dto.ClientRFQDto;
 import com.portal.procucev.Dto.GMTRfqVendorDto;
 import com.portal.procucev.Dto.RfqDTO;
 import com.portal.procucev.Dto.VendorRFQDto;
+import com.portal.procucev.customexception.RfqStatusResponse;
 import com.portal.procucev.model.CategoryDivision;
 import com.portal.procucev.model.EmailRequest;
 import com.portal.procucev.model.GmtItems;
@@ -16,6 +17,7 @@ import com.portal.procucev.model.GmtRfqVendors;
 import com.portal.procucev.model.Organization;
 import com.portal.procucev.model.Rfq;
 import com.portal.procucev.model.RfqItem;
+import com.portal.procucev.model.RfqStatusRequest;
 import com.portal.procucev.model.RfqVendor;
 import com.portal.procucev.model.SubscriptionPlan;
 import com.portal.procucev.model.User;
@@ -111,6 +113,8 @@ public interface GMTService {
 	boolean sendEmail(EmailRequest request);
 
 	List<SubscriptionPlan> getSubscriptionPlans();
+
+	List<RfqStatusResponse> getRfqStatuses(RfqStatusRequest request);
 
 
 }

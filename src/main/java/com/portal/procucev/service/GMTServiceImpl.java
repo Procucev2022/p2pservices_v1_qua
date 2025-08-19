@@ -52,6 +52,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DataAccessException;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -66,6 +67,7 @@ import com.portal.procucev.Dto.GMTRfqVendorDto;
 import com.portal.procucev.Dto.RfqDTO;
 import com.portal.procucev.Dto.VendorRFQDto;
 import com.portal.procucev.customexception.AppException;
+import com.portal.procucev.customexception.RfqStatusResponse;
 import com.portal.procucev.dao.CategoryDivisionDao;
 import com.portal.procucev.dao.EmailUserRepo;
 import com.portal.procucev.dao.GmtItemsDao;
@@ -92,6 +94,7 @@ import com.portal.procucev.model.Organization;
 import com.portal.procucev.model.RFQDocument;
 import com.portal.procucev.model.Rfq;
 import com.portal.procucev.model.RfqItem;
+import com.portal.procucev.model.RfqStatusRequest;
 import com.portal.procucev.model.RfqVendor;
 import com.portal.procucev.model.Role;
 import com.portal.procucev.model.SubscriptionPlan;
@@ -1862,6 +1865,25 @@ public class GMTServiceImpl implements GMTService {
 	public List<SubscriptionPlan> getSubscriptionPlans() {
 		// TODO Auto-generated method stub
 		  return subscriptionPlanDao.findAll();
+    }
+
+	@Override
+	public List<RfqStatusResponse> getRfqStatuses(RfqStatusRequest request) {
+		// TODO Auto-generated method stub
+		List<Rfq> rfqs = null;
+
+        if (request.getRfqIds() != null && !request.getRfqIds().isEmpty()) {
+          //  rfqs = rfqDao.findByOrg_IdAndRfqIdIn(request.getClientId(), request.getRfqIds());
+        } else {
+          //  rfqs = rfqDao.findLast3ByClientId(request.getClientId(), PageRequest.of(0, 3));
+        }
+
+        return rfqs.stream().map(r -> {
+            RfqStatusResponse dto = new RfqStatusResponse();
+            dto.setRfqid(r.getRfqId());
+            dto.setStatus(r.getStatus() != null ? r.getStatus().getUiDisplay() : "Unknown");
+            return dto;
+        }).collect(Collectors.toList());
     }
 	
 

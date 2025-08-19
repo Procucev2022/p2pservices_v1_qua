@@ -43,16 +43,16 @@ public class Rfq extends Procucev {
 	@Column(name="by_client")
 	private boolean byClient;
 	
+	@Column(name="rfq_approval_flag")
+	private boolean rfqApprovalFlag;
+	
 	private String division;
 	
 	@Column(name="quotation_received")
 	private boolean quotationReceived;
 	
-	private boolean isWebApp;
-	
-	private boolean isWhatsApp;
-	
-	private boolean isBot;
+	@Column(name="source_type")
+	private String sourceType;
 	
 	private String user;
 	
