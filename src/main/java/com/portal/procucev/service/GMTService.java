@@ -10,12 +10,14 @@ import com.portal.procucev.Dto.GMTRfqVendorDto;
 import com.portal.procucev.Dto.RfqDTO;
 import com.portal.procucev.Dto.VendorRFQDto;
 import com.portal.procucev.model.CategoryDivision;
+import com.portal.procucev.model.EmailRequest;
 import com.portal.procucev.model.GmtItems;
 import com.portal.procucev.model.GmtRfqVendors;
 import com.portal.procucev.model.Organization;
 import com.portal.procucev.model.Rfq;
 import com.portal.procucev.model.RfqItem;
 import com.portal.procucev.model.RfqVendor;
+import com.portal.procucev.model.SubscriptionPlan;
 import com.portal.procucev.model.User;
 
 import jakarta.mail.MessagingException;
@@ -105,6 +107,10 @@ public interface GMTService {
 	List<User> getGmtBuyers();
 
 	String createRFQByClient(Rfq rfq) throws Exception;
+
+	boolean sendEmail(EmailRequest request);
+
+	List<SubscriptionPlan> getSubscriptionPlans();
 
 
 }

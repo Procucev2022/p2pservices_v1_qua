@@ -158,5 +158,12 @@ public class UserController {
 
 	}
 
-	
+	@PostMapping(value = "/updateSeller")
+	    public ResponseEntity<?> updateOrganization(
+	     
+	            @RequestBody Organization org
+	    ) {
+	        Organization updatedOrg = userServices.updateOrganization(org);
+	        return ResponseEntity.ok(updatedOrg);
+	    }
 }

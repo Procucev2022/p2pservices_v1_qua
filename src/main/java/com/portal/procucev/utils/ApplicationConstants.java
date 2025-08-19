@@ -708,6 +708,12 @@ public interface ApplicationConstants {
 	public String CREATE_SELLER_SUCCESS = "Seller Created Successfully";
 
 	public String CREATE_SELLER_FAILED = "Failed To Create the Seller";
+
+	public String EMAIL_SENT_SUCCESS = "Email Sent Successfully";
+
+	public String EMAIL_SENT_UNSUCCESS = "Email Sent Failed";
+	
+	
 		
 	
 

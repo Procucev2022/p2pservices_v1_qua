@@ -51,4 +51,6 @@ public interface UserService {
 
 	boolean validateOtp(Organization organization);
 
+	Organization updateOrganization(Organization org);
+
 }
