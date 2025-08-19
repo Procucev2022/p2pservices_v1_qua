@@ -81,7 +81,7 @@ public interface UserDao extends JpaRepository<User, String> {
 	User findByUsernameAndPhoneAndActive(String username, String phoneNumber, boolean b);
 
 
-	@Query("SELECT  new User(u.id,u.username,u.phone,u.org.companyName,u.fullName,u.org.id,u.uniqueId,u.activityTs,u.isWebApp,u.isWhatsApp,u.isBot,u.org.city,u.isApproved,u.selfClient) from User u where u.phone=:phone and u.active = true")
+	@Query("SELECT  new User(u.id,u.username,u.phone,u.org.companyName,u.fullName,u.org.id,u.uniqueId,u.activityTs,u.isWebApp,u.isWhatsApp,u.isBot,u.org.city,u.isApproved,u.selfClient,u.active,u.sourceType) from User u where u.phone=:phone and u.active = true")
 	List<User> findByPhone(@Param("phone") String phone);
 
 	@Query("SELECT  new User(u.id,u.username,u.phone,u.org.companyName,u.fullName,u.org.id,u.uniqueId,u.activityTs,u.isWebApp,u.isWhatsApp,u.isBot,u.org.city,u.clientStatus) from User u where u.selfClient = true and u.active = true and u.role=:role")

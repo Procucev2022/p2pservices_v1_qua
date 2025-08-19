@@ -712,6 +712,8 @@ public interface ApplicationConstants {
 	public String EMAIL_SENT_SUCCESS = "Email Sent Successfully";
 
 	public String EMAIL_SENT_UNSUCCESS = "Email Sent Failed";
+
+	public String TOOL = "T";
 	
 	
 		

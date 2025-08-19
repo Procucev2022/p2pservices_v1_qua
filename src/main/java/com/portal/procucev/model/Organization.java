@@ -278,10 +278,19 @@ public class Organization extends Procucev {
 	@Transient
 	private String mobileOtp;
 	
+	 // Wrapper Boolean allows: true, false, or null
+    private Boolean optOut;
+    
+    @Column(name="opt_out_modified_date")
+    private Date optOutModifiedDate;
+	
 	@OneToMany(mappedBy = "organization", cascade = CascadeType.ALL, orphanRemoval = true)
 	private List<OrgDivisionCategory> divisionCategories;
 
 	@OneToMany(mappedBy = "organization", cascade = CascadeType.ALL, orphanRemoval = true)
 	private List<OrgBranches> branches;
+	
+	@Column(name="source_type")
+	private String sourceType;
 
 }

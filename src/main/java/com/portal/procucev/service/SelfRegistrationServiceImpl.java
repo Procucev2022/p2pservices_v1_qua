@@ -127,6 +127,7 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 				organization.setSelfClient(true);
 				organization.setGmtName("GMT Basic");
 				organization.setBfsName(StatusConstants.BFS_PRO);
+				organization.setSourceType(ApplicationConstants.TOOL);
 				//enrichWithLocation(organization);
 				String companyid =generateId(organization.getCompanyName());
 				logger.info("Company Id::" + companyid);
@@ -230,6 +231,7 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 		user.setClientStatus(status);
 		user.setRole(Initiatordetails);
 		user.setUniqueId(uniqueId);
+		user.setSourceType(organization.getSourceType());
 		char[] pswd = ProcucevUtils.generatePassword(8);
 		user.setPassword(pswd.toString());
 		logger.info("saving User Details");
@@ -772,6 +774,7 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 			user.setActive(true);
 			//user.setClientStatus(status);
 			user.setRole(vendor);
+			user.setSourceType(organization.getSourceType());
 			user.setUniqueId(uniqueId);
 			char[] pswd = ProcucevUtils.generatePassword(8);
 			user.setPassword(pswd.toString());

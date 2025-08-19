@@ -4,6 +4,7 @@ import java.util.List;
 
 import jakarta.transaction.Transactional;
 
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -49,5 +50,10 @@ public interface RfqDao extends JpaRepository<Rfq, String>{
 	
 	@Query("SELECT r.user FROM Rfq r WHERE  r.rfqId=:rfqId")
 	List<String> findRFQByRfQId(@Param("rfqId") String rfqId);
+
+//	List<Rfq> findByOrg_IdAndRfqIdIn(String clientId, List<String> rfqIds);
+//
+//	  @Query(value = "SELECT r FROM Rfq r WHERE r.org.id = :clientId ORDER BY r.rfqClosingDate DESC")
+//	List<Rfq> findLast3ByClientId(String clientId, PageRequest of);
 
 }

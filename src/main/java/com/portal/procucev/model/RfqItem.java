@@ -25,6 +25,7 @@ public class RfqItem extends Procucev {
 	@JsonBackReference(value = "rfq")
 	private Rfq rfq;
 	private String category;
+	private String division;
 	private String itemcode;
 	private String description;
 	private String brand;
