@@ -714,6 +714,10 @@ public interface ApplicationConstants {
 	public String EMAIL_SENT_UNSUCCESS = "Email Sent Failed";
 
 	public String TOOL = "T";
+
+	public String SELLER_UPDATE_SUCCESS = "Seller Updated Successfully";
+
+	public String SELLER_UPDATE_FAILED = "Failed To Update Seller";
 	
 	
 		
