@@ -58,6 +58,9 @@ public class Rfq extends Procucev {
 	
 	private int count;
 	
+	@Column(name="quote_count")
+	private int quoteCount;
+	
 	@Transient
 	private boolean fromClient;
 

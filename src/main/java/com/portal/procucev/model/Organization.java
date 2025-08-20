@@ -281,6 +281,9 @@ public class Organization extends Procucev {
 	 // Wrapper Boolean allows: true, false, or null
     private Boolean optOut;
     
+    @Column(name="rfq_credits")
+    private int rfqCredits;
+    
     @Column(name="opt_out_modified_date")
     private Date optOutModifiedDate;
 	
