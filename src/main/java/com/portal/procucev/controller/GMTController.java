@@ -38,7 +38,6 @@ import com.portal.procucev.model.RfqVendor;
 import com.portal.procucev.model.SubscriptionPlan;
 import com.portal.procucev.model.User;
 import com.portal.procucev.service.GMTService;
-import com.portal.procucev.service.GMTServiceImpl;
 import com.portal.procucev.utils.ApplicationConstants;
 import com.portal.procucev.utils.StatusCodes;
 
