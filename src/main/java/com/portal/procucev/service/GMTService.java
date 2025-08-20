@@ -116,5 +116,7 @@ public interface GMTService {
 
 	List<RfqStatusResponse> getRfqStatuses(RfqStatusRequest request);
 
+	int getSellerRfqCredits(Organization org);
+
 
 }

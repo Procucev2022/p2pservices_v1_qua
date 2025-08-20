@@ -380,6 +380,7 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 			if(pincodeData!=null) {
 			organization.setCity(pincodeData.getCity());
 			organization.setState(pincodeData.getState());
+			organization.setRfqCredits(1);
 			}
 			organization.setSubCategory(organization.getDetails());
 			
@@ -720,6 +721,7 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 	            organization.setVendorStatus(vendorstatus);
 	            String companyId = generateId(organization.getCompanyName());
 	            organization.setCompanyId(companyId);
+	            organization.setRfqCredits(1);
 	            logger.info("Company Id: {}", companyId);
 
 	            PincodeData pincodeData = getCityByPincode(organization.getZipCode());

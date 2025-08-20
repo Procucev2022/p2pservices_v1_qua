@@ -457,4 +457,19 @@ public class GMTController {
         return ResponseEntity.ok(response);
     }
 
+
+    @PostMapping("/getSellerRfqCredits")
+    public ResponseEntity<Map<String, Object>> getSellerRfqCredits(@RequestBody Organization org) {
+        int credits = gmtService.getSellerRfqCredits(org);
+
+
+        Map<String, Object> data = new HashMap<>();
+        data.put("creditsAvailable", credits);
+
+        Map<String, Object> response = new HashMap<>();
+        response.put("success", true);
+        response.put("data", data);
+
+        return ResponseEntity.ok(response);
+    }
 }

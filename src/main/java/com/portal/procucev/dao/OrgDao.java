@@ -55,4 +55,7 @@ public interface OrgDao  extends JpaRepository<Organization, String> {
 
 	List<Organization> findByCompanyNameAndOrgType(String companyName, OrgType orgTypeObject);
 
+	@Query("select o.rfqCredits from Organization o where o.id=:id")
+	int findRfqCreditsByOrg(@Param("id") String id);
+
 }

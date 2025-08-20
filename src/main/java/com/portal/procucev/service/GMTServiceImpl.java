@@ -1885,6 +1885,18 @@ public class GMTServiceImpl implements GMTService {
             return dto;
         }).collect(Collectors.toList());
     }
+
+	@Override
+	public int getSellerRfqCredits(Organization org) {
+		// TODO Auto-generated method stub
+		int credits=0;
+		logger.info("entered to get Seller Rfq Credits");
+		if(org!=null) {
+			 credits=orgDao.findRfqCreditsByOrg(org.getId());
+		}
+		
+		return credits;
+	}
 	
 
 }

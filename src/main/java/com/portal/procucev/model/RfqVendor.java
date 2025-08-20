@@ -31,6 +31,9 @@ public class RfqVendor extends Procucev {
 
 	@Column(name = "is_rfq_notified")
 	private byte isRfqNotified;
+	
+	@Column(name="quotation_received")
+	private boolean quotationReceived;
 
 	@ManyToOne
 	private Rfq rfq;
