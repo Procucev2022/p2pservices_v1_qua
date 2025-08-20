@@ -521,7 +521,12 @@ public class ProcUserServiceImpl implements UserService {
 	
 	
 	@Transactional
-	public Organization updateOrganization(Organization updatedOrg) {
+	public boolean updateOrganization(Organization updatedOrg) {
+		  if (updatedOrg == null) {
+		        log.error("updatedOrg object is null in updateOrganization()");
+		        return false;
+		    }
+		  else {
 	    Organization existingOrg = orgDao.findById(updatedOrg.getId())
 	            .orElseThrow(() -> new RuntimeException("Organization not found"));
 
@@ -552,8 +557,10 @@ public class ProcUserServiceImpl implements UserService {
 	    if (updatedOrg.getSubscriptionPlan() != null) {
 	        existingOrg.setSubscriptionPlan(updatedOrg.getSubscriptionPlan());
 	    }
-	    return orgDao.save(existingOrg);
+	    orgDao.save(existingOrg);
+			
+	    return true;
 	}
-
+	}
 
 }

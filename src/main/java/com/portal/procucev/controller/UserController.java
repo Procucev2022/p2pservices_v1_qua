@@ -163,7 +163,13 @@ public class UserController {
 	     
 	            @RequestBody Organization org
 	    ) {
-	        Organization updatedOrg = userServices.updateOrganization(org);
-	        return ResponseEntity.ok(updatedOrg);
-	    }
+	        boolean status = userServices.updateOrganization(org);
+	        String statusCode = status ? String.valueOf(ApplicationConstants.SUCCESS)
+					: String.valueOf(ApplicationConstants.FAILURE);
+			String msg = status ? String.format(ApplicationConstants.SELLER_UPDATE_SUCCESS, "")
+					: String.format(ApplicationConstants.SELLER_UPDATE_FAILED, "");
+			MessageResponse response = new MessageResponse(StatusCodes.OK_VENDOR_CODE, msg, null, statusCode);
+			return new ResponseEntity<>(response, HttpStatus.OK);
+
+		}
 }
