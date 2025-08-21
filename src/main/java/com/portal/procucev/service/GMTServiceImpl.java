@@ -11,7 +11,6 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Date;
-import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
@@ -23,26 +22,10 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
-import java.io.FileInputStream;
-import java.io.IOException;
-import java.util.UUID;
-import jakarta.mail.Flags;
-import jakarta.mail.Folder;
-import jakarta.mail.Message;
-import jakarta.mail.Session;
-import jakarta.mail.Store;
-import jakarta.mail.search.SubjectTerm;
-import jakarta.transaction.Transactional;
-import jakarta.mail.MessagingException;
-import org.apache.poi.ss.usermodel.Workbook;
-import org.apache.poi.ss.usermodel.WorkbookFactory;
-import jakarta.mail.internet.InternetAddress;
 
 import org.apache.commons.lang3.StringUtils;
-import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.DataFormatter;
-import org.apache.poi.ss.usermodel.DateUtil;
 import org.apache.poi.ss.usermodel.RichTextString;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.xssf.usermodel.XSSFSheet;
@@ -52,10 +35,10 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DataAccessException;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -98,12 +81,19 @@ import com.portal.procucev.model.RfqStatusRequest;
 import com.portal.procucev.model.RfqVendor;
 import com.portal.procucev.model.Role;
 import com.portal.procucev.model.SubscriptionPlan;
-import com.portal.procucev.model.ItemCategory;
 import com.portal.procucev.model.User;
 import com.portal.procucev.utils.ApplicationConstants;
 import com.portal.procucev.utils.MailUtility;
 import com.portal.procucev.utils.StatusConstants;
-import org.springframework.mail.SimpleMailMessage;
+
+import jakarta.mail.Flags;
+import jakarta.mail.Folder;
+import jakarta.mail.Message;
+import jakarta.mail.MessagingException;
+import jakarta.mail.Session;
+import jakarta.mail.Store;
+import jakarta.mail.internet.InternetAddress;
+import jakarta.mail.search.SubjectTerm;
 
 @Service
 public class GMTServiceImpl implements GMTService {
@@ -1897,6 +1887,26 @@ public class GMTServiceImpl implements GMTService {
 		
 		return credits;
 	}
+	@Override
+	public Organization getOrgById(Organization organization) {
+	    if (organization == null || organization.getId() == null) {
+	        logger.error("Organization or ID is null");
+	        throw new AppException(HttpStatus.BAD_REQUEST.value(),
+	                               "Organization ID must not be null",
+	                               ApplicationConstants.BUSSINESS_EXCEPTION,
+	                               ApplicationConstants.FAILURE);
+	    }
+	    return orgDao.findById(organization.getId())
+	                 .orElseThrow(() -> {
+	                     logger.error("Organization not found for ID: {}", organization.getId());
+	                     return new AppException(HttpStatus.NOT_FOUND.value(),
+	                                             ApplicationConstants.VENDOR_DETAILS_DOESNT_EXIST,
+	                                             ApplicationConstants.BUSSINESS_EXCEPTION,
+	                                             ApplicationConstants.FAILURE);
+	                 });
+	}
+
+	
 	
 
 }
