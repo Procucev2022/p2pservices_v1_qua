@@ -1,5 +1,6 @@
 package com.portal.procucev.controller;
 
+import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.util.Date;
 import java.util.List;
@@ -472,4 +473,12 @@ public class GMTController {
 
         return ResponseEntity.ok(response);
     }
+    
+    @PostMapping("/getOrgById")
+	public ResponseEntity<?> getOrgById(@RequestBody Organization organization) throws IOException {
+		logger.info("enters to fetch the Org list");
+
+		Organization vendorList = gmtService.getOrgById(organization);
+		return new ResponseEntity<>(vendorList, HttpStatus.OK);
+	}
 }

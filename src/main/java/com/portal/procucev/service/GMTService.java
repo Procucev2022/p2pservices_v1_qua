@@ -118,5 +118,7 @@ public interface GMTService {
 
 	int getSellerRfqCredits(Organization org);
 
+	Organization getOrgById(Organization organization);
+
 
 }
