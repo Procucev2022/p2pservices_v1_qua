@@ -523,7 +523,7 @@ public class ProcUserServiceImpl implements UserService {
 	@Transactional
 	public boolean updateOrganization(Organization updatedOrg) {
 		  if (updatedOrg == null) {
-		        log.error("updatedOrg object is null in updateOrganization()");
+		        log.error("updatedOrg object is null in updateOrganization() ");
 		        return false;
 		    }
 		  else {
