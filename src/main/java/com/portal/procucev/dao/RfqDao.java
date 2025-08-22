@@ -51,9 +51,13 @@ public interface RfqDao extends JpaRepository<Rfq, String>{
 	@Query("SELECT r.user FROM Rfq r WHERE  r.rfqId=:rfqId")
 	List<String> findRFQByRfQId(@Param("rfqId") String rfqId);
 
-//	List<Rfq> findByOrg_IdAndRfqIdIn(String clientId, List<String> rfqIds);
-//
-//	  @Query(value = "SELECT r FROM Rfq r WHERE r.org.id = :clientId ORDER BY r.rfqClosingDate DESC")
-//	List<Rfq> findLast3ByClientId(String clientId, PageRequest of);
+
+	List<Rfq> findByUserAndRfqIdIn(String clientId, List<String> rfqIds);
+
+	  @Query(value = "SELECT r FROM Rfq r WHERE r.user = :clientId ORDER BY r.rfqClosingDate DESC")
+	List<Rfq> findLast3ByClientId(@Param("clientId") String clientId, PageRequest of);
+
+	 @Query("SELECT DISTINCT r FROM Rfq r JOIN r.rfqItem i WHERE i.category = :category")
+	List<Rfq> findByRfqItemCategory(@Param("category") String category);
 
 }
