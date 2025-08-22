@@ -10,6 +10,7 @@ import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Date;
 import java.util.Iterator;
 import java.util.List;
@@ -35,6 +36,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DataAccessException;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -1863,9 +1865,9 @@ public class GMTServiceImpl implements GMTService {
 		List<Rfq> rfqs = null;
 
         if (request.getRfqIds() != null && !request.getRfqIds().isEmpty()) {
-          //  rfqs = rfqDao.findByOrg_IdAndRfqIdIn(request.getClientId(), request.getRfqIds());
+           rfqs = rfqDao.findByUserAndRfqIdIn(request.getClientId(), request.getRfqIds());
         } else {
-          //  rfqs = rfqDao.findLast3ByClientId(request.getClientId(), PageRequest.of(0, 3));
+           rfqs = rfqDao.findLast3ByClientId(request.getClientId(), PageRequest.of(0, 3));
         }
 
         return rfqs.stream().map(r -> {
@@ -1906,6 +1908,30 @@ public class GMTServiceImpl implements GMTService {
 	                 });
 	}
 
+	@Override
+	public List<Rfq> getRfqByItemCategory(Rfq rfq) {
+	    if (rfq == null) {
+	        logger.error("Input RFQ object is null");
+	        return Collections.emptyList();  // return empty if null
+	    }
+
+	    if (rfq.getCategory() == null || rfq.getCategory().trim().isEmpty()) {
+	        logger.warn("RFQ category is null or empty for clientId: {}");
+	        return Collections.emptyList();
+	    }
+
+	    logger.info("Fetching RFQs by category: {} for clientId: {}", rfq.getCategory());
+
+	    List<Rfq> rfqs = rfqDao.findByRfqItemCategory(rfq.getCategory());
+
+	    if (rfqs == null || rfqs.isEmpty()) {
+	        logger.warn("No RFQs found for category: {} and clientId: {}", rfq.getCategory());
+	        return Collections.emptyList();
+	    }
+
+	    logger.info("Found {} RFQs for category: {}", rfqs.size(), rfq.getCategory());
+	    return rfqs;
+	}
 	
 	
 

@@ -120,5 +120,7 @@ public interface GMTService {
 
 	Organization getOrgById(Organization organization);
 
+	List<Rfq> getRfqByItemCategory(Rfq rfq);
+
 
 }

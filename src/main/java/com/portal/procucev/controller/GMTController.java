@@ -481,4 +481,14 @@ public class GMTController {
 		Organization vendorList = gmtService.getOrgById(organization);
 		return new ResponseEntity<>(vendorList, HttpStatus.OK);
 	}
+    
+    @PostMapping("/getRfqByCategory")
+    public ResponseEntity<Map<String, Object>> getRfqByCategory(@RequestBody Rfq rfq) {
+        List<Rfq> rfqs = gmtService.getRfqByItemCategory(rfq);
+        Map<String, Object> response = new HashMap<>();
+        response.put("success", true);
+        response.put("data", rfqs);
+
+        return ResponseEntity.ok(response);
+    }
 }
