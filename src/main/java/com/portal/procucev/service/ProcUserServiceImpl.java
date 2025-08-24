@@ -35,6 +35,8 @@ import com.portal.procucev.dao.EmailUserRepo;
 import com.portal.procucev.dao.OrgDao;
 import com.portal.procucev.dao.UserDao;
 import com.portal.procucev.model.EmailUser;
+import com.portal.procucev.model.OrgBranches;
+import com.portal.procucev.model.OrgDivisionCategory;
 import com.portal.procucev.model.OrgType;
 import com.portal.procucev.model.Organization;
 import com.portal.procucev.model.OtpDetails;
@@ -546,16 +548,18 @@ public class ProcUserServiceImpl implements UserService {
 	    // Optional: if nested collections are passed, handle them
 	    if (updatedOrg.getBranches() != null) {
 	        existingOrg.getBranches().clear();
-	        existingOrg.getBranches().addAll(updatedOrg.getBranches());
+	        for (OrgBranches branch : updatedOrg.getBranches()) {
+	            branch.setOrganization(existingOrg); // Set back reference
+	            existingOrg.getBranches().add(branch);
+	        }
 	    }
 
 	    if (updatedOrg.getDivisionCategories() != null) {
 	        existingOrg.getDivisionCategories().clear();
-	        existingOrg.getDivisionCategories().addAll(updatedOrg.getDivisionCategories());
-	    }
-
-	    if (updatedOrg.getSubscriptionPlan() != null) {
-	        existingOrg.setSubscriptionPlan(updatedOrg.getSubscriptionPlan());
+	        for (OrgDivisionCategory divCat : updatedOrg.getDivisionCategories()) {
+	            divCat.setOrganization(existingOrg); // Set back reference
+	            existingOrg.getDivisionCategories().add(divCat);
+	        }
 	    }
 	    orgDao.save(existingOrg);
 			

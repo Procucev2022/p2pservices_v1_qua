@@ -1,6 +1,8 @@
 package com.portal.procucev.model;
 
 
+import com.fasterxml.jackson.annotation.JsonBackReference;
+
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.JoinColumn;
@@ -22,6 +24,7 @@ public class OrgBranches extends Procucev{/**
     private String contactPerson;
     private String email;
     private String address;
+    @JsonBackReference
     @ManyToOne
     @JoinColumn(name = "organization_id")
     private Organization organization;
