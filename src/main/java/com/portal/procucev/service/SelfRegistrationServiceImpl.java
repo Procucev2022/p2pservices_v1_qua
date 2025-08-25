@@ -722,6 +722,7 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 	            String companyId = generateId(organization.getCompanyName());
 	            organization.setCompanyId(companyId);
 	            organization.setRfqCredits(1);
+	            organization.setSourceType(ApplicationConstants.TOOL);
 	            logger.info("Company Id: {}", companyId);
 
 	            PincodeData pincodeData = getCityByPincode(organization.getZipCode());
