@@ -543,7 +543,10 @@ public class ProcUserServiceImpl implements UserService {
 	    if (updatedOrg.getContactPerson() != null) existingOrg.setContactPerson(updatedOrg.getContactPerson());
 	    if (updatedOrg.getEmail() != null) existingOrg.setEmail(updatedOrg.getEmail());
 	    if (updatedOrg.getOrganizationPhonenumber() != null) existingOrg.setOrganizationPhonenumber(updatedOrg.getOrganizationPhonenumber());
-	  
+	    
+	    if (updatedOrg.getSubscriptionPlan() != null) {
+            existingOrg.setSubscriptionPlan(updatedOrg.getSubscriptionPlan());
+        }
 
 	    // Optional: if nested collections are passed, handle them
 	    if (updatedOrg.getBranches() != null) {
