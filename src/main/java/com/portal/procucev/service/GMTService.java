@@ -2,6 +2,7 @@ package com.portal.procucev.service;
 
 import java.io.UnsupportedEncodingException;
 import java.util.List;
+import java.util.Map;
 
 import org.springframework.http.ResponseEntity;
 
@@ -120,7 +121,7 @@ public interface GMTService {
 
 	Organization getOrgById(Organization organization);
 
-	List<Rfq> getRfqByItemCategory(Rfq rfq);
+	Map<String, Object> getRfqByItemCategory(Organization org);
 
 
 }

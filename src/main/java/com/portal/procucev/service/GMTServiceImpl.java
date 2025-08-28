@@ -16,6 +16,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.*;
 import java.util.Optional;
 import java.util.Properties;
 import java.util.function.Function;
@@ -59,6 +60,7 @@ import com.portal.procucev.dao.GmtItemsDao;
 import com.portal.procucev.dao.GmtRfqVendorDao;
 import com.portal.procucev.dao.ItemCategoryDao;
 import com.portal.procucev.dao.MasterStatusDao;
+import com.portal.procucev.dao.OrgCategoryDivisionDao;
 import com.portal.procucev.dao.OrgDao;
 import com.portal.procucev.dao.OrgTypeDao;
 import com.portal.procucev.dao.RFQItemsDao;
@@ -143,6 +145,9 @@ public class GMTServiceImpl implements GMTService {
 	@Autowired
 	private RFQItemsDao rfqItemsDao;
 
+	@Autowired
+	private OrgCategoryDivisionDao orgCategoryDivisionDao;
+	
 	@Value("${spring.mail.username}")
 	String mailFom;
 
@@ -1861,22 +1866,53 @@ public class GMTServiceImpl implements GMTService {
 
 	@Override
 	public List<RfqStatusResponse> getRfqStatuses(RfqStatusRequest request) {
-		// TODO Auto-generated method stub
-		List<Rfq> rfqs = null;
+	    List<RfqStatusResponse> responses = new ArrayList<>();
 
-        if (request.getRfqIds() != null && !request.getRfqIds().isEmpty()) {
-           rfqs = rfqDao.findByUserAndRfqIdIn(request.getClientId(), request.getRfqIds());
-        } else {
-           rfqs = rfqDao.findLast3ByClientId(request.getClientId(), PageRequest.of(0, 3));
-        }
+	    if (request.getRfqIds() != null && !request.getRfqIds().isEmpty()) {
+	        // Fetch matching RFQs from DB
+	        List<Rfq> rfqs = rfqDao.findByUserAndRfqIdIn(request.getClientId(), request.getRfqIds());
 
-        return rfqs.stream().map(r -> {
-            RfqStatusResponse dto = new RfqStatusResponse();
-            dto.setRfqid(r.getRfqId());
-            dto.setStatus(r.getStatus() != null ? r.getStatus().getUiDisplay() : "Unknown");
-            return dto;
-        }).collect(Collectors.toList());
-    }
+	        // Map RFQs by ID for quick lookup
+	        Map<String, Rfq> rfqMap = rfqs.stream()
+	                .collect(Collectors.toMap(Rfq::getRfqId, r -> r));
+
+	        // Always include all requested IDs
+	        for (String rfqId : request.getRfqIds()) {
+	            RfqStatusResponse dto = new RfqStatusResponse();
+	            dto.setRfqid(rfqId);
+
+	            if (rfqMap.containsKey(rfqId)) {
+	                Rfq r = rfqMap.get(rfqId);
+	                dto.setStatus(r.getStatus() != null ? r.getStatus().getUiDisplay() : "Unknown");
+	            } else {
+	                dto.setStatus("Invalid RFQID");
+	            }
+
+	            responses.add(dto);
+	        }
+	    } else {
+	        // No rfqIds provided → fetch last 3
+	        List<Rfq> rfqs = rfqDao.findLast3ByClientId(request.getClientId(), PageRequest.of(0, 3));
+
+	        if (rfqs.isEmpty()) {
+	            // Client has no RFQs at all
+	            RfqStatusResponse dto = new RfqStatusResponse();
+	            dto.setRfqid(null);
+	            dto.setStatus("Not Found");
+	            responses.add(dto);
+	        } else {
+	            for (Rfq r : rfqs) {
+	                RfqStatusResponse dto = new RfqStatusResponse();
+	                dto.setRfqid(r.getRfqId());
+	                dto.setStatus(r.getStatus() != null ? r.getStatus().getUiDisplay() : "Unknown");
+	                responses.add(dto);
+	            }
+	        }
+	    }
+
+	    return responses;
+	}
+
 
 	@Override
 	public int getSellerRfqCredits(Organization org) {
@@ -1909,30 +1945,28 @@ public class GMTServiceImpl implements GMTService {
 	}
 
 	@Override
-	public List<Rfq> getRfqByItemCategory(Rfq rfq) {
-	    if (rfq == null) {
-	        logger.error("Input RFQ object is null");
-	        return Collections.emptyList();  // return empty if null
-	    }
+	public Map<String, Object> getRfqByItemCategory(Organization org) {
+		    Map<String, Object> result = new HashMap<>();
 
-	    if (rfq.getCategory() == null || rfq.getCategory().trim().isEmpty()) {
-	        logger.warn("RFQ category is null or empty for clientId: {}");
-	        return Collections.emptyList();
-	    }
+		    if (org == null || org.getId() == null) {
+		        logger.error("Invalid organization input");
+		        result.put("rfqs", Collections.emptyList());
+		        result.put("count", 0L);
+		        result.put("categories", Collections.emptyList());
+		        return result;
+		    }
 
-	    logger.info("Fetching RFQs by category: {} for clientId: {}", rfq.getCategory());
+		    List<String> categoryList = orgCategoryDivisionDao.findCategoryByOrg(org.getId());
+		    logger.info("Fetching RFQs by categories: {} for orgId: {}", categoryList, org.getId());
 
-	    List<Rfq> rfqs = rfqDao.findByRfqItemCategory(rfq.getCategory());
+		    List<Rfq> rfqs = rfqDao.findByRfqItemCategory(categoryList);
+		    long totalCount = rfqDao.countByRfqItemCategory(categoryList);
 
-	    if (rfqs == null || rfqs.isEmpty()) {
-	        logger.warn("No RFQs found for category: {} and clientId: {}", rfq.getCategory());
-	        return Collections.emptyList();
-	    }
+		    result.put("rfqs", rfqs);
+		    result.put("count", totalCount);
 
-	    logger.info("Found {} RFQs for category: {}", rfqs.size(), rfq.getCategory());
-	    return rfqs;
-	}
-	
+		    return result;
+		}
 	
 
 }
