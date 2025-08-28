@@ -57,7 +57,12 @@ public interface RfqDao extends JpaRepository<Rfq, String>{
 	  @Query(value = "SELECT r FROM Rfq r WHERE r.user = :clientId ORDER BY r.rfqClosingDate DESC")
 	List<Rfq> findLast3ByClientId(@Param("clientId") String clientId, PageRequest of);
 
-	 @Query("SELECT DISTINCT r FROM Rfq r JOIN r.rfqItem i WHERE i.category = :category")
-	List<Rfq> findByRfqItemCategory(@Param("category") String category);
+	 @Query("SELECT DISTINCT r FROM Rfq r JOIN r.rfqItem i WHERE i.category IN :category")
+	List<Rfq> findByRfqItemCategory(@Param("category") List<String> categoryList);
+	 
+	 @Query("SELECT COUNT(DISTINCT r) FROM Rfq r JOIN r.rfqItem i WHERE i.category IN :category")
+	 long countByRfqItemCategory(@Param("category") List<String> categoryList);
+
+
 
 }

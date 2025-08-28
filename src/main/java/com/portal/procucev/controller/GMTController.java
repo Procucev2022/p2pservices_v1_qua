@@ -483,8 +483,8 @@ public class GMTController {
 	}
     
     @PostMapping("/getRfqByCategory")
-    public ResponseEntity<Map<String, Object>> getRfqByCategory(@RequestBody Rfq rfq) {
-        List<Rfq> rfqs = gmtService.getRfqByItemCategory(rfq);
+    public ResponseEntity<Map<String, Object>> getRfqByCategory(@RequestBody Organization org) {
+        Map<String, Object> rfqs = gmtService.getRfqByItemCategory(org);
         Map<String, Object> response = new HashMap<>();
         response.put("success", true);
         response.put("data", rfqs);
