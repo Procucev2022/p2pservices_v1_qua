@@ -172,4 +172,19 @@ public class UserController {
 			return new ResponseEntity<>(response, HttpStatus.OK);
 
 		}
+	
+	@PostMapping(value = "/updateBuyer")
+    public ResponseEntity<?> updateBuyer(
+     
+            @RequestBody Organization org
+    ) {
+        boolean status = userServices.updateBuyer(org);
+        String statusCode = status ? String.valueOf(ApplicationConstants.SUCCESS)
+				: String.valueOf(ApplicationConstants.FAILURE);
+		String msg = status ? String.format(ApplicationConstants.BUYER_UPDATE_SUCCESS, "")
+				: String.format(ApplicationConstants.BUYER_UPDATE_FAILED, "");
+		MessageResponse response = new MessageResponse(StatusCodes.OK_VENDOR_CODE, msg, null, statusCode);
+		return new ResponseEntity<>(response, HttpStatus.OK);
+
+	}
 }

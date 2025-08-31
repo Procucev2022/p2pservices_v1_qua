@@ -7,6 +7,7 @@ import java.util.Map;
 import org.springframework.http.ResponseEntity;
 
 import com.portal.procucev.Dto.ClientRFQDto;
+import com.portal.procucev.Dto.ForwardRfqVendorRequest;
 import com.portal.procucev.Dto.GMTRfqVendorDto;
 import com.portal.procucev.Dto.RfqDTO;
 import com.portal.procucev.Dto.VendorRFQDto;
@@ -109,7 +110,7 @@ public interface GMTService {
 
 	List<User> getGmtBuyers();
 
-	String createRFQByClient(Rfq rfq) throws Exception;
+	Map<String, Object> createRFQByClient(Rfq rfq) throws Exception;
 
 	boolean sendEmail(EmailRequest request);
 
@@ -122,6 +123,8 @@ public interface GMTService {
 	Organization getOrgById(Organization organization);
 
 	Map<String, Object> getRfqByItemCategory(Organization org);
+
+	Map<String, Object> forwardRfqsToVendor(ForwardRfqVendorRequest request);
 
 
 }

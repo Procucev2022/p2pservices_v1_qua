@@ -49,6 +49,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
 
 import com.portal.procucev.Dto.ClientRFQDto;
+import com.portal.procucev.Dto.ForwardRfqVendorRequest;
 import com.portal.procucev.Dto.GMTRfqVendorDto;
 import com.portal.procucev.Dto.RfqDTO;
 import com.portal.procucev.Dto.VendorRFQDto;
@@ -1743,9 +1744,10 @@ public class GMTServiceImpl implements GMTService {
     }
 
 	@Override
-	public String createRFQByClient(Rfq rfq) throws Exception {
-		// TODO Auto-generated method stub
-		logger.info("Request received for RFQ creation with No PR by client {}", rfq);
+	public Map<String, Object> createRFQByClient(Rfq rfq) throws Exception {
+	    logger.info("Request received for RFQ creation with No PR by client {}", rfq);
+
+	    Map<String, Object> result = new HashMap<>();
 
 	    try {
 	        MasterStatus resultStatus = masterStatusDao.findByStatus(StatusConstants.pcprinprogress);
@@ -1764,15 +1766,20 @@ public class GMTServiceImpl implements GMTService {
 	        gmtItemsDao.saveAll(gmtItems);
 	        logger.info("Saved RFQ items in GMT Items");
 
-	        rfqDao.save(rfq);
-	        logger.info("Completed Saving RFQ");
+	        Rfq saved = rfqDao.save(rfq);
+	        logger.info("Completed Saving RFQ with UUID: {}", saved.getId());
 
-	        return rfqId;
+	        // return both
+	        result.put("rfqId", rfqId);
+	        result.put("rfquuid", saved.getId());
+
+	        return result;
 	    } catch (DataAccessException e) {
 	        logger.error("Error occurred while creating RFQ: {}", e.getMessage());
 	        return null;
 	    }
 	}
+
 //	
 //	@Transactional
 //	public void uploadExcelToDB(String excelPath) {
@@ -1968,5 +1975,131 @@ public class GMTServiceImpl implements GMTService {
 		    return result;
 		}
 	
+	@Override
+	public Map<String, Object> forwardRfqsToVendor(ForwardRfqVendorRequest request) {
+	    logger.info("Entered to forwardRfqForNoPr");
 
+	    Map<String, Object> response = new HashMap<>();
+	    Map<String, List<Map<String, Object>>> results = new HashMap<>();
+	    List<Map<String, Object>> successful = new ArrayList<>();
+	    List<Map<String, Object>> failed = new ArrayList<>();
+
+	    for (String rfqId : request.getRfqIds()) {
+	        Map<String, Object> result = new HashMap<>();
+	        result.put("rfq_id", rfqId);
+	        result.put("seller_id", request.getSellerId());
+	        result.put("seller_email", request.getEmail());
+
+	        try {
+	            Optional<Rfq> rfqDataOpt = rfqDao.findById(rfqId);
+	            if (rfqDataOpt.isEmpty()) {
+	                result.put("error", "RFQ not found");
+	                failed.add(result);
+	                continue;
+	            }
+
+	            if (!isValidEmail(request.getEmail())) {
+	                result.put("error", "Invalid email format");
+	                failed.add(result);
+	                continue;
+	            }
+
+	            Rfq rfqData = rfqDataOpt.get();
+
+	            // Build a single RfqVendor for this seller
+	            RfqVendor rfqVendor = new RfqVendor();
+	            rfqVendor.setRfq(rfqData);
+	            rfqVendor.setVendorId(request.getSellerId());
+	            rfqVendor.setEmail(request.getEmail());
+
+	            // Call new sendRfqToVendors method
+	            boolean emailSent = sendRfqsToVendor(rfqVendor, rfqData);
+
+	            result.put("email_sent", emailSent);
+	            if (emailSent) {
+	                successful.add(result);
+	            } else {
+	                result.put("error", "Failed to send email");
+	                failed.add(result);
+	            }
+
+	        } catch (Exception ex) {
+	            result.put("error", ex.getMessage());
+	            failed.add(result);
+	        }
+	    }
+
+	    response.put("success", true);
+	    results.put("successful", successful);
+	    results.put("failed", failed);
+	    response.put("results", results);
+
+	    return response;
+	}
+
+	public boolean sendRfqsToVendor(RfqVendor vendor, Rfq rfqData) {
+	    logger.info("Entered to sendRfqsToVendor()");
+
+	    try {
+	        // Fetch RFQ data again just in case
+	        Optional<Rfq> rfqOpt = rfqDao.findById(rfqData.getId());
+	        if (rfqOpt.isEmpty()) {
+	            logger.warn("RFQ not found with ID: " + rfqData.getId());
+	            return false;
+	        }
+
+	        // Load statuses
+	        MasterStatus pcRfqSent = null, vendorRfqNew = null;
+	        List<String> inputStatus = Arrays.asList(StatusConstants.pcRfqSent, StatusConstants.vendorRfqNew);
+	        List<MasterStatus> statusList = masterStatusDao.findByStatusIn(inputStatus);
+
+	        for (MasterStatus status : statusList) {
+	            if (StatusConstants.pcRfqSent.equals(status.getStatus())) {
+	                pcRfqSent = status;
+	            }
+	            if (StatusConstants.vendorRfqNew.equals(status.getStatus())) {
+	                vendorRfqNew = status;
+	            }
+	        }
+
+	        // Populate vendor object
+	        vendor.setRfq(rfqOpt.get());
+	        vendor.setRfqId(rfqOpt.get().getRfqId());
+	        vendor.setProcucevStatus(pcRfqSent);
+	        vendor.setVendorStatus(vendorRfqNew);
+	        vendor.setVendorResponseDate(vendor.getVendorResponseDate());
+
+	        // Save vendor
+	        rfqVendorDao.save(vendor);
+
+	        // Build due date
+	        String rfqDueDate = buildingRfqDueDate();
+
+	        // Send email and return actual status
+	        boolean status = MailUtility.emailNewRfqForNoPR(
+	            "NewRfq",
+	            javaMailSender,
+	            rfqData,
+	            host,
+	            vendor.getEmail(),   // main vendor email
+	            mailFom,             // from
+	            null,                // other emails
+	            null,                // phone number
+	            rfqDueDate,
+	            null,                // full name
+	            mailFom,             // mailId
+	            emailPassword        // password
+	        );
+
+	        return status;  // ✅ return actual send result
+
+	    } catch (Exception e) {
+	        logger.error("Exception in sendRfqsToVendor", e);
+	        return false;
+	    }
+	}
+	
+	private boolean isValidEmail(String email) {
+	    return email != null && email.matches("^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+$");
+	}
 }

@@ -53,4 +53,6 @@ public interface UserService {
 
 	boolean updateOrganization(Organization org);
 
+	boolean updateBuyer(Organization org);
+
 }
