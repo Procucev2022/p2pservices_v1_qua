@@ -684,7 +684,7 @@ public class MailUtility {
 	}
 
 	
-	public static void emailNewRfqForNoPR(String string, JavaMailSender javaMailSender, Rfq rfqData, String host,
+	public static boolean emailNewRfqForNoPR(String string, JavaMailSender javaMailSender, Rfq rfqData, String host,
 			String mailId, String fromAddress, String ccAdd, String phonenumber, String rfqDueDate, String fullName,
 			String mailId2, String password) throws MessagingException {
 		LOGGER.info("Entered To Send Email To Vendor Regarding RFQ");
@@ -817,9 +817,11 @@ public class MailUtility {
 			LOGGER.info("Going to emailNotifierGenericNoPRBySenderList() to send email ");
 			emailNotifierGenericNoPRBySenderList(subject, mailId, javaMailSender2, fromAddress, ccAdd, multipart,
 					mailId2);
-		} catch (MessagingException e) {
+		
+		return true;} catch (MessagingException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
+			return false;
 		}
 	}
 

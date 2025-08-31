@@ -21,6 +21,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.portal.procucev.Dto.ClientRFQDto;
+import com.portal.procucev.Dto.ForwardRfqVendorRequest;
 import com.portal.procucev.Dto.GMTRfqVendorDto;
 import com.portal.procucev.Dto.RfqDTO;
 import com.portal.procucev.Dto.VendorRFQDto;
@@ -31,6 +32,7 @@ import com.portal.procucev.model.CategoryDivision;
 import com.portal.procucev.model.EmailRequest;
 import com.portal.procucev.model.GmtItems;
 import com.portal.procucev.model.GmtRfqVendors;
+import com.portal.procucev.model.ItemCategory;
 import com.portal.procucev.model.Organization;
 import com.portal.procucev.model.Rfq;
 import com.portal.procucev.model.RfqItem;
@@ -49,25 +51,25 @@ public class GMTController {
 	private static final Logger logger = LoggerFactory.getLogger(GMTController.class);
 	@Autowired
 	GMTService gmtService;
-	
+
 	@PostMapping(value = "/getClientRfqIds")
 	public ResponseEntity<?> getClientRfqIds(@RequestBody User user) {
 		List<String> rfqIdsList = gmtService.getClientRfqIds(user);
 		return new ResponseEntity<>(rfqIdsList, HttpStatus.OK);
 	}
-	
+
 	@PostMapping(value = "/getNoPrRfqByClient")
 	public ResponseEntity<?> getNoPrRfqByClient(@RequestBody User user) {
 		List<ClientRFQDto> status = gmtService.getNoPrRfqByClient(user);
 		return new ResponseEntity<>(status, HttpStatus.OK);
 	}
-	
+
 	@GetMapping(value = "/getAllDivisions")
 	public ResponseEntity<?> getAllDivision() {
 		List<String> status = gmtService.getAllDivision();
 		return new ResponseEntity<>(status, HttpStatus.OK);
 	}
-	
+
 	@PostMapping(value = "/createRFQForNoPrByClient")
 	public ResponseEntity<?> createRFQForNoPrByClient(@RequestBody Rfq rfq) throws Exception {
 		boolean response = gmtService.createRFQForNoPrByClient(rfq);
@@ -89,13 +91,13 @@ public class GMTController {
 		MessageResponse responseObj = new MessageResponse(StatusCodes.CLIENT_PR_CLOSED_code, msg, null, statusCode);
 		return new ResponseEntity<>(responseObj, HttpStatus.OK);
 	}
-	
+
 	@PostMapping(value = "/convertRfqBoq")
 	public ResponseEntity<?> convertRfqBoq(@RequestBody Rfq rfq) {
 		List<RfqItem> itemList = gmtService.convertRFQBoq(rfq);
 		return new ResponseEntity<>(itemList, HttpStatus.OK);
 	}
-	
+
 	@PostMapping(value = "/sendingQueryMail")
 	public ResponseEntity<?> queryMail(@RequestBody User user) throws AppException, UnsupportedEncodingException {
 		boolean prList = gmtService.queryMail(user);
@@ -108,13 +110,14 @@ public class GMTController {
 		MessageResponse response = new MessageResponse(code, msg, null, statusCode);
 		return new ResponseEntity<>(response, HttpStatus.OK);
 	}
-	
+
 	@PostMapping("/fetchAllGMTRfqs")
 	public ResponseEntity<?> getAllGMTRfq(@RequestBody Organization org) throws AppException {
 		List<GMTRfqVendorDto> rfqList = gmtService.getAllGMTRfq(org);
 		return new ResponseEntity<>(rfqList, HttpStatus.OK);
 	}
-	/*Need to check whether required or not */
+
+	/* Need to check whether required or not */
 	@PostMapping(value = "/requestRfqByVendors")
 	public ResponseEntity<?> requestRfqByVendors(@RequestBody List<GmtRfqVendors> rfq) {
 		logger.info("entered to send an request to multiple rfqs by Vendor");
@@ -123,11 +126,11 @@ public class GMTController {
 				: String.valueOf(ApplicationConstants.FAILURE);
 		String msg = response ? String.format(ApplicationConstants.RFQ_REQUEST_SUCCESS, "")
 				: String.format(ApplicationConstants.RFQ_REQUEST_FAILURE, "");
-		MessageResponse responseObj = new MessageResponse(StatusCodes.SEND_RFQ_CODE, msg, null, statusCode);
+		MessageResponse responseObj = new MessageResponse(StatusCodes.OK_VENDOR_CODE, msg, null, statusCode);
 		return new ResponseEntity<>(responseObj, HttpStatus.OK);
 
 	}
-	
+
 	@PostMapping(value = "/getVendorsByGmtRFQ")
 	public ResponseEntity<?> getVendorsByGmtRFQ(@RequestBody Rfq rfq) {
 		logger.info("entered to get an request to multiple Vendors by Rfq");
@@ -135,7 +138,7 @@ public class GMTController {
 		return new ResponseEntity<>(response, HttpStatus.OK);
 
 	}
-	
+
 	@PostMapping(value = "/approveVendor")
 	public ResponseEntity<?> approveVendor(@RequestBody GmtRfqVendors rfq) throws MessagingException {
 		logger.info("Entered to approver rfq for vendor");
@@ -161,7 +164,7 @@ public class GMTController {
 		return new ResponseEntity<>(responseObj, HttpStatus.OK);
 
 	}
-	
+
 	@PostMapping(value = "/rejectRfqForVendorByCM2")
 	public ResponseEntity<?> rejectRfqForVendor(@RequestBody GmtRfqVendors rfq) {
 		logger.info("entered to reject rfqs for Vendor by CM2");
@@ -174,13 +177,14 @@ public class GMTController {
 		return new ResponseEntity<>(responseObj, HttpStatus.OK);
 
 	}
-	
+
 	@GetMapping("/fetchAllGMTRfqsForCM")
 	public ResponseEntity<?> getAllRfqforCM() throws AppException {
 		List<RfqDTO> rfqList = gmtService.getAllRfqForCM();
 		return new ResponseEntity<>(rfqList, HttpStatus.OK);
 	}
-	/*Need to check whether required or not */
+
+	/* Need to check whether required or not */
 	@PostMapping(value = "/raiseQueryByVendor")
 	public ResponseEntity<?> raiseQueryByVendor(@RequestBody GmtRfqVendors rfq) {
 		logger.info("Entered to raise Query By Vendor for RFQ");
@@ -193,14 +197,13 @@ public class GMTController {
 		return new ResponseEntity<>(responseObj, HttpStatus.OK);
 
 	}
-	
-	
+
 	@GetMapping("/fetchAllClientGMTRfqsForCM")
 	public ResponseEntity<?> fetchAllClientGMTRfqsForCM() throws AppException {
 		List<RfqDTO> rfqList = gmtService.fetchAllClientGMTRfqsForCM();
 		return new ResponseEntity<>(rfqList, HttpStatus.OK);
 	}
-	
+
 	@PostMapping(value = "/getCategoryByDivision")
 	public ResponseEntity<?> getCategoryByDivision(@RequestBody CategoryDivision cat) {
 		logger.info("Entered to get Category List By Division ");
@@ -224,31 +227,33 @@ public class GMTController {
 	@PostMapping(value = "/fetchRfqById")
 	public ResponseEntity<?> fetchRfqById(@RequestBody Rfq rfq) {
 		ResponseEntity<?> status = gmtService.fetchRfqById(rfq);
-		return status;	
-}
+		return status;
+	}
+
 	@GetMapping(value = "/getAllCategories")
 	public ResponseEntity<?> getAllCategory() {
 		List<String> status = gmtService.getAllCategory();
 		return new ResponseEntity<>(status, HttpStatus.OK);
 	}
-	
+
 	@GetMapping(value = "/getRFQsForNoPR")
 	public ResponseEntity<?> getRFQsForNoPR() {
 		List<RfqDTO> status = gmtService.getRFQsForNoPR();
 		return new ResponseEntity<>(status, HttpStatus.OK);
 	}
+
 	@GetMapping("/getAllVendors")
 	public ResponseEntity<?> getAllVendors() {
 		List<VendorRFQDto> response = gmtService.getAllVendors();
 		return new ResponseEntity<>(response, HttpStatus.OK);
 	}
-	
+
 	@PostMapping("/getAllVendorsByCategory")
 	public ResponseEntity<?> getAllVendorsByCategory(@RequestBody Organization organization) {
 		List<VendorRFQDto> response = gmtService.getAllVendorsByCategory(organization);
 		return new ResponseEntity<>(response, HttpStatus.OK);
 	}
-	
+
 	@PostMapping(value = "/createRFQForNoPrWithItems")
 	public ResponseEntity<?> createRFQForNoPrWithItems(@RequestBody Rfq rfq) {
 		boolean response = gmtService.createRFQWithNoPr(rfq);
@@ -259,7 +264,7 @@ public class GMTController {
 		MessageResponse responseObj = new MessageResponse(StatusCodes.CLIENT_PR_CLOSED_code, msg, null, statusCode);
 		return new ResponseEntity<>(responseObj, HttpStatus.OK);
 	}
-	
+
 	@PostMapping(value = "/forwardRfq")
 	public ResponseEntity<?> forwardRfqForNoPr(@RequestBody Rfq rfq) {
 		boolean response = gmtService.forwardRfqForNoPr(rfq);
@@ -276,14 +281,14 @@ public class GMTController {
 		List<RfqItem> status = gmtService.getItemsbyrfqrid(rfq);
 		return new ResponseEntity<>(status, HttpStatus.OK);
 	}
-	
+
 	@GetMapping("/getSelfRegisterClients")
 	public ResponseEntity<?> getSelfRegisterClients() throws AppException {
 		logger.info("Enters to fetch Self Register client list");
 		List<Organization> clientList = gmtService.fetchSelfRegisterClients();
 		return new ResponseEntity<>(clientList, HttpStatus.OK);
 	}
-	
+
 	@PostMapping(value = "/editUser")
 	public ResponseEntity<?> editUser(@RequestBody User user) throws AppException {
 		boolean prList = gmtService.editUser(user);
@@ -296,7 +301,7 @@ public class GMTController {
 		MessageResponse response = new MessageResponse(code, msg, null, statusCode);
 		return new ResponseEntity<>(response, HttpStatus.OK);
 	}
-	
+
 	@PostMapping(value = "/acceptSelfRegisterClient")
 	public ResponseEntity<?> acceptClient(@RequestBody User user) throws AppException, UnsupportedEncodingException {
 		boolean prList = gmtService.acceptSelfClient(user);
@@ -322,6 +327,7 @@ public class GMTController {
 		MessageResponse response = new MessageResponse(code, msg, null, statusCode);
 		return new ResponseEntity<>(response, HttpStatus.OK);
 	}
+
 	@PostMapping(value = "/disableUser")
 	public ResponseEntity<?> disableUser(@RequestBody User user) {
 		boolean status = gmtService.disableUser(user);
@@ -333,7 +339,7 @@ public class GMTController {
 		return new ResponseEntity<>(response, HttpStatus.OK);
 
 	}
-	
+
 	@PostMapping("/getclientusersByclient")
 	public ResponseEntity<?> getclientusersByclient(@RequestBody Organization org) {
 		Object clientList = gmtService.getclientusersByClientId(org);
@@ -350,145 +356,144 @@ public class GMTController {
 		MessageResponse responseObj = new MessageResponse(StatusCodes.CLIENT_PR_CLOSED_code, msg, null, statusCode);
 		return new ResponseEntity<>(responseObj, HttpStatus.OK);
 	}
+
 	@PostMapping(value = "/getVendorbyRFQ")
 	public ResponseEntity<?> getVendorbyRFQ(@RequestBody Rfq rfq) {
 		List<RfqVendor> status = gmtService.getVendorsbyRFQ(rfq);
 		return new ResponseEntity<>(status, HttpStatus.OK);
 	}
-	
+
 	@GetMapping(value = "/getGmtBuyers")
 	public ResponseEntity<?> getGmtBuyers() {
 		List<User> status = gmtService.getGmtBuyers();
 		return new ResponseEntity<>(status, HttpStatus.OK);
 	}
-	
+
 	@PostMapping(value = "/createRFQByClient")
 	public ResponseEntity<?> createRFQByClient(@RequestBody Rfq rfq) throws Exception {
-	    // Call service to create RFQ and return rfqId (null if failed)
-	    String rfqId = gmtService.createRFQByClient(rfq);
+	    Map<String, Object> result = gmtService.createRFQByClient(rfq);
 
-	    boolean success = rfqId != null;
+	    boolean success = result != null;
 
 	    String statusCode = success ? String.valueOf(ApplicationConstants.SUCCESS)
-	                                : String.valueOf(ApplicationConstants.FAILURE);
+	            : String.valueOf(ApplicationConstants.FAILURE);
 
-	    String msg = success
-	        ? String.format(ApplicationConstants.RFQ_CREATED_SUCCESS, "")
-	        : String.format(ApplicationConstants.RFQ_CREATED_FAILURE, "");
+	    String msg = success ? String.format(ApplicationConstants.RFQ_CREATED_SUCCESS, "")
+	            : String.format(ApplicationConstants.RFQ_CREATED_FAILURE, "");
 
-	    // 👇 Build response with rfqId in a Map
-	    Map<String, Object> data = success ? Map.of("rfqId", rfqId) : null;
+	    // directly pass result map with rfqId and rfquuid
+	    Map<String, Object> data = success ? result : Map.of();
 
-	    // Create MessageResponse using your matching constructor
 	    MessageResponse response = new MessageResponse(
-	    	StatusCodes.OK_VENDOR_CODE,
-	        msg,
-	        data,
-	        statusCode,
-	        new Date()
+	            StatusCodes.OK_VENDOR_CODE,
+	            msg,
+	            data,
+	            statusCode,
+	            new Date()
 	    );
 
 	    return new ResponseEntity<>(response, HttpStatus.OK);
 	}
-	
 
 	@PostMapping("/sendEmail")
 	public ResponseEntity<?> sendEmail(@RequestBody EmailRequest request) {
-	    boolean status = gmtService.sendEmail(request);
-	    String statusCode = status ? String.valueOf(ApplicationConstants.SUCCESS)
+		boolean status = gmtService.sendEmail(request);
+		String statusCode = status ? String.valueOf(ApplicationConstants.SUCCESS)
 				: String.valueOf(ApplicationConstants.FAILURE);
 		String msg = status ? String.format(ApplicationConstants.EMAIL_SENT_SUCCESS, "")
 				: String.format(ApplicationConstants.EMAIL_SENT_UNSUCCESS, "");
-		MessageResponse response = new MessageResponse(StatusCodes.OK_VENDOR_CODE, msg,new Date(),statusCode,null);
+		MessageResponse response = new MessageResponse(StatusCodes.OK_VENDOR_CODE, msg, new Date(), statusCode, null);
 		return new ResponseEntity<>(response, HttpStatus.OK);
 	}
-	
+
 	@GetMapping(value = "/getSubscriptionPlans")
 	public ResponseEntity<?> getSubscriptionPlans() {
-	    try {
-	        // Call service to fetch all subscription plans
-	        List<SubscriptionPlan> plans = gmtService.getSubscriptionPlans();
+		try {
+			// Call service to fetch all subscription plans
+			List<SubscriptionPlan> plans = gmtService.getSubscriptionPlans();
 
-	        boolean success = (plans != null && !plans.isEmpty());
+			boolean success = (plans != null && !plans.isEmpty());
 
-	        String statusCode = success
-	                ? String.valueOf(ApplicationConstants.SUCCESS)
-	                : String.valueOf(ApplicationConstants.FAILURE);
+			String statusCode = success ? String.valueOf(ApplicationConstants.SUCCESS)
+					: String.valueOf(ApplicationConstants.FAILURE);
 
-	        String msg = success
-	                ? String.format("Subscription plans fetched successfully")
-	                : String.format("No subscription plans found");
+			String msg = success ? String.format("Subscription plans fetched successfully")
+					: String.format("No subscription plans found");
 
-	        // 👇 Wrap data in a Map like you did with rfqId
-	        Map<String, Object> data = success ? Map.of("plans", plans) : null;
+			// 👇 Wrap data in a Map like you did with rfqId
+			Map<String, Object> data = success ? Map.of("plans", plans) : null;
 
-	        // Build standard response
-	        MessageResponse response = new MessageResponse(
-	                StatusCodes.OK_VENDOR_CODE,
-	                msg,
-	                data,
-	                statusCode,
-	                new Date()
-	        );
+			// Build standard response
+			MessageResponse response = new MessageResponse(StatusCodes.OK_VENDOR_CODE, msg, data, statusCode,
+					new Date());
 
-	        return new ResponseEntity<>(response, HttpStatus.OK);
+			return new ResponseEntity<>(response, HttpStatus.OK);
 
-	    } catch (Exception e) {
-	        // In case of error, return failure response
-	        MessageResponse response = new MessageResponse(
-	                StatusCodes.OK_VENDOR_CODE,
-	                "Error fetching subscription plans: " + e.getMessage(),
-	                null,
-	                String.valueOf(ApplicationConstants.FAILURE),
-	                new Date()
-	        );
-	        return new ResponseEntity<>(response, HttpStatus.INTERNAL_SERVER_ERROR);
-	    }
+		} catch (Exception e) {
+			// In case of error, return failure response
+			MessageResponse response = new MessageResponse(StatusCodes.OK_VENDOR_CODE,
+					"Error fetching subscription plans: " + e.getMessage(), null,
+					String.valueOf(ApplicationConstants.FAILURE), new Date());
+			return new ResponseEntity<>(response, HttpStatus.INTERNAL_SERVER_ERROR);
+		}
 	}
 
+	@PostMapping("/rfqStatus")
+	public ResponseEntity<Map<String, Object>> getRfqStatus(@RequestBody RfqStatusRequest request) {
+		List<RfqStatusResponse> data = gmtService.getRfqStatuses(request);
 
-    @PostMapping("/rfqStatus")
-    public ResponseEntity<Map<String, Object>> getRfqStatus(@RequestBody RfqStatusRequest request) {
-        List<RfqStatusResponse> data = gmtService.getRfqStatuses(request);
+		Map<String, Object> response = new HashMap<>();
+		response.put("success", true);
+		response.put("data", data);
 
-        Map<String, Object> response = new HashMap<>();
-        response.put("success", true);
-        response.put("data", data);
+		return ResponseEntity.ok(response);
+	}
 
-        return ResponseEntity.ok(response);
-    }
+	@PostMapping("/getSellerRfqCredits")
+	public ResponseEntity<Map<String, Object>> getSellerRfqCredits(@RequestBody Organization org) {
+		int credits = gmtService.getSellerRfqCredits(org);
 
+		Map<String, Object> data = new HashMap<>();
+		data.put("creditsAvailable", credits);
 
-    @PostMapping("/getSellerRfqCredits")
-    public ResponseEntity<Map<String, Object>> getSellerRfqCredits(@RequestBody Organization org) {
-        int credits = gmtService.getSellerRfqCredits(org);
+		Map<String, Object> response = new HashMap<>();
+		response.put("success", true);
+		response.put("data", data);
 
+		return ResponseEntity.ok(response);
+	}
 
-        Map<String, Object> data = new HashMap<>();
-        data.put("creditsAvailable", credits);
-
-        Map<String, Object> response = new HashMap<>();
-        response.put("success", true);
-        response.put("data", data);
-
-        return ResponseEntity.ok(response);
-    }
-    
-    @PostMapping("/getOrgById")
+	@PostMapping("/getOrgById")
 	public ResponseEntity<?> getOrgById(@RequestBody Organization organization) throws IOException {
 		logger.info("enters to fetch the Org list");
 
 		Organization vendorList = gmtService.getOrgById(organization);
 		return new ResponseEntity<>(vendorList, HttpStatus.OK);
 	}
-    
-    @PostMapping("/getRfqByCategory")
-    public ResponseEntity<Map<String, Object>> getRfqByCategory(@RequestBody Organization org) {
-        Map<String, Object> rfqs = gmtService.getRfqByItemCategory(org);
-        Map<String, Object> response = new HashMap<>();
-        response.put("success", true);
-        response.put("data", rfqs);
 
-        return ResponseEntity.ok(response);
-    }
+	@PostMapping("/getRfqByCategory")
+	public ResponseEntity<Map<String, Object>> getRfqByCategory(@RequestBody Organization org) {
+		Map<String, Object> rfqs = gmtService.getRfqByItemCategory(org);
+		Map<String, Object> response = new HashMap<>();
+		response.put("success", true);
+		response.put("data", rfqs);
+
+		return ResponseEntity.ok(response);
+	}
+
+//	@PostMapping("/getItemsByCategory")
+//	public ResponseEntity<Map<String, Object>> getRfqByCategory(@RequestBody ItemCategory item) {
+//		Map<String, Object> rfqs = gmtService.getRfqByItemCategory(org);
+//		Map<String, Object> response = new HashMap<>();
+//		response.put("success", true);
+//		response.put("data", rfqs);
+//
+//		return ResponseEntity.ok(response);
+//	}
+	
+	@PostMapping(value = "/forwardRfqsToVendor")
+	public ResponseEntity<?> forwardRfqsToVendor(@RequestBody ForwardRfqVendorRequest request) {
+		 Map<String, Object> response  = gmtService.forwardRfqsToVendor(request);
+		 return ResponseEntity.ok(response);
+	}
 }

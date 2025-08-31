@@ -718,6 +718,10 @@ public interface ApplicationConstants {
 	public String SELLER_UPDATE_SUCCESS = "Seller Updated Successfully";
 
 	public String SELLER_UPDATE_FAILED = "Failed To Update Seller";
+
+	public String BUYER_UPDATE_SUCCESS = "Buyer Updated Successfully";
+
+	public String BUYER_UPDATE_FAILED = "Failed To Update Buyer";
 	
 	
 		

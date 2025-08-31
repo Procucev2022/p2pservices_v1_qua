@@ -570,4 +570,40 @@ public class ProcUserServiceImpl implements UserService {
 	}
 	}
 
+	@Override
+	public boolean updateBuyer(Organization updatedOrg) {
+		// TODO Auto-generated method stub
+		  if (updatedOrg == null) {
+		        log.error("updatedOrg object is null in updateBuyer() ");
+		        return false;
+		    }
+		  else {
+	    Organization existingOrg = orgDao.findById(updatedOrg.getId())
+	            .orElseThrow(() -> new RuntimeException("Organization not found"));
+
+	    // Overwrite only the fields you care about
+	    if (updatedOrg.getCompanyName() != null) existingOrg.setCompanyName(updatedOrg.getCompanyName());
+	    if (updatedOrg.getDetails() != null) existingOrg.setDetails(updatedOrg.getDetails());
+	    if (updatedOrg.getGstin() != null) existingOrg.setGstin(updatedOrg.getGstin());
+	    if (updatedOrg.getAddress1() != null) existingOrg.setAddress1(updatedOrg.getAddress1());
+	    if (updatedOrg.getState() != null) existingOrg.setState(updatedOrg.getState());
+	    if (updatedOrg.getCity() != null) existingOrg.setCity(updatedOrg.getCity());
+	    if (updatedOrg.getZipCode() != null) existingOrg.setZipCode(updatedOrg.getZipCode());
+	    if (updatedOrg.getContactPerson() != null) existingOrg.setContactPerson(updatedOrg.getContactPerson());
+	    if (updatedOrg.getEmail() != null) existingOrg.setEmail(updatedOrg.getEmail());
+	    if (updatedOrg.getOrganizationPhonenumber() != null) existingOrg.setOrganizationPhonenumber(updatedOrg.getOrganizationPhonenumber());
+
+	    if (updatedOrg.getDivisionCategories() != null) {
+	        existingOrg.getDivisionCategories().clear();
+	        for (OrgDivisionCategory divCat : updatedOrg.getDivisionCategories()) {
+	            divCat.setOrganization(existingOrg); // Set back reference
+	            existingOrg.getDivisionCategories().add(divCat);
+	        }
+	    }
+	    orgDao.save(existingOrg);
+			
+	    return true;
+	}
+	}
+
 }

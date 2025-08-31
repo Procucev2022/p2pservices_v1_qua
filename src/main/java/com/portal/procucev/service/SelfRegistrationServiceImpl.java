@@ -368,12 +368,15 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 					ApplicationConstants.FAILURE);
 		}
 		if (organization != null) {
+			  User user = new User();
 			OrgType orgTypeObject = orgTypeDao.findByTypeName(ApplicationConstants.VENDOR);
-			MasterStatus resultStatus = masterStatusDao.findByStatus(StatusConstants.SELF_REGISTER);
+//			MasterStatus resultStatus = masterStatusDao.findByStatus(StatusConstants.SELF_REGISTER);
+			MasterStatus resultStatus = masterStatusDao.findByStatus(StatusConstants.SELF_REGISTER_VC_ACCEPTED);
 			MasterStatus resultStatus1 = masterStatusDao.findByStatus(StatusConstants.EVALUATION_NOT_STARTED);
 			organization.setOrgType(orgTypeObject);
 			organization.setVendorStatus(resultStatus);
 			organization.setStatus(resultStatus1);
+			organization.setProcucevStatus(resultStatus);
 			organization.setGmtName(StatusConstants.GMT_Basic);
 			organization.setBfsName(StatusConstants.BFS_PRO);
 			PincodeData pincodeData = getCityByPincode(organization.getZipCode());
@@ -383,14 +386,22 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 			organization.setRfqCredits(1);
 			}
 			organization.setSubCategory(organization.getDetails());
-			
-			orgDao.save(organization);
+			organization.setSourceType(ApplicationConstants.TOOL);
+				
+			  Organization savedOrg = orgDao.save(organization);
+	            logger.info("Saved Org ID: {}", savedOrg.getId());
 
-					InternetAddress add = new InternetAddress(mailFom, "Procucev Notifications");
-					MailUtility.emailForVendor("Vendor Registration Successfull", organization.getEmail(),
-							javaMailSender, add, host);
-					MailUtility.sendVendorEmailForCM2("Self Register Vendor", toAddress, organization, javaMailSender, add,
-							host);
+	            user.setOrg(savedOrg);
+	            User savedUser = setSellerUserDetails(organization, user);
+
+	            InternetAddress add = new InternetAddress(mailid, "Procucev Notifications");
+		        MailUtility.mailingVerificationLinkWithUser( javaMailSender, add, host, savedUser);
+
+
+//					MailUtility.emailForVendor("Vendor Registration Successfull", organization.getEmail(),
+//							javaMailSender, add, host);
+//					MailUtility.sendVendorEmailForCM2("Self Register Vendor", toAddress, organization, javaMailSender, add,
+//							host);
 
 			
 		}
@@ -722,7 +733,7 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 	            String companyId = generateId(organization.getCompanyName());
 	            organization.setCompanyId(companyId);
 	            organization.setRfqCredits(1);
-	            organization.setSourceType(ApplicationConstants.TOOL);
+	            //organization.setSourceType(ApplicationConstants.TOOL);
 	            logger.info("Company Id: {}", companyId);
 
 	            PincodeData pincodeData = getCityByPincode(organization.getZipCode());
@@ -744,8 +755,8 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 	            response.put("uniqueId", user.getUniqueId());  
 	            response.put("confirmationFlag", true);
 
-//	        InternetAddress add = new InternetAddress(mailid, "Procucev Notifications");
-//	        MailUtility.mailingVerificationLinkWithUser( javaMailSender, add, host, savedUser);
+	        InternetAddress add = new InternetAddress(mailid, "Procucev Notifications");
+	        MailUtility.mailingVerificationLinkWithUser( javaMailSender, add, host, savedUser);
 
 
 	        return response;
