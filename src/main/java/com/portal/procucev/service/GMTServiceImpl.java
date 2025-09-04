@@ -730,6 +730,7 @@ public class GMTServiceImpl implements GMTService {
 			MasterStatus resultStatus = masterStatusDao.findByStatus(StatusConstants.vendorApproved);
 			gmtRfqVendorDao.updateAcceptStatus(gmtRfq.getRfq(), gmtRfq.getVendor(), resultStatus, date);
 			rfqDao.updateRfqCount(gmtRfq.getRfq());
+			// Add logic to update rfqcredit and rfq used count
 			Optional<Rfq> rfq = rfqDao.findById(gmtRfq.getRfq().getId());
 			// Organization org = orgdao.findById(gmtRfq.getVendor().getId());
 			String email = orgDao.findEmailById(gmtRfq.getVendor().getId());
