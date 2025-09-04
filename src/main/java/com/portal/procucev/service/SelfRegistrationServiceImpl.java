@@ -679,14 +679,16 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 	            logger.info("Saving User For Existing Client");
 	            user.setOrg(orgList.get(0));
 	            setUserDetails(organization, user);
-
 	            response.put("orgId", orgList.get(0).getId());
 	            response.put("companyId", orgList.get(0).getCompanyId());
+	            response.put("companyName", orgList.get(0).getCompanyName());
 	        }
-	        response.put("userId", user.getId());
+	        response.put("id", user.getId());
 	        response.put("email", user.getUsername());
 	        response.put("uniqueId", user.getUniqueId());  
 	        response.put("confirmationFlag", true);
+            response.put("selfClient", user.isSelfClient()); 
+            response.put("fullName", user.getFullName());
 
 	        InternetAddress add = new InternetAddress(mailid, "Procucev Notifications");
 	        MailUtility.sendClientEmailForCM2(
@@ -733,6 +735,7 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 	            String companyId = generateId(organization.getCompanyName());
 	            organization.setCompanyId(companyId);
 	            organization.setRfqCredits(1);
+	        
 	            //organization.setSourceType(ApplicationConstants.TOOL);
 	            logger.info("Company Id: {}", companyId);
 
@@ -750,10 +753,13 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 
 	            response.put("orgId", savedOrg.getId());
 	            response.put("companyId", savedOrg.getCompanyId());
-	            response.put("userId", user.getId());
+	            response.put("id", user.getId());
 	            response.put("email", user.getUsername());
 	            response.put("uniqueId", user.getUniqueId());  
 	            response.put("confirmationFlag", true);
+	            response.put("companyName", savedOrg.getCompanyName());
+	            response.put("selfClient", user.isSelfClient()); 
+	            response.put("fullName", user.getFullName()); 
 
 	        InternetAddress add = new InternetAddress(mailid, "Procucev Notifications");
 	        MailUtility.mailingVerificationLinkWithUser( javaMailSender, add, host, savedUser);

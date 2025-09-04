@@ -295,5 +295,11 @@ public class Organization extends Procucev {
 	
 	@Column(name="source_type")
 	private String sourceType;
+	
+	@Column(name="rfq_used_count")
+	private int rfqUsedCount;
+	
+	@Column(name="quote_submitted")
+	private int quoteSubmitted;
 
 }
