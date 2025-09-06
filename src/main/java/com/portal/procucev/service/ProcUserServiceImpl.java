@@ -4,6 +4,8 @@ import java.io.UnsupportedEncodingException;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -30,9 +32,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
 import org.springframework.web.multipart.MultipartFile;
 
+import com.portal.procucev.Dto.VendorSummaryResponse;
 import com.portal.procucev.customexception.AppException;
 import com.portal.procucev.dao.EmailUserRepo;
 import com.portal.procucev.dao.OrgDao;
+import com.portal.procucev.dao.OrgTypeDao;
 import com.portal.procucev.dao.UserDao;
 import com.portal.procucev.model.EmailUser;
 import com.portal.procucev.model.OrgBranches;
@@ -59,6 +63,9 @@ public class ProcUserServiceImpl implements UserService {
 	@Autowired
 	private OrgDao orgDao;
 
+	@Autowired
+	private OrgTypeDao orgTypeDao;
+	
 	@Autowired
 	private EmailUserRepo emailUserRepo;
 
@@ -606,4 +613,80 @@ public class ProcUserServiceImpl implements UserService {
 	}
 	}
 
+
+public List<VendorSummaryResponse> getVendorSummary() {
+    Logger logger = LoggerFactory.getLogger(getClass());
+
+    OrgType orgTypeObject = orgTypeDao.findByTypeName(ApplicationConstants.VENDOR);
+    List<Organization> vendors = orgDao.findByOrgType(orgTypeObject);
+
+    if (vendors == null || vendors.isEmpty()) {
+        logger.warn("No vendors found for orgType={}", ApplicationConstants.VENDOR);
+        return Collections.emptyList();
+    }
+
+    List<VendorSummaryResponse> response = new ArrayList<>();
+
+    for (Organization vendor : vendors) {
+        VendorSummaryResponse summary = new VendorSummaryResponse();
+        try {
+            logger.info("Processing vendor with ID={} and Name={}", vendor.getId(), vendor.getName());
+
+            // Set values into DTO
+            summary.setId(vendor.getId());
+            summary.setCompanyId(vendor.getCompanyId());
+            summary.setCompanyName(vendor.getCompanyName());
+            summary.setName(vendor.getName());
+            summary.setEmail(vendor.getEmail());
+            summary.setGst(vendor.getGstin());
+            summary.setPincode(vendor.getZipCode());
+            summary.setPhoneNumber(vendor.getOrganizationPhonenumber());
+            summary.setDetails(vendor.getDetails());
+
+            summary.setSubscribed(vendor.getSubscriptionPlan() != null ? "Yes" : "No");
+
+            // Rfqs created (safe null handling)
+            //summary.setRfqsCreated(vendor.getRfqsCreated() != null ? vendor.getRfqsCreated() : 0L);
+
+            // Rfqs consumed
+            summary.setRfqsConsumed(vendor.getRfqUsedCount() != null ? vendor.getRfqUsedCount() : 0L);
+
+            // Subscription expiry
+            if (vendor.getSubscriptionExpiry() != null) {
+                summary.setSubscriptionExpiry(vendor.getSubscriptionExpiry());
+            }
+
+            // Vendor class
+            summary.setVendorClass(vendor.getVendorClass());
+
+            // Last login from user activity
+            List<Date> activityTimestamps = userDao.findActivityTsByOrg(vendor.getId());
+            if (!CollectionUtils.isEmpty(activityTimestamps)) {
+                summary.setLastLogin(activityTimestamps.get(0));
+            }
+
+            // Quotes submitted
+            summary.setQuotesSubmitted(vendor.getQuoteSubmitted() != null ? vendor.getQuoteSubmitted() : 0L);
+
+            // No errors
+            summary.setError(null);
+
+        } catch (Exception ex) {
+            logger.error("Error processing vendor ID={}: {}", vendor.getId(), ex.getMessage(), ex);
+
+            // Populate minimal vendor details with error message
+            summary.setId(vendor.getId());
+            summary.setCompanyId(vendor.getCompanyId());
+            summary.setCompanyName(vendor.getCompanyName());
+            summary.setName(vendor.getName());
+            summary.setSubscribed("Unknown");
+            summary.setError("Error fetching data: " + ex.getMessage());
+        }
+
+        response.add(summary);
+    }
+
+    logger.info("Vendor summary generated for {} vendors", response.size());
+    return response;
+}
 }

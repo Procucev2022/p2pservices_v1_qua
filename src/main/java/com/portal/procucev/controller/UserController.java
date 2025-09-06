@@ -2,13 +2,15 @@
 package com.portal.procucev.controller;
 
 import java.util.List;
-
+import java.util.Map;
+import java.util.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.CrossOrigin;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -16,6 +18,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.portal.procucev.Dto.VendorSummaryResponse;
 import com.portal.procucev.customexception.AppException;
 import com.portal.procucev.customexception.MessageResponse;
 import com.portal.procucev.dao.EmailUserRepo;
@@ -26,6 +29,7 @@ import com.portal.procucev.model.User;
 import com.portal.procucev.service.UserService;
 import com.portal.procucev.utils.ApplicationConstants;
 import com.portal.procucev.utils.StatusCodes;
+import com.portal.procucev.utils.StatusConstants;
 
 import jakarta.servlet.http.HttpServletRequest;
 
@@ -70,8 +74,8 @@ public class UserController {
 				: String.valueOf(ApplicationConstants.FAILURE);
 		String msg = status ? String.format(ApplicationConstants.PASSWORD_CHANGED_SUCCESS, "")
 				: String.format(ApplicationConstants.PASSWORD_CHANGED_UNSUCCESS, "");
-		AppException response = new AppException(statusCode, msg, null, null);
-		return new ResponseEntity<>(response, HttpStatus.OK);
+		//AppException response = new AppException(statusCode, msg, null, null);
+		return ResponseEntity.ok(new MessageResponse(StatusCodes.OK_VENDOR_CODE,msg,null, statusCode));
 
 	}
 
@@ -187,4 +191,30 @@ public class UserController {
 		return new ResponseEntity<>(response, HttpStatus.OK);
 
 	}
+
+
+	    @GetMapping("/vendorSummary")
+	    public ResponseEntity<Map<String, Object>> getVendorSummary() {
+	        Map<String, Object> response = new HashMap<>();
+	        try {
+	            List<VendorSummaryResponse> vendors = userServices.getVendorSummary();
+	            if (vendors.isEmpty()) {
+	            	response.put("statusCode", StatusCodes.OK_VENDOR_CODE);
+	                response.put("satus", "Success");
+	                response.put("message", "No vendors found with role 'vendor'");
+	                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(response);
+	            }
+                response.put("statusCode", StatusCodes.OK_VENDOR_CODE);
+	            response.put("satus", "Success");
+	            response.put("data", vendors);
+	            return ResponseEntity.ok(response);
+
+	        } catch (Exception e) {
+	        	response.put("statusCode", StatusCodes.OK_VENDOR_CODE);
+	            response.put("satus", "Failure");
+	            response.put("message", "Failed to fetch vendor summary");
+	            response.put("error", e.getMessage());
+	            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
+	        }
+	    }
 }

@@ -1,6 +1,7 @@
 package com.portal.procucev.service;
 import java.util.List;
 
+import com.portal.procucev.Dto.VendorSummaryResponse;
 import com.portal.procucev.model.EmailUser;
 import com.portal.procucev.model.Organization;
 import com.portal.procucev.model.ResetPassword;
@@ -54,5 +55,7 @@ public interface UserService {
 	boolean updateOrganization(Organization org);
 
 	boolean updateBuyer(Organization org);
+
+	List<VendorSummaryResponse> getVendorSummary();
 
 }

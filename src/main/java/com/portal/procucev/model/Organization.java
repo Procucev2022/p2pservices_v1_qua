@@ -297,9 +297,14 @@ public class Organization extends Procucev {
 	private String sourceType;
 	
 	@Column(name="rfq_used_count")
-	private int rfqUsedCount;
+	private Long rfqUsedCount;
 	
 	@Column(name="quote_submitted")
-	private int quoteSubmitted;
+	private Long quoteSubmitted;
 
+	@Column(name="subscription_start")
+	private Date subscriptionStart;
+	
+	@Column(name="subscription_expiry")
+	private Date subscriptionExpiry;
 }
