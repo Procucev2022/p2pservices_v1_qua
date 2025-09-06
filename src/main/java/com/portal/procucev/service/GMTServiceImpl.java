@@ -149,7 +149,7 @@ public class GMTServiceImpl implements GMTService {
 	@Autowired
 	private OrgCategoryDivisionDao orgCategoryDivisionDao;
 	
-	@Value("${spring.mail.username}")
+	@Value("${quaemail}")
 	String mailFom;
 
 	@Value("${host}")
@@ -164,7 +164,7 @@ public class GMTServiceImpl implements GMTService {
 	@Value("${toAddress}")
 	String toAddress;
 	
-	@Value("${spring.mail.password}")
+	@Value("${quapassword}")
 	private String emailPassword;
 	
 	@Autowired

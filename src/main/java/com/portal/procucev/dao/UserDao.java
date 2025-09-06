@@ -1,5 +1,6 @@
 package com.portal.procucev.dao;
 
+import java.util.Date;
 import java.util.List;
 
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -91,6 +92,9 @@ public interface UserDao extends JpaRepository<User, String> {
 	@Transactional
 	@Query("UPDATE User u SET u.activityTs = CURRENT_TIMESTAMP WHERE u.username=:email and u.phone=:phone and u.active = true")
 	void updateActivityTs(@Param("email") String email, @Param("phone") String phone);
+
+	@Query("select u.activityTs from User u where u.id=:id")
+	List<Date> findActivityTsByOrg(@Param("id") String id);
 
 	
 
