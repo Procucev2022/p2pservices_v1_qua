@@ -53,21 +53,44 @@ public class PartialVendorController {
 	
 	@Autowired
     private ExcelReader excelReader;
-
+	
 	@PostMapping(value = "/SelfVendorRegistration")
 	public ResponseEntity<?> vendorRegistration(@RequestBody Organization organization) throws IOException {
+	    logger.info("Entered to save the vendor details");
 
-		logger.info("entered to save the vendor details");
+	    try {
+	        boolean status = regService.vendorRegistration(organization);
 
-		boolean status = regService.vendorRegistration(organization);
+	        String statusCode = status ? String.valueOf(ApplicationConstants.SUCCESS)
+	                                   : String.valueOf(ApplicationConstants.FAILURE);
+	        String msg = status ? String.format(ApplicationConstants.CREATE_SELF_VENDOR, "")
+	                            : String.format(ApplicationConstants.SELF_VENDOR_FAILED, "");
 
-		String statusCode = status ? String.valueOf(ApplicationConstants.SUCCESS)
-				: String.valueOf(ApplicationConstants.FAILURE);
-		String msg = status ? String.format(ApplicationConstants.CREATE_SELF_VENDOR, "")
-				: String.format(ApplicationConstants.SELF_VENDOR_FAILED, "");
-		MessageResponse response = new MessageResponse(StatusCodes.NEW_VENDOR_CODE, msg, null, statusCode);
-		return new ResponseEntity<>(response, HttpStatus.OK);
+	        MessageResponse response = new MessageResponse(StatusCodes.NEW_VENDOR_CODE, msg, null, statusCode);
+	        return new ResponseEntity<>(response, HttpStatus.OK);
 
+	    } catch (AppException ex) {
+	        logger.error("Vendor registration failed: {}", ex.getMessage(), ex);
+
+	        MessageResponse response = new MessageResponse(
+	                StatusCodes.NEW_VENDOR_CODE,
+	                ex.getMessage(),   // message from your service exception
+	                null,
+	                ApplicationConstants.FAILURE
+	        );
+	        return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+
+	    } catch (Exception ex) {
+	        logger.error("Unexpected error in vendor registration: {}", ex.getMessage(), ex);
+
+	        MessageResponse response = new MessageResponse(
+	                StatusCodes.NEW_VENDOR_CODE,
+	                ApplicationConstants.SELF_VENDOR_FAILED,
+	                null,
+	                ApplicationConstants.FAILURE
+	        );
+	        return new ResponseEntity<>(response, HttpStatus.INTERNAL_SERVER_ERROR);
+	    }
 	}
 
 	@PostMapping(value = "/sendOtp")
@@ -128,27 +151,44 @@ public class PartialVendorController {
 //
 //	}
 	@PostMapping(value = "/SelfClientRegistration")
-	public ResponseEntity<?> clientRegistration(@RequestBody Organization organization) {
-		logger.info("Entered to save the client details");
-		try {
-			boolean status = regService.selfclientRegistrationData(organization);
-			String statusCode = status ? String.valueOf(ApplicationConstants.SUCCESS)
-					: String.valueOf(ApplicationConstants.FAILURE);
-			String msg = status ? String.format(ApplicationConstants.CREATE_SELF_CLIENT, "")
-					: String.format(ApplicationConstants.SELF_CLIENT_FAILED, "");
-			String code = status ? String.valueOf(HttpStatus.OK.value())
-					: String.valueOf(HttpStatus.BAD_REQUEST.value()); // or leave this out if you handle via exception
-			MessageResponse response = new MessageResponse(code, msg, null, statusCode);
-			return new ResponseEntity<>(response, HttpStatus.OK);
-		} catch (AppException e) {
-			logger.error("Business validation error: {}", e.getMessage());
-			return ResponseEntity.status(HttpStatus.CONFLICT) // or HttpStatus.BAD_REQUEST if it's a 400-type error
-					.body(new MessageResponse("409", e.getMessage(), null, ApplicationConstants.FAILURE));
-		} catch (Exception e) {
-			logger.error("Unexpected error: ", e);
-			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(new MessageResponse("500",
-					"Something went wrong while processing the request", null, ApplicationConstants.FAILURE));
-		}
+	public ResponseEntity<MessageResponse> clientRegistration(@RequestBody Organization organization) {
+	    logger.info("Entered to save the client details");
+
+	    try {
+	        boolean status = regService.selfclientRegistrationData(organization);
+
+	        String statusCode = status ? String.valueOf(ApplicationConstants.SUCCESS)
+	                                   : String.valueOf(ApplicationConstants.FAILURE);
+
+	        String msg = status
+	                ? "New client created successfully and user added."
+	                : "Existing client detected. User added successfully.";
+
+	        MessageResponse response = new MessageResponse(StatusCodes.OK_VENDOR_CODE, msg, null, statusCode);
+	        return new ResponseEntity<>(response, HttpStatus.OK);
+
+	    } catch (AppException ex) {
+	        logger.error("Client registration failed: {}", ex.getMessage(), ex);
+
+	        MessageResponse response = new MessageResponse(
+	                StatusCodes.OK_VENDOR_CODE,
+	                ex.getMessage(),  // message from service layer
+	                null,
+	                String.valueOf(ApplicationConstants.FAILURE)
+	        );
+	        return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+
+	    } catch (Exception ex) {
+	        logger.error("Unexpected error in client registration: {}", ex.getMessage(), ex);
+
+	        MessageResponse response = new MessageResponse(
+	                StatusCodes.OK_VENDOR_CODE,
+	                "Something went wrong while processing the registration",
+	                null,
+	                String.valueOf(ApplicationConstants.FAILURE)
+	        );
+	        return new ResponseEntity<>(response, HttpStatus.INTERNAL_SERVER_ERROR);
+	    }
 	}
 
 	@PostMapping("/getClientByPan")
