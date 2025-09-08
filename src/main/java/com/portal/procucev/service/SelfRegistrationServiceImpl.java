@@ -106,64 +106,76 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 	}
 
 	@Override
-	public boolean selfclientRegistrationData(Organization organization) {
-		// TODO Auto-generated method stub
-		logger.info("Entered to self client registration");
-		try {
-			// if (organization.getId() == null) {
-			logger.info("Saving Client For First Time");
-			List<Organization> orgList = new ArrayList<>();
-			OrgType orgTypeObject = orgTypeDao.findByTypeName(ApplicationConstants.CLIENT);
-			if (organization.getCompanyName()!=null) {
-				logger.info("Validating Company Name");
-				//orgList = orgDao.findByPanAndOrgType(organization.getPan(), orgTypeObject);
-				orgList = orgDao.findByCompanyNameAndOrgType(organization.getCompanyName(), orgTypeObject);
-		}
-			//else {
-//				orgList = orgDao.findByCrnAndOrgType(organization.getCrn(), orgTypeObject);
-//			}
-			if (orgList.isEmpty()) {
-				organization.setOrgType(orgTypeObject);
-				organization.setSelfClient(true);
-				organization.setGmtName("GMT Basic");
-				organization.setBfsName(StatusConstants.BFS_PRO);
-				organization.setSourceType(ApplicationConstants.TOOL);
-				//enrichWithLocation(organization);
-				String companyid =generateId(organization.getCompanyName());
-				logger.info("Company Id::" + companyid);
-				organization.setCompanyId(companyid);
-				logger.info("Saving Client Organization");
-				PincodeData pincodeData = getCityByPincode(organization.getZipCode());
-				if(pincodeData!=null) {
-				organization.setCity(pincodeData.getCity());
-				organization.setState(pincodeData.getState());
-				}
-				Organization savedOrg = clientDao.save(organization);
-				logger.info("id of org::" + savedOrg.getId());
+	public boolean selfclientRegistrationData(Organization organization) throws AppException {
+	    logger.info("Entered self client registration");
 
-				User user = new User();
-				user.setOrg(savedOrg);
-				// user.setSelfClient(true);
-				setUserDetails(organization, user);
+	    // Validate required fields
+	    if (organization.getCompanyName() == null || organization.getCompanyName().isEmpty()) {
+	        throw new AppException( HttpStatus.BAD_REQUEST.value(), "Company name is required for registration", null, null,LocalDateTime.now());
+	    }
+	    if (organization.getEmail() == null || organization.getEmail().isEmpty()) {
+	        throw new AppException( HttpStatus.BAD_REQUEST.value(), "Email is required for registration", null, null,LocalDateTime.now());
+	    }
+	    if (organization.getOrganizationPhonenumber() == null || organization.getOrganizationPhonenumber().isEmpty()) {
+	        throw new AppException( HttpStatus.BAD_REQUEST.value(), "Phone number is required for registration", null, null,LocalDateTime.now());
+	    }
 
-			} else {
-				logger.info("Saving User For Existed Client");
+	    try {
+	        OrgType orgTypeObject = orgTypeDao.findByTypeName(ApplicationConstants.CLIENT);
+	        if (orgTypeObject == null) {
+	            throw new AppException( HttpStatus.INTERNAL_SERVER_ERROR.value(), "Client organization type not configured. Contact admin.", null, null,LocalDateTime.now());
+	        }
 
-				User user = new User();
-				user.setOrg(orgList.get(0));
-				setUserDetails(organization, user);
-			}
-			InternetAddress add = new InternetAddress(mailid, "Procucev Notifications");
-			// String toAddress = "srinivas.mukku@procucev.com";
-			MailUtility.sendClientEmailForCM2("New Client Registration ", toAddress, organization, javaMailSender, add,
-					host);
-			return true;
-		} catch (Exception e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		}
-		return false;
+	        // Check if organization already exists
+	        List<Organization> orgList = orgDao.findByCompanyNameAndOrgType(organization.getCompanyName(), orgTypeObject);
+
+	        boolean isNewClient = orgList.isEmpty();
+	        Organization targetOrg;
+
+	        if (isNewClient) {
+	            // New client registration
+	            organization.setOrgType(orgTypeObject);
+	            organization.setSelfClient(true);
+	            organization.setGmtName("GMT Basic");
+	            organization.setBfsName(StatusConstants.BFS_PRO);
+	            organization.setSourceType(ApplicationConstants.TOOL);
+	            organization.setCompanyId(generateId(organization.getCompanyName()));
+
+	            PincodeData pincodeData = getCityByPincode(organization.getZipCode());
+	            if (pincodeData != null) {
+	                organization.setCity(pincodeData.getCity());
+	                organization.setState(pincodeData.getState());
+	            }
+
+	            targetOrg = clientDao.save(organization);
+	            logger.info("New client saved with ID: {}", targetOrg.getId());
+	        } else {
+	            // Existing client, use first organization
+	            targetOrg = orgList.get(0);
+	            logger.info("Existing client found with ID: {}", targetOrg.getId());
+	        }
+
+	        // Create user for the organization
+	        User user = new User();
+	        user.setOrg(targetOrg);
+	        setUserDetails(organization, user); // throws AppException if duplicate or failure
+
+	        // Send email notification
+	        InternetAddress add = new InternetAddress(mailid, "Procucev Notifications");
+	        MailUtility.sendClientEmailForCM2(
+	                "New Client Registration", toAddress, organization, javaMailSender, add, host
+	        );
+
+	        return isNewClient; // true if new client, false if existing client
+	    } catch (AppException ae) {
+	        logger.error("Business validation error: {}", ae.getMessage());
+	        throw ae; // propagate meaningful messages
+	    } catch (Exception e) {
+	        logger.error("Unexpected error during self client registration", e);
+	        throw new AppException( HttpStatus.INTERNAL_SERVER_ERROR.value(), "Something went wrong while processing the registration", null, null,LocalDateTime.now());
+	    }
 	}
+
 	
 //	private void enrichWithLocation(Organization org) {
 //        String pincode = org.getZipCode();
@@ -209,34 +221,54 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 		}
 	}
 	
-	public void setUserDetails(Organization organization, User user) {
-		logger.info("Setting User Details::");
-		List<User> existingUsers = userDao.findByUsernameAndPhone(
-	            organization.getEmail(),  
-	            organization.getOrganizationPhonenumber());
+	public void setUserDetails(Organization organization, User user) throws AppException {
+	    logger.info("Setting user details for email: {} and phone: {}", organization.getEmail(), organization.getOrganizationPhonenumber());
+
+	    // Check for duplicate user
+	    List<User> existingUsers = userDao.findByUsernameAndPhone(
+	            organization.getEmail(),
+	            organization.getOrganizationPhonenumber()
+	    );
 
 	    if (!existingUsers.isEmpty()) {
-	        logger.warn("User already exists with the given email and phone");
-	        throw new AppException("409", "User with the same email and phone number already exists", null, null);
+	        throw new AppException(HttpStatus.CONFLICT.value(), "User with the same email and phone number already exists", null, null,LocalDateTime.now());
 	    }
-		MasterStatus status = masterStatusDao.findByStatus(StatusConstants.CLIENT_NEW);
-		Role Initiatordetails = roleDao.findByRoleNameAndActive(StatusConstants.ClientInitiator, true);
-		String uniqueId = generateUserId(organization.getOrganizationPhonenumber());
-		user.setUsername(organization.getEmail());
-		user.setFullName(organization.getName());
-		user.setPhone(organization.getOrganizationPhonenumber());
-		user.setResetPassword(true);
-		user.setActive(true);
-		user.setSelfClient(true);
-		user.setClientStatus(status);
-		user.setRole(Initiatordetails);
-		user.setUniqueId(uniqueId);
-		user.setSourceType(organization.getSourceType());
-		char[] pswd = ProcucevUtils.generatePassword(8);
-		user.setPassword(pswd.toString());
-		logger.info("saving User Details");
-		userDao.save(user);
+
+	    // Fetch client status
+	    MasterStatus status = masterStatusDao.findByStatus(StatusConstants.CLIENT_NEW);
+	    if (status == null) {
+	        throw new AppException(HttpStatus.INTERNAL_SERVER_ERROR.value(), "Default client status not configured. Contact admin.", null, null,LocalDateTime.now());
+	    }
+
+	    // Fetch role
+	    Role initiatorRole = roleDao.findByRoleNameAndActive(StatusConstants.ClientInitiator, true);
+	    if (initiatorRole == null) {
+	        throw new AppException(HttpStatus.INTERNAL_SERVER_ERROR.value(), "Client initiator role not configured. Contact admin.", null, null,LocalDateTime.now());
+	    }
+
+	    // Populate user
+	    user.setUsername(organization.getEmail());
+	    user.setFullName(organization.getName());
+	    user.setPhone(organization.getOrganizationPhonenumber());
+	    user.setResetPassword(true);
+	    user.setActive(true);
+	    user.setSelfClient(true);
+	    user.setClientStatus(status);
+	    user.setRole(initiatorRole);
+	    user.setUniqueId(generateUserId(organization.getOrganizationPhonenumber()));
+	    user.setSourceType(organization.getSourceType());
+	    user.setPassword(String.valueOf(ProcucevUtils.generatePassword(8)));
+
+	    // Save user
+	    try {
+	        userDao.save(user);
+	        logger.info("User saved successfully with ID: {}", user.getId());
+	    } catch (Exception e) {
+	        logger.error("Failed to save user", e);
+	        throw new AppException(HttpStatus.INTERNAL_SERVER_ERROR.value(), "Failed to save user. Please try again.", null, null,LocalDateTime.now());
+	    }
 	}
+
 
 	@Override
 	public boolean validateClient(Organization org) {
@@ -350,63 +382,120 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 
 	@Override
 	public boolean vendorRegistration(Organization organization) throws UnsupportedEncodingException {
-		// TODO Auto-generated method stub
-//		if (checkOrgexist(organization.getCompanyName().trim())) {
-//
-//			// throws exception when org name already exist in database
-//			throw new AppException(HttpStatus.INTERNAL_SERVER_ERROR.value() + organization.getCompanyName(),
-//					ApplicationConstants.VENDOR_ALREADY_EXISTS, ApplicationConstants.BUSSINESS_EXCEPTION,
-//					ApplicationConstants.FAILURE);
-//		}
+	    logger.info("Starting vendor registration for email: {}", 
+	                 organization != null ? organization.getEmail() : "null");
 
-		// Check if User exist already in the database
-		if (checkUserexistWithPhone(organization.getEmail().trim(),organization.getOrganizationPhonenumber())) {
+	    if (organization == null) {
+	        throw new AppException(
+	            HttpStatus.BAD_REQUEST.value(),
+	            "Organization payload cannot be null",
+	            ApplicationConstants.VALIDATION_EXCEPTION,
+	            ApplicationConstants.FAILURE,LocalDateTime.now()
+	        );
+	    }
 
-			// Exception occurs when User is already associated to an Account/registered
-			throw new AppException(HttpStatus.INTERNAL_SERVER_ERROR.value(),
-					ApplicationConstants.USER_ALREADY_ASSOCIATED_TO_ACCOUNT, ApplicationConstants.BUSSINESS_EXCEPTION,
-					ApplicationConstants.FAILURE);
-		}
-		if (organization != null) {
-			  User user = new User();
-			OrgType orgTypeObject = orgTypeDao.findByTypeName(ApplicationConstants.VENDOR);
-//			MasterStatus resultStatus = masterStatusDao.findByStatus(StatusConstants.SELF_REGISTER);
-			MasterStatus resultStatus = masterStatusDao.findByStatus(StatusConstants.SELF_REGISTER_VC_ACCEPTED);
-			MasterStatus resultStatus1 = masterStatusDao.findByStatus(StatusConstants.EVALUATION_NOT_STARTED);
-			organization.setOrgType(orgTypeObject);
-			organization.setVendorStatus(resultStatus);
-			organization.setStatus(resultStatus1);
-			organization.setProcucevStatus(resultStatus);
-			organization.setGmtName(StatusConstants.GMT_Basic);
-			organization.setBfsName(StatusConstants.BFS_PRO);
-			PincodeData pincodeData = getCityByPincode(organization.getZipCode());
-			if(pincodeData!=null) {
-			organization.setCity(pincodeData.getCity());
-			organization.setState(pincodeData.getState());
-			organization.setRfqCredits(1);
-			}
-			organization.setSubCategory(organization.getDetails());
-			organization.setSourceType(ApplicationConstants.TOOL);
-				
-			  Organization savedOrg = orgDao.save(organization);
-	            logger.info("Saved Org ID: {}", savedOrg.getId());
+	    // 1. Validate email & phone
+	    if (organization.getEmail() == null || organization.getEmail().trim().isEmpty()) {
+	        throw new AppException(
+	            HttpStatus.BAD_REQUEST.value(),
+	            "Email cannot be empty",
+	            ApplicationConstants.VALIDATION_EXCEPTION,
+	            ApplicationConstants.FAILURE,LocalDateTime.now()
+	        );
+	    }
 
-	            user.setOrg(savedOrg);
-	            User savedUser = setSellerUserDetails(organization, user);
+	    if (organization.getOrganizationPhonenumber() == null || organization.getOrganizationPhonenumber().trim().isEmpty()) {
+	        throw new AppException(
+	            HttpStatus.BAD_REQUEST.value(),
+	            "Phone number cannot be empty",
+	            ApplicationConstants.VALIDATION_EXCEPTION,
+	            ApplicationConstants.FAILURE,LocalDateTime.now()
+	        );
+	    }
 
-	            InternetAddress add = new InternetAddress(mailid, "Procucev Notifications");
-		        MailUtility.mailingVerificationLinkWithUser( javaMailSender, add, host, savedUser);
+	    // 2. Check if organization already exists
+//	    if (checkOrgexist(organization.getCompanyName().trim())) {
+//	        throw new AppException(
+//	            HttpStatus.CONFLICT.value(),
+//	            ApplicationConstants.VENDOR_ALREADY_EXISTS,
+//	            ApplicationConstants.BUSSINESS_EXCEPTION,
+//	            ApplicationConstants.FAILURE
+//	        );
+//	    }
 
+	    // 3. Check if user already associated
+	    if (checkUserexistWithPhone(organization.getEmail().trim(), organization.getOrganizationPhonenumber())) {
+	        throw new AppException(
+	            HttpStatus.CONFLICT.value(),
+	            ApplicationConstants.USER_ALREADY_ASSOCIATED_TO_ACCOUNT,
+	            ApplicationConstants.BUSSINESS_EXCEPTION,
+	            ApplicationConstants.FAILURE,LocalDateTime.now()
+	        );
+	    }
 
-//					MailUtility.emailForVendor("Vendor Registration Successfull", organization.getEmail(),
-//							javaMailSender, add, host);
-//					MailUtility.sendVendorEmailForCM2("Self Register Vendor", toAddress, organization, javaMailSender, add,
-//							host);
+	    try {
+	        // Fetch OrgType and Statuses
+	        OrgType orgTypeObject = orgTypeDao.findByTypeName(ApplicationConstants.VENDOR);
+	        MasterStatus vendorStatus = masterStatusDao.findByStatus(StatusConstants.SELF_REGISTER_VC_ACCEPTED);
+	        MasterStatus evaluationStatus = masterStatusDao.findByStatus(StatusConstants.EVALUATION_NOT_STARTED);
 
-			
-		}
+	        if (orgTypeObject == null || vendorStatus == null || evaluationStatus == null) {
+	            throw new AppException(
+	                HttpStatus.INTERNAL_SERVER_ERROR.value(),
+	                "Master data missing: Unable to fetch required OrgType/Statuses",
+	                ApplicationConstants.SYSTEM_EXCEPTION,
+	                ApplicationConstants.FAILURE,LocalDateTime.now()
+	            );
+	        }
 
-		return true;
+	        // Assign values
+	        organization.setOrgType(orgTypeObject);
+	        organization.setVendorStatus(vendorStatus);
+	        organization.setStatus(evaluationStatus);
+	        organization.setProcucevStatus(vendorStatus);
+	        organization.setGmtName(StatusConstants.GMT_Basic);
+	        organization.setBfsName(StatusConstants.BFS_PRO);
+
+	        // Pincode enrichment
+	        if (organization.getZipCode() != null) {
+	            PincodeData pincodeData = getCityByPincode(organization.getZipCode());
+	            if (pincodeData != null) {
+	                organization.setCity(pincodeData.getCity());
+	                organization.setState(pincodeData.getState());
+	            }
+	        }
+
+	        organization.setRfqCredits(1);
+	        organization.setSubCategory(organization.getDetails());
+	        organization.setSourceType(ApplicationConstants.TOOL);
+
+	        // Save Organization
+	        Organization savedOrg = orgDao.save(organization);
+	        logger.info("Vendor Organization saved with ID: {}", savedOrg.getId());
+
+	        // Create User
+	        User user = new User();
+	        user.setOrg(savedOrg);
+	        User savedUser = setSellerUserDetails(organization, user);
+
+	        // Send mail
+	        InternetAddress fromAddress = new InternetAddress(mailid, "Procucev Notifications");
+	        MailUtility.mailingVerificationLinkWithUser(javaMailSender, fromAddress, host, savedUser);
+
+	        return true;
+
+	    } catch (AppException ex) {
+	        logger.error("Business validation failed during vendor registration: {}", ex.getMessage(), ex);
+	        throw ex;
+	    } catch (Exception ex) {
+	        logger.error("Unexpected error during vendor registration", ex);
+	        throw new AppException(
+	            HttpStatus.INTERNAL_SERVER_ERROR.value(),
+	            "Unexpected error during vendor registration: " + ex.getMessage(),
+	            ApplicationConstants.SYSTEM_EXCEPTION,
+	            ApplicationConstants.FAILURE,LocalDateTime.now()
+	        );
+	    }
 	}
 	
 	

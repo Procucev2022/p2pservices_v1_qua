@@ -1,5 +1,7 @@
 package com.portal.procucev.customexception;
 
+import java.time.LocalDateTime;
+
 public class AppException extends RuntimeException {
 	@Override
 	public synchronized Throwable fillInStackTrace() {
@@ -16,6 +18,7 @@ public class AppException extends RuntimeException {
 	private String exceptiontype;
 	private String status;
 	private String statusCode;
+	 private LocalDateTime timestamp; 
 
 	public String getStatusCode() {
 		return statusCode;
@@ -64,6 +67,14 @@ public class AppException extends RuntimeException {
 		this.exceptiontype = exceptiontype;
 		this.status = status;
 	}
+	 public AppException(int errorCode, String errorMessage, String exceptiontype, String status,LocalDateTime timeStamp) {
+	        super(errorMessage);
+	        this.errorCode = errorCode;
+	        this.errorMessage = errorMessage;
+	        this.exceptiontype = exceptiontype;
+	        this.status = status;
+	        this.timestamp = LocalDateTime.now(); // ✅ capture exception time
+	    }
 
 	public AppException(String statusCode, String msg, String exceptiontype, String status) {
 		super();

@@ -722,6 +722,10 @@ public interface ApplicationConstants {
 	public String BUYER_UPDATE_SUCCESS = "Buyer Updated Successfully";
 
 	public String BUYER_UPDATE_FAILED = "Failed To Update Buyer";
+
+	public String SYSTEM_EXCEPTION = "SYSTEM_EXCEPTION";
+
+	public String VALIDATION_EXCEPTION = "VALIDATION_EXCEPTION";;
 	
 	
 		
