@@ -471,6 +471,13 @@ public class GMTController {
 		return new ResponseEntity<>(vendorList, HttpStatus.OK);
 	}
 
+	@PostMapping("/getOrgByUserId")
+	public ResponseEntity<?> getOrgByUserId(@RequestBody User user) throws IOException {
+		logger.info("enters to fetch the Org list");
+
+		Organization vendorList = gmtService.getOrgByUserId(user);
+		return new ResponseEntity<>(vendorList, HttpStatus.OK);
+	}
 	@PostMapping("/getRfqByCategory")
 	public ResponseEntity<Map<String, Object>> getRfqByCategory(@RequestBody Organization org) {
 		Map<String, Object> rfqs = gmtService.getRfqByItemCategory(org);

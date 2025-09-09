@@ -63,6 +63,9 @@ public interface RfqDao extends JpaRepository<Rfq, String>{
 	 @Query("SELECT COUNT(DISTINCT r) FROM Rfq r JOIN r.rfqItem i WHERE i.category IN :category")
 	 long countByRfqItemCategory(@Param("category") List<String> categoryList);
 
+	Rfq findByRfqId(String rfqId);
+
+
 
 
 }

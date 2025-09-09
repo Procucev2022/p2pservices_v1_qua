@@ -604,6 +604,7 @@ public class ProcUserServiceImpl implements UserService {
 	        existingOrg.getDivisionCategories().clear();
 	        for (OrgDivisionCategory divCat : updatedOrg.getDivisionCategories()) {
 	            divCat.setOrganization(existingOrg); // Set back reference
+	            divCat.setUserId(updatedOrg.getUserId());
 	            existingOrg.getDivisionCategories().add(divCat);
 	        }
 	    }
