@@ -126,5 +126,7 @@ public interface GMTService {
 
 	Map<String, Object> forwardRfqsToVendor(ForwardRfqVendorRequest request);
 
+	Organization getOrgByUserId(User user);
+
 
 }

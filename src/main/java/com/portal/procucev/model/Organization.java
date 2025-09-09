@@ -278,6 +278,9 @@ public class Organization extends Procucev {
 	@Transient
 	private String mobileOtp;
 	
+	@Transient
+	private String userId;
+	
 	 // Wrapper Boolean allows: true, false, or null
     private Boolean optOut;
     

@@ -124,8 +124,9 @@ public class UserController {
 				: String.valueOf(ApplicationConstants.FAILURE);
 		String msg = status ? String.format(ApplicationConstants.USER_DELETE_SUCCESS, "")
 				: String.format(ApplicationConstants.USER_DELETE_UNSUCCESS, "");
-		AppException response = new AppException(statusCode, msg, null, null);
-		return new ResponseEntity<>(response, HttpStatus.OK);
+		//AppException response = new AppException(statusCode, msg, null, null);
+		return ResponseEntity.ok(new MessageResponse(StatusCodes.OK_VENDOR_CODE,msg,null, statusCode));
+
 
 	}
 	

@@ -13,5 +13,8 @@ public interface OrgCategoryDivisionDao  extends JpaRepository<OrgDivisionCatego
 	@Query("select o.category from OrgDivisionCategory o where o.organization.id=:id")
 	List<String> findCategoryByOrg(@Param("id") String id);
 
+	@Query("select o from OrgDivisionCategory o where o.userId=:id")
+	List<OrgDivisionCategory> findbyUser(@Param("id") String id);
+
 
 }

@@ -3,6 +3,7 @@ package com.portal.procucev.service;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
+import java.text.SimpleDateFormat;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -25,6 +26,7 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
+import org.antlr.v4.runtime.atn.SemanticContext.OR;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.DataFormatter;
@@ -77,6 +79,7 @@ import com.portal.procucev.model.EmailUser;
 import com.portal.procucev.model.GmtItems;
 import com.portal.procucev.model.GmtRfqVendors;
 import com.portal.procucev.model.MasterStatus;
+import com.portal.procucev.model.OrgDivisionCategory;
 import com.portal.procucev.model.OrgType;
 import com.portal.procucev.model.Organization;
 import com.portal.procucev.model.RFQDocument;
@@ -259,7 +262,9 @@ public class GMTServiceImpl implements GMTService {
 			rfq.setStatus(resultStatus);
 			rfq.setClientStatus(newStatus);
 
-			String rfqId = selfRegistrationService.generateId("RFQ");
+			//String rfqId = selfRegistrationService.generateId("RFQ");
+			
+			 String rfqId = generateRfqId("RFQ");
 			logger.info("Generated RFQ Id: {}", rfqId);
 			rfq.setRfqId(rfqId);
 
@@ -1153,7 +1158,8 @@ public class GMTServiceImpl implements GMTService {
 		rfq.setStatus(resultStatus);
 		try {
 			// Get Total counts for PR
-			String rfqId = selfRegistrationService.generateId("RFQ");
+			//String rfqId = selfRegistrationService.generateId("RFQ");
+			String rfqId = generateRfqId("RFQ");
 			logger.info("Generated RFQ Id{}", rfqId);
 			rfq.setRfqId(rfqId);
 
@@ -1758,7 +1764,8 @@ public class GMTServiceImpl implements GMTService {
 	        rfq.setStatus(resultStatus);
 	        rfq.setClientStatus(newStatus);
 
-	        String rfqId = selfRegistrationService.generateId("RFQ");
+	       // String rfqId = selfRegistrationService.generateId("RFQ");
+	        String rfqId = generateRfqId("RFQ");
 	        logger.info("Generated RFQ Id: {}", rfqId);
 	        rfq.setRfqId(rfqId);
 
@@ -1992,8 +1999,9 @@ public class GMTServiceImpl implements GMTService {
 	        result.put("seller_email", request.getEmail());
 
 	        try {
-	            Optional<Rfq> rfqDataOpt = rfqDao.findById(rfqId);
-	            if (rfqDataOpt.isEmpty()) {
+	        	 //Optional<Rfq> rfqDataOpt = rfqDao.findById(rfqId);
+	           Rfq rfqDataOpt = rfqDao.findByRfqId(rfqId);
+	            if (rfqDataOpt==null) {
 	                result.put("error", "RFQ not found");
 	                failed.add(result);
 	                continue;
@@ -2005,7 +2013,7 @@ public class GMTServiceImpl implements GMTService {
 	                continue;
 	            }
 
-	            Rfq rfqData = rfqDataOpt.get();
+	            Rfq rfqData = rfqDataOpt;
 
 	            // Build a single RfqVendor for this seller
 	            RfqVendor rfqVendor = new RfqVendor();
@@ -2103,4 +2111,76 @@ public class GMTServiceImpl implements GMTService {
 	private boolean isValidEmail(String email) {
 	    return email != null && email.matches("^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+$");
 	}
+
+	@Override
+	public Organization getOrgByUserId(User user) {
+	    logger.info("Fetching organization for user");
+
+	    if (user == null || user.getId() == null) {
+	        logger.error("User or ID is null");
+	        throw new AppException(
+	                HttpStatus.BAD_REQUEST.value(),
+	                "User ID must not be null",
+	                ApplicationConstants.BUSSINESS_EXCEPTION,
+	                ApplicationConstants.FAILURE
+	        );
+	    }
+
+	    Optional<User> userDataOpt = userDao.findById(user.getId());
+
+	    if (userDataOpt.isEmpty()) {
+	        logger.error("No user found with ID: {}", user.getId());
+	        throw new AppException(
+	                HttpStatus.NOT_FOUND.value(),
+	                "User not found with ID: " + user.getId(),
+	                ApplicationConstants.BUSSINESS_EXCEPTION,
+	                ApplicationConstants.FAILURE
+	        );
+	    }
+
+	    User userData = userDataOpt.get();
+	    Organization org = userData.getOrg();
+
+	    if (org == null) {
+	        logger.error("Organization not linked to user ID: {}", user.getId());
+	        throw new AppException(
+	                HttpStatus.NOT_FOUND.value(),
+	                "Organization not linked to user",
+	                ApplicationConstants.BUSSINESS_EXCEPTION,
+	                ApplicationConstants.FAILURE
+	        );
+	    }
+
+	    // enrich organization with additional details
+	    org.setUserId(userData.getId());
+	    org.setEmail(userData.getUsername());
+	    org.setOrganizationPhonenumber(userData.getPhone());
+	    org.setName(userData.getFullName());
+	    List<OrgDivisionCategory> categories = orgCategoryDivisionDao.findbyUser(userData.getId());
+	    org.setDivisionCategories(categories);
+
+	    logger.info("Organization fetched successfully for user ID: {}", user.getId());
+	    return org;
+	}
+
+public String generateRfqId(String company) {
+    String companyLetters = "";
+    if (company != null && !company.isEmpty()) {
+        companyLetters = company.length() >= 3
+                ? company.substring(0, 3).toUpperCase()
+                : company.toUpperCase();
+    }
+
+    // current date in ddMM format
+    String datePart = new SimpleDateFormat("yyddMM").format(new Date());
+
+    // milliseconds part
+    long millis = System.currentTimeMillis() % 1000000; // last 6 digits to shorten
+
+    // optional random 3-digit suffix
+    //int random = (int) (Math.random() * 1000);
+
+   // return  companyLetters + datePart + millis + String.format("%03d", random);
+    return  companyLetters + datePart + millis ;
+}
 }
