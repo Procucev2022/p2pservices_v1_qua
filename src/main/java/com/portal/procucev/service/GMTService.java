@@ -128,5 +128,7 @@ public interface GMTService {
 
 	Organization getOrgByUserId(User user);
 
+	List<Map<String, Object>> getLastOpenRfqsForVendor(String id);
+
 
 }

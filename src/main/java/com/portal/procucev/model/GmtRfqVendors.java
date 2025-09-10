@@ -27,6 +27,9 @@ public class GmtRfqVendors extends Procucev {
 	@ManyToOne
 	private Rfq rfq;
 	
+	@Column(name="quotation_received")
+	private boolean quotationReceived;
+	
 	@Transient
 	private String vendorUuid;
 	

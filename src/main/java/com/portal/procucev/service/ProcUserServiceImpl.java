@@ -600,13 +600,19 @@ public class ProcUserServiceImpl implements UserService {
 	    if (updatedOrg.getEmail() != null) existingOrg.setEmail(updatedOrg.getEmail());
 	    if (updatedOrg.getOrganizationPhonenumber() != null) existingOrg.setOrganizationPhonenumber(updatedOrg.getOrganizationPhonenumber());
 
-	    if (updatedOrg.getDivisionCategories() != null) {
-	        existingOrg.getDivisionCategories().clear();
+	    // Update divisions
+	    if (updatedOrg.getDivisionCategories() != null && !updatedOrg.getDivisionCategories().isEmpty()) {
+	        List<OrgDivisionCategory> newDivs = new ArrayList<>();
 	        for (OrgDivisionCategory divCat : updatedOrg.getDivisionCategories()) {
-	            divCat.setOrganization(existingOrg); // Set back reference
-	            divCat.setUserId(updatedOrg.getUserId());
-	            existingOrg.getDivisionCategories().add(divCat);
+	            OrgDivisionCategory newCat = new OrgDivisionCategory();
+	            newCat.setDivision(divCat.getDivision());   // copy from payload
+	            newCat.setCategory(divCat.getCategory());   // copy from payload
+	            newCat.setOrganization(existingOrg);        // back reference
+	            newCat.setUserId(updatedOrg.getUserId());   // user link
+	            newDivs.add(newCat);
 	        }
+	        existingOrg.getDivisionCategories().clear();
+	        existingOrg.getDivisionCategories().addAll(newDivs);
 	    }
 	    orgDao.save(existingOrg);
 			
