@@ -9,6 +9,7 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -25,7 +26,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
-
+import org.springframework.data.domain.Pageable;
 import org.antlr.v4.runtime.atn.SemanticContext.OR;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.poi.ss.usermodel.Cell;
@@ -2183,4 +2184,38 @@ public String generateRfqId(String company) {
    // return  companyLetters + datePart + millis + String.format("%03d", random);
     return  companyLetters + datePart + millis ;
 }
+
+@Override
+public List<Map<String, Object>> getLastOpenRfqsForVendor(String vendorId) {
+    Pageable top3 = PageRequest.of(0, 3);
+    List<GmtRfqVendors> rfqVendors = gmtRfqVendorDao.findLastOpenRfqsByVendor(vendorId, top3);
+
+    List<Map<String, Object>> openRfqs = new ArrayList<>();
+    for (GmtRfqVendors gv : rfqVendors) {
+        Rfq rfq = gv.getRfq();
+
+        Map<String, Object> rfqData = new LinkedHashMap<>();
+        rfqData.put("rfq_id", rfq.getRfqId());
+        rfqData.put("project_desc", rfq.getProjectDesc());
+        rfqData.put("category", rfq.getCategory());
+        if(!CollectionUtils.isEmpty(rfq.getClientdeliverylocationrfq())){
+        	 rfqData.put("location", rfq.getClientdeliverylocationrfq().get(0).getCity()+ "," + rfq.getClientdeliverylocationrfq().get(0).getState());
+        }
+        rfqData.put("submission_deadline", rfq.getRfqClosingDate());
+        rfqData.put("email_sent_date", gv.getRequestedDate());
+        if( rfq.getRfqClosingDate()!=null) {
+        long daysRemaining = ChronoUnit.DAYS.between(LocalDate.now(), 
+                                rfq.getRfqClosingDate().toInstant().atZone(ZoneId.systemDefault()).toLocalDate());
+        rfqData.put("days_remaining", daysRemaining);
+        }
+        
+//        rfqData.put("estimated_value", rfq.getDescription()); // replace with your RFQ budget/value field
+        rfqData.put("status", "open_for_bidding");
+
+        openRfqs.add(rfqData);
+    }
+
+    return openRfqs;
+}
+
 }

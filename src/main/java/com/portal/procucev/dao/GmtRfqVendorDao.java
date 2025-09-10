@@ -5,9 +5,11 @@ import java.util.List;
 
 import jakarta.transaction.Transactional;
 
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import com.portal.procucev.model.GmtRfqVendors;
 import com.portal.procucev.model.MasterStatus;
@@ -37,5 +39,11 @@ public interface GmtRfqVendorDao extends JpaRepository<GmtRfqVendors, String> {
 	@Transactional
 	@Query("UPDATE GmtRfqVendors g SET g.status = :resultStatus, g.acceptedDate= :date WHERE g.rfq = :rfq and g.vendor= :vendor")
 	void updateAcceptStatus(Rfq rfq, Organization vendor, MasterStatus resultStatus, Date date);
+
+	@Query("SELECT gv FROM GmtRfqVendors gv " +
+	           "WHERE gv.vendor.id = :vendorId " +
+	           "AND gv.quotationReceived = false " +
+	           "ORDER BY gv.requestedDate DESC")
+	    List<GmtRfqVendors> findLastOpenRfqsByVendor(@Param("vendorId") String vendorId, Pageable pageable);
 
 }

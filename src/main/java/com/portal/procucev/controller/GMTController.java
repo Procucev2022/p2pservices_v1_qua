@@ -6,6 +6,7 @@ import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import jakarta.mail.MessagingException;
 
 import org.slf4j.Logger;
@@ -502,5 +503,27 @@ public class GMTController {
 	public ResponseEntity<?> forwardRfqsToVendor(@RequestBody ForwardRfqVendorRequest request) {
 		 Map<String, Object> response  = gmtService.forwardRfqsToVendor(request);
 		 return ResponseEntity.ok(response);
+	}
+	
+	@PostMapping(value ="/getOpenRfqs")
+	public ResponseEntity<Map<String, Object>> getOpenRfqsForSeller(@RequestBody Organization org) {
+	    List<Map<String, Object>> openRfqs = gmtService.getLastOpenRfqsForVendor(org.getId());
+
+	    Map<String, Object> response = new LinkedHashMap<>();
+	    response.put("success", true);
+	    response.put("open_rfqs", openRfqs);
+	    response.put("total_count", openRfqs.size());
+	    
+	    Map<String, Object> metadata = new LinkedHashMap<>();
+	    metadata.put("seller_id", org.getId());
+//	    metadata.put("query_timestamp", Instant.now());
+	    metadata.put("filter_criteria", Map.of(
+	        "status", "open_for_bidding",
+	        "email_sent", true,
+	        "bid_submitted", false
+	    ));
+	    response.put("metadata", metadata);
+
+	    return ResponseEntity.ok(response);
 	}
 }
