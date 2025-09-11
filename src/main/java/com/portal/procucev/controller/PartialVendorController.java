@@ -1,10 +1,13 @@
 package com.portal.procucev.controller;
 
+import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.*;
+import org.springframework.core.io.ClassPathResource;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.multipart.MultipartFile;
@@ -460,11 +463,29 @@ public class PartialVendorController {
 	    }
 	}
 	
-	@PostMapping("/uploadexcel")
-    public String uploadExcel() {
-        String excelPath = "C:\\Users\\nagen\\Downloads\\Division.xlsx";
-        excelReader.uploadExcelToDB(excelPath);
-        return "Excel data inserted into DB successfully.";
-    }
+//	@PostMapping("/uploadexcel")
+//    public String uploadExcel() {
+//        //String excelPath = "C:\\Users\\nagen\\Downloads\\Divisions.xlsx";
+//		 ClassPathResource resource = new ClassPathResource("Divisions.xlsx");
+//		    File file = resource.getFile(); // get the File object
+//		    excelReader.uploadExcelToDB(file); // pass the File
+//        //excelReader.uploadExcelToDB(excelPath);
+//        return "Excel data inserted into DB successfully.";
+//    }
+	 @PostMapping("/uploadexcel")
+	    public String uploadExcel() {
+	        try {
+	            ClassPathResource resource = new ClassPathResource("Divisionslist.xlsx");
+	            try (InputStream inputStream = resource.getInputStream()) {
+	                excelReader.uploadExcelToDB(inputStream);
+	            }
+	        } catch (Exception e) {
+	            e.printStackTrace();
+	            return "Error inserting Excel data into DB.";
+	        }
+
+	        return "Excel data inserted into DB successfully.";
+	    }
+	
 
 }

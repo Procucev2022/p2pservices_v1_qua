@@ -58,4 +58,6 @@ public interface UserService {
 
 	List<VendorSummaryResponse> getVendorSummary();
 
+	boolean deactivateOrgUser(User user);
+
 }

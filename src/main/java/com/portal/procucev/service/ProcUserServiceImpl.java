@@ -696,4 +696,30 @@ public List<VendorSummaryResponse> getVendorSummary() {
     logger.info("Vendor summary generated for {} vendors", response.size());
     return response;
 }
+
+@Override
+public boolean deactivateOrgUser(User user) {
+	// TODO Auto-generated method stub
+	log.info("Entered To Disable User");
+	User userfound = userDao.findByUsernameAndPhoneAndActive(user.getUsername(),user.getPhone(),true);
+	if (userfound!=null) {
+		userDao.deactiveUser(userfound.getId());
+		log.info("Deactivated User");
+		String orgId = userDao.findOrgIdByUser(userfound.getId());
+		List<String> emails = userDao.findByOrg(orgId);
+		if(!emails.isEmpty() && emails!=null) {
+			 orgDao.updateEmailByOrg(orgId,emails.get(0));
+		}
+		else {
+			String email=null;
+			orgDao.updateEmailByOrg(orgId,email);
+		}
+		return true;
+	} else {
+		throw new AppException(HttpStatus.NO_CONTENT.value(), ApplicationConstants.NO_DATA_FOUND,
+				ApplicationConstants.BUSSINESS_EXCEPTION, ApplicationConstants.FAILURE);
+	}
+
+}
+
 }
