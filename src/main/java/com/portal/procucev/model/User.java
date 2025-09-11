@@ -148,7 +148,7 @@ public class User extends Procucev {
 
 
 
-	public User(String id,String username, String phone,String companyName, String fullName, String orgId, String uniqueId, Date activityTs, boolean isWebApp, boolean isWhatsApp,boolean isBot,String zipCode,MasterStatus clientStatus) {
+	public User(String id,String username, String phone,String companyName, String fullName, String orgId, String uniqueId, Date activityTs, boolean isWebApp, boolean isWhatsApp,boolean isBot,String zipCode,MasterStatus clientStatus,Date createdTS,String sourceType) {
 		super();
 		this.id =id;
 		this.username = username;
@@ -163,6 +163,8 @@ public class User extends Procucev {
 		this.isBot=isBot;
 		this.zipCode=zipCode;
 		this.clientStatus=clientStatus;
+		this.createdTS=createdTS;
+		this.sourceType=sourceType;
 	}
 
 	public User(String id,String username, String phone,String companyName, String fullName, String orgId, String uniqueId, Date activityTs, boolean isWebApp, boolean isWhatsApp,boolean isBot,String zipCode,boolean isApproved,boolean selfClient, boolean active,String sourceType) {

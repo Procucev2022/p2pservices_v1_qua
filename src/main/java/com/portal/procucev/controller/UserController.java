@@ -218,4 +218,17 @@ public class UserController {
 	            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
 	        }
 	    }
+	    
+	    @PostMapping(value = "/deactivateOrgUser")
+		public ResponseEntity<?> deactivateOrgUser(@RequestBody User user) {
+			boolean status = userServices.deactivateOrgUser(user);
+			String statusCode = status ? String.valueOf(ApplicationConstants.SUCCESS)
+					: String.valueOf(ApplicationConstants.FAILURE);
+			String msg = status ? String.format(ApplicationConstants.USER_DELETE_SUCCESS, "")
+					: String.format(ApplicationConstants.USER_DELETE_UNSUCCESS, "");
+			//AppException response = new AppException(statusCode, msg, null, null);
+			return ResponseEntity.ok(new MessageResponse(StatusCodes.OK_VENDOR_CODE,msg,null, statusCode));
+
+
+		}
 }
