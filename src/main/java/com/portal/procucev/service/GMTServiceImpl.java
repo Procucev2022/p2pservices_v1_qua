@@ -1984,68 +1984,182 @@ public class GMTServiceImpl implements GMTService {
 		    return result;
 		}
 	
+//	@Override
+//	public Map<String, Object> forwardRfqsToVendor(ForwardRfqVendorRequest request) {
+//	    logger.info("Entered to forwardRfqForNoPr");
+//
+//	    Map<String, Object> response = new HashMap<>();
+//	    Map<String, List<Map<String, Object>>> results = new HashMap<>();
+//	    List<Map<String, Object>> successful = new ArrayList<>();
+//	    List<Map<String, Object>> failed = new ArrayList<>();
+//
+//	    for (String rfqId : request.getRfqIds()) {
+//	        Map<String, Object> result = new HashMap<>();
+//	        result.put("rfq_id", rfqId);
+//	        result.put("seller_id", request.getSellerId());
+//	        result.put("seller_email", request.getEmail());
+//
+//	        try {
+//	        	 //Optional<Rfq> rfqDataOpt = rfqDao.findById(rfqId);
+//	           Rfq rfqDataOpt = rfqDao.findByRfqId(rfqId);
+//	            if (rfqDataOpt==null) {
+//	                result.put("error", "RFQ not found");
+//	                failed.add(result);
+//	                continue;
+//	            }
+//
+//	            if (!isValidEmail(request.getEmail())) {
+//	                result.put("error", "Invalid email format");
+//	                failed.add(result);
+//	                continue;
+//	            }
+//
+//	            Rfq rfqData = rfqDataOpt;
+//
+//	            // Build a single RfqVendor for this seller
+//	            RfqVendor rfqVendor = new RfqVendor();
+//	            rfqVendor.setRfq(rfqData);
+//	            rfqVendor.setVendorId(request.getSellerId());
+//	            rfqVendor.setEmail(request.getEmail());
+//
+//	            // Call new sendRfqToVendors method
+//	            boolean emailSent = sendRfqsToVendor(rfqVendor, rfqData);
+//
+//	            result.put("email_sent", emailSent);
+//	            if (emailSent) {
+//	                successful.add(result);
+//	            } else {
+//	                result.put("error", "Failed to send email");
+//	                failed.add(result);
+//	            }
+//
+//	        } catch (Exception ex) {
+//	            result.put("error", ex.getMessage());
+//	            failed.add(result);
+//	        }
+//	    }
+//
+//	    response.put("success", true);
+//	    results.put("successful", successful);
+//	    results.put("failed", failed);
+//	    response.put("results", results);
+//
+//	    return response;
+//	}
+
 	@Override
 	public Map<String, Object> forwardRfqsToVendor(ForwardRfqVendorRequest request) {
-	    logger.info("Entered to forwardRfqForNoPr");
+	    logger.info("Entered to forwardRfqsToVendor");
 
 	    Map<String, Object> response = new HashMap<>();
 	    Map<String, List<Map<String, Object>>> results = new HashMap<>();
 	    List<Map<String, Object>> successful = new ArrayList<>();
 	    List<Map<String, Object>> failed = new ArrayList<>();
 
+	    // Fetch organization once
+	   Integer availableCredits  = orgDao.findRfqCreditsDataByOrg(request.getSellerId());
+	    if (availableCredits  == null) {
+	        Map<String, Object> errorResult = new HashMap<>();
+	        for (String rfqId : request.getRfqIds()) {
+	            errorResult.put("rfq_id", rfqId);
+	            errorResult.put("email_sent", false);
+	            errorResult.put("error_code", "ORG_NOT_FOUND");
+	            errorResult.put("error", "Organization not found");
+	            failed.add(new HashMap<>(errorResult));
+	        }
+	        response.put("success", true);
+	        results.put("successful", successful);
+	        results.put("failed", failed);
+	        response.put("results", results);
+
+	        Map<String, Object> summary = new HashMap<>();
+	        summary.put("total_requests", request.getRfqIds().size());
+	        summary.put("successful", successful.size());
+	        summary.put("failed", failed.size());
+	        response.put("summary", summary);
+	        return response;
+	    }
+
+
+
 	    for (String rfqId : request.getRfqIds()) {
 	        Map<String, Object> result = new HashMap<>();
 	        result.put("rfq_id", rfqId);
-	        result.put("seller_id", request.getSellerId());
-	        result.put("seller_email", request.getEmail());
 
 	        try {
-	        	 //Optional<Rfq> rfqDataOpt = rfqDao.findById(rfqId);
-	           Rfq rfqDataOpt = rfqDao.findByRfqId(rfqId);
-	            if (rfqDataOpt==null) {
-	                result.put("error", "RFQ not found");
+	            Rfq rfqData = rfqDao.findByRfqId(rfqId);
+	            if (rfqData == null) {
+	                result.put("email_sent", false);
+	                result.put("error_code", "RFQ_NOT_FOUND");
+	                result.put("error", "RFQ is not found");
 	                failed.add(result);
 	                continue;
 	            }
 
 	            if (!isValidEmail(request.getEmail())) {
+	                result.put("email_sent", false);
+	                result.put("error_code", "INVALID_EMAIL");
 	                result.put("error", "Invalid email format");
 	                failed.add(result);
 	                continue;
 	            }
 
-	            Rfq rfqData = rfqDataOpt;
+	            if (availableCredits <= 0) {
+	                result.put("email_sent", false);
+	                result.put("error_code", "NO_CREDITS");
+	                result.put("error", "Organization has no RFQ credits");
+	                failed.add(result);
+	                continue;
+	            }
 
-	            // Build a single RfqVendor for this seller
+	            // Build RfqVendor object
 	            RfqVendor rfqVendor = new RfqVendor();
 	            rfqVendor.setRfq(rfqData);
 	            rfqVendor.setVendorId(request.getSellerId());
 	            rfqVendor.setEmail(request.getEmail());
 
-	            // Call new sendRfqToVendors method
+	            // Send email
 	            boolean emailSent = sendRfqsToVendor(rfqVendor, rfqData);
-
 	            result.put("email_sent", emailSent);
+
 	            if (emailSent) {
+	                result.put("message", "Email sent successfully");
 	                successful.add(result);
+
+	                // Decrement available credits in memory
+	                availableCredits--;
+
 	            } else {
-	                result.put("error", "Failed to send email");
+	                result.put("error_code", "SYSTEM_ERROR");
+	                result.put("error", "Failed to send email or added to queue");
 	                failed.add(result);
 	            }
 
 	        } catch (Exception ex) {
+	            result.put("email_sent", false);
+	            result.put("error_code", "SYSTEM_ERROR");
 	            result.put("error", ex.getMessage());
 	            failed.add(result);
 	        }
 	    }
 
-	    response.put("success", true);
+	    // Update organization credits once at the end
+	    orgDao.updateRfqCredits(request.getSellerId(), availableCredits);
+
 	    results.put("successful", successful);
 	    results.put("failed", failed);
+	    response.put("success", true);
 	    response.put("results", results);
+
+	    Map<String, Object> summary = new HashMap<>();
+	    summary.put("total_requests", request.getRfqIds().size());
+	    summary.put("successful", successful.size());
+	    summary.put("failed", failed.size());
+	    response.put("summary", summary);
 
 	    return response;
 	}
+
 
 	public boolean sendRfqsToVendor(RfqVendor vendor, Rfq rfqData) {
 	    logger.info("Entered to sendRfqsToVendor()");
