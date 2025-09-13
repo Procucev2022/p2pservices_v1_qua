@@ -137,15 +137,20 @@ public class UserController {
 
 	    boolean status = userServices.generateOtp(organization, request);
 
-	    String statusCode = status ? String.valueOf(ApplicationConstants.SUCCESS)
+	    String statusValue = status ? String.valueOf(ApplicationConstants.SUCCESS)
 	                               : String.valueOf(ApplicationConstants.FAILURE);
 
 	    String msg = status 
 	        ? String.format(ApplicationConstants.OTP_GENERATE_SUCCESS, "") 
 	        : "User not registered or OTP could not be sent.";
 
-	    MessageResponse response = new MessageResponse(StatusCodes.OK_VENDOR_CODE, msg, null, statusCode);
+	    MessageResponse response = new MessageResponse(StatusCodes.OK_VENDOR_CODE, msg, null, statusValue);
 	    return ResponseEntity.ok(response);  //  Always return 200 OK
+	    
+//
+//	    return status 
+//	        ? ResponseEntity.status(HttpStatus.OK).body(response)       // 200
+//	        : ResponseEntity.status(HttpStatus.CREATED).body(response); // 201
 	}
 	@PostMapping(value = "/validateOtp")
 	public ResponseEntity<?> validateOtp(@RequestBody Organization organization) {
