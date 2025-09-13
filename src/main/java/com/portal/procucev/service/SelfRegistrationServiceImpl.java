@@ -865,11 +865,11 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 	    
 	    public User setSellerUserDetails(Organization organization, User user) {
 			logger.info("Setting User Details::");
-			List<User> existingUsers = userDao.findByUsernameAndPhone(
+			User existingUsers = userDao.findByUsernameAndPhoneAndActive(
 		            organization.getEmail(),  
-		            organization.getOrganizationPhonenumber());
+		            organization.getOrganizationPhonenumber(), true);
 
-		    if (!existingUsers.isEmpty()) {
+		    if (existingUsers!=null) {
 		        logger.warn("User already exists with the given email and phone");
 		        throw new AppException("409", "User with the same email and phone number already exists", null, null);
 		    }
