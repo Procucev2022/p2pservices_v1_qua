@@ -82,10 +82,10 @@ public interface UserDao extends JpaRepository<User, String> {
 	User findByUsernameAndPhoneAndActive(String username, String phoneNumber, boolean b);
 
 
-	@Query("SELECT  new User(u.id,u.username,u.phone,u.org.companyName,u.fullName,u.org.id,u.uniqueId,u.activityTs,u.isWebApp,u.isWhatsApp,u.isBot,u.org.city,u.isApproved,u.selfClient,u.active,u.sourceType) from User u where u.phone=:phone and u.active = true")
+	@Query("SELECT  new User(u.id,u.username,u.phone,u.org.companyName,u.fullName,u.org.id,u.uniqueId,u.activityTs,u.isWebApp,u.isWhatsApp,u.isBot,u.org.city,u.isApproved,u.selfClient,u.active,u.sourceType,u.verificationStatus) from User u where u.phone=:phone and u.active = true")
 	List<User> findByPhone(@Param("phone") String phone);
 
-	@Query("SELECT  new User(u.id,u.username,u.phone,u.org.companyName,u.fullName,u.org.id,u.uniqueId,u.activityTs,u.isWebApp,u.isWhatsApp,u.isBot,u.org.city,u.clientStatus,u.createdTS,u.sourceType) from User u where u.selfClient = true and u.active = true and u.role=:role ORDER BY u.createdTS DESC")
+	@Query("SELECT  new User(u.id,u.username,u.phone,u.org.companyName,u.fullName,u.org.id,u.uniqueId,u.activityTs,u.isWebApp,u.isWhatsApp,u.isBot,u.org.zipCode,u.clientStatus,u.createdTS,u.sourceType) from User u where u.selfClient = true and u.active = true and u.role=:role ORDER BY u.createdTS DESC")
 	List<User> getUsersBySelfClientAndRole(@Param("role") Role role);
 
 	@Modifying
@@ -95,6 +95,16 @@ public interface UserDao extends JpaRepository<User, String> {
 
 	@Query("select u.activityTs from User u where u.id=:id")
 	List<Date> findActivityTsByOrg(@Param("id") String id);
+
+	@Modifying
+	@Transactional
+	@Query("UPDATE User u SET u.activityTs = CURRENT_TIMESTAMP,u.verificationStatus = :emailVerified WHERE u.username=:email and u.phone=:phone and u.active = true")
+	void updateActivityTs(@Param("email") String email, @Param("phone") String phone, @Param("emailVerified") String emailVerified);
+
+	@Modifying
+	@Transactional
+	@Query("UPDATE User u SET u.activityTs = CURRENT_TIMESTAMP,u.verificationStatus = :emailVerificationFailed WHERE u.username=:email and u.phone=:phone and u.active = true")
+	void updateVerificationStatus(@Param("email") String email, @Param("phone") String phone, @Param("emailVerificationFailed") String emailVerificationFailed);
 
 	
 

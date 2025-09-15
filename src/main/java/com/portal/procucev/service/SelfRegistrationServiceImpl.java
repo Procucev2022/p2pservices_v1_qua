@@ -258,6 +258,7 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 	    user.setUniqueId(generateUserId(organization.getOrganizationPhonenumber()));
 	    user.setSourceType(organization.getSourceType());
 	    user.setPassword(String.valueOf(ProcucevUtils.generatePassword(8)));
+	    user.setVerificationStatus(StatusConstants.PENDING_EMAIL_VERIFICATION);
 
 	    // Save user
 	    try {
@@ -778,6 +779,7 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 	        response.put("confirmationFlag", true);
             response.put("selfClient", user.isSelfClient()); 
             response.put("fullName", user.getFullName());
+            response.put("verificationStatus", user.getVerificationStatus());
 
 	        InternetAddress add = new InternetAddress(mailid, "Procucev Notifications");
 	        MailUtility.sendClientEmailForCM2(
@@ -849,6 +851,7 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 	            response.put("companyName", savedOrg.getCompanyName());
 	            response.put("selfClient", user.isSelfClient()); 
 	            response.put("fullName", user.getFullName()); 
+	            response.put("verificationStatus", user.getVerificationStatus());
 
 	        InternetAddress add = new InternetAddress(mailid, "Procucev Notifications");
 	        MailUtility.mailingVerificationLinkWithUser( javaMailSender, add, host, savedUser);
@@ -885,6 +888,7 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 			user.setRole(vendor);
 			user.setSourceType(organization.getSourceType());
 			user.setUniqueId(uniqueId);
+			user.setVerificationStatus(StatusConstants.PENDING_EMAIL_VERIFICATION);
 			char[] pswd = ProcucevUtils.generatePassword(8);
 			user.setPassword(pswd.toString());
 			logger.info("saving User Details");

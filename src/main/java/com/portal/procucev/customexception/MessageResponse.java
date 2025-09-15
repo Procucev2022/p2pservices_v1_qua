@@ -5,6 +5,8 @@ import java.util.Date;
 import java.util.List;
 import java.util.Map;
 
+import com.portal.procucev.model.VendorCatalogue;
+
 /**
  * Class to handle all response messages for Errors
  */
@@ -141,6 +143,28 @@ public class MessageResponse implements Serializable {
 	 */
 	public void setTimestamp(Date timestamp) {
 		this.timestamp = timestamp;
+	}
+	
+	public static MessageResponse success(String message, Map<String, Object> data) {
+	    return new MessageResponse(
+	            "200",
+	            message,
+	            data,
+	            "Success",
+	            new Date()
+	    );
+	}
+
+	public static MessageResponse error(String message, List<String> errorMessages) {
+	    MessageResponse response = new MessageResponse(
+	            "400",
+	            message,
+	            errorMessages,
+	            new Date(),
+	            "Failure",
+	            "VALIDATION_ERROR"
+	    );
+	    return response;
 	}
 
 }

@@ -51,6 +51,7 @@ import com.portal.procucev.model.User;
 import com.portal.procucev.utils.ApplicationConstants;
 import com.portal.procucev.utils.MailUtility;
 import com.portal.procucev.utils.ProcucevUtils;
+import com.portal.procucev.utils.StatusConstants;
 
 @Service
 public class ProcUserServiceImpl implements UserService {
@@ -434,7 +435,8 @@ public class ProcUserServiceImpl implements UserService {
 	        if (now.isBefore(expirationTime) && otpDetails.getOtp().equals(organization.getEmailOtp())) {
 	            // Remove OTP from the map after successful validation
 	            otpsMap.remove(key);
-	            userDao.updateActivityTs(email,phone);
+	            userDao.updateActivityTs(email,phone,StatusConstants.EMAIL_VERIFIED);
+	            
 	            log.info("OTP validated successfully for key: {}", key);
 	            return true;
 	        } else {
@@ -442,6 +444,7 @@ public class ProcUserServiceImpl implements UserService {
 	        }
 	    } else {
 	        log.warn("No OTP entry found for key: {}", key);
+	          userDao.updateVerificationStatus(email,phone,StatusConstants.EMAIL_VERIFICATION_FAILED);
 	    }
 
 	    return false;

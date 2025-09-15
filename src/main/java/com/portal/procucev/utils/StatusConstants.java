@@ -286,5 +286,11 @@ public interface StatusConstants {
 	public static final String BFS_PRO = "BFS PRO";
 
 	public static final String CAPEX_PRO = "CAPEX PRO";
+	
+	public static final String PENDING_EMAIL_VERIFICATION = "PENDING_EMAIL_VERIFICATION";
+	
+    public static final String EMAIL_VERIFICATION_FAILED = "EMAIL_VERIFICATION_FAILED";
+    
+    public static final String EMAIL_VERIFIED = "EMAIL_VERIFIED";
 
 }

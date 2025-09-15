@@ -131,6 +131,8 @@ public class User extends Procucev {
 	    return password;
 	}
 	
+	@Column(name="verification_status")
+	private String verificationStatus;
 	
 
 	public User(String id,Date createdTS,String username, MasterStatus clientStatus, String phone, boolean selfClient, String fullName,
@@ -167,7 +169,7 @@ public class User extends Procucev {
 		this.sourceType=sourceType;
 	}
 
-	public User(String id,String username, String phone,String companyName, String fullName, String orgId, String uniqueId, Date activityTs, boolean isWebApp, boolean isWhatsApp,boolean isBot,String zipCode,boolean isApproved,boolean selfClient, boolean active,String sourceType) {
+	public User(String id,String username, String phone,String companyName, String fullName, String orgId, String uniqueId, Date activityTs, boolean isWebApp, boolean isWhatsApp,boolean isBot,String zipCode,boolean isApproved,boolean selfClient, boolean active,String sourceType,String verificationStatus) {
 		super();
 		this.id =id;
 		this.username = username;
@@ -185,6 +187,7 @@ public class User extends Procucev {
 		this.selfClient=selfClient;
 		this.active=active;
 		this.sourceType=sourceType;
+		this.verificationStatus=verificationStatus;
 	}
 
 
