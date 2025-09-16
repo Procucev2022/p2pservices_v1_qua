@@ -228,12 +228,12 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 	    logger.info("Setting user details for email: {} and phone: {}", organization.getEmail(), organization.getOrganizationPhonenumber());
 
 	    // Check for duplicate user
-	    List<User> existingUsers = userDao.findByUsernameAndPhone(
+	    User existingUsers = userDao.findByUsernameAndPhoneAndActive(
 	            organization.getEmail(),
-	            organization.getOrganizationPhonenumber()
+	            organization.getOrganizationPhonenumber(),true
 	    );
 
-	    if (!existingUsers.isEmpty()) {
+	    if (existingUsers==null) {
 	        throw new AppException(HttpStatus.CONFLICT.value(), "User with the same email and phone number already exists", null, null,LocalDateTime.now());
 	    }
 
