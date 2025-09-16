@@ -137,36 +137,61 @@ public class UserController {
 
 	    boolean status = userServices.generateOtp(organization, request);
 
-	    String statusValue = status ? String.valueOf(ApplicationConstants.SUCCESS)
-	                               : String.valueOf(ApplicationConstants.FAILURE);
-
-	    String msg = status 
-	        ? String.format(ApplicationConstants.OTP_GENERATE_SUCCESS, "") 
-	        : "User not registered or OTP could not be sent.";
-
-	    MessageResponse response = new MessageResponse(StatusCodes.OK_VENDOR_CODE, msg, null, statusValue);
-	    return ResponseEntity.ok(response);  //  Always return 200 OK
+	    if (status) {
+	        // Success case: 200 OK
+	        MessageResponse response = new MessageResponse(
+	                StatusCodes.OK_VENDOR_CODE,
+	                String.format(ApplicationConstants.OTP_GENERATE_SUCCESS, ""),
+	                null,
+	                String.valueOf(ApplicationConstants.SUCCESS)
+	        );
+	        return ResponseEntity.ok(response);
+	    } else {
+	        // Failure case: 404 Not Found (user not registered) or 400 Bad Request
+	        MessageResponse response = new MessageResponse(
+	                "404",
+	                "User not registered or OTP could not be sent.",
+	                null,
+	                String.valueOf(ApplicationConstants.FAILURE)
+	        );
+	        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(response);
+	    }
+	}
+ //  Always return 200 OK
 	    
 //
 //	    return status 
 //	        ? ResponseEntity.status(HttpStatus.OK).body(response)       // 200
 //	        : ResponseEntity.status(HttpStatus.CREATED).body(response); // 201
-	}
+	
 	@PostMapping(value = "/validateOtp")
 	public ResponseEntity<?> validateOtp(@RequestBody Organization organization) {
 
-		logger.info("Entered to send OTP");
+	    logger.info("Entered to validate OTP");
 
-		boolean status = userServices.validateEmailOtp(organization);
+	    boolean status = userServices.validateEmailOtp(organization);
 
-		String statusCode = status ? String.valueOf(ApplicationConstants.SUCCESS)
-				: String.valueOf(ApplicationConstants.FAILURE);
-		String msg = status ? String.format(ApplicationConstants.OTP_VALID_SUCCESS, "")
-				: String.format(ApplicationConstants.OTP_VALID_FAILED, "");
-		MessageResponse response = new MessageResponse(StatusCodes.OK_VENDOR_CODE, msg, null, statusCode);
-		return new ResponseEntity<>(response, HttpStatus.OK);
-
+	    if (status) {
+	        // Success case: 200 OK
+	        MessageResponse response = new MessageResponse(
+	                StatusCodes.OK_VENDOR_CODE,
+	                String.format(ApplicationConstants.OTP_VALID_SUCCESS, ""),
+	                null,
+	                String.valueOf(ApplicationConstants.SUCCESS)
+	        );
+	        return ResponseEntity.ok(response);
+	    } else {
+	        // Failure case: 400 Bad Request (invalid OTP)
+	        MessageResponse response = new MessageResponse(
+	                "400",
+	                String.format(ApplicationConstants.OTP_VALID_FAILED, ""),
+	                null,
+	                String.valueOf(ApplicationConstants.FAILURE)
+	        );
+	        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+	    }
 	}
+
 
 	@PostMapping(value = "/updateSeller")
 	    public ResponseEntity<?> updateOrganization(
