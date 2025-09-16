@@ -314,6 +314,7 @@ public class PartialVendorController {
 		List<User> users = regService.getUsersByPhoneNumber(phone);
 
 		if (users == null || users.isEmpty()) {
+			response.put("statusCode","204");
 			response.put("status", "failure");
 			response.put("message", "No user found with phone number: " + phone);
 			return ResponseEntity.status(HttpStatus.OK).body(response); // 200 OK with message
@@ -359,48 +360,61 @@ public class PartialVendorController {
 //	}
 	
 	@PostMapping(value = "/buyerRegistration")
-	public ResponseEntity<?> buyerRegistration(@RequestBody Organization organization) {
+	public ResponseEntity<MessageResponse> buyerRegistration(@RequestBody Organization organization) {
 	    logger.info("Entered to save the client details");
 
-	    Map<String, Object> registrationResponse;
-	    String statusCode;
-	    String msg;
-
 	    try {
-	        registrationResponse = regService.selfclientRegistrationDataByApp(organization);
+	        Map<String, Object> registrationResponse = regService.selfclientRegistrationDataByApp(organization);
 
 	        boolean confirmationFlag = Boolean.TRUE.equals(registrationResponse.get("confirmationFlag"));
 
 	        if (confirmationFlag) {
-	            statusCode = ApplicationConstants.SUCCESS;
-	            msg = String.format(ApplicationConstants.CREATE_SELF_CLIENT, "");
+	            // Success: Buyer created
+	            MessageResponse response = new MessageResponse(
+	                    String.valueOf(HttpStatus.OK.value()), // 201 Created
+	                    String.format(ApplicationConstants.CREATE_SELF_CLIENT, ""),
+	                    registrationResponse,
+	                    ApplicationConstants.SUCCESS,
+	                    new Date()
+	            );
+	            return ResponseEntity.status(HttpStatus.OK).body(response);
 	        } else {
-	            statusCode = ApplicationConstants.FAILURE;
-	            msg = registrationResponse.get("error") != null
+	            // Failure due to business logic
+	            String errorMsg = registrationResponse.get("error") != null
 	                    ? registrationResponse.get("error").toString()
 	                    : String.format(ApplicationConstants.SELF_CLIENT_FAILED, "");
+
+	            MessageResponse response = new MessageResponse(
+	                    String.valueOf(HttpStatus.CONFLICT.value()), // 409 Conflict
+	                    errorMsg,
+	                    registrationResponse,
+	                    ApplicationConstants.FAILURE,
+	                    new Date()
+	            );
+	            return ResponseEntity.status(HttpStatus.CONFLICT).body(response);
 	        }
-
-	        MessageResponse response = new MessageResponse(
-	                String.valueOf(HttpStatus.OK.value()), // Always 200
-	                msg,
-	                registrationResponse,
-	                statusCode,
-	                new Date()
-	        );
-
-	        return ResponseEntity.ok(response); // Always return 200
 
 	    } catch (AppException e) {
 	        logger.error("Business validation error: {}", e.getMessage());
-	        return ResponseEntity.ok(
-	                new MessageResponse("409", e.getMessage(), null, ApplicationConstants.FAILURE, new Date())
+	        MessageResponse response = new MessageResponse(
+	                String.valueOf(HttpStatus.CONFLICT.value()), // 409 Conflict
+	                e.getMessage(),
+	                null,
+	                ApplicationConstants.FAILURE,
+	                new Date()
 	        );
+	        return ResponseEntity.status(HttpStatus.CONFLICT).body(response);
+
 	    } catch (Exception e) {
 	        logger.error("Unexpected error: ", e);
-	        return ResponseEntity.ok(
-	                new MessageResponse("500", "Something went wrong", null, ApplicationConstants.FAILURE, new Date())
+	        MessageResponse response = new MessageResponse(
+	                String.valueOf(HttpStatus.INTERNAL_SERVER_ERROR.value()), // 500
+	                "Something went wrong",
+	                null,
+	                ApplicationConstants.FAILURE,
+	                new Date()
 	        );
+	        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
 	    }
 	}
 
@@ -416,52 +430,65 @@ public class PartialVendorController {
 		return new ResponseEntity<>(response, HttpStatus.OK);
 	}
 
-
 	@PostMapping(value = "/sellerRegistration")
-	public ResponseEntity<?> sellerRegistration(@RequestBody Organization organization) {
+	public ResponseEntity<MessageResponse> sellerRegistration(@RequestBody Organization organization) {
 	    logger.info("Entered to save the Seller details");
 
-	    Map<String, Object> registrationResponse;
-	    String statusCode;
-	    String msg;
-
 	    try {
-	        registrationResponse = regService.sellerRegistration(organization);
+	        Map<String, Object> registrationResponse = regService.sellerRegistration(organization);
 
 	        boolean confirmationFlag = Boolean.TRUE.equals(registrationResponse.get("confirmationFlag"));
 
 	        if (confirmationFlag) {
-	            statusCode = ApplicationConstants.SUCCESS;
-	            msg = String.format(ApplicationConstants.CREATE_SELLER_SUCCESS, "");
+	            // Success: Seller created
+	            MessageResponse response = new MessageResponse(
+	                    String.valueOf(HttpStatus.OK.value()), // 201 Created
+	                    String.format(ApplicationConstants.CREATE_SELLER_SUCCESS, ""),
+	                    registrationResponse,
+	                    ApplicationConstants.SUCCESS,
+	                    new Date()
+	            );
+	            return ResponseEntity.status(HttpStatus.OK).body(response);
 	        } else {
-	            statusCode = ApplicationConstants.FAILURE;
-	            msg = registrationResponse.get("error") != null
+	            // Failure due to business logic
+	            String errorMsg = registrationResponse.get("error") != null
 	                    ? registrationResponse.get("error").toString()
 	                    : String.format(ApplicationConstants.CREATE_SELLER_FAILED, "");
+
+	            MessageResponse response = new MessageResponse(
+	                    String.valueOf(HttpStatus.CONFLICT.value()), // 409 Conflict
+	                    errorMsg,
+	                    registrationResponse,
+	                    ApplicationConstants.FAILURE,
+	                    new Date()
+	            );
+	            return ResponseEntity.status(HttpStatus.CONFLICT).body(response);
 	        }
-
-	        MessageResponse response = new MessageResponse(
-	                String.valueOf(HttpStatus.OK.value()), // Always 200
-	                msg,
-	                registrationResponse,
-	                statusCode,
-	                new Date()
-	        );
-
-	        return ResponseEntity.ok(response); // Always return 200
 
 	    } catch (AppException e) {
 	        logger.error("Business validation error: {}", e.getMessage());
-	        return ResponseEntity.ok(
-	                new MessageResponse("409", e.getMessage(), null, ApplicationConstants.FAILURE, new Date())
+	        MessageResponse response = new MessageResponse(
+	                String.valueOf(HttpStatus.CONFLICT.value()), // 409 Conflict
+	                e.getMessage(),
+	                null,
+	                ApplicationConstants.FAILURE,
+	                new Date()
 	        );
+	        return ResponseEntity.status(HttpStatus.CONFLICT).body(response);
+
 	    } catch (Exception e) {
 	        logger.error("Unexpected error: ", e);
-	        return ResponseEntity.ok(
-	                new MessageResponse("500", "Something went wrong", null, ApplicationConstants.FAILURE, new Date())
+	        MessageResponse response = new MessageResponse(
+	                String.valueOf(HttpStatus.INTERNAL_SERVER_ERROR.value()), // 500
+	                "Something went wrong",
+	                null,
+	                ApplicationConstants.FAILURE,
+	                new Date()
 	        );
+	        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
 	    }
 	}
+
 	
 //	@PostMapping("/uploadexcel")
 //    public String uploadExcel() {

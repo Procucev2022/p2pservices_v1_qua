@@ -106,6 +106,9 @@ public interface UserDao extends JpaRepository<User, String> {
 	@Query("UPDATE User u SET u.activityTs = CURRENT_TIMESTAMP,u.verificationStatus = :emailVerificationFailed WHERE u.username=:email and u.phone=:phone and u.active = true")
 	void updateVerificationStatus(@Param("email") String email, @Param("phone") String phone, @Param("emailVerificationFailed") String emailVerificationFailed);
 
+	@Query("SELECT  new User(u.id,u.username,u.phone,u.org.companyName,u.fullName,u.org.id,u.uniqueId,u.activityTs,u.isWebApp,u.isWhatsApp,u.isBot,u.org.city,u.isApproved,u.selfClient,u.active,u.sourceType,u.verificationStatus) from User u where u.phone IN (:variants) and u.active = true")
+	List<User> findByPhoneIn(@Param("variants") List<String> variants);
+
 	
 
 }

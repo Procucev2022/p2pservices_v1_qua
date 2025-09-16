@@ -5,6 +5,7 @@ import java.io.UnsupportedEncodingException;
 import java.text.SimpleDateFormat;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
@@ -50,6 +51,7 @@ import com.portal.procucev.model.Role;
 import com.portal.procucev.model.User;
 import com.portal.procucev.utils.ApplicationConstants;
 import com.portal.procucev.utils.MailUtility;
+import com.portal.procucev.utils.PhoneNumberUtils;
 import com.portal.procucev.utils.ProcucevUtils;
 import com.portal.procucev.utils.StatusConstants;
 import java.io.BufferedReader;
@@ -146,7 +148,8 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 	                organization.setCity(pincodeData.getCity());
 	                organization.setState(pincodeData.getState());
 	            }
-
+	            String normalizedPhone = PhoneNumberUtils.normalize(organization.getOrganizationPhonenumber());
+		        organization.setOrganizationPhonenumber(normalizedPhone);
 	            targetOrg = clientDao.save(organization);
 	            logger.info("New client saved with ID: {}", targetOrg.getId());
 	        } else {
@@ -425,7 +428,8 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 //	    }
 
 	    // 3. Check if user already associated
-	    if (checkUserexistWithPhone(organization.getEmail().trim(), organization.getOrganizationPhonenumber())) {
+	    String normalizedPhone = PhoneNumberUtils.normalize(organization.getOrganizationPhonenumber());
+	    if (checkUserexistWithPhone(organization.getEmail().trim(), normalizedPhone)) {
 	        throw new AppException(
 	            HttpStatus.CONFLICT.value(),
 	            ApplicationConstants.USER_ALREADY_ASSOCIATED_TO_ACCOUNT,
@@ -469,7 +473,8 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 	        organization.setRfqCredits(1);
 	        organization.setSubCategory(organization.getDetails());
 	        organization.setSourceType(ApplicationConstants.TOOL);
-
+	        
+	        organization.setOrganizationPhonenumber(normalizedPhone);
 	        // Save Organization
 	        Organization savedOrg = orgDao.save(organization);
 	        logger.info("Vendor Organization saved with ID: {}", savedOrg.getId());
@@ -667,26 +672,61 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 	}
 
 	
-	 @Override
-	    public List<User> getUsersByPhoneNumber(String phoneNumber) {
-	        logger.info("Fetching users with phone number: {}", phoneNumber);
+//	 @Override
+//	    public List<User> getUsersByPhoneNumber(String phoneNumber) {
+//	        logger.info("Fetching users with phone number: {}", phoneNumber);
+//
+//	        if (phoneNumber == null || phoneNumber.isBlank()) {
+//	            logger.warn("Phone number is null or blank");
+//	            return Collections.emptyList();
+//	        }
+//
+//	        List<User> users = userDao.findByPhone(phoneNumber);
+//
+//	        if (users == null || users.isEmpty()) {
+//	            logger.info("No users found with phone number: {}", phoneNumber);
+//	            return Collections.emptyList();
+//	        }
+//
+//	        logger.info("Found {} user(s) with phone number: {}", users.size(), phoneNumber);
+//	        return users;
+//	    }
+	@Override
+	public List<User> getUsersByPhoneNumber(String phoneNumber) {
+	    logger.info("Fetching users with phone number: {}", phoneNumber);
 
-	        if (phoneNumber == null || phoneNumber.isBlank()) {
-	            logger.warn("Phone number is null or blank");
-	            return Collections.emptyList();
-	        }
-
-	        List<User> users = userDao.findByPhone(phoneNumber);
-
-	        if (users == null || users.isEmpty()) {
-	            logger.info("No users found with phone number: {}", phoneNumber);
-	            return Collections.emptyList();
-	        }
-
-	        logger.info("Found {} user(s) with phone number: {}", users.size(), phoneNumber);
-	        return users;
+	    if (phoneNumber == null || phoneNumber.isBlank()) {
+	        logger.warn("Phone number is null or blank");
+	        return Collections.emptyList();
 	    }
-	
+
+	    // Normalize input (remove spaces, dashes, etc.)
+	    String normalizedPhone = phoneNumber.replaceAll("[^0-9+]", "");
+
+	    // Always ensure we generate 3 variants:
+	    // +91XXXXXXXXXX, 91XXXXXXXXXX, XXXXXXXXXX
+	    String withPrefix = normalizedPhone.startsWith("+91")
+	            ? normalizedPhone
+	            : "+91" + normalizedPhone.replaceFirst("^91", "");
+
+	    String with91 = withPrefix.replaceFirst("^\\+91", "91");
+	    String withoutPrefix = withPrefix.replaceFirst("^\\+91", "");
+
+	    // Collect all variants
+	    List<String> variants = Arrays.asList(withPrefix, with91, withoutPrefix);
+
+	    // Query for all formats at once
+	    List<User> users = userDao.findByPhoneIn(variants);
+
+	    if (users == null || users.isEmpty()) {
+	        logger.info("No users found with phone number variants: {}", variants);
+	        return Collections.emptyList();
+	    }
+
+	    logger.info("Found {} user(s) with phone number variants: {}", users.size(), variants);
+	    return users;
+	}
+
 	
 	 public String generateUserId(String mobileNumber) {
 	        // Validate mobile number length
@@ -756,6 +796,8 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 	                organization.setCity(pincodeData.getCity());
 	                organization.setState(pincodeData.getState());
 	            }
+	            String normalizedPhone = PhoneNumberUtils.normalize(organization.getOrganizationPhonenumber());
+		        organization.setOrganizationPhonenumber(normalizedPhone);
 
 	            Organization savedOrg = clientDao.save(organization);
 	            logger.info("Saved Org ID: {}", savedOrg.getId());
@@ -835,7 +877,8 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 	                organization.setCity(pincodeData.getCity());
 	                organization.setState(pincodeData.getState());
 	            }
-
+	            String normalizedPhone = PhoneNumberUtils.normalize(organization.getOrganizationPhonenumber());
+		        organization.setOrganizationPhonenumber(normalizedPhone);
 	            Organization savedOrg = clientDao.save(organization);
 	            logger.info("Saved Org ID: {}", savedOrg.getId());
 
