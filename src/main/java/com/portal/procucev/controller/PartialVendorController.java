@@ -310,18 +310,33 @@ public class PartialVendorController {
 
 	@GetMapping("/getUsersByPhoneNumber/{phone}")
 	public ResponseEntity<?> getUsersByPhone(@PathVariable("phone") String phone) {
-		Map<String, Object> response = new HashMap<>();
-		List<User> users = regService.getUsersByPhoneNumber(phone);
+	    List<User> users = regService.getUsersByPhoneNumber(phone);
 
-		if (users == null || users.isEmpty()) {
-			response.put("statusCode","204");
-			response.put("status", "failure");
-			response.put("message", "No user found with phone number: " + phone);
-			return ResponseEntity.status(HttpStatus.OK).body(response); // 200 OK with message
-		}
+	    if (users == null || users.isEmpty()) {
+	        // uses: MessageResponse(String statusCode, String message, List<String> errorMsg, Date timestamp, String status, String type)
+	        MessageResponse response = new MessageResponse(
+	                "204",
+	                "No user found with phone number: " + phone,
+	                null,          // errorMsg
+	                new Date(),    // timestamp
+	                "Failure",     // status
+	                null           // type
+	        );
+	        return ResponseEntity.status(HttpStatus.OK).body(response);
+	    }
 
-		return ResponseEntity.ok(users); // returns list of users
+	    // uses: MessageResponse(String statusCode, String message, Map<String,Object> data, String status, Date timestamp)
+	    MessageResponse response = new MessageResponse(
+	            "200",
+	            "Users fetched successfully",
+	            Map.of("users", users), // wrap list into a Map to match constructor
+	            "Success",
+	            new Date()
+	    );
+
+	    return ResponseEntity.ok(response);
 	}
+
 
 //	@PostMapping(value = "/buyerRegistration")
 //	public ResponseEntity<?> buyerRegistration(@RequestBody Organization organization) {
