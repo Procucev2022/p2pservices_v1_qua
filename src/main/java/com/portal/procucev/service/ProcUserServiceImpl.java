@@ -117,9 +117,9 @@ public class ProcUserServiceImpl implements UserService {
 
 	@Override
 	public User getUserByEmail(User user) {
-
+		  String normalizedPhone = normalizePhone(user.getPhone());
 		//User userObject = userDao.findByUsernameAndActive(user.getUsername(), true);
-		User userObject = userDao.findByUsernameAndPhoneAndActive(user.getUsername(),user.getPhone(), true);
+		User userObject = userDao.findByUsernameAndPhoneAndActive(user.getUsername(),normalizedPhone, true);
 		if (userObject != null) {
 
 			List<String> permissionDetails = new ArrayList<>();
@@ -167,8 +167,9 @@ public class ProcUserServiceImpl implements UserService {
 
 		String pass = reset.getPassword();
 		String newPass = reset.getNewpassword();
+		 String normalizedPhone = normalizePhone(reset.getPhone());
 		//User users = userDao.findByUsernameAndActive(reset.getUserName(), true);
-		User users = userDao.findByUsernameAndPhoneAndActive(reset.getUserName(),reset.getPhone(), true);
+		User users = userDao.findByUsernameAndPhoneAndActive(reset.getUserName(),normalizedPhone, true);
 		
 		if (users != null) {
 			String password = users.getPassword();
@@ -228,9 +229,9 @@ public class ProcUserServiceImpl implements UserService {
 	@Override
 	public boolean forgotPassword(User users) {
 		boolean status = false;
-
+		 String normalizedPhone = normalizePhone(users.getPhone());
 		//User user = userDao.findByUsernameAndActive(users.getUsername(), true);
-		User user = userDao.findByUsernameAndPhoneAndActive(users.getUsername(),users.getPhone(), true);
+		User user = userDao.findByUsernameAndPhoneAndActive(users.getUsername(),normalizedPhone, true);
 		if (user == null) {
 			throw new AppException(HttpStatus.NO_CONTENT.value(), ApplicationConstants.NO_USER_FOUND,
 					ApplicationConstants.BUSSINESS_EXCEPTION, ApplicationConstants.FAILURE);
@@ -317,7 +318,8 @@ public class ProcUserServiceImpl implements UserService {
 	            String phone = organization.getOrganizationPhonenumber();
 
 	            //  Check if user exists
-	            User user = userDao.findByUsernameAndPhoneAndActive(email, phone, true);
+	            String normalizedPhone = normalizePhone(phone);
+	            User user = userDao.findByUsernameAndPhoneAndActive(email, normalizedPhone, true);
 	            if (user == null) {
 	                log.error("User not found for email: {} and phone: {}", email, phone);
 	                return false;
@@ -704,7 +706,8 @@ public List<VendorSummaryResponse> getVendorSummary() {
 public boolean deactivateOrgUser(User user) {
 	// TODO Auto-generated method stub
 	log.info("Entered To Disable User");
-	User userfound = userDao.findByUsernameAndPhoneAndActive(user.getUsername(),user.getPhone(),true);
+	String normalizedPhone = normalizePhone(user.getPhone());
+	User userfound = userDao.findByUsernameAndPhoneAndActive(user.getUsername(),normalizedPhone,true);
 	if (userfound!=null) {
 		userDao.deactiveUser(userfound.getId());
 		log.info("Deactivated User");
@@ -725,4 +728,21 @@ public boolean deactivateOrgUser(User user) {
 
 }
 
+private String normalizePhone(String phone) {
+    if (phone == null || phone.isBlank()) {
+        return phone;
+    }
+
+    // Keep only digits
+    String digits = phone.replaceAll("[^0-9]", "");
+
+    // Remove leading zeros
+    digits = digits.replaceFirst("^0+", "");
+
+    // Always ensure +91
+    if (digits.startsWith("91")) {
+        digits = digits.substring(2);
+    }
+    return "+91" + digits;
+}
 }
