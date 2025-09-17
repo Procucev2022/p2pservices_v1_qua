@@ -233,7 +233,7 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 	            organization.getOrganizationPhonenumber(),true
 	    );
 
-	    if (existingUsers==null) {
+	    if (existingUsers!=null) {
 	        throw new AppException(HttpStatus.CONFLICT.value(), "User with the same email and phone number already exists", null, null,LocalDateTime.now());
 	    }
 

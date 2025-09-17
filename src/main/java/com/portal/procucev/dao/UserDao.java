@@ -109,6 +109,8 @@ public interface UserDao extends JpaRepository<User, String> {
 	@Query("SELECT  new User(u.id,u.username,u.phone,u.org.companyName,u.fullName,u.org.id,u.uniqueId,u.activityTs,u.isWebApp,u.isWhatsApp,u.isBot,u.org.city,u.isApproved,u.selfClient,u.active,u.sourceType,u.verificationStatus) from User u where u.phone IN (:variants) and u.active = true")
 	List<User> findByPhoneIn(@Param("variants") List<String> variants);
 
+	List<User> findByUsernameAndPhoneInAndActive(String username, List<String> variants, boolean b);
+
 	
 
 }

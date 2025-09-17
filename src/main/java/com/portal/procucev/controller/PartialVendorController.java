@@ -99,33 +99,54 @@ public class PartialVendorController {
 	@PostMapping(value = "/sendOtp")
 	public ResponseEntity<?> sendOtp(@RequestBody Organization organization, HttpServletRequest request) {
 
-		logger.info("Entered to send OTP");
+	    logger.info("Entered to send OTP");
 
-		boolean status = regService.generateOtp(organization, request);
+	    boolean status = regService.generateOtp(organization, request);
 
-		String statusCode = status ? String.valueOf(ApplicationConstants.SUCCESS)
-				: String.valueOf(ApplicationConstants.FAILURE);
-		String msg = status ? String.format(ApplicationConstants.OTP_GENERATE_SUCCESS, "")
-				: String.format(ApplicationConstants.OTP_GENERATE_FAILED, "");
-		MessageResponse response = new MessageResponse(StatusCodes.NEW_VENDOR_CODE, msg, null, statusCode);
-		return new ResponseEntity<>(response, HttpStatus.OK);
-
+	    if (status) {
+	        MessageResponse response = new MessageResponse(
+	                "200",
+	                ApplicationConstants.OTP_GENERATE_SUCCESS,
+	                null,
+	                "Success"
+	        );
+	        return ResponseEntity.status(HttpStatus.OK).body(response); // ✅ 200
+	    } else {
+	        MessageResponse response = new MessageResponse(
+	                "400",
+	                ApplicationConstants.OTP_GENERATE_FAILED,
+	                null,
+	                "Failure"
+	        );
+	        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response); // ✅ 400
+	    }
 	}
+
 
 	@PostMapping(value = "/validateOtp")
 	public ResponseEntity<?> validateOtp(@RequestBody Organization organization) {
 
-		logger.info("Entered to send OTP");
+	    logger.info("Entered to validate OTP");
 
-		boolean status = regService.validateOtp(organization);
+	    boolean status = regService.validateOtp(organization);
 
-		String statusCode = status ? String.valueOf(ApplicationConstants.SUCCESS)
-				: String.valueOf(ApplicationConstants.FAILURE);
-		String msg = status ? String.format(ApplicationConstants.OTP_VALID_SUCCESS, "")
-				: String.format(ApplicationConstants.OTP_VALID_FAILED, "");
-		MessageResponse response = new MessageResponse(StatusCodes.NEW_VENDOR_CODE, msg, null, statusCode);
-		return new ResponseEntity<>(response, HttpStatus.OK);
-
+	    if (status) {
+	        MessageResponse response = new MessageResponse(
+	                "200",
+	                ApplicationConstants.OTP_VALID_SUCCESS,
+	                null,
+	                "Success"
+	        );
+	        return ResponseEntity.status(HttpStatus.OK).body(response); // ✅ 200
+	    } else {
+	        MessageResponse response = new MessageResponse(
+	                "401", // or "400" depending on meaning
+	                ApplicationConstants.OTP_VALID_FAILED,
+	                null,
+	                "Failure"
+	        );
+	        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response); // ✅ 401 Unauthorized
+	    }
 	}
 
 	@PostMapping("/validateClientDetails")
