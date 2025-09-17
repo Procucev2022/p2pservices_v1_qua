@@ -705,7 +705,7 @@ public List<VendorSummaryResponse> getVendorSummary() {
 @Override
 public boolean deactivateOrgUser(User user) {
 	// TODO Auto-generated method stub
-	log.info("Entered To Disable User");
+	log.info("Entered To Disable User::");
 	String normalizedPhone = normalizePhone(user.getPhone());
 	User userfound = userDao.findByUsernameAndPhoneAndActive(user.getUsername(),normalizedPhone,true);
 	if (userfound!=null) {
