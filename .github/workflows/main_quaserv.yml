@@ -6,7 +6,7 @@ name: Build and deploy WAR app to Azure Web App - quaserv
 on:
   push:
     branches:
-      - prodmaster
+      - prodmaster1_tobedeleted
   workflow_dispatch:
 
 jobs:
@@ -66,5 +66,6 @@ jobs:
           slot-name: 'Production'
           package: '*.war'
           
+
 
 
