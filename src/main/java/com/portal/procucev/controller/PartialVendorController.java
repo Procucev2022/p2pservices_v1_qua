@@ -538,7 +538,7 @@ public class PartialVendorController {
 	 @PostMapping("/uploadexcel")
 	    public String uploadExcel() {
 	        try {
-	            ClassPathResource resource = new ClassPathResource("Divisionslist.xlsx");
+	            ClassPathResource resource = new ClassPathResource("Divisionlist.xlsx");
 	            try (InputStream inputStream = resource.getInputStream()) {
 	                excelReader.uploadExcelToDB(inputStream);
 	            }
