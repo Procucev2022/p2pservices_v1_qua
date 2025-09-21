@@ -538,7 +538,7 @@ public class PartialVendorController {
 	 @PostMapping("/uploadexcel")
 	    public String uploadExcel() {
 	        try {
-	            ClassPathResource resource = new ClassPathResource("Divisionslist.xlsx");
+	            ClassPathResource resource = new ClassPathResource("Divisionlist.xlsx");
 	            try (InputStream inputStream = resource.getInputStream()) {
 	                excelReader.uploadExcelToDB(inputStream);
 	            }
@@ -549,6 +549,15 @@ public class PartialVendorController {
 
 	        return "Excel data inserted into DB successfully.";
 	    }
-	
+	  @PostMapping("/uploadBuyerDetails")
+	    public ResponseEntity<String> uploadExcel(@RequestParam("file") MultipartFile file) {
+	        try {
+	        	regService.registerFromExcel(file);
+	            return ResponseEntity.ok("Excel uploaded and registration completed successfully!");
+	        } catch (Exception e) {
+	            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+	                                 .body("Error processing Excel: " + e.getMessage());
+	        }
+	    }
 
 }

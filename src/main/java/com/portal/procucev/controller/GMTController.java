@@ -2,18 +2,22 @@ package com.portal.procucev.controller;
 
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
+import java.util.ArrayList;
 import java.util.Date;
-import java.util.List;
-import java.util.Map;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
-import jakarta.mail.MessagingException;
+import java.util.List;
+import java.util.Map;
+import java.util.Properties;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.mail.MailSendException;
+import org.springframework.mail.SimpleMailMessage;
+import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -33,7 +37,6 @@ import com.portal.procucev.model.CategoryDivision;
 import com.portal.procucev.model.EmailRequest;
 import com.portal.procucev.model.GmtItems;
 import com.portal.procucev.model.GmtRfqVendors;
-import com.portal.procucev.model.ItemCategory;
 import com.portal.procucev.model.Organization;
 import com.portal.procucev.model.Rfq;
 import com.portal.procucev.model.RfqItem;
@@ -43,7 +46,16 @@ import com.portal.procucev.model.SubscriptionPlan;
 import com.portal.procucev.model.User;
 import com.portal.procucev.service.GMTService;
 import com.portal.procucev.utils.ApplicationConstants;
+import com.portal.procucev.utils.EmailValidatorUtil;
 import com.portal.procucev.utils.StatusCodes;
+
+import jakarta.mail.Message;
+import jakarta.mail.MessagingException;
+import jakarta.mail.SendFailedException;
+import jakarta.mail.Session;
+import jakarta.mail.Transport;
+import jakarta.mail.internet.InternetAddress;
+import jakarta.mail.internet.MimeMessage;
 
 @CrossOrigin
 @RestController
@@ -52,6 +64,9 @@ public class GMTController {
 	private static final Logger logger = LoggerFactory.getLogger(GMTController.class);
 	@Autowired
 	GMTService gmtService;
+
+	@Autowired
+	private JavaMailSender javaMailSender;
 
 	@PostMapping(value = "/getClientRfqIds")
 	public ResponseEntity<?> getClientRfqIds(@RequestBody User user) {
@@ -372,39 +387,55 @@ public class GMTController {
 
 	@PostMapping(value = "/createRFQByClient")
 	public ResponseEntity<?> createRFQByClient(@RequestBody Rfq rfq) throws Exception {
-	    Map<String, Object> result = gmtService.createRFQByClient(rfq);
+		Map<String, Object> result = gmtService.createRFQByClient(rfq);
 
-	    boolean success = result != null;
+		boolean success = result != null;
 
-	    String statusCode = success ? String.valueOf(ApplicationConstants.SUCCESS)
-	            : String.valueOf(ApplicationConstants.FAILURE);
+		String statusCode = success ? String.valueOf(ApplicationConstants.SUCCESS)
+				: String.valueOf(ApplicationConstants.FAILURE);
 
-	    String msg = success ? String.format(ApplicationConstants.RFQ_CREATED_SUCCESS, "")
-	            : String.format(ApplicationConstants.RFQ_CREATED_FAILURE, "");
+		String msg = success ? String.format(ApplicationConstants.RFQ_CREATED_SUCCESS, "")
+				: String.format(ApplicationConstants.RFQ_CREATED_FAILURE, "");
 
-	    // directly pass result map with rfqId and rfquuid
-	    Map<String, Object> data = success ? result : Map.of();
+		// directly pass result map with rfqId and rfquuid
+		Map<String, Object> data = success ? result : Map.of();
 
-	    MessageResponse response = new MessageResponse(
-	            StatusCodes.OK_VENDOR_CODE,
-	            msg,
-	            data,
-	            statusCode,
-	            new Date()
-	    );
+		MessageResponse response = new MessageResponse(StatusCodes.OK_VENDOR_CODE, msg, data, statusCode, new Date());
 
-	    return new ResponseEntity<>(response, HttpStatus.OK);
+		return new ResponseEntity<>(response, HttpStatus.OK);
 	}
 
+//	@PostMapping("/sendEmail")
+//	public ResponseEntity<?> sendEmail(@RequestBody EmailRequest request) {
+//		boolean status = gmtService.sendEmail(request);
+//		String statusCode = status ? String.valueOf(ApplicationConstants.SUCCESS)
+//				: String.valueOf(ApplicationConstants.FAILURE);
+//		String msg = status ? String.format(ApplicationConstants.EMAIL_SENT_SUCCESS, "")
+//				: String.format(ApplicationConstants.EMAIL_SENT_UNSUCCESS, "");
+//		MessageResponse response = new MessageResponse(StatusCodes.OK_VENDOR_CODE, msg, new Date(), statusCode, null);
+//		return new ResponseEntity<>(response, HttpStatus.OK);
+//	}
 	@PostMapping("/sendEmail")
-	public ResponseEntity<?> sendEmail(@RequestBody EmailRequest request) {
-		boolean status = gmtService.sendEmail(request);
-		String statusCode = status ? String.valueOf(ApplicationConstants.SUCCESS)
-				: String.valueOf(ApplicationConstants.FAILURE);
-		String msg = status ? String.format(ApplicationConstants.EMAIL_SENT_SUCCESS, "")
-				: String.format(ApplicationConstants.EMAIL_SENT_UNSUCCESS, "");
-		MessageResponse response = new MessageResponse(StatusCodes.OK_VENDOR_CODE, msg, new Date(), statusCode, null);
-		return new ResponseEntity<>(response, HttpStatus.OK);
+	public ResponseEntity<MessageResponse> sendEmail(@RequestBody EmailRequest emailRequest) {
+		MessageResponse response = gmtService.sendEmail(emailRequest);
+		HttpStatus httpStatus;
+		switch (response.getStatusCode()) {
+		case "200":
+			httpStatus = HttpStatus.OK;
+			break;
+		case "206":
+			httpStatus = HttpStatus.PARTIAL_CONTENT;
+			break;
+		case "400":
+			httpStatus = HttpStatus.BAD_REQUEST;
+			break;
+		case "500":
+			httpStatus = HttpStatus.INTERNAL_SERVER_ERROR;
+			break;
+		default:
+			httpStatus = HttpStatus.OK;
+		}
+		return new ResponseEntity<>(response, httpStatus);
 	}
 
 	@GetMapping(value = "/getSubscriptionPlans")
@@ -479,6 +510,7 @@ public class GMTController {
 		Organization vendorList = gmtService.getOrgByUserId(user);
 		return new ResponseEntity<>(vendorList, HttpStatus.OK);
 	}
+
 	@PostMapping("/getRfqByCategory")
 	public ResponseEntity<Map<String, Object>> getRfqByCategory(@RequestBody Organization org) {
 		Map<String, Object> rfqs = gmtService.getRfqByItemCategory(org);
@@ -498,32 +530,29 @@ public class GMTController {
 //
 //		return ResponseEntity.ok(response);
 //	}
-	
+
 	@PostMapping(value = "/forwardRfqsToVendor")
 	public ResponseEntity<?> forwardRfqsToVendor(@RequestBody ForwardRfqVendorRequest request) {
-		 Map<String, Object> response  = gmtService.forwardRfqsToVendor(request);
-		 return ResponseEntity.ok(response);
+		Map<String, Object> response = gmtService.forwardRfqsToVendor(request);
+		return ResponseEntity.ok(response);
 	}
-	
-	@PostMapping(value ="/getOpenRfqs")
+
+	@PostMapping(value = "/getOpenRfqs")
 	public ResponseEntity<Map<String, Object>> getOpenRfqsForSeller(@RequestBody Organization org) {
-	    List<Map<String, Object>> openRfqs = gmtService.getLastOpenRfqsForVendor(org.getId());
+		List<Map<String, Object>> openRfqs = gmtService.getLastOpenRfqsForVendor(org.getId());
 
-	    Map<String, Object> response = new LinkedHashMap<>();
-	    response.put("success", true);
-	    response.put("open_rfqs", openRfqs);
-	    response.put("total_count", openRfqs.size());
-	    
-	    Map<String, Object> metadata = new LinkedHashMap<>();
-	    metadata.put("seller_id", org.getId());
+		Map<String, Object> response = new LinkedHashMap<>();
+		response.put("success", true);
+		response.put("open_rfqs", openRfqs);
+		response.put("total_count", openRfqs.size());
+
+		Map<String, Object> metadata = new LinkedHashMap<>();
+		metadata.put("seller_id", org.getId());
 //	    metadata.put("query_timestamp", Instant.now());
-	    metadata.put("filter_criteria", Map.of(
-	        "status", "open_for_bidding",
-	        "email_sent", true,
-	        "bid_submitted", false
-	    ));
-	    response.put("metadata", metadata);
+		metadata.put("filter_criteria",
+				Map.of("status", "open_for_bidding", "email_sent", true, "bid_submitted", false));
+		response.put("metadata", metadata);
 
-	    return ResponseEntity.ok(response);
+		return ResponseEntity.ok(response);
 	}
 }

@@ -44,19 +44,22 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.mail.MailSendException;
 import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
-
+import jakarta.mail.Address;
+import jakarta.mail.internet.MimeMessage;
 import com.portal.procucev.Dto.ClientRFQDto;
 import com.portal.procucev.Dto.ForwardRfqVendorRequest;
 import com.portal.procucev.Dto.GMTRfqVendorDto;
 import com.portal.procucev.Dto.RfqDTO;
 import com.portal.procucev.Dto.VendorRFQDto;
 import com.portal.procucev.customexception.AppException;
+import com.portal.procucev.customexception.MessageResponse;
 import com.portal.procucev.customexception.RfqStatusResponse;
 import com.portal.procucev.dao.CategoryDivisionDao;
 import com.portal.procucev.dao.EmailUserRepo;
@@ -92,6 +95,7 @@ import com.portal.procucev.model.Role;
 import com.portal.procucev.model.SubscriptionPlan;
 import com.portal.procucev.model.User;
 import com.portal.procucev.utils.ApplicationConstants;
+import com.portal.procucev.utils.EmailValidatorUtil;
 import com.portal.procucev.utils.MailUtility;
 import com.portal.procucev.utils.StatusConstants;
 
@@ -99,8 +103,11 @@ import jakarta.mail.Flags;
 import jakarta.mail.Folder;
 import jakarta.mail.Message;
 import jakarta.mail.MessagingException;
+import jakarta.mail.SendFailedException;
 import jakarta.mail.Session;
 import jakarta.mail.Store;
+import jakarta.mail.Transport;
+import jakarta.mail.internet.AddressException;
 import jakarta.mail.internet.InternetAddress;
 import jakarta.mail.search.SubjectTerm;
 
@@ -1841,39 +1848,146 @@ public class GMTServiceImpl implements GMTService {
 //
 //	}
 
-	@Override
-	public boolean sendEmail(EmailRequest emailRequest) {
-		// TODO Auto-generated method stub
-		 try {
-	            SimpleMailMessage message = new SimpleMailMessage();
-	            
-	            // Set recipients
-	            if (emailRequest.getTo() != null && !emailRequest.getTo().isEmpty()) {
-	                message.setTo(emailRequest.getTo().toArray(new String[0]));
-	            }
+//	@Override
+//	public boolean sendEmail(EmailRequest emailRequest) {
+//		// TODO Auto-generated method stub
+//		 try {
+//	            SimpleMailMessage message = new SimpleMailMessage();
+//	            
+//	            // Set recipients
+//	            if (emailRequest.getTo() != null && !emailRequest.getTo().isEmpty()) {
+//	                message.setTo(emailRequest.getTo().toArray(new String[0]));
+//	            }
+//
+//	            if (emailRequest.getCc() != null && !emailRequest.getCc().isEmpty()) {
+//	                message.setCc(emailRequest.getCc().toArray(new String[0]));
+//	            }
+//
+//	            if (emailRequest.getBcc() != null && !emailRequest.getBcc().isEmpty()) {
+//	                message.setBcc(emailRequest.getBcc().toArray(new String[0]));
+//	            }
+//
+//	            // Set subject and body
+//	            message.setSubject(emailRequest.getSubject());
+//	            message.setText(emailRequest.getBody());
+//
+//	            // Send email
+//	            javaMailSender.send(message);
+//
+//	            return true;
+//	        } catch (Exception e) {
+//	            e.printStackTrace();
+//	            return false;
+//	        }
+//	    }
+	
 
-	            if (emailRequest.getCc() != null && !emailRequest.getCc().isEmpty()) {
-	                message.setCc(emailRequest.getCc().toArray(new String[0]));
-	            }
+	 public MessageResponse sendEmail(EmailRequest emailRequest) {
+	        List<String> invalidEmails = new ArrayList<>();
 
-	            if (emailRequest.getBcc() != null && !emailRequest.getBcc().isEmpty()) {
-	                message.setBcc(emailRequest.getBcc().toArray(new String[0]));
-	            }
+	        // Validate format + MX record
+	        EmailValidatorUtil.validateEmails(emailRequest.getTo(), invalidEmails);
+	        EmailValidatorUtil.validateEmails(emailRequest.getCc(), invalidEmails);
+	        EmailValidatorUtil.validateEmails(emailRequest.getBcc(), invalidEmails);
 
-	            // Set subject and body
-	            message.setSubject(emailRequest.getSubject());
-	            message.setText(emailRequest.getBody());
+	        if (!invalidEmails.isEmpty()) {
+	            return new MessageResponse(
+	                    "206",
+	                    "Invalid email addresses found",
+	                    invalidEmails,
+	                    new Date(),
+	                    "Partial Failure",
+	                    null
+	            );
+	        }
 
-	            // Send email
+	        // Attempt SMTP verification
+	        List<String> smtpInvalidEmails = verifyRecipientsSMTP(emailRequest);
+	        if (!smtpInvalidEmails.isEmpty()) {
+	            return new MessageResponse(
+	                    "206",
+	                    "Some recipients could not be verified",
+	                    smtpInvalidEmails,
+	                    new Date(),
+	                    "Partial Failure",
+	                    null
+	            );
+	        }
+
+	        // Prepare and send message
+	        SimpleMailMessage message = new SimpleMailMessage();
+	        if (emailRequest.getTo() != null) message.setTo(emailRequest.getTo().toArray(new String[0]));
+	        if (emailRequest.getCc() != null) message.setCc(emailRequest.getCc().toArray(new String[0]));
+	        if (emailRequest.getBcc() != null) message.setBcc(emailRequest.getBcc().toArray(new String[0]));
+	        message.setSubject(emailRequest.getSubject());
+	        message.setText(emailRequest.getBody());
+
+	        try {
 	            javaMailSender.send(message);
-
-	            return true;
-	        } catch (Exception e) {
-	            e.printStackTrace();
-	            return false;
+	            return new MessageResponse(
+	                    "200",
+	                    "Email sent successfully",
+	                    null,
+	                    new Date(),
+	                    "Success",
+	                    null
+	            );
+	        } catch (MailSendException e) {
+	            return new MessageResponse(
+	                    "500",
+	                    "Failed to send email",
+	                    List.of(e.getMessage()),
+	                    new Date(),
+	                    "Error",
+	                    null
+	            );
 	        }
 	    }
 
+	    private List<String> verifyRecipientsSMTP(EmailRequest emailRequest) {
+	        List<String> invalid = new ArrayList<>();
+
+	        // Setup mail session for verification (no auth, just SMTP check)
+	        Properties props = new Properties();
+	        props.put("mail.smtp.host", "your.smtp.server"); // Replace with your SMTP host
+	        props.put("mail.smtp.port", "25"); // Replace if needed
+	        props.put("mail.smtp.timeout", "5000");
+	        props.put("mail.smtp.connectiontimeout", "5000");
+
+	        Session session = Session.getInstance(props, null);
+
+	        // Combine all recipients
+	        List<String> allRecipients = new ArrayList<>();
+	        if (emailRequest.getTo() != null) allRecipients.addAll(emailRequest.getTo());
+	        if (emailRequest.getCc() != null) allRecipients.addAll(emailRequest.getCc());
+	        if (emailRequest.getBcc() != null) allRecipients.addAll(emailRequest.getBcc());
+
+	        for (String recipient : allRecipients) {
+	            try {
+	                // Attempt RCPT TO command using Transport (SMTP)
+	                MimeMessage msg = new MimeMessage(session);
+	                msg.setRecipient(Message.RecipientType.TO, new InternetAddress(recipient));
+	                msg.setFrom(new InternetAddress("no-reply@yourdomain.com"));
+	                msg.setSubject("Verification");
+	                msg.setText("Testing recipient existence");
+
+	                Transport transport = session.getTransport("smtp");
+	                transport.connect(); // no auth if allowed
+	                transport.sendMessage(msg, msg.getAllRecipients());
+	                transport.close();
+	            } catch (SendFailedException e) {
+	                // Failed recipient
+	                invalid.add(recipient);
+	            } catch (Exception e) {
+	                // Ignore connection issues for public providers
+	            }
+	        }
+
+	        return invalid;
+	    }
+
+	
+	
 	@Override
 	public List<SubscriptionPlan> getSubscriptionPlans() {
 		// TODO Auto-generated method stub
