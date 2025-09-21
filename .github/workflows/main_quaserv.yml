@@ -49,9 +49,14 @@ jobs:
       - name: Login to Azure
         uses: azure/login@v2
         with:
-          client-id: ${{ secrets.AZUREAPPSERVICE_CLIENTID_DB53181531C948CC958FEB0D35E895EB }}
-          tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_D385655595294F7C8F90F9A305A7F2B2 }}
-          subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_1E3049D8F0404927813DAC0D542389BA }}
+          client-id: ${{ secrets.AZUREAPPSERVICE_CLIENTID_E839CB515E3D42F794BDBFB24994DE49 }}
+          tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_7D744165DA274A76BD0AE1C6BACDBA64 }}
+          subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_3D067AE5E19E4D05A394551D88040E17 }}
+          ################## Below got issues with login ######################
+          ##client-id: ${{ secrets.AZUREAPPSERVICE_CLIENTID_DB53181531C948CC958FEB0D35E895EB }}
+          ##tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_D385655595294F7C8F90F9A305A7F2B2 }}
+          ##subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_1E3049D8F0404927813DAC0D542389BA }}
+          #######################################################################
 
       - name: Deploy to Azure Web App
         id: deploy-to-webapp
@@ -61,4 +66,5 @@ jobs:
           slot-name: 'Production'
           package: '*.war'
           
+
 
