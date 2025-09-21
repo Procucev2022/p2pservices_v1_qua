@@ -11,6 +11,7 @@ import com.portal.procucev.Dto.ForwardRfqVendorRequest;
 import com.portal.procucev.Dto.GMTRfqVendorDto;
 import com.portal.procucev.Dto.RfqDTO;
 import com.portal.procucev.Dto.VendorRFQDto;
+import com.portal.procucev.customexception.MessageResponse;
 import com.portal.procucev.customexception.RfqStatusResponse;
 import com.portal.procucev.model.CategoryDivision;
 import com.portal.procucev.model.EmailRequest;
@@ -112,7 +113,7 @@ public interface GMTService {
 
 	Map<String, Object> createRFQByClient(Rfq rfq) throws Exception;
 
-	boolean sendEmail(EmailRequest request);
+	MessageResponse sendEmail(EmailRequest request);
 
 	List<SubscriptionPlan> getSubscriptionPlans();
 

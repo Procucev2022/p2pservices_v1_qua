@@ -54,4 +54,6 @@ public interface SelfRegistrationService {
 
 	Map<String, Object> sellerRegistration(Organization organization);
 
+	void registerFromExcel(MultipartFile file) throws Exception;
+
 }

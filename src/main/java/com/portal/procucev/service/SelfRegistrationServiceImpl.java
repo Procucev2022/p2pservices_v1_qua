@@ -1,5 +1,7 @@
 package com.portal.procucev.service;
 
+import java.io.BufferedReader;
+import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.UnsupportedEncodingException;
 import java.text.SimpleDateFormat;
@@ -12,16 +14,17 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.client.RestTemplate;
-import org.springframework.web.multipart.MultipartFile;
-
-import java.util.List;
-import jakarta.mail.internet.InternetAddress;
 
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVRecord;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.poi.ss.usermodel.Cell;
+import org.apache.poi.ss.usermodel.DateUtil;
+import org.apache.poi.ss.usermodel.FormulaEvaluator;
+import org.apache.poi.ss.usermodel.Row;
+import org.apache.poi.ss.usermodel.Sheet;
+import org.apache.poi.ss.usermodel.Workbook;
+import org.apache.poi.ss.usermodel.WorkbookFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -31,6 +34,7 @@ import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
+import org.springframework.web.multipart.MultipartFile;
 
 import com.portal.procucev.customexception.AppException;
 import com.portal.procucev.dao.ClientDao;
@@ -40,23 +44,21 @@ import com.portal.procucev.dao.OrgTypeDao;
 import com.portal.procucev.dao.PincodeDao;
 import com.portal.procucev.dao.RoleDao;
 import com.portal.procucev.dao.UserDao;
-import com.portal.procucev.model.PincodeData;
-import com.portal.procucev.model.ApiResponse;
 import com.portal.procucev.model.MasterStatus;
 import com.portal.procucev.model.OrgType;
 import com.portal.procucev.model.Organization;
 import com.portal.procucev.model.OtpDetails;
-import com.portal.procucev.model.PostOffice;
+import com.portal.procucev.model.PincodeData;
 import com.portal.procucev.model.Role;
 import com.portal.procucev.model.User;
 import com.portal.procucev.utils.ApplicationConstants;
+import com.portal.procucev.utils.EmailValidatorUtil;
 import com.portal.procucev.utils.MailUtility;
 import com.portal.procucev.utils.PhoneNumberUtils;
 import com.portal.procucev.utils.ProcucevUtils;
 import com.portal.procucev.utils.StatusConstants;
-import java.io.BufferedReader;
-import java.io.InputStream;
-import java.io.IOException;
+
+import jakarta.mail.internet.InternetAddress;
 import jakarta.servlet.http.HttpServletRequest;
 
 @Service
@@ -768,6 +770,15 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
             response.put("error", "User already exists with this email and phone number.");
             return response;
         }
+        List<String> invalidEmails = new ArrayList<>();
+        EmailValidatorUtil.validateEmail(organization.getEmail(), invalidEmails);
+
+        if (!invalidEmails.isEmpty()) {
+            logger.warn("Invalid email found: {}", invalidEmails);
+            response.put("confirmationFlag", false);
+            response.put("error", "Invalid email format: " + invalidEmails);
+            return response;
+        }
 	    try {
 	        List<Organization> orgList = new ArrayList<>();
 	        OrgType orgTypeObject = orgTypeDao.findByTypeName(ApplicationConstants.CLIENT);
@@ -849,6 +860,15 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
             logger.warn("User already exists with given email and phone");
             response.put("confirmationFlag", false);
             response.put("error", "User already exists with this email and phone number.");
+            return response;
+        }
+        List<String> invalidEmails = new ArrayList<>();
+        EmailValidatorUtil.validateEmail(organization.getEmail(), invalidEmails);
+
+        if (!invalidEmails.isEmpty()) {
+            logger.warn("Invalid email found: {}", invalidEmails);
+            response.put("confirmationFlag", false);
+            response.put("error", "Invalid email format: " + invalidEmails);
             return response;
         }
 	    try {
@@ -939,4 +959,140 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 			return savedUser;
 		}
 
+	    
+		@Override
+		public void registerFromExcel(MultipartFile file) throws Exception {
+		    try (InputStream inputStream = file.getInputStream()) {
+		        Workbook workbook = WorkbookFactory.create(inputStream);
+		        Sheet sheet = workbook.getSheetAt(0);
+
+		        for (int i = 1; i <= sheet.getLastRowNum(); i++) { // skip header
+		            Row row = sheet.getRow(i);
+		            if (row == null) continue;
+
+		            String username = getCellValue(row.getCell(2));
+		            String fullName = getCellValue(row.getCell(3));
+		            String companyName = getCellValue(row.getCell(4));
+		            String address1 = getCellValue(row.getCell(5));
+		            String pincode = getCellValue(row.getCell(6));
+		            String phone = getCellValue(row.getCell(7));
+		            String clientstatus = getCellValue(row.getCell(10)); // assuming email in column 8
+
+		            // Basic validation
+		            if (companyName == null || companyName.isEmpty()) {
+		                logger.warn("Row {} skipped: company name missing", i);
+		                continue;
+		            }
+		           
+		            if (phone == null || phone.isEmpty()) {
+		                logger.warn("Row {} skipped: phone missing", i);
+		                continue;
+		            }
+
+		            // Normalize phone
+		            phone = PhoneNumberUtils.normalize(phone);
+
+		            try {
+		                // Check if organization exists
+		                OrgType orgType = orgTypeDao.findByTypeName("CLIENT");
+		                List<Organization> orgList = orgDao.findByCompanyNameAndOrgType(companyName, orgType);
+		                Organization org;
+		                boolean isNewClient = orgList.isEmpty();
+
+		                if (isNewClient) {
+		                    // Create new organization
+		                    org = new Organization();
+		                    org.setCompanyName(companyName);
+		                    org.setAddress1(address1);
+		                    org.setZipCode(pincode);
+		                    org.setOrganizationPhonenumber(phone);
+		                    org.setEmail(username);
+		                    org.setSelfClient(true);
+		                    org.setOrgType(orgType);
+		                    org.setGmtName("GMT Basic");
+		                    org.setBfsName(StatusConstants.BFS_PRO);
+		                    org.setSourceType(ApplicationConstants.TOOL);
+		                    org.setCompanyId(generateId(companyName));
+
+		                    PincodeData pincodeData = getCityByPincode(pincode);
+		                    if (pincodeData != null) {
+		                        org.setCity(pincodeData.getCity());
+		                        org.setState(pincodeData.getState());
+		                    }
+
+		                    org = clientDao.save(org);
+		                    logger.info("New organization created with ID: {}", org.getId());
+		                } else {
+		                    org = orgList.get(0);
+		                    logger.info("Existing organization found with ID: {}", org.getId());
+		                }
+
+		                // Check for duplicate user
+		                User existingUser = userDao.findByUsernameAndPhoneAndActive(username, phone, true);
+		                if (existingUser != null) {
+		                    logger.warn("Row {} skipped: user already exists with email {} and phone {}", i, username, phone);
+		                    continue;
+		                }
+
+		                // Create new user
+		                User user = new User();
+		                user.setOrg(org);
+		                user.setUsername(username);
+		                user.setFullName(fullName != null ? fullName : companyName);
+		                user.setPhone(phone);
+		                user.setResetPassword(true);
+		                user.setActive(true);
+		                user.setSelfClient(true);
+		                MasterStatus status = masterStatusDao.findById(clientstatus).get();
+		                user.setClientStatus(status);
+		                Role role = roleDao.findByRoleNameAndActive(StatusConstants.ClientInitiator, true);
+		                user.setRole(role);
+		                user.setUniqueId(generateUserId(phone));
+		                user.setSourceType(ApplicationConstants.TOOL);
+		                user.setPassword(String.valueOf(ProcucevUtils.generatePassword(8)));
+		                user.setVerificationStatus(StatusConstants.PENDING_EMAIL_VERIFICATION);
+
+		                userDao.save(user);
+		                logger.info("User created successfully for row {}: {}", i, username);
+
+		                // Optional: send email notification
+		                InternetAddress add = new InternetAddress(mailid, "Procucev Notifications");
+//		                MailUtility.sendClientEmailForCM2(
+//		                        "New Client Registration", toAddress, org, javaMailSender, add, host
+//		                );
+
+		            } catch (Exception e) {
+		                logger.error("Failed processing row {}: {}", i, e.getMessage(), e);
+		            }
+		        }
+		        workbook.close();
+		    }
+		}
+
+			private String getCellValue(Cell cell) {
+			    if (cell == null) return "";
+
+			    switch (cell.getCellType()) {
+			        case Cell.CELL_TYPE_STRING:
+			            return cell.getStringCellValue().trim();
+			        case Cell.CELL_TYPE_NUMERIC:
+			            if (DateUtil.isCellDateFormatted(cell)) {
+			                return cell.getDateCellValue().toString();
+			            } else {
+			                double value = cell.getNumericCellValue();
+			                long longVal = (long) value;
+			                return (value == longVal) ? String.valueOf(longVal) : String.valueOf(value);
+			            }
+			        case Cell.CELL_TYPE_BOOLEAN:
+			            return String.valueOf(cell.getBooleanCellValue());
+			        case Cell.CELL_TYPE_FORMULA:
+			            FormulaEvaluator evaluator = cell.getSheet().getWorkbook()
+			                    .getCreationHelper().createFormulaEvaluator();
+			            return getCellValue(evaluator.evaluateInCell(cell));
+			        case Cell.CELL_TYPE_BLANK:
+			            return "";
+			        default:
+			            return "";
+			    }
+			}
 }
