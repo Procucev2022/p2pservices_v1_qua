@@ -126,6 +126,7 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 	    }
 
 	    try {
+	       
 	        OrgType orgTypeObject = orgTypeDao.findByTypeName(ApplicationConstants.CLIENT);
 	        if (orgTypeObject == null) {
 	            throw new AppException( HttpStatus.INTERNAL_SERVER_ERROR.value(), "Client organization type not configured. Contact admin.", null, null,LocalDateTime.now());
@@ -134,6 +135,14 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 	        // Check if organization already exists
 	        List<Organization> orgList = orgDao.findByCompanyNameAndOrgType(organization.getCompanyName(), orgTypeObject);
 	        String normalizedPhone = PhoneNumberUtils.normalize(organization.getOrganizationPhonenumber());
+	        User existingUsers = userDao.findByUsernameAndPhoneAndActive(
+		            organization.getEmail(),
+		           normalizedPhone,true
+		    );
+
+		    if (existingUsers!=null) {
+		        throw new AppException(HttpStatus.CONFLICT.value(), "User with the same email and phone number already exists", null, null,LocalDateTime.now());
+		    }
 	        boolean isNewClient = orgList.isEmpty();
 	        Organization targetOrg;
 
@@ -231,14 +240,14 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 	    logger.info("Setting user details for email: {} and phone: {}", organization.getEmail(), organization.getOrganizationPhonenumber());
 
 	    // Check for duplicate user
-	    User existingUsers = userDao.findByUsernameAndPhoneAndActive(
-	            organization.getEmail(),
-	            organization.getOrganizationPhonenumber(),true
-	    );
-
-	    if (existingUsers!=null) {
-	        throw new AppException(HttpStatus.CONFLICT.value(), "User with the same email and phone number already exists", null, null,LocalDateTime.now());
-	    }
+//	    User existingUsers = userDao.findByUsernameAndPhoneAndActive(
+//	            organization.getEmail(),
+//	            organization.getOrganizationPhonenumber(),true
+//	    );
+//
+//	    if (existingUsers!=null) {
+//	        throw new AppException(HttpStatus.CONFLICT.value(), "User with the same email and phone number already exists", null, null,LocalDateTime.now());
+//	    }
 
 	    // Fetch client status
 	    MasterStatus status = masterStatusDao.findByStatus(StatusConstants.CLIENT_NEW);
