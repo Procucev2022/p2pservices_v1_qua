@@ -1102,7 +1102,8 @@ public class GMTServiceImpl implements GMTService {
 		// TODO Auto-generated method stub
 		logger.info("Entered To Get All Vendor");
 		List<VendorRFQDto> responseList = new ArrayList<>();
-		List<Object[]> vendorsList = orgDao.getAllVendor();
+		OrgType orgTypeObject = orgTypeDao.findByTypeName(ApplicationConstants.VENDOR);
+		List<Object[]> vendorsList = orgDao.getAllVendor(orgTypeObject);
 		if (!CollectionUtils.isEmpty(vendorsList) && vendorsList != null) {
 			vendorsList.stream().forEach(org -> {
 				VendorRFQDto vendorRFQDto = new VendorRFQDto();

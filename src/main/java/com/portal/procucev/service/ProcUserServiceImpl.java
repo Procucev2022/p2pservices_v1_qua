@@ -321,7 +321,7 @@ public class ProcUserServiceImpl implements UserService {
 	            String normalizedPhone = normalizePhone(phone);
 	            User user = userDao.findByUsernameAndPhoneAndActive(email, normalizedPhone, true);
 	            if (user == null) {
-	                log.error("User not found for email: {} and phone: {}", email, phone);
+	                log.error("User not found for email: {} and phone: {}", email, normalizedPhone);
 	                return false;
 	            }
 
@@ -331,7 +331,7 @@ public class ProcUserServiceImpl implements UserService {
 
 	            //  Store OTP
 	            // Store using unique key (email + phone)
-	            String otpKey = email + "|" + phone;
+	            String otpKey = email + "|" + normalizedPhone;
 	            otpsMap.put(otpKey, new OtpDetails(otp, expirationTime));
 	            //otpsMap.put(email, new OtpDetails(otp, expirationTime));
 
@@ -419,13 +419,13 @@ public class ProcUserServiceImpl implements UserService {
 
 	    String email = organization.getEmail();
 	    String phone = organization.getOrganizationPhonenumber();
-
+	  
 	    if (email == null || phone == null || organization.getEmailOtp() == null) {
 	        log.warn("Missing email, phone, or OTP in request");
 	        return false;
 	    }
-
-	    String key = email + "|" + phone;
+	    String normalizedPhone = normalizePhone(phone);
+	    String key = email + "|" + normalizedPhone;
 	    OtpDetails otpDetails = otpsMap.get(key);
 
 	    // Validate OTP
@@ -727,7 +727,6 @@ public boolean deactivateOrgUser(User user) {
 	}
 
 }
-
 private String normalizePhone(String phone) {
     if (phone == null || phone.isBlank()) {
         return phone;
@@ -739,10 +738,17 @@ private String normalizePhone(String phone) {
     // Remove leading zeros
     digits = digits.replaceFirst("^0+", "");
 
-    // Always ensure +91
-    if (digits.startsWith("91")) {
-        digits = digits.substring(2);
+    // If it's a 10-digit number, assume Indian mobile and add +91
+    if (digits.length() == 10) {
+        return "+91" + digits;
     }
-    return "+91" + digits;
+
+    // If it already starts with 91 and is 12 digits → enforce +91
+    if (digits.length() == 12 && digits.startsWith("91")) {
+        return "+91" + digits.substring(2);
+    }
+
+    // Otherwise, fallback with + (handles rare cases, but ensures valid format)
+    return "+" + digits;
 }
 }
