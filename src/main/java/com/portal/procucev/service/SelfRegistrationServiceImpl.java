@@ -52,6 +52,7 @@ import com.portal.procucev.model.PincodeData;
 import com.portal.procucev.model.Role;
 import com.portal.procucev.model.User;
 import com.portal.procucev.utils.ApplicationConstants;
+import com.portal.procucev.utils.ClientRegistrationStatus;
 import com.portal.procucev.utils.EmailValidatorUtil;
 import com.portal.procucev.utils.MailUtility;
 import com.portal.procucev.utils.PhoneNumberUtils;
@@ -110,7 +111,7 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 	}
 
 	@Override
-	public boolean selfclientRegistrationData(Organization organization) throws AppException {
+	public ClientRegistrationStatus selfclientRegistrationData(Organization organization) throws AppException {
 	    logger.info("Entered self client registration");
 
 	    // Validate required fields
@@ -132,7 +133,7 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 
 	        // Check if organization already exists
 	        List<Organization> orgList = orgDao.findByCompanyNameAndOrgType(organization.getCompanyName(), orgTypeObject);
-
+	        String normalizedPhone = PhoneNumberUtils.normalize(organization.getOrganizationPhonenumber());
 	        boolean isNewClient = orgList.isEmpty();
 	        Organization targetOrg;
 
@@ -150,7 +151,7 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 	                organization.setCity(pincodeData.getCity());
 	                organization.setState(pincodeData.getState());
 	            }
-	            String normalizedPhone = PhoneNumberUtils.normalize(organization.getOrganizationPhonenumber());
+	           
 		        organization.setOrganizationPhonenumber(normalizedPhone);
 	            targetOrg = clientDao.save(organization);
 	            logger.info("New client saved with ID: {}", targetOrg.getId());
@@ -171,7 +172,7 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 	                "New Client Registration", toAddress, organization, javaMailSender, add, host
 	        );
 
-	        return isNewClient; // true if new client, false if existing client
+	        return isNewClient ? ClientRegistrationStatus.NEW_CLIENT : ClientRegistrationStatus.EXISTING_CLIENT; // true if new client, false if existing client
 	    } catch (AppException ae) {
 	        logger.error("Business validation error: {}", ae.getMessage());
 	        throw ae; // propagate meaningful messages
@@ -254,7 +255,7 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 	    // Populate user
 	    user.setUsername(organization.getEmail());
 	    user.setFullName(organization.getName());
-	    user.setPhone(organization.getOrganizationPhonenumber());
+	    user.setPhone(PhoneNumberUtils.normalize(organization.getOrganizationPhonenumber()));
 	    user.setResetPassword(true);
 	    user.setActive(true);
 	    user.setSelfClient(true);
@@ -944,7 +945,7 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 			String uniqueId = generateUserId(organization.getOrganizationPhonenumber());
 			user.setUsername(organization.getEmail());
 			user.setFullName(organization.getName());
-			user.setPhone(organization.getOrganizationPhonenumber());
+			user.setPhone(PhoneNumberUtils.normalize(organization.getOrganizationPhonenumber()));
 			user.setResetPassword(true);
 			user.setActive(true);
 			//user.setClientStatus(status);

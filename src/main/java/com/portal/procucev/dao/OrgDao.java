@@ -27,8 +27,8 @@ public interface OrgDao  extends JpaRepository<Organization, String> {
 	@Query("select o.otherEmails from Organization o where o.id=:id")
 	String findOtherEmailById(@Param("id") String id);
 
-	@Query("SELECT v.id,v.companyName,v.companyId,v.organizationPhonenumber,v.city,v.email from Organization v Order By v.createdTS DESC")
-	List<Object[]> getAllVendor();
+	@Query("SELECT v.id,v.companyName,v.companyId,v.organizationPhonenumber,v.city,v.email from Organization v where v.orgType=:orgType Order By v.createdTS DESC")
+	List<Object[]> getAllVendor(@Param("orgType") OrgType orgType);
 
 	@Query("SELECT v.id, v.companyName, v.companyId, v.organizationPhonenumber, v.city, v.email " +
 	        "FROM Organization v " +

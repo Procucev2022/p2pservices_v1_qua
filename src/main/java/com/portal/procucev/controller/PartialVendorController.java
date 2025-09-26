@@ -36,6 +36,7 @@ import com.portal.procucev.service.SelfRegistrationService;
 import com.portal.procucev.service.SmsService;
 import com.portal.procucev.service.UserService;
 import com.portal.procucev.utils.ApplicationConstants;
+import com.portal.procucev.utils.ClientRegistrationStatus;
 import com.portal.procucev.utils.StatusCodes;
 
 @CrossOrigin
@@ -179,41 +180,32 @@ public class PartialVendorController {
 	    logger.info("Entered to save the client details");
 
 	    try {
-	        boolean status = regService.selfclientRegistrationData(organization);
+	        ClientRegistrationStatus status = regService.selfclientRegistrationData(organization);
 
-	        String statusCode = status ? String.valueOf(ApplicationConstants.SUCCESS)
-	                                   : String.valueOf(ApplicationConstants.FAILURE);
-
-	        String msg = status
+	        String msg = (status == ClientRegistrationStatus.NEW_CLIENT)
 	                ? "New client created successfully and user added."
 	                : "Existing client detected. User added successfully.";
 
-	        MessageResponse response = new MessageResponse(StatusCodes.OK_VENDOR_CODE, msg, null, statusCode);
+	        MessageResponse response = new MessageResponse(
+	                StatusCodes.OK_VENDOR_CODE, msg, null, String.valueOf(ApplicationConstants.SUCCESS));
+
 	        return new ResponseEntity<>(response, HttpStatus.OK);
 
 	    } catch (AppException ex) {
 	        logger.error("Client registration failed: {}", ex.getMessage(), ex);
-
 	        MessageResponse response = new MessageResponse(
-	                StatusCodes.OK_VENDOR_CODE,
-	                ex.getMessage(),  // message from service layer
-	                null,
-	                String.valueOf(ApplicationConstants.FAILURE)
-	        );
+	                StatusCodes.OK_VENDOR_CODE, ex.getMessage(), null, String.valueOf(ApplicationConstants.FAILURE));
 	        return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
 
 	    } catch (Exception ex) {
 	        logger.error("Unexpected error in client registration: {}", ex.getMessage(), ex);
-
 	        MessageResponse response = new MessageResponse(
-	                StatusCodes.OK_VENDOR_CODE,
-	                "Something went wrong while processing the registration",
-	                null,
-	                String.valueOf(ApplicationConstants.FAILURE)
-	        );
+	                StatusCodes.OK_VENDOR_CODE, "Something went wrong while processing the registration", null,
+	                String.valueOf(ApplicationConstants.FAILURE));
 	        return new ResponseEntity<>(response, HttpStatus.INTERNAL_SERVER_ERROR);
 	    }
 	}
+
 
 	@PostMapping("/getClientByPan")
 	public ResponseEntity<?> getClientByPan(@RequestBody Organization org) throws AppException {
