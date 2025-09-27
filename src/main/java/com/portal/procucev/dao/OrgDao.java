@@ -68,4 +68,12 @@ public interface OrgDao  extends JpaRepository<Organization, String> {
 	@Query("update Organization o set o.rfqCredits = :availableCredits where o.id=:id")
 	void updateRfqCredits(@Param("id") String id, @Param("availableCredits") Integer availableCredits);
 
+	@Modifying
+    @Transactional
+    @Query("UPDATE Organization o " +
+           "SET o.rfqCredits = o.rfqCredits - 1, " +
+           "    o.rfqUsedCount = o.rfqUsedCount + 1 " +
+           "WHERE o.id = :id AND o.rfqCredits > 0")
+	int updateRfqCreditsAndUsage(@Param("id") String id);
+
 }

@@ -82,7 +82,7 @@ public class PartialVendorController {
 	                null,
 	                ApplicationConstants.FAILURE
 	        );
-	        return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+	        return new ResponseEntity<>(response, HttpStatus.OK);
 
 	    } catch (Exception ex) {
 	        logger.error("Unexpected error in vendor registration: {}", ex.getMessage(), ex);
@@ -93,7 +93,7 @@ public class PartialVendorController {
 	                null,
 	                ApplicationConstants.FAILURE
 	        );
-	        return new ResponseEntity<>(response, HttpStatus.INTERNAL_SERVER_ERROR);
+	        return new ResponseEntity<>(response, HttpStatus.OK);
 	    }
 	}
 
@@ -195,14 +195,14 @@ public class PartialVendorController {
 	        logger.error("Client registration failed: {}", ex.getMessage(), ex);
 	        MessageResponse response = new MessageResponse(
 	                StatusCodes.OK_VENDOR_CODE, ex.getMessage(), null, String.valueOf(ApplicationConstants.FAILURE));
-	        return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+	        return new ResponseEntity<>(response, HttpStatus.OK);
 
 	    } catch (Exception ex) {
 	        logger.error("Unexpected error in client registration: {}", ex.getMessage(), ex);
 	        MessageResponse response = new MessageResponse(
 	                StatusCodes.OK_VENDOR_CODE, "Something went wrong while processing the registration", null,
 	                String.valueOf(ApplicationConstants.FAILURE));
-	        return new ResponseEntity<>(response, HttpStatus.INTERNAL_SERVER_ERROR);
+	        return new ResponseEntity<>(response, HttpStatus.OK);
 	    }
 	}
 

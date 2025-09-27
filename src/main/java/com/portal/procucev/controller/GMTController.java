@@ -146,6 +146,19 @@ public class GMTController {
 		return new ResponseEntity<>(responseObj, HttpStatus.OK);
 
 	}
+	
+	@PostMapping(value = "/requestRfqBySellers")
+	public ResponseEntity<?> Sellers(@RequestBody List<GmtRfqVendors> rfq) {
+		logger.info("entered to send an request to multiple rfqs by Vendor");
+		boolean response = gmtService.requestRfqBySellers(rfq);
+		String statusCode = response ? String.valueOf(ApplicationConstants.SUCCESS)
+				: String.valueOf(ApplicationConstants.FAILURE);
+		String msg = response ? String.format(ApplicationConstants.RFQ_REQUEST_SUCCESS, "")
+				: String.format(ApplicationConstants.RFQ_REQUEST_FAILURE, "");
+		MessageResponse responseObj = new MessageResponse(StatusCodes.OK_VENDOR_CODE, msg, null, statusCode);
+		return new ResponseEntity<>(responseObj, HttpStatus.OK);
+
+	}
 
 	@PostMapping(value = "/getVendorsByGmtRFQ")
 	public ResponseEntity<?> getVendorsByGmtRFQ(@RequestBody Rfq rfq) {

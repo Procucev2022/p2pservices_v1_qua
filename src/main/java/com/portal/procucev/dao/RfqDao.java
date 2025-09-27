@@ -30,12 +30,12 @@ public interface RfqDao extends JpaRepository<Rfq, String>{
 	@Modifying
 	@Transactional
 	@Query("UPDATE Rfq c SET c.count = c.count+1 WHERE c =:rfq")
-	void updateCount(Rfq rfq);
+	void updateCount(@Param("rfq") Rfq rfq);
 
 	@Modifying
 	@Transactional
 	@Query("UPDATE Rfq c SET c.count = c.count-1 WHERE c =:rfq")
-	void updateRfqCount(Rfq rfq);
+	void updateRfqCount(@Param("rfq") Rfq rfq);
 
 	@Modifying
 	@Transactional
