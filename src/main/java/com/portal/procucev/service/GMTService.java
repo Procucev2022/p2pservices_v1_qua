@@ -131,5 +131,7 @@ public interface GMTService {
 
 	List<Map<String, Object>> getLastOpenRfqsForVendor(String id);
 
+	boolean requestRfqBySellers(List<GmtRfqVendors> rfq);
+
 
 }
