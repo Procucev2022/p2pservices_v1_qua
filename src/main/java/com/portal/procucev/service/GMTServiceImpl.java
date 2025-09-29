@@ -57,6 +57,7 @@ import com.portal.procucev.Dto.ClientRFQDto;
 import com.portal.procucev.Dto.ForwardRfqVendorRequest;
 import com.portal.procucev.Dto.GMTRfqVendorDto;
 import com.portal.procucev.Dto.RfqDTO;
+import com.portal.procucev.Dto.VendorInfoDto;
 import com.portal.procucev.Dto.VendorRFQDto;
 import com.portal.procucev.customexception.AppException;
 import com.portal.procucev.customexception.MessageResponse;
@@ -2000,15 +2001,19 @@ public class GMTServiceImpl implements GMTService {
 	    List<RfqStatusResponse> responses = new ArrayList<>();
 
 	    if (request.getRfqIds() != null && !request.getRfqIds().isEmpty()) {
+	    	  // Normalize input: ensure every rfqId starts with "RFQ"
+	        List<String> normalizedIds = request.getRfqIds().stream()
+	                .map(id -> id != null && id.startsWith("RFQ") ? id : "RFQ" + id)
+	                .collect(Collectors.toList());
 	        // Fetch matching RFQs from DB
-	        List<Rfq> rfqs = rfqDao.findByUserAndRfqIdIn(request.getClientId(), request.getRfqIds());
+	        List<Rfq> rfqs = rfqDao.findByUserAndRfqIdIn(request.getClientId(), normalizedIds);
 
 	        // Map RFQs by ID for quick lookup
 	        Map<String, Rfq> rfqMap = rfqs.stream()
 	                .collect(Collectors.toMap(Rfq::getRfqId, r -> r));
 
 	        // Always include all requested IDs
-	        for (String rfqId : request.getRfqIds()) {
+	        for (String rfqId : normalizedIds) {
 	            RfqStatusResponse dto = new RfqStatusResponse();
 	            dto.setRfqid(rfqId);
 
@@ -2526,5 +2531,39 @@ public boolean requestRfqBySellers(List<GmtRfqVendors> rfq) {
                 null, null, LocalDateTime.now());
     }
 }
+@Override
+public VendorInfoDto getVendorInfo(Organization orgRequest) {
+    Optional<Organization> optOrg = orgDao.findById(orgRequest.getId());
+
+    if (optOrg.isEmpty()) {
+        return null; // Org not found
+    }
+
+    Organization org = optOrg.get();
+
+  
+    // Build Response
+    VendorInfoDto dto = new VendorInfoDto();
+    dto.setCompanyName(org.getCompanyName());
+    dto.setOrganizationPhonenumber(org.getOrganizationPhonenumber());
+    dto.setEmail(org.getEmail());
+    dto.setGstin(org.getGstin());
+    dto.setDetails(org.getDetails());
+    dto.setIndia(org.isIndia());
+    dto.setZipCode(org.getZipCode());
+    dto.setSourceType(org.getSourceType());
+ // Convert entities -> List<String>
+    dto.setCategories(
+        org.getDivisionCategories() != null
+            ? org.getDivisionCategories()
+                  .stream()
+                  .map(OrgDivisionCategory::getCategory) // change to your actual field
+                  .collect(Collectors.toList())
+            : List.of()
+    );
+
+    return dto;
+}
+
 
 }
