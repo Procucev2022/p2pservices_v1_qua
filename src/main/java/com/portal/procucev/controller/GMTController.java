@@ -29,6 +29,7 @@ import com.portal.procucev.Dto.ClientRFQDto;
 import com.portal.procucev.Dto.ForwardRfqVendorRequest;
 import com.portal.procucev.Dto.GMTRfqVendorDto;
 import com.portal.procucev.Dto.RfqDTO;
+import com.portal.procucev.Dto.VendorInfoDto;
 import com.portal.procucev.Dto.VendorRFQDto;
 import com.portal.procucev.customexception.AppException;
 import com.portal.procucev.customexception.MessageResponse;
@@ -602,5 +603,21 @@ public class GMTController {
 		response.put("metadata", metadata);
 
 		return ResponseEntity.ok(response);
+	}
+	
+	@PostMapping("/getVendorInfo")
+	public ResponseEntity<?> getVendorInfo(@RequestBody Organization orgRequest) {
+	    if (orgRequest.getId() == null) {
+	        return ResponseEntity.ok().body("Organization id and userId are required");
+	    }
+
+	    VendorInfoDto response = gmtService.getVendorInfo(orgRequest);
+
+	    if (response == null) {
+	        return ResponseEntity.status(HttpStatus.OK)
+	                             .body("Vendor not found for orgId: " + orgRequest.getId());
+	    }
+
+	    return ResponseEntity.ok(response);
 	}
 }
