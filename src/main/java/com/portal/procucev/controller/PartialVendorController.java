@@ -267,7 +267,7 @@ public class PartialVendorController {
 			response.put("status", "failure");
 			response.put("otpType", "email");
 			response.put("message", "Invalid email OTP.");
-			return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+			return ResponseEntity.status(HttpStatus.OK).body(response);
 		}
 
 		// Validate mobile OTP
@@ -276,7 +276,7 @@ public class PartialVendorController {
 			response.put("status", "failure");
 			response.put("otpType", "mobile");
 			response.put("message", "Invalid mobile OTP.");
-			return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+			return ResponseEntity.status(HttpStatus.OK).body(response);
 		}
 
 		// If both OTPs are valid
