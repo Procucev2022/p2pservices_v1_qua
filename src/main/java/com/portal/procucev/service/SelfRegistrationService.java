@@ -9,6 +9,7 @@ import org.springframework.web.multipart.MultipartFile;
 import com.portal.procucev.model.Organization;
 import com.portal.procucev.model.PincodeData;
 import com.portal.procucev.model.User;
+import com.portal.procucev.utils.ClientRegistrationStatus;
 
 import jakarta.servlet.http.HttpServletRequest;
 
@@ -18,7 +19,7 @@ public interface SelfRegistrationService {
 	
 	Organization getClientByPan(Organization org);
 
-	boolean selfclientRegistrationData(Organization organization);
+	ClientRegistrationStatus selfclientRegistrationData(Organization organization);
 	
 	boolean validateClient(Organization org);
 	

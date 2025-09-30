@@ -13,33 +13,29 @@ public class PhoneNumberUtils {
             return null;
         }
 
-        // Remove spaces, dashes, brackets, etc.
+        // Keep only digits
         String digitsOnly = phone.replaceAll("[^0-9]", "");
-
         if (digitsOnly.isBlank()) {
             return null;
         }
 
-        // Case 1: already starts with country code "91" but missing "+"
+        // Case 1: already 12-digit with 91 (e.g., 919876543210)
         if (digitsOnly.length() == 12 && digitsOnly.startsWith("91")) {
             return "+" + digitsOnly;
         }
 
-        // Case 2: only 10-digit local number
+        // Case 2: only 10-digit local number (e.g., 9876543210)
         if (digitsOnly.length() == 10) {
-            return DEFAULT_COUNTRY_CODE + digitsOnly;
+            return "+91" + digitsOnly;
         }
 
-        // Case 3: already in correct format (+91XXXXXXXXXX)
-        if (digitsOnly.length() == 12 && digitsOnly.startsWith("91")) {
-            return DEFAULT_COUNTRY_CODE + digitsOnly.substring(2);
+        // Case 3: already in correct format (e.g., +919876543210) → no change
+        if (phone.startsWith("+91") && digitsOnly.length() == 12) {
+            return phone;
         }
 
-        // Case 4: fallback — return with + if missing
-        if (!digitsOnly.startsWith("91")) {
-            return DEFAULT_COUNTRY_CODE + digitsOnly;
-        }
-
+        // Fallback: return digits with +
         return "+" + digitsOnly;
     }
+
 }

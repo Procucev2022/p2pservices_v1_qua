@@ -29,6 +29,7 @@ import com.portal.procucev.Dto.ClientRFQDto;
 import com.portal.procucev.Dto.ForwardRfqVendorRequest;
 import com.portal.procucev.Dto.GMTRfqVendorDto;
 import com.portal.procucev.Dto.RfqDTO;
+import com.portal.procucev.Dto.VendorInfoDto;
 import com.portal.procucev.Dto.VendorRFQDto;
 import com.portal.procucev.customexception.AppException;
 import com.portal.procucev.customexception.MessageResponse;
@@ -138,6 +139,19 @@ public class GMTController {
 	public ResponseEntity<?> requestRfqByVendors(@RequestBody List<GmtRfqVendors> rfq) {
 		logger.info("entered to send an request to multiple rfqs by Vendor");
 		boolean response = gmtService.requestRfqByVendors(rfq);
+		String statusCode = response ? String.valueOf(ApplicationConstants.SUCCESS)
+				: String.valueOf(ApplicationConstants.FAILURE);
+		String msg = response ? String.format(ApplicationConstants.RFQ_REQUEST_SUCCESS, "")
+				: String.format(ApplicationConstants.RFQ_REQUEST_FAILURE, "");
+		MessageResponse responseObj = new MessageResponse(StatusCodes.OK_VENDOR_CODE, msg, null, statusCode);
+		return new ResponseEntity<>(responseObj, HttpStatus.OK);
+
+	}
+	
+	@PostMapping(value = "/requestRfqBySellers")
+	public ResponseEntity<?> Sellers(@RequestBody List<GmtRfqVendors> rfq) {
+		logger.info("entered to send an request to multiple rfqs by Vendor");
+		boolean response = gmtService.requestRfqBySellers(rfq);
 		String statusCode = response ? String.valueOf(ApplicationConstants.SUCCESS)
 				: String.valueOf(ApplicationConstants.FAILURE);
 		String msg = response ? String.format(ApplicationConstants.RFQ_REQUEST_SUCCESS, "")
@@ -385,25 +399,60 @@ public class GMTController {
 		return new ResponseEntity<>(status, HttpStatus.OK);
 	}
 
+//	@PostMapping(value = "/createRFQByClient")
+//	public ResponseEntity<?> createRFQByClient(@RequestBody Rfq rfq) throws Exception {
+//		Map<String, Object> result = gmtService.createRFQByClient(rfq);
+//
+//		boolean success = result != null;
+//
+//		String statusCode = success ? String.valueOf(ApplicationConstants.SUCCESS)
+//				: String.valueOf(ApplicationConstants.FAILURE);
+//
+//		String msg = success ? String.format(ApplicationConstants.RFQ_CREATED_SUCCESS, "")
+//				: String.format(ApplicationConstants.RFQ_CREATED_FAILURE, "");
+//
+//		// directly pass result map with rfqId and rfquuid
+//		Map<String, Object> data = success ? result : Map.of();
+//
+//		MessageResponse response = new MessageResponse(StatusCodes.OK_VENDOR_CODE, msg, data, statusCode, new Date());
+//
+//		return new ResponseEntity<>(response, HttpStatus.OK);
+//	}
+	
 	@PostMapping(value = "/createRFQByClient")
 	public ResponseEntity<?> createRFQByClient(@RequestBody Rfq rfq) throws Exception {
-		Map<String, Object> result = gmtService.createRFQByClient(rfq);
+	    Map<String, Object> result = gmtService.createRFQByClient(rfq);
+	    boolean success = (result != null && !result.isEmpty());
 
-		boolean success = result != null;
+	    // business code (you can use your StatusCodes constants)
+	    String businessCode = success ? "200" : "500";
 
-		String statusCode = success ? String.valueOf(ApplicationConstants.SUCCESS)
-				: String.valueOf(ApplicationConstants.FAILURE);
+	    String msg = success ? "RFQ created successfully" : "Failed to create RFQ";
 
-		String msg = success ? String.format(ApplicationConstants.RFQ_CREATED_SUCCESS, "")
-				: String.format(ApplicationConstants.RFQ_CREATED_FAILURE, "");
+	    // data payload (rfq details on success, empty on failure)
+	    Map<String, Object> data = success ? result : Map.of();
 
-		// directly pass result map with rfqId and rfquuid
-		Map<String, Object> data = success ? result : Map.of();
+	    // Use your existing 5-arg constructor:
+	    // MessageResponse(String code, String message, Object data, String status, Date timestamp)
+	    MessageResponse response = new MessageResponse(
+	            businessCode,
+	            msg,
+	            data,
+	            success ? "Success" : "Failure", // this becomes the "status" in JSON
+	            new Date()
+	    );
 
-		MessageResponse response = new MessageResponse(StatusCodes.OK_VENDOR_CODE, msg, data, statusCode, new Date());
+	    // set error messages (MessageResponse#setErrorMsg expects List<String>)
+	    if (!success) {
+	        List<String> errors = new ArrayList<>();
+	        errors.add("Error occurred while creating RFQ");
+	        response.setErrorMsg(errors);
+	    }
 
-		return new ResponseEntity<>(response, HttpStatus.OK);
+	    return ResponseEntity.ok(response); // always HTTP 200 as you requested
 	}
+
+
 
 //	@PostMapping("/sendEmail")
 //	public ResponseEntity<?> sendEmail(@RequestBody EmailRequest request) {
@@ -554,5 +603,21 @@ public class GMTController {
 		response.put("metadata", metadata);
 
 		return ResponseEntity.ok(response);
+	}
+	
+	@PostMapping("/getVendorInfo")
+	public ResponseEntity<?> getVendorInfo(@RequestBody Organization orgRequest) {
+	    if (orgRequest.getId() == null) {
+	        return ResponseEntity.ok().body("Organization id and userId are required");
+	    }
+
+	    VendorInfoDto response = gmtService.getVendorInfo(orgRequest);
+
+	    if (response == null) {
+	        return ResponseEntity.status(HttpStatus.OK)
+	                             .body("Vendor not found for orgId: " + orgRequest.getId());
+	    }
+
+	    return ResponseEntity.ok(response);
 	}
 }

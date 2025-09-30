@@ -6,6 +6,7 @@ import lombok.*;
 import java.math.BigDecimal;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonProperty;
 
 @Entity
 @Table(name = "vendor_catalogue")
@@ -47,7 +48,7 @@ public class VendorCatalogue extends Procucev{
     @Column(name="other_terms")
     private String otherTerms;
     
-    @JsonIgnore
+    @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
 	@ManyToOne(fetch = FetchType.LAZY)
 	private Organization org;
 	

@@ -36,6 +36,7 @@ import com.portal.procucev.service.SelfRegistrationService;
 import com.portal.procucev.service.SmsService;
 import com.portal.procucev.service.UserService;
 import com.portal.procucev.utils.ApplicationConstants;
+import com.portal.procucev.utils.ClientRegistrationStatus;
 import com.portal.procucev.utils.StatusCodes;
 
 @CrossOrigin
@@ -81,7 +82,7 @@ public class PartialVendorController {
 	                null,
 	                ApplicationConstants.FAILURE
 	        );
-	        return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+	        return new ResponseEntity<>(response, HttpStatus.OK);
 
 	    } catch (Exception ex) {
 	        logger.error("Unexpected error in vendor registration: {}", ex.getMessage(), ex);
@@ -92,7 +93,7 @@ public class PartialVendorController {
 	                null,
 	                ApplicationConstants.FAILURE
 	        );
-	        return new ResponseEntity<>(response, HttpStatus.INTERNAL_SERVER_ERROR);
+	        return new ResponseEntity<>(response, HttpStatus.OK);
 	    }
 	}
 
@@ -179,41 +180,32 @@ public class PartialVendorController {
 	    logger.info("Entered to save the client details");
 
 	    try {
-	        boolean status = regService.selfclientRegistrationData(organization);
+	        ClientRegistrationStatus status = regService.selfclientRegistrationData(organization);
 
-	        String statusCode = status ? String.valueOf(ApplicationConstants.SUCCESS)
-	                                   : String.valueOf(ApplicationConstants.FAILURE);
-
-	        String msg = status
+	        String msg = (status == ClientRegistrationStatus.NEW_CLIENT)
 	                ? "New client created successfully and user added."
 	                : "Existing client detected. User added successfully.";
 
-	        MessageResponse response = new MessageResponse(StatusCodes.OK_VENDOR_CODE, msg, null, statusCode);
+	        MessageResponse response = new MessageResponse(
+	                StatusCodes.OK_VENDOR_CODE, msg, null, String.valueOf(ApplicationConstants.SUCCESS));
+
 	        return new ResponseEntity<>(response, HttpStatus.OK);
 
 	    } catch (AppException ex) {
 	        logger.error("Client registration failed: {}", ex.getMessage(), ex);
-
 	        MessageResponse response = new MessageResponse(
-	                StatusCodes.OK_VENDOR_CODE,
-	                ex.getMessage(),  // message from service layer
-	                null,
-	                String.valueOf(ApplicationConstants.FAILURE)
-	        );
-	        return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+	                StatusCodes.OK_VENDOR_CODE, ex.getMessage(), null, String.valueOf(ApplicationConstants.FAILURE));
+	        return new ResponseEntity<>(response, HttpStatus.OK);
 
 	    } catch (Exception ex) {
 	        logger.error("Unexpected error in client registration: {}", ex.getMessage(), ex);
-
 	        MessageResponse response = new MessageResponse(
-	                StatusCodes.OK_VENDOR_CODE,
-	                "Something went wrong while processing the registration",
-	                null,
-	                String.valueOf(ApplicationConstants.FAILURE)
-	        );
-	        return new ResponseEntity<>(response, HttpStatus.INTERNAL_SERVER_ERROR);
+	                StatusCodes.OK_VENDOR_CODE, "Something went wrong while processing the registration", null,
+	                String.valueOf(ApplicationConstants.FAILURE));
+	        return new ResponseEntity<>(response, HttpStatus.OK);
 	    }
 	}
+
 
 	@PostMapping("/getClientByPan")
 	public ResponseEntity<?> getClientByPan(@RequestBody Organization org) throws AppException {
@@ -275,7 +267,7 @@ public class PartialVendorController {
 			response.put("status", "failure");
 			response.put("otpType", "email");
 			response.put("message", "Invalid email OTP.");
-			return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+			return ResponseEntity.status(HttpStatus.OK).body(response);
 		}
 
 		// Validate mobile OTP
@@ -284,7 +276,7 @@ public class PartialVendorController {
 			response.put("status", "failure");
 			response.put("otpType", "mobile");
 			response.put("message", "Invalid mobile OTP.");
-			return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+			return ResponseEntity.status(HttpStatus.OK).body(response);
 		}
 
 		// If both OTPs are valid

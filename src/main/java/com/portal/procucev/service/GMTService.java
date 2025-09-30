@@ -10,6 +10,7 @@ import com.portal.procucev.Dto.ClientRFQDto;
 import com.portal.procucev.Dto.ForwardRfqVendorRequest;
 import com.portal.procucev.Dto.GMTRfqVendorDto;
 import com.portal.procucev.Dto.RfqDTO;
+import com.portal.procucev.Dto.VendorInfoDto;
 import com.portal.procucev.Dto.VendorRFQDto;
 import com.portal.procucev.customexception.MessageResponse;
 import com.portal.procucev.customexception.RfqStatusResponse;
@@ -130,6 +131,10 @@ public interface GMTService {
 	Organization getOrgByUserId(User user);
 
 	List<Map<String, Object>> getLastOpenRfqsForVendor(String id);
+
+	boolean requestRfqBySellers(List<GmtRfqVendors> rfq);
+
+	VendorInfoDto getVendorInfo(Organization orgRequest);
 
 
 }

@@ -57,6 +57,7 @@ import com.portal.procucev.Dto.ClientRFQDto;
 import com.portal.procucev.Dto.ForwardRfqVendorRequest;
 import com.portal.procucev.Dto.GMTRfqVendorDto;
 import com.portal.procucev.Dto.RfqDTO;
+import com.portal.procucev.Dto.VendorInfoDto;
 import com.portal.procucev.Dto.VendorRFQDto;
 import com.portal.procucev.customexception.AppException;
 import com.portal.procucev.customexception.MessageResponse;
@@ -1102,7 +1103,8 @@ public class GMTServiceImpl implements GMTService {
 		// TODO Auto-generated method stub
 		logger.info("Entered To Get All Vendor");
 		List<VendorRFQDto> responseList = new ArrayList<>();
-		List<Object[]> vendorsList = orgDao.getAllVendor();
+		OrgType orgTypeObject = orgTypeDao.findByTypeName(ApplicationConstants.VENDOR);
+		List<Object[]> vendorsList = orgDao.getAllVendor(orgTypeObject);
 		if (!CollectionUtils.isEmpty(vendorsList) && vendorsList != null) {
 			vendorsList.stream().forEach(org -> {
 				VendorRFQDto vendorRFQDto = new VendorRFQDto();
@@ -1999,15 +2001,19 @@ public class GMTServiceImpl implements GMTService {
 	    List<RfqStatusResponse> responses = new ArrayList<>();
 
 	    if (request.getRfqIds() != null && !request.getRfqIds().isEmpty()) {
+	    	  // Normalize input: ensure every rfqId starts with "RFQ"
+	        List<String> normalizedIds = request.getRfqIds().stream()
+	                .map(id -> id != null && id.startsWith("RFQ") ? id : "RFQ" + id)
+	                .collect(Collectors.toList());
 	        // Fetch matching RFQs from DB
-	        List<Rfq> rfqs = rfqDao.findByUserAndRfqIdIn(request.getClientId(), request.getRfqIds());
+	        List<Rfq> rfqs = rfqDao.findByUserAndRfqIdIn(request.getClientId(), normalizedIds);
 
 	        // Map RFQs by ID for quick lookup
 	        Map<String, Rfq> rfqMap = rfqs.stream()
 	                .collect(Collectors.toMap(Rfq::getRfqId, r -> r));
 
 	        // Always include all requested IDs
-	        for (String rfqId : request.getRfqIds()) {
+	        for (String rfqId : normalizedIds) {
 	            RfqStatusResponse dto = new RfqStatusResponse();
 	            dto.setRfqid(rfqId);
 
@@ -2445,5 +2451,119 @@ public List<Map<String, Object>> getLastOpenRfqsForVendor(String vendorId) {
 
     return openRfqs;
 }
+
+@Override
+public boolean requestRfqBySellers(List<GmtRfqVendors> rfq) {
+    logger.info("Entered to request Rfqs By Sellers:: ");
+
+    try {
+        Date date = new Date();
+        for (GmtRfqVendors gmtRfqVendors : rfq) {
+            MasterStatus resultStatus = masterStatusDao.findByStatus(StatusConstants.vendorApproved);
+
+            // check if already exists
+            GmtRfqVendors gmtRfq = gmtRfqVendorDao.findByVendorAndRfq(
+                    gmtRfqVendors.getVendor(),
+                    gmtRfqVendors.getRfq());
+
+            if (gmtRfq != null) {
+                logger.info("Updating Status to Requested as record already exists");
+                gmtRfqVendorDao.updateStatus(
+                        gmtRfqVendors.getRfq(),
+                        gmtRfqVendors.getVendor(),
+                        resultStatus);
+            } else {
+                logger.info("Saving status to requested First Time it is requesting");
+                gmtRfqVendors.setStatus(resultStatus);
+                gmtRfqVendors.setRequestedDate(date);
+                gmtRfqVendorDao.save(gmtRfqVendors);
+            }
+
+            // update rfq count in RFQ table
+            rfqDao.updateCount(gmtRfqVendors.getRfq());
+
+            // update credits and usage in Organization
+            int updated = orgDao.updateRfqCreditsAndUsage(
+                    gmtRfqVendors.getVendor().getId());
+            if (updated == 0) {
+                logger.warn("Vendor {} has no RFQ credits left!",
+                        gmtRfqVendors.getVendor().getId());
+                throw new AppException(HttpStatus.BAD_REQUEST.value(),
+                        "No RFQ credits left for this vendor",
+                        null, null, LocalDateTime.now());
+            }
+
+            // fetch RFQ data for email notification
+            Optional<Rfq> rfqData = rfqDao.findById(
+                    gmtRfqVendors.getRfq().getId());
+
+            if (rfqData.isPresent()) {
+                String email = orgDao.findEmailById(
+                        gmtRfqVendors.getVendor().getId());
+                String otherEmails = orgDao.findOtherEmailById(
+                        gmtRfqVendors.getVendor().getId());
+                String rfqDueDate = buildingRfqDueDate();
+
+                MailUtility.emailNewGMTRfqForNoPR(
+                        "NewRfq",
+                        javaMailSender,
+                        rfqData.get(),
+                        host,
+                        email,
+                        otherEmails,
+                        mailFom,
+                        emailPassword,
+                        rfqDueDate
+                );
+            }
+
+            logger.info("RFQ requested by vendor {} saved successfully.",
+                    gmtRfqVendors.getVendor().getId());
+        }
+        return true;
+    } catch (AppException ae) {
+        logger.error("Business validation error: {}", ae.getMessage());
+        throw ae;
+    } catch (Exception e) {
+        logger.error("Error occurred while saving RFQs by vendors: " + e.getMessage(), e);
+        throw new AppException(HttpStatus.INTERNAL_SERVER_ERROR.value(),
+                "Something went wrong while processing RFQ request",
+                null, null, LocalDateTime.now());
+    }
+}
+@Override
+public VendorInfoDto getVendorInfo(Organization orgRequest) {
+    Optional<Organization> optOrg = orgDao.findById(orgRequest.getId());
+
+    if (optOrg.isEmpty()) {
+        return null; // Org not found
+    }
+
+    Organization org = optOrg.get();
+
+  
+    // Build Response
+    VendorInfoDto dto = new VendorInfoDto();
+    dto.setCompanyName(org.getCompanyName());
+    dto.setOrganizationPhonenumber(org.getOrganizationPhonenumber());
+    dto.setEmail(org.getEmail());
+    dto.setGstin(org.getGstin());
+    dto.setDetails(org.getDetails());
+    dto.setIndia(org.isIndia());
+    dto.setZipCode(org.getZipCode());
+    dto.setSourceType(org.getSourceType());
+ // Convert entities -> List<String>
+    dto.setCategories(
+        org.getDivisionCategories() != null
+            ? org.getDivisionCategories()
+                  .stream()
+                  .map(OrgDivisionCategory::getCategory) // change to your actual field
+                  .collect(Collectors.toList())
+            : List.of()
+    );
+
+    return dto;
+}
+
 
 }

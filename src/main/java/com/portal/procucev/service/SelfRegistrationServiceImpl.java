@@ -52,6 +52,7 @@ import com.portal.procucev.model.PincodeData;
 import com.portal.procucev.model.Role;
 import com.portal.procucev.model.User;
 import com.portal.procucev.utils.ApplicationConstants;
+import com.portal.procucev.utils.ClientRegistrationStatus;
 import com.portal.procucev.utils.EmailValidatorUtil;
 import com.portal.procucev.utils.MailUtility;
 import com.portal.procucev.utils.PhoneNumberUtils;
@@ -110,7 +111,7 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 	}
 
 	@Override
-	public boolean selfclientRegistrationData(Organization organization) throws AppException {
+	public ClientRegistrationStatus selfclientRegistrationData(Organization organization) throws AppException {
 	    logger.info("Entered self client registration");
 
 	    // Validate required fields
@@ -125,6 +126,7 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 	    }
 
 	    try {
+	       
 	        OrgType orgTypeObject = orgTypeDao.findByTypeName(ApplicationConstants.CLIENT);
 	        if (orgTypeObject == null) {
 	            throw new AppException( HttpStatus.INTERNAL_SERVER_ERROR.value(), "Client organization type not configured. Contact admin.", null, null,LocalDateTime.now());
@@ -132,7 +134,15 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 
 	        // Check if organization already exists
 	        List<Organization> orgList = orgDao.findByCompanyNameAndOrgType(organization.getCompanyName(), orgTypeObject);
+	        String normalizedPhone = PhoneNumberUtils.normalize(organization.getOrganizationPhonenumber());
+	        User existingUsers = userDao.findByUsernameAndPhoneAndActive(
+		            organization.getEmail(),
+		           normalizedPhone,true
+		    );
 
+		    if (existingUsers!=null) {
+		        throw new AppException(HttpStatus.CONFLICT.value(), "User with the same email and phone number already exists", null, null,LocalDateTime.now());
+		    }
 	        boolean isNewClient = orgList.isEmpty();
 	        Organization targetOrg;
 
@@ -150,7 +160,7 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 	                organization.setCity(pincodeData.getCity());
 	                organization.setState(pincodeData.getState());
 	            }
-	            String normalizedPhone = PhoneNumberUtils.normalize(organization.getOrganizationPhonenumber());
+	           
 		        organization.setOrganizationPhonenumber(normalizedPhone);
 	            targetOrg = clientDao.save(organization);
 	            logger.info("New client saved with ID: {}", targetOrg.getId());
@@ -171,7 +181,7 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 	                "New Client Registration", toAddress, organization, javaMailSender, add, host
 	        );
 
-	        return isNewClient; // true if new client, false if existing client
+	        return isNewClient ? ClientRegistrationStatus.NEW_CLIENT : ClientRegistrationStatus.EXISTING_CLIENT; // true if new client, false if existing client
 	    } catch (AppException ae) {
 	        logger.error("Business validation error: {}", ae.getMessage());
 	        throw ae; // propagate meaningful messages
@@ -230,14 +240,14 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 	    logger.info("Setting user details for email: {} and phone: {}", organization.getEmail(), organization.getOrganizationPhonenumber());
 
 	    // Check for duplicate user
-	    User existingUsers = userDao.findByUsernameAndPhoneAndActive(
-	            organization.getEmail(),
-	            organization.getOrganizationPhonenumber(),true
-	    );
-
-	    if (existingUsers!=null) {
-	        throw new AppException(HttpStatus.CONFLICT.value(), "User with the same email and phone number already exists", null, null,LocalDateTime.now());
-	    }
+//	    User existingUsers = userDao.findByUsernameAndPhoneAndActive(
+//	            organization.getEmail(),
+//	            organization.getOrganizationPhonenumber(),true
+//	    );
+//
+//	    if (existingUsers!=null) {
+//	        throw new AppException(HttpStatus.CONFLICT.value(), "User with the same email and phone number already exists", null, null,LocalDateTime.now());
+//	    }
 
 	    // Fetch client status
 	    MasterStatus status = masterStatusDao.findByStatus(StatusConstants.CLIENT_NEW);
@@ -254,7 +264,7 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 	    // Populate user
 	    user.setUsername(organization.getEmail());
 	    user.setFullName(organization.getName());
-	    user.setPhone(organization.getOrganizationPhonenumber());
+	    user.setPhone(PhoneNumberUtils.normalize(organization.getOrganizationPhonenumber()));
 	    user.setResetPassword(true);
 	    user.setActive(true);
 	    user.setSelfClient(true);
@@ -944,7 +954,7 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 			String uniqueId = generateUserId(organization.getOrganizationPhonenumber());
 			user.setUsername(organization.getEmail());
 			user.setFullName(organization.getName());
-			user.setPhone(organization.getOrganizationPhonenumber());
+			user.setPhone(PhoneNumberUtils.normalize(organization.getOrganizationPhonenumber()));
 			user.setResetPassword(true);
 			user.setActive(true);
 			//user.setClientStatus(status);

@@ -27,8 +27,8 @@ public interface OrgDao  extends JpaRepository<Organization, String> {
 	@Query("select o.otherEmails from Organization o where o.id=:id")
 	String findOtherEmailById(@Param("id") String id);
 
-	@Query("SELECT v.id,v.companyName,v.companyId,v.organizationPhonenumber,v.city,v.email from Organization v Order By v.createdTS DESC")
-	List<Object[]> getAllVendor();
+	@Query("SELECT v.id,v.companyName,v.companyId,v.organizationPhonenumber,v.city,v.email from Organization v where v.orgType=:orgType Order By v.createdTS DESC")
+	List<Object[]> getAllVendor(@Param("orgType") OrgType orgType);
 
 	@Query("SELECT v.id, v.companyName, v.companyId, v.organizationPhonenumber, v.city, v.email " +
 	        "FROM Organization v " +
@@ -67,5 +67,13 @@ public interface OrgDao  extends JpaRepository<Organization, String> {
 	@Modifying
 	@Query("update Organization o set o.rfqCredits = :availableCredits where o.id=:id")
 	void updateRfqCredits(@Param("id") String id, @Param("availableCredits") Integer availableCredits);
+
+	@Modifying
+    @Transactional
+    @Query("UPDATE Organization o " +
+           "SET o.rfqCredits = o.rfqCredits - 1, " +
+           "    o.rfqUsedCount = o.rfqUsedCount + 1 " +
+           "WHERE o.id = :id AND o.rfqCredits > 0")
+	int updateRfqCreditsAndUsage(@Param("id") String id);
 
 }
