@@ -1,5 +1,6 @@
 package com.portal.procucev.service;
 
+import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.util.List;
 import java.util.Map;
@@ -56,5 +57,7 @@ public interface SelfRegistrationService {
 	Map<String, Object> sellerRegistration(Organization organization);
 
 	void registerFromExcel(MultipartFile file) throws Exception;
+
+	void importCategoriesFromExcel(MultipartFile file) throws IOException;
 
 }
