@@ -1,6 +1,7 @@
 package com.portal.procucev.service;
-
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import java.io.BufferedReader;
+import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.UnsupportedEncodingException;
@@ -14,7 +15,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
-
+import java.util.concurrent.ConcurrentHashMap;
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVRecord;
 import org.apache.commons.lang3.StringUtils;
@@ -37,6 +38,7 @@ import org.springframework.util.CollectionUtils;
 import org.springframework.web.multipart.MultipartFile;
 
 import com.portal.procucev.customexception.AppException;
+import com.portal.procucev.dao.CategoryDivisionDao;
 import com.portal.procucev.dao.ClientDao;
 import com.portal.procucev.dao.MasterStatusDao;
 import com.portal.procucev.dao.OrgDao;
@@ -49,6 +51,7 @@ import com.portal.procucev.model.OrgType;
 import com.portal.procucev.model.Organization;
 import com.portal.procucev.model.OtpDetails;
 import com.portal.procucev.model.PincodeData;
+import com.portal.procucev.model.CategoryDivision;
 import com.portal.procucev.model.Role;
 import com.portal.procucev.model.User;
 import com.portal.procucev.utils.ApplicationConstants;
@@ -91,6 +94,9 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 	private OrgDao orgDao;
 	
 	@Autowired
+	private CategoryDivisionDao categoryDivisionDao;
+	
+	@Autowired
 	private UserDao userDao;
 	
 	@Autowired
@@ -102,7 +108,7 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 	@Autowired
 	private PincodeDao pinCodeDao;
 	
-	private Map<String, OtpDetails> otpMap = new HashMap<>();
+	private final Map<String, OtpDetails> otpMap = new ConcurrentHashMap<>();
 	
 	@Override
 	public boolean selfclientRegistration(Organization organization) {
@@ -352,6 +358,7 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 	public boolean generateOtp(Organization organization, HttpServletRequest request) {
 		logger.info("Entered to generate OTP");
 		String email=null;
+		String key =null;
 		try {
 			if (organization != null) {
 				// Generate OTP
@@ -360,12 +367,14 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 
 				if(organization.getTempEmail()!=null && !organization.getTempEmail().isEmpty()) {
 					email=organization.getTempEmail();
+					  key = organization.getOrganizationPhonenumber() + "_" + email;
 				}
 				else {
 					email=organization.getEmail();
+					  key = organization.getOrganizationPhonenumber() + "_" + email;
 				}
 				// Store OTP and its expiration time in the map
-				otpMap.put(email, new OtpDetails(otp, expirationTime));
+				otpMap.put(key, new OtpDetails(otp, expirationTime));
 
 				// Send OTP via email
 				InternetAddress add = new InternetAddress(mailFom, "Procucev Notifications");
@@ -563,14 +572,18 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 	@Override
 	public boolean validateOtp(Organization organization) {
 		String email=null;
+		String key=null;
 		if(organization.getTempEmail()!=null && !organization.getTempEmail().isEmpty())
 		{
 			 email=organization.getTempEmail();
+			  key = organization.getOrganizationPhonenumber() + "_" + email;
 		}
 		else {
 			 email=organization.getEmail();
+			  key = organization.getOrganizationPhonenumber() + "_" + email;
 		}
-		OtpDetails otpDetails = otpMap.get(email);
+		
+		OtpDetails otpDetails = otpMap.get(key);
 
 		// Validate OTP
 		if (otpDetails != null) {
@@ -980,13 +993,14 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 		            Row row = sheet.getRow(i);
 		            if (row == null) continue;
 
-		            String username = getCellValue(row.getCell(2));
-		            String fullName = getCellValue(row.getCell(3));
-		            String companyName = getCellValue(row.getCell(4));
-		            String address1 = getCellValue(row.getCell(5));
-		            String pincode = getCellValue(row.getCell(6));
-		            String phone = getCellValue(row.getCell(7));
-		            String clientstatus = getCellValue(row.getCell(10)); // assuming email in column 8
+		            String username = getCellValue(row.getCell(3));
+		            String fullName = getCellValue(row.getCell(4));
+		            String companyName = getCellValue(row.getCell(5));
+		            String address1 = getCellValue(row.getCell(6));
+		            String state = getCellValue(row.getCell(7));
+		            String pincode = getCellValue(row.getCell(8));
+		            String phone = getCellValue(row.getCell(9));
+		            String clientstatus = getCellValue(row.getCell(12)); // assuming email in column 8
 
 		            // Basic validation
 		            if (companyName == null || companyName.isEmpty()) {
@@ -1014,6 +1028,8 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 		                    org = new Organization();
 		                    org.setCompanyName(companyName);
 		                    org.setAddress1(address1);
+		                    org.setCity(address1);
+		                    org.setState(state);
 		                    org.setZipCode(pincode);
 		                    org.setOrganizationPhonenumber(phone);
 		                    org.setEmail(username);
@@ -1105,4 +1121,44 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 			            return "";
 			    }
 			}
+			public void importCategoriesFromExcel(MultipartFile file) throws IOException {
+			    try (XSSFWorkbook workbook = new XSSFWorkbook(file.getInputStream())) {
+			        Sheet sheet = workbook.getSheetAt(0);
+
+			        // Row 1 (second row in Excel) contains division headers
+			        Row headerRow = sheet.getRow(1); // <-- changed to 1
+
+			        if (headerRow == null) {
+			            throw new IllegalStateException("Header row (row index 1) is missing in the Excel sheet.");
+			        }
+
+			        // Iterate columns C (index 2) to M (index 12)
+			        for (int col = 2; col <= 12; col++) {
+			            Cell headerCell = headerRow.getCell(col);
+			            if (headerCell == null) continue;
+
+			            String division = headerCell.getStringCellValue().trim();
+			            if (division.isEmpty()) continue;
+
+			            // Now read categories under this division (start from row 3, i.e. index 2)
+			            for (int row = 2; row <= sheet.getLastRowNum(); row++) {
+			                Row currentRow = sheet.getRow(row);
+			                if (currentRow == null) continue;
+
+			                Cell categoryCell = currentRow.getCell(col);
+			                if (categoryCell == null) continue;
+
+			                String category = categoryCell.getStringCellValue().trim();
+			                if (category.isEmpty()) continue;
+
+			                CategoryDivision cd = new CategoryDivision();
+			                cd.setDivision(division);
+			                cd.setCategory(category);
+
+			                categoryDivisionDao.save(cd);
+			            }
+			        }
+			    }
+			}
+
 }

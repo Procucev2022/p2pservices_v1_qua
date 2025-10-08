@@ -37,6 +37,7 @@ import com.portal.procucev.service.SmsService;
 import com.portal.procucev.service.UserService;
 import com.portal.procucev.utils.ApplicationConstants;
 import com.portal.procucev.utils.ClientRegistrationStatus;
+import com.portal.procucev.utils.PhoneNumberUtils;
 import com.portal.procucev.utils.StatusCodes;
 
 @CrossOrigin
@@ -220,7 +221,8 @@ public class PartialVendorController {
 		Map<String, Object> response = new HashMap<>();
 
 		// Step 1: If user already exists with same email and phone, throw exception
-		if (regService.userExistsByEmailAndPhone(org.getEmail(), org.getOrganizationPhonenumber())) {
+		String normalizedPhone = PhoneNumberUtils.normalize(org.getOrganizationPhonenumber());
+		if (regService.userExistsByEmailAndPhone(org.getEmail(), normalizedPhone)) {
 			// throw new RuntimeException("User with provided email and phone number already
 			// exists.");
 			response.put("status", "error");
@@ -549,6 +551,18 @@ public class PartialVendorController {
 	        } catch (Exception e) {
 	            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
 	                                 .body("Error processing Excel: " + e.getMessage());
+	        }
+	    }
+	  
+
+	    @PostMapping("/uploadCategories")
+	    public ResponseEntity<String> uploadCategoriesExcel(@RequestParam("file") MultipartFile file) {
+	        try {
+	        	regService.importCategoriesFromExcel(file);
+	            return ResponseEntity.ok("Data imported successfully!");
+	        } catch (Exception e) {
+	            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+	                    .body("Error: " + e.getMessage());
 	        }
 	    }
 
