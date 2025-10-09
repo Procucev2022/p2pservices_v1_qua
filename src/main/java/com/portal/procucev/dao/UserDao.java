@@ -99,7 +99,7 @@ public interface UserDao extends JpaRepository<User, String> {
 	@Modifying
 	@Transactional
 	@Query("UPDATE User u SET u.activityTs = CURRENT_TIMESTAMP,u.verificationStatus = :emailVerified WHERE u.username=:email and u.phone=:phone and u.active = true")
-	void updateActivityTs(@Param("email") String email, @Param("phone") String phone, @Param("emailVerified") String emailVerified);
+	int updateActivityTs(@Param("email") String email, @Param("phone") String phone, @Param("emailVerified") String emailVerified);
 
 	@Modifying
 	@Transactional
