@@ -11,6 +11,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Random;
+import java.util.concurrent.ConcurrentHashMap;
 
 import jakarta.mail.internet.InternetAddress;
 import jakarta.servlet.http.HttpServletRequest;
@@ -79,7 +80,7 @@ public class ProcUserServiceImpl implements UserService {
 	@Value("${host}")
 	String host;
 	
-	private Map<String, OtpDetails> otpsMap = new HashMap<>();
+	private Map<String, OtpDetails> otpsMap = new ConcurrentHashMap<>();
 
 	@Override
 	public User save(User user) {
@@ -410,6 +411,7 @@ public class ProcUserServiceImpl implements UserService {
 	    return false;
 	}
 	
+	@Transactional
 	@Override
 	public boolean validateEmailOtp(Organization organization) {
 	    if (organization == null) {
@@ -436,11 +438,12 @@ public class ProcUserServiceImpl implements UserService {
 	        // Check if OTP is still valid (not expired) and matches
 	        if (now.isBefore(expirationTime) && otpDetails.getOtp().equals(organization.getEmailOtp())) {
 	            // Remove OTP from the map after successful validation
-	            otpsMap.remove(key);
-	            userDao.updateActivityTs(email,phone,StatusConstants.EMAIL_VERIFIED);
-	            
-	            log.info("OTP validated successfully for key: {}", key);
-	            return true;
+	            int updated = userDao.updateActivityTs(email,phone,StatusConstants.EMAIL_VERIFIED);
+	            if (updated > 0) {
+	                otpsMap.remove(key);
+	                log.info("OTP validated and status updated successfully for key: {}", key);
+	                return true;
+	            }
 	        } else {
 	            log.warn("OTP expired or mismatch for key: {}", key);
 	        }
