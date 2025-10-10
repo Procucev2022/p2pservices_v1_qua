@@ -111,6 +111,7 @@ import jakarta.mail.Transport;
 import jakarta.mail.internet.AddressException;
 import jakarta.mail.internet.InternetAddress;
 import jakarta.mail.search.SubjectTerm;
+import jakarta.transaction.Transactional;
 
 @Service
 public class GMTServiceImpl implements GMTService {
@@ -2451,57 +2452,59 @@ public List<Map<String, Object>> getLastOpenRfqsForVendor(String vendorId) {
 
     return openRfqs;
 }
-
+@Transactional
 @Override
-public boolean requestRfqBySellers(List<GmtRfqVendors> rfq) {
-    logger.info("Entered to request Rfqs By Sellers:: ");
+public boolean requestRfqBySellers(List<GmtRfqVendors> rfqList) {
+    logger.info("Entered to request RFQs By Sellers");
 
     try {
         Date date = new Date();
-        for (GmtRfqVendors gmtRfqVendors : rfq) {
-            MasterStatus resultStatus = masterStatusDao.findByStatus(StatusConstants.vendorApproved);
 
-            // check if already exists
-            GmtRfqVendors gmtRfq = gmtRfqVendorDao.findByVendorAndRfq(
-                    gmtRfqVendors.getVendor(),
-                    gmtRfqVendors.getRfq());
+        for (GmtRfqVendors gmtRfqVendors : rfqList) {
+            String vendorId = gmtRfqVendors.getVendor().getId();
 
-            if (gmtRfq != null) {
-                logger.info("Updating Status to Requested as record already exists");
-                gmtRfqVendorDao.updateStatus(
-                        gmtRfqVendors.getRfq(),
-                        gmtRfqVendors.getVendor(),
-                        resultStatus);
-            } else {
-                logger.info("Saving status to requested First Time it is requesting");
-                gmtRfqVendors.setStatus(resultStatus);
-                gmtRfqVendors.setRequestedDate(date);
-                gmtRfqVendorDao.save(gmtRfqVendors);
-            }
-
-            // update rfq count in RFQ table
-            rfqDao.updateCount(gmtRfqVendors.getRfq());
-
-            // update credits and usage in Organization
-            int updated = orgDao.updateRfqCreditsAndUsage(
-                    gmtRfqVendors.getVendor().getId());
-            if (updated == 0) {
-                logger.warn("Vendor {} has no RFQ credits left!",
-                        gmtRfqVendors.getVendor().getId());
+            // ✅ STEP 1: Check credits BEFORE updates
+            int availableCredits = orgDao.findRfqCreditsByOrg(vendorId);
+            if (availableCredits <= 0) {
+                logger.warn("Vendor {} has no RFQ credits left!", vendorId);
                 throw new AppException(HttpStatus.BAD_REQUEST.value(),
                         "No RFQ credits left for this vendor",
                         null, null, LocalDateTime.now());
             }
 
-            // fetch RFQ data for email notification
-            Optional<Rfq> rfqData = rfqDao.findById(
-                    gmtRfqVendors.getRfq().getId());
+            // ✅ STEP 2: Get status
+            MasterStatus resultStatus = masterStatusDao.findByStatus(StatusConstants.vendorApproved);
 
+            // ✅ STEP 3: Check if record exists
+            GmtRfqVendors existing = gmtRfqVendorDao.findByVendorAndRfq(
+                    gmtRfqVendors.getVendor(),
+                    gmtRfqVendors.getRfq());
+
+            // ✅ STEP 4: Insert or update
+            if (existing != null) {
+                logger.info("Updating status to Requested as record already exists");
+                gmtRfqVendorDao.updateStatus(
+                        gmtRfqVendors.getRfq(),
+                        gmtRfqVendors.getVendor(),
+                        resultStatus);
+            } else {
+                logger.info("Saving status to requested for the first time");
+                gmtRfqVendors.setStatus(resultStatus);
+                gmtRfqVendors.setRequestedDate(date);
+                gmtRfqVendorDao.save(gmtRfqVendors);
+            }
+
+            // ✅ STEP 5: Update RFQ count
+            rfqDao.updateCount(gmtRfqVendors.getRfq());
+
+            // ✅ STEP 6: Deduct one RFQ credit
+            orgDao.updateRfqCreditsAndUsage(vendorId);
+
+            // ✅ STEP 7: Send email notification
+            Optional<Rfq> rfqData = rfqDao.findById(gmtRfqVendors.getRfq().getId());
             if (rfqData.isPresent()) {
-                String email = orgDao.findEmailById(
-                        gmtRfqVendors.getVendor().getId());
-                String otherEmails = orgDao.findOtherEmailById(
-                        gmtRfqVendors.getVendor().getId());
+                String email = orgDao.findEmailById(vendorId);
+                String otherEmails = orgDao.findOtherEmailById(vendorId);
                 String rfqDueDate = buildingRfqDueDate();
 
                 MailUtility.emailNewGMTRfqForNoPR(
@@ -2517,20 +2520,22 @@ public boolean requestRfqBySellers(List<GmtRfqVendors> rfq) {
                 );
             }
 
-            logger.info("RFQ requested by vendor {} saved successfully.",
-                    gmtRfqVendors.getVendor().getId());
+            logger.info("RFQ requested by vendor {} processed successfully.", vendorId);
         }
+
         return true;
+
     } catch (AppException ae) {
         logger.error("Business validation error: {}", ae.getMessage());
         throw ae;
     } catch (Exception e) {
-        logger.error("Error occurred while saving RFQs by vendors: " + e.getMessage(), e);
+        logger.error("Error occurred while processing RFQs by vendors: {}", e.getMessage(), e);
         throw new AppException(HttpStatus.INTERNAL_SERVER_ERROR.value(),
                 "Something went wrong while processing RFQ request",
                 null, null, LocalDateTime.now());
     }
 }
+
 @Override
 public VendorInfoDto getVendorInfo(Organization orgRequest) {
     Optional<Organization> optOrg = orgDao.findById(orgRequest.getId());
