@@ -67,17 +67,41 @@ public class UserController {
 
 	}
 
+//	@PostMapping(value = "/changePswd")
+//	public ResponseEntity<?> changePswd(@RequestBody ResetPassword reset) {
+//		boolean status = userServices.changePassword(reset);
+//		String statusCode = status ? String.valueOf(ApplicationConstants.SUCCESS)
+//				: String.valueOf(ApplicationConstants.FAILURE);
+//		String msg = status ? String.format(ApplicationConstants.PASSWORD_CHANGED_SUCCESS, "")
+//				: String.format(ApplicationConstants.PASSWORD_CHANGED_UNSUCCESS, "");
+//		//AppException response = new AppException(statusCode, msg, null, null);
+//		return ResponseEntity.ok(new MessageResponse(StatusCodes.OK_VENDOR_CODE,msg,null, statusCode));
+//
+//	}
+	
 	@PostMapping(value = "/changePswd")
 	public ResponseEntity<?> changePswd(@RequestBody ResetPassword reset) {
-		boolean status = userServices.changePassword(reset);
-		String statusCode = status ? String.valueOf(ApplicationConstants.SUCCESS)
-				: String.valueOf(ApplicationConstants.FAILURE);
-		String msg = status ? String.format(ApplicationConstants.PASSWORD_CHANGED_SUCCESS, "")
-				: String.format(ApplicationConstants.PASSWORD_CHANGED_UNSUCCESS, "");
-		//AppException response = new AppException(statusCode, msg, null, null);
-		return ResponseEntity.ok(new MessageResponse(StatusCodes.OK_VENDOR_CODE,msg,null, statusCode));
+	    try {
+	        boolean status = userServices.changePassword(reset);
+	        String msg = status 
+	            ? "Password changed successfully."
+	            : "Password change failed.";
 
+	        return ResponseEntity.ok(
+	            new MessageResponse(StatusCodes.OK_VENDOR_CODE, msg, null, "Success")
+	        );
+
+	    } catch (AppException ae) {
+	        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+	            .body(new MessageResponse(
+	                StatusCodes.OK_VENDOR_CODE,
+	                ae.getErrorMessage(),
+	                null,
+	                "Failure"
+	            ));
+	    }
 	}
+
 
 	@PostMapping(value = "/saveAuth")
 	public ResponseEntity<?> saveEmailUser(@RequestBody EmailUser user) {
