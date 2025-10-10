@@ -163,34 +163,70 @@ public class ProcUserServiceImpl implements UserService {
 		return userObject;
 	}
 
+//	@Override
+//	public boolean changePassword(ResetPassword reset) {
+//
+//		String pass = reset.getPassword();
+//		String newPass = reset.getNewpassword();
+//		 String normalizedPhone = normalizePhone(reset.getPhone());
+//		//User users = userDao.findByUsernameAndActive(reset.getUserName(), true);
+//		User users = userDao.findByUsernameAndPhoneAndActive(reset.getUserName(),normalizedPhone, true);
+//		
+//		if (users != null) {
+//			String password = users.getPassword();
+//			if (pass.equals(password)) {
+//				users.setResetPassword(false);
+//				users.setPassword(newPass);
+//				userDao.save(users);
+//				return true;
+//
+//			} else {
+//				throw new AppException(HttpStatus.NO_CONTENT.value(), ApplicationConstants.NO_DATA_FOUND,
+//						ApplicationConstants.BUSSINESS_EXCEPTION, ApplicationConstants.FAILURE);
+//			}
+//		} else {
+//			throw new AppException(HttpStatus.NO_CONTENT.value(), ApplicationConstants.NO_DATA_FOUND,
+//					ApplicationConstants.BUSSINESS_EXCEPTION, ApplicationConstants.FAILURE);
+//		}
+//
+//	}
+
+	
 	@Override
 	public boolean changePassword(ResetPassword reset) {
 
-		String pass = reset.getPassword();
-		String newPass = reset.getNewpassword();
-		 String normalizedPhone = normalizePhone(reset.getPhone());
-		//User users = userDao.findByUsernameAndActive(reset.getUserName(), true);
-		User users = userDao.findByUsernameAndPhoneAndActive(reset.getUserName(),normalizedPhone, true);
-		
-		if (users != null) {
-			String password = users.getPassword();
-			if (pass.equals(password)) {
-				users.setResetPassword(false);
-				users.setPassword(newPass);
-				userDao.save(users);
-				return true;
+	    String pass = reset.getPassword();
+	    String newPass = reset.getNewpassword();
+	    String normalizedPhone = normalizePhone(reset.getPhone());
 
-			} else {
-				throw new AppException(HttpStatus.NO_CONTENT.value(), ApplicationConstants.NO_DATA_FOUND,
-						ApplicationConstants.BUSSINESS_EXCEPTION, ApplicationConstants.FAILURE);
-			}
-		} else {
-			throw new AppException(HttpStatus.NO_CONTENT.value(), ApplicationConstants.NO_DATA_FOUND,
-					ApplicationConstants.BUSSINESS_EXCEPTION, ApplicationConstants.FAILURE);
-		}
+	    User users = userDao.findByUsernameAndPhoneAndActive(reset.getUserName(), normalizedPhone, true);
 
+	    if (users == null) {
+	        throw new AppException(
+	            HttpStatus.NOT_FOUND.value(),
+	            "User not found. Please check your username or phone number.",
+	            ApplicationConstants.BUSSINESS_EXCEPTION,
+	            ApplicationConstants.FAILURE
+	        );
+	    }
+	    String password = users.getPassword();
+
+	    if (!pass.equals(password)) {
+	        throw new AppException(
+	            HttpStatus.BAD_REQUEST.value(),
+	            "Current password is incorrect. Please try again.",
+	            ApplicationConstants.BUSSINESS_EXCEPTION,
+	            ApplicationConstants.FAILURE
+	        );
+	    }
+
+	    users.setResetPassword(false);
+	    users.setPassword(newPass);
+	    userDao.save(users);
+
+	    return true;
 	}
-
+	
 	/**
 	 * Checks whether given email exist in database
 	 */
