@@ -3,6 +3,7 @@ package com.portal.procucev.controller;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
+import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -316,12 +317,20 @@ public class PartialVendorController {
 		return ResponseEntity.ok("Inserted " + inserted + " pincode records.");
 	}
 
-//	  @PostMapping("/getPincodeData")
-//		public ResponseEntity<?> getPincodeData(@RequestBody PincodeData pincode) throws AppException {
-//			logger.info("Enters to fetch the city and state By pincode::");
-//			PincodeData client = regService.getCityByPincode(pincode);
-//			return new ResponseEntity<>(client, HttpStatus.OK);
-//		}
+	@PostMapping("/getCityPincode")
+	public ResponseEntity<?> getPincodeData(@RequestBody PincodeData pincode) throws AppException {
+	    logger.info("Entered getPincodeData API to fetch city and state by pincode");
+	    
+	    PincodeData result = regService.getCityByPincode(pincode);
+	    
+	    if (result == null) {
+	        throw new AppException(HttpStatus.OK.value(), 
+	                               "No city/state found for given pincode", 
+	                               null, null, LocalDateTime.now());
+	    }
+	    
+	    return ResponseEntity.ok(result);
+	}
 
 	@GetMapping("/getUsersByPhoneNumber/{phone}")
 	public ResponseEntity<?> getUsersByPhone(@PathVariable("phone") String phone) {

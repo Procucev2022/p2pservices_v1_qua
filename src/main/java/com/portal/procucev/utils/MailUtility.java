@@ -1215,42 +1215,67 @@ public class MailUtility {
 		emailNotifierGenericBySender(subject, toAddress, add, javaMailSender, message, type);
 	}
 
-	public static void mailingVerificationLinkWithSelfUserLogin(JavaMailSender javaMailSender, String from,
-			InternetAddress add, String pswd, String hostName, User user) {
-		// TODO Auto-generated method stub
-		String verificationTemplate = "<!DOCTYPE html>\n" + "<html>\n" + "<body>\n" + "\n" + "Dear " + "Partner"
-				+ ", <br><br>\n" + "\n"
-				+ "Thank you for registering with Get My quoTe(GMT) ,You are now a part of our Buy From Stock(BFS) community also."
-				+ " <br><br>\n" + "\n" + "You can now:" + " <br><br>\n" + "\n"
-				+ "Connect with a network of verified vendors to get quotes with GMT. " + " <br><br>\n" + "\n"
-				+ "Find your Requirements at discounted prices Instantly at BFS" + " <br><br>\n" + "\n"
-				+ "Sell your Excess Stock by listing on BFS." + " <br><br>\n" + "\n"
-				+ "<b>Please click the below link to create your account at Procucev Portal.</b>\n" + "\n"
-				+ "<p><a href=\"" + hostName + "/login" + "\">Create your account !!</a></p>\n"
-				+ "<b>With login credentials below</b>\n" + ",<br><br>\n" + "<b>UserName : " + user.getUsername()
-				+ ",<br><br></b>\n" + "\n" + "<b>Password :" + user.getPassword() + "<br><br></b>\n" + "\n"
+	public static void mailingVerificationLinkWithSelfUserLogin(
+	        JavaMailSender javaMailSender, String from,
+	        InternetAddress add, String pswd, String hostName, User user) {
 
-				+ "<b>Thanks, <br></b>\n" + "\n" + "<b>Procucev Admin</b>\n" + "\n" + "\n" + "</body>\n" + "</html>";
+	    String verificationTemplate =
+	            "<!DOCTYPE html>" +
+	            "<html>" +
+	            "<body style='font-family: Arial, sans-serif; color: #333; line-height: 1.6;'>" +
+	            "<p>Dear Partner,</p>" +
 
-		System.out.println(verificationTemplate);
-		// http://localhost:4201/vendorRegistration?regId=r123
-		JavaMailSender javaMailSender2 = getJavaMailSender(from, pswd);
-		MimeMessage mimeMessage = javaMailSender.createMimeMessage();
-		MimeMessageHelper mimeMessageHelper = new MimeMessageHelper(mimeMessage);
-		try {
-			mimeMessageHelper.setTo(user.getUsername());
-			mimeMessageHelper.setFrom(add); // from Address
-			mimeMessageHelper.setSubject("Registration confirmation mail");
-			mimeMessageHelper.setText(verificationTemplate, true);
-			// javaMailSender.send(mimeMessage);
-			javaMailSender2.send(mimeMessage);
-		} catch (Exception e) {
-			LOGGER.error("Error in sending creation mail --> " + e.getMessage());
-			throw new AppException(StatusCodes.MAIL_SEND_ERROR, ApplicationConstants.MAIL_SENDING_FAILURE,
-					ApplicationConstants.BUSSINESS_EXCEPTION, ApplicationConstants.FAILURE);
-		}
-		LOGGER.info("Sent verifiation mail successfully");
+	            "<p>Thank you for registering with <b>Get My quoTe (GMT)</b>. " +
+	            "We’re delighted to have you onboard for our new <b>GMT/BFS Portal QUA by Procucev!!</b></p>" +
+
+	            "<p><i>\"QUA will be your AI partner in Procurement\"</i></p>" +
+
+	            "<p><b>Please find your login credentials below:</b></p>" +
+	            "<p><b>Username:</b> " + user.getUsername() + "<br>" +
+	            "<b>Password:</b> " + user.getPassword() + "</p>" +
+
+	            "<p><a href='" + hostName + "/login' " +
+	            "style='background-color:#007bff; color:#fff; padding:10px 15px; text-decoration:none; border-radius:5px;'>" +
+	            "Click here to Login and raise your RFQs</a></p>" +
+
+	            "<p>Start connecting with verified vendors and experience " +
+	            "<b>Fast, Smart, and Better Sourcing with GMT.</b></p>" +
+
+	            "<p>Your GMT registration also gives you access to our <b>Buy From Stock (BFS)</b> platform.</p>" +
+
+	            "<ul>" +
+	            "<li>Discover ready products at discounted prices instantly.</li>" +
+	            "<li>Sell your excess inventory easily and get the best market value.</li>" +
+	            "</ul>" +
+
+	            "<p>We’re excited to have you with us and look forward to supporting your sourcing journey.</p>" +
+	            "<p>Warm regards,<br><b>QUA by Procucev</b></p>" +
+	            "</body></html>";
+
+	    try {
+	        JavaMailSender mailSender = getJavaMailSender(from, pswd);
+	        MimeMessage mimeMessage = mailSender.createMimeMessage();
+	        MimeMessageHelper helper = new MimeMessageHelper(mimeMessage, true);
+
+	        helper.setTo(user.getUsername());
+	        helper.setFrom(add);
+	        helper.setSubject("Welcome to QUA by Procucev - Your GMT/BFS Portal Access");
+	        helper.setText(verificationTemplate, true);
+
+	        mailSender.send(mimeMessage);
+	        LOGGER.info("Sent verification mail successfully to {}", user.getUsername());
+
+	    } catch (Exception e) {
+	        LOGGER.error("Error in sending creation mail --> {}", e.getMessage(), e);
+	        throw new AppException(
+	                StatusCodes.MAIL_SEND_ERROR,
+	                ApplicationConstants.MAIL_SENDING_FAILURE,
+	                ApplicationConstants.BUSSINESS_EXCEPTION,
+	                ApplicationConstants.FAILURE
+	        );
+	    }
 	}
+
 
 	public static void emailForBidRequest(String type, String toAddress, JavaMailSender javaMailSender,
 			InternetAddress add, String host, BFSUsers savedUser, User user) {
