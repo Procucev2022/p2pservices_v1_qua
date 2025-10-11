@@ -777,7 +777,7 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 	@Override
 	public PincodeData getCityByPincode(PincodeData pincode) {
 		// TODO Auto-generated method stub
-		return null;
+		return  pinCodeDao.findByPincode(pincode.getPincode());
 	}
 	
 	@Override
