@@ -355,41 +355,49 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 
 	}
 
+	@Override
 	public boolean generateOtp(Organization organization, HttpServletRequest request) {
-		logger.info("Entered to generate OTP");
-		String email=null;
-		String key =null;
-		try {
-			if (organization != null) {
-				// Generate OTP
-				String otp = generateOTPForEmail();
-				LocalDateTime expirationTime = LocalDateTime.now().plusMinutes(15);
+	    logger.info("Entered to generate OTP");
 
-				if(organization.getTempEmail()!=null && !organization.getTempEmail().isEmpty()) {
-					email=organization.getTempEmail();
-					  key = organization.getOrganizationPhonenumber() + "_" + email;
-				}
-				else {
-					email=organization.getEmail();
-					  key = organization.getOrganizationPhonenumber() + "_" + email;
-				}
-				// Store OTP and its expiration time in the map
-				otpMap.put(key, new OtpDetails(otp, expirationTime));
+	    String email = null;
+	    String key = null;
 
-				// Send OTP via email
-				InternetAddress add = new InternetAddress(mailFom, "Procucev Notifications");
-				MailUtility.sendOtpForEmail("OTP", email, javaMailSender, add, host, otp);
-				return true;
-			} else {
-				logger.error("No Vendors available in the Database");
-				throw new AppException(HttpStatus.NO_CONTENT.value(), ApplicationConstants.NO_DATA_FOUND,
-						ApplicationConstants.BUSINESS_EXCEPTION, ApplicationConstants.FAILURE);
-			}
-		} catch (UnsupportedEncodingException e) {
-			e.printStackTrace();
-		}
-		return false;
+	    try {
+	        if (organization != null) {
+	            String otp = generateOTPForEmail();
+	            LocalDateTime expirationTime = LocalDateTime.now().plusMinutes(15);
+
+	            if (organization.getTempEmail() != null && !organization.getTempEmail().isEmpty()) {
+	                email = organization.getTempEmail().trim().toLowerCase();
+	            } else {
+	                email = organization.getEmail().trim().toLowerCase();
+	            }
+
+	            key = organization.getOrganizationPhonenumber().trim() + "_" + email;
+
+	            // Store OTP and its expiration time in the map BEFORE sending
+	            otpMap.put(key, new OtpDetails(otp, expirationTime));
+	            logger.info("Stored OTP [{}] for key [{}] expiring at [{}]", otp, key, expirationTime);
+
+	            // Send OTP via email AFTER storing
+	            InternetAddress add = new InternetAddress(mailFom, "Procucev Notifications");
+	            MailUtility.sendOtpForEmail("OTP", email, javaMailSender, add, host, otp);
+	            
+	            return true;
+	        } else {
+	            logger.error("Organization is null, cannot generate OTP");
+	            throw new AppException(HttpStatus.NO_CONTENT.value(),
+	                    ApplicationConstants.NO_DATA_FOUND,
+	                    ApplicationConstants.BUSINESS_EXCEPTION,
+	                    ApplicationConstants.FAILURE);
+	        }
+	    } catch (UnsupportedEncodingException e) {
+	        logger.error("Error generating OTP: {}", e.getMessage(), e);
+	    }
+
+	    return false;
 	}
+
 
 
 
@@ -569,36 +577,53 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 		return otp.toString();
 	}
 
+
+
 	@Override
 	public boolean validateOtp(Organization organization) {
-		String email=null;
-		String key=null;
-		if(organization.getTempEmail()!=null && !organization.getTempEmail().isEmpty())
-		{
-			 email=organization.getTempEmail();
-			  key = organization.getOrganizationPhonenumber() + "_" + email;
-		}
-		else {
-			 email=organization.getEmail();
-			  key = organization.getOrganizationPhonenumber() + "_" + email;
-		}
-		
-		OtpDetails otpDetails = otpMap.get(key);
+	    String email = null;
+	    String key = null;
 
-		// Validate OTP
-		if (otpDetails != null) {
-			LocalDateTime expirationTime = otpDetails.getExpirationTime();
-			LocalDateTime now = LocalDateTime.now();
+	    // Determine which email to use
+	    if (organization.getTempEmail() != null && !organization.getTempEmail().isEmpty()) {
+	        email = organization.getTempEmail().trim().toLowerCase();
+	        key = organization.getOrganizationPhonenumber() + "_" + email;
+	    } else {
+	        email = organization.getEmail().trim().toLowerCase();
+	        key = organization.getOrganizationPhonenumber() + "_" + email;
+	    }
 
-			// Check if OTP is still valid (not expired)
-			if (now.isBefore(expirationTime) && otpDetails.getOtp().equals(organization.getEmailOtp())) {
-				// Remove OTP from the map after successful validation
-				otpMap.remove(email);
-				return true;
-			}
-		}
-		return false;
+	    logger.info("Validating OTP for key: {}", key);
+
+	    // Retrieve OTP details
+	    OtpDetails otpDetails = otpMap.get(key);
+	    logger.info("Fetched OTP details from otpMap for key {}: {}", key, otpDetails);
+
+	    if (otpDetails == null) {
+	        logger.warn("No OTP found for key: {}. Current otpMap keys: {}", key, otpMap.keySet());
+	        return false;
+	    }
+
+	    LocalDateTime expirationTime = otpDetails.getExpirationTime();
+	    LocalDateTime now = LocalDateTime.now();
+	    logger.info("Now: {}, ExpirationTime: {}", now, expirationTime);
+	    logger.info("User entered OTP: {}, Expected OTP: {}", organization.getEmailOtp(), otpDetails.getOtp());
+
+	    // Validate OTP
+	    if (now.isBefore(expirationTime) && otpDetails.getOtp().equals(organization.getEmailOtp())) {
+	        logger.info("OTP matched and is valid. Removing OTP entry from otpMap for key: {}", key);
+	        otpMap.remove(key); // ✅ fix: previously removing using 'email' instead of 'key'
+	        logger.info("otpMap after removal: {}", otpMap.keySet());
+	        return true;
+	    } else if (!otpDetails.getOtp().equals(organization.getEmailOtp())) {
+	        logger.warn("Invalid OTP entered for key: {}", key);
+	    } else {
+	        logger.warn("OTP expired for key: {}", key);
+	    }
+
+	    return false;
 	}
+
 	
 	@Override
 	public boolean validateUser(String username, String phoneNumber) {
@@ -1075,10 +1100,11 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 		                user.setRole(role);
 		                user.setUniqueId(generateUserId(phone));
 		                user.setSourceType(ApplicationConstants.TOOL);
-		                user.setPassword(String.valueOf(ProcucevUtils.generatePassword(8)));
+		                String pswd=String.valueOf(ProcucevUtils.generatePassword(8));
+		                user.setPassword(String.valueOf(pswd));
 		                user.setVerificationStatus(StatusConstants.PENDING_EMAIL_VERIFICATION);
 
-		                userDao.save(user);
+		                User savedUser = userDao.save(user);
 		                logger.info("User created successfully for row {}: {}", i, username);
 
 		                // Optional: send email notification
@@ -1086,7 +1112,8 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 //		                MailUtility.sendClientEmailForCM2(
 //		                        "New Client Registration", toAddress, org, javaMailSender, add, host
 //		                );
-
+		                MailUtility.mailingVerificationLinkWithSelfUserLogin(javaMailSender, toAddress, add, pswd, host,
+								savedUser);
 		            } catch (Exception e) {
 		                logger.error("Failed processing row {}: {}", i, e.getMessage(), e);
 		            }
