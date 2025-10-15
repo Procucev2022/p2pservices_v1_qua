@@ -373,7 +373,7 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 	                email = organization.getEmail().trim().toLowerCase();
 	            }
 
-	            key = organization.getOrganizationPhonenumber().trim() + "_" + email;
+	            key = organization.getOrganizationPhonenumber().trim()+"_EMAIL_"+email;
 
 	            // Store OTP and its expiration time in the map BEFORE sending
 	            otpMap.put(key, new OtpDetails(otp, expirationTime));
@@ -587,10 +587,10 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 	    // Determine which email to use
 	    if (organization.getTempEmail() != null && !organization.getTempEmail().isEmpty()) {
 	        email = organization.getTempEmail().trim().toLowerCase();
-	        key = organization.getOrganizationPhonenumber() + "_" + email;
+	        key = organization.getOrganizationPhonenumber().trim()+"_EMAIL_"+email;
 	    } else {
 	        email = organization.getEmail().trim().toLowerCase();
-	        key = organization.getOrganizationPhonenumber() + "_" + email;
+	        key = organization.getOrganizationPhonenumber().trim()+"_EMAIL_"+email;
 	    }
 
 	    logger.info("Validating OTP for key: {}", key);

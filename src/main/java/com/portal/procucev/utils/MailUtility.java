@@ -1226,7 +1226,7 @@ public class MailUtility {
 	            "<p>Dear Partner,</p>" +
 
 	            "<p>Thank you for registering with <b>Get My quoTe (GMT)</b>. " +
-	            "We’re delighted to have you onboard for our new <b>GMT/BFS Portal QUA by Procucev!!</b></p>" +
+	            "We are delighted to have you onboard for our new <b>GMT/BFS Portal QUA by Procucev!!</b></p>" +
 
 	            "<p><i>\"QUA will be your AI partner in Procurement\"</i></p>" +
 
@@ -1248,7 +1248,7 @@ public class MailUtility {
 	            "<li>Sell your excess inventory easily and get the best market value.</li>" +
 	            "</ul>" +
 
-	            "<p>We’re excited to have you with us and look forward to supporting your sourcing journey.</p>" +
+	            "<p>We are excited to have you with us and look forward to supporting your sourcing journey.</p>" +
 	            "<p>Warm regards,<br><b>QUA by Procucev</b></p>" +
 	            "</body></html>";
 

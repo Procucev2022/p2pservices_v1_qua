@@ -75,7 +75,7 @@ public class SmsServiceImpl implements SmsService {
 			RestTemplate restTemplate = new RestTemplate();
 
 			ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.POST, requestEntity, String.class);
-			String key = org.getEmail().trim().toLowerCase() + "_" + phoneNumber;
+			String key = org.getEmail().trim().toLowerCase()+"_MOBILE_"+phoneNumber.trim();
 			otpCache.put(key, otp);
 
 			return ResponseEntity.ok("OTP sent to " + phoneNumber + ". SMS API Response: " + response.getBody());
@@ -94,10 +94,10 @@ public class SmsServiceImpl implements SmsService {
 		String key = null;
 		if (org.getTempPhone() != null && !org.getTempPhone().isEmpty()) {
 			phoneNumber = org.getTempPhone();
-			key = org.getEmail().trim().toLowerCase() + "_" + phoneNumber;
+			key = org.getEmail().trim().toLowerCase()+"_MOBILE_"+phoneNumber.trim();
 		} else {
 			phoneNumber = org.getOrganizationPhonenumber();
-			key = org.getEmail().trim().toLowerCase() + "_" + phoneNumber;
+			key = org.getEmail().trim().toLowerCase()+"_MOBILE_"+phoneNumber.trim();
 		}
 		String storedOtp = otpCache.get(key);
 
