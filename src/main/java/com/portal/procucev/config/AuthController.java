@@ -97,7 +97,7 @@ public class AuthController {
             	else {
             		email=authRequest.getUsername();
             	}
-                boolean otpSent = userService.generateEmailOtp(email,request);
+                boolean otpSent = userService.generateEmailOtp(email,request,authRequest.getPhone());
                 if (otpSent) {
                 	 response.put("status", "success");
                      response.put("message", "OTP sent successfully to registered email.");
