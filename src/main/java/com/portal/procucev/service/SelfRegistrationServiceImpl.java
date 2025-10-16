@@ -598,7 +598,11 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 	    // Retrieve OTP details
 	    OtpDetails otpDetails = otpMap.get(key);
 	    logger.info("Fetched OTP details from otpMap for key {}: {}", key, otpDetails);
-
+	    if (otpDetails == null) {
+	        logger.warn("OTP not found for key {}. Retrying after short delay...", key);
+	        try { Thread.sleep(300); } catch (InterruptedException ignored) {}
+	        otpDetails = otpMap.get(key);
+	    }
 	    if (otpDetails == null) {
 	        logger.warn("No OTP found for key: {}. Current otpMap keys: {}", key, otpMap.keySet());
 	        return false;
@@ -632,16 +636,16 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 	}
 
 	@Override
-	public boolean generateEmailOtp(String email, HttpServletRequest request) {
+	public boolean generateEmailOtp(String email, HttpServletRequest request,String phone) {
 		logger.info("Entered to generate OTP");
 		try {
 			if (email != null) {
 				// Generate OTP
 				String otp = generateOTPForEmail();
 				LocalDateTime expirationTime = LocalDateTime.now().plusMinutes(15);
-
+				  String key = phone.trim()+"_EMAIL_"+email.toLowerCase().trim();
 				// Store OTP and its expiration time in the map
-				otpMap.put(email, new OtpDetails(otp, expirationTime));
+				otpMap.put(key, new OtpDetails(otp, expirationTime));
 
 				// Send OTP via email
 				InternetAddress add = new InternetAddress(mailFom, "Procucev Notifications");

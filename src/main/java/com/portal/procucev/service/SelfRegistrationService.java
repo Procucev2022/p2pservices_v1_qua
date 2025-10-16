@@ -42,7 +42,7 @@ public interface SelfRegistrationService {
 
 	String fetchPasswordByEmailAndPhone(String username, String phone);
 
-	boolean generateEmailOtp(String email, HttpServletRequest request);
+	boolean generateEmailOtp(String email, HttpServletRequest request, String phone);
 
 	boolean userExistsByEmailAndPhone(String email, String organizationPhonenumber);
 
