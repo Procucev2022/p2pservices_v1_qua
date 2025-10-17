@@ -26,7 +26,7 @@ public interface SelfRegistrationService {
 	
 	boolean generateOtp(Organization organization, HttpServletRequest request);
 
-	boolean validateOtp(Organization organization);
+	boolean validateEmailOtp(Organization organization);
 
 	boolean submitUpgradeVendor(Organization organization);
 
@@ -59,5 +59,9 @@ public interface SelfRegistrationService {
 	void registerFromExcel(MultipartFile file) throws Exception;
 
 	void importCategoriesFromExcel(MultipartFile file) throws IOException;
+
+	void removeEmailOtp(Organization organization);
+
+	boolean isEmailOtpValid(Organization organization);
 
 }

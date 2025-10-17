@@ -131,7 +131,7 @@ public class PartialVendorController {
 
 	    logger.info("Entered to validate OTP");
 
-	    boolean status = regService.validateOtp(organization);
+	    boolean status = regService.validateEmailOtp(organization);
 
 	    if (status) {
 	        MessageResponse response = new MessageResponse(
@@ -246,47 +246,69 @@ public class PartialVendorController {
 		return ResponseEntity.ok(response);
 	}
 
+//	@PostMapping("/validateAllOtps")
+//	public ResponseEntity<Map<String, Object>> validateAllOtps(@RequestBody Organization org) {
+//		Map<String, Object> response = new HashMap<>();
+//		// Validate email OTP
+//		boolean isEmailOtpValid = regService.validateEmailOtp(org);
+//		if (!isEmailOtpValid) {
+//			response.put("status", "failure");
+//			response.put("otpType", "email");
+//			response.put("message", "Invalid email OTP.");
+//			return ResponseEntity.status(HttpStatus.OK).body(response);
+//		}
+//
+//		// Validate mobile OTP
+//		boolean isMobileOtpValid = smsService.validateMobileOtp(org);
+//		if (!isMobileOtpValid) {
+//			response.put("status", "failure");
+//			response.put("otpType", "mobile");
+//			response.put("message", "Invalid mobile OTP.");
+//			return ResponseEntity.status(HttpStatus.OK).body(response);
+//		}
+//
+//		// If both OTPs are valid
+//		response.put("status", "success");
+//		response.put("message", "Both OTPs are valid.");
+//		return ResponseEntity.ok(response);
+//	}
+
 	@PostMapping("/validateAllOtps")
 	public ResponseEntity<Map<String, Object>> validateAllOtps(@RequestBody Organization org) {
-		Map<String, Object> response = new HashMap<>();
+	    Map<String, Object> response = new HashMap<>();
 
-//	    boolean isEmailOtpValid = regService.validateOtp(org);
-//	    boolean isMobileOtpValid = smsService.validateOtp(org);
-//
-//	    if (isEmailOtpValid && isMobileOtpValid) {
-//	        response.put("status", "success");
-//	        response.put("message", "Both OTPs are valid.");
-//	        return ResponseEntity.ok(response);
-//	    } else {
-//	        response.put("status", "failure");
-//	        response.put("message", "Invalid OTP(s)");
-//	        if (!isEmailOtpValid) response.put("emailOtpValid", false);
-//	        if (!isMobileOtpValid) response.put("mobileOtpValid", false);
-//	        return ResponseEntity.ok(response); 
-//	    }
-		// Validate email OTP
-		boolean isEmailOtpValid = regService.validateOtp(org);
-		if (!isEmailOtpValid) {
-			response.put("status", "failure");
-			response.put("otpType", "email");
-			response.put("message", "Invalid email OTP.");
-			return ResponseEntity.status(HttpStatus.OK).body(response);
-		}
+	    logger.info("Incoming request to validate all OTPs for email: {} and phone: {}", org.getEmail(), org.getOrganizationPhonenumber());
 
-		// Validate mobile OTP
-		boolean isMobileOtpValid = smsService.validateOtp(org);
-		if (!isMobileOtpValid) {
-			response.put("status", "failure");
-			response.put("otpType", "mobile");
-			response.put("message", "Invalid mobile OTP.");
-			return ResponseEntity.status(HttpStatus.OK).body(response);
-		}
+	    // Validate email OTP
+	    boolean isEmailOtpValid = regService.isEmailOtpValid(org);
+	    // Validate mobile OTP
+	    boolean isMobileOtpValid = smsService.isMobileOtpValid(org);
 
-		// If both OTPs are valid
-		response.put("status", "success");
-		response.put("message", "Both OTPs are valid.");
-		return ResponseEntity.ok(response);
+	    // Log OTP validation results
+	    logger.info("Email OTP valid: {}, Mobile OTP valid: {}", isEmailOtpValid, isMobileOtpValid);
+
+	    if (isEmailOtpValid && isMobileOtpValid) {
+	        // Remove OTPs only after both validations succeed
+	        regService.removeEmailOtp(org);
+	        smsService.removeMobileOtp(org);
+
+	        response.put("status", "success");
+	        response.put("message", "Both OTPs are valid.");
+	        return ResponseEntity.ok(response);
+	    } else {
+	        response.put("status", "failure");
+	        if (!isEmailOtpValid) {
+	            response.put("otpType", "email");
+	            response.put("message", "Invalid email OTP.");
+	        }
+	        if (!isMobileOtpValid) {
+	            response.put("otpType", "mobile");
+	            response.put("message", "Invalid mobile OTP.");
+	        }
+	        return ResponseEntity.ok(response);
+	    }
 	}
+
 
 	@GetMapping("/{pincode}")
 	public ResponseEntity<?> getCityAndState(@PathVariable("pincode") String pincode) {
