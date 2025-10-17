@@ -26,7 +26,7 @@ public class MobileValidationController {
 
 	@PostMapping("/validateOtp")
 	public ResponseEntity<String> validateOtp(@RequestBody Organization org) {
-		boolean isValid = smsService.validateOtp(org);
+		boolean isValid = smsService.validateMobileOtp(org);
 		if (isValid) {
 			return ResponseEntity.ok("OTP is valid");
 		} else {

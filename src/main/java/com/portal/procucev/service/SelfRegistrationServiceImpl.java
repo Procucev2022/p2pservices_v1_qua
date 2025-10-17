@@ -580,7 +580,7 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 
 
 	@Override
-	public boolean validateOtp(Organization organization) {
+	public boolean validateEmailOtp(Organization organization) {
 	    String email = null;
 	    String key = null;
 
@@ -628,7 +628,50 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 	    return false;
 	}
 
-	
+	@Override
+	public boolean isEmailOtpValid(Organization organization) {
+	    String email = (organization.getTempEmail() != null && !organization.getTempEmail().isEmpty())
+	            ? organization.getTempEmail().trim().toLowerCase()
+	            : organization.getEmail().trim().toLowerCase();
+
+	    String key = organization.getOrganizationPhonenumber().trim() + "_EMAIL_" + email;
+	    logger.info("Validating email OTP for key: {}", key);
+
+	    OtpDetails otpDetails = otpMap.get(key);
+	    if (otpDetails == null) {
+	        logger.warn("OTP not found for key {}. Current otpMap keys: {}", key, otpMap.keySet());
+	        return false;
+	    }
+
+	    LocalDateTime now = LocalDateTime.now();
+	    logger.info("Current time: {}, OTP expiration time: {}", now, otpDetails.getExpirationTime());
+	    logger.info("User entered OTP: {}, Expected OTP: {}", organization.getEmailOtp(), otpDetails.getOtp());
+
+	    boolean valid = now.isBefore(otpDetails.getExpirationTime()) &&
+	                    otpDetails.getOtp().equals(organization.getEmailOtp());
+
+	    if (valid) {
+	        logger.info("Email OTP is valid for key: {}", key);
+	    } else if (!otpDetails.getOtp().equals(organization.getEmailOtp())) {
+	        logger.warn("Invalid email OTP entered for key: {}", key);
+	    } else {
+	        logger.warn("Email OTP expired for key: {}", key);
+	    }
+
+	    return valid;
+	}
+
+	@Override
+	public void removeEmailOtp(Organization organization) {
+	    String email = (organization.getTempEmail() != null && !organization.getTempEmail().isEmpty())
+	            ? organization.getTempEmail().trim().toLowerCase()
+	            : organization.getEmail().trim().toLowerCase();
+
+	    String key = organization.getOrganizationPhonenumber().trim() + "_EMAIL_" + email;
+	    otpMap.remove(key);
+	    logger.info("Removed email OTP from cache for key: {}", key);
+	}
+
 	@Override
 	public boolean validateUser(String username, String phoneNumber) {
 	  User user = userDao.findByUsernameAndPhoneAndActive(username, phoneNumber,true);
