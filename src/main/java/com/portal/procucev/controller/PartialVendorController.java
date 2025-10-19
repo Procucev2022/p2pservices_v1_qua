@@ -279,36 +279,29 @@ public class PartialVendorController {
 
 	    logger.info("Incoming request to validate all OTPs for email: {} and phone: {}", org.getEmail(), org.getOrganizationPhonenumber());
 
-	    // Validate email OTP
 	    boolean isEmailOtpValid = regService.isEmailOtpValid(org);
-	    // Validate mobile OTP
 	    boolean isMobileOtpValid = smsService.isMobileOtpValid(org);
 
-	    // Log OTP validation results
 	    logger.info("Email OTP valid: {}, Mobile OTP valid: {}", isEmailOtpValid, isMobileOtpValid);
 
 	    if (isEmailOtpValid && isMobileOtpValid) {
-	        // Remove OTPs only after both validations succeed
 	        regService.removeEmailOtp(org);
 	        smsService.removeMobileOtp(org);
 
 	        response.put("status", "success");
 	        response.put("message", "Both OTPs are valid.");
-	        return ResponseEntity.ok(response);
 	    } else {
 	        response.put("status", "failure");
-	        if (!isEmailOtpValid) {
-	            response.put("otpType", "email");
-	            response.put("message", "Invalid email OTP.");
-	        }
-	        if (!isMobileOtpValid) {
-	            response.put("otpType", "mobile");
-	            response.put("message", "Invalid mobile OTP.");
-	        }
-	        return ResponseEntity.ok(response);
-	    }
-	}
+	        List<String> invalidOtps = new ArrayList<>();
+	        if (!isEmailOtpValid) invalidOtps.add("email");
+	        if (!isMobileOtpValid) invalidOtps.add("mobile");
 
+	        response.put("otpType", invalidOtps);
+	        response.put("message", "Invalid OTP(s): " + String.join(", ", invalidOtps));
+	    }
+
+	    return ResponseEntity.ok(response);
+	}
 
 	@GetMapping("/{pincode}")
 	public ResponseEntity<?> getCityAndState(@PathVariable("pincode") String pincode) {
