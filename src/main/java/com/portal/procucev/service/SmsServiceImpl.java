@@ -121,8 +121,17 @@ public class SmsServiceImpl implements SmsService {
 
 	    String key = org.getEmail().trim().toLowerCase()+"_MOBILE_"+phoneNumber.trim();
 	    logger.info("Validating Mobile OTP for key: {}", key);
-
+	    int attempts = 0;
 	    String storedOtp = otpCache.get(key);
+	    while (storedOtp == null && attempts < 3) { // retry 3 times
+	        attempts++;
+	        logger.info("OTP not found for key {}. Retry attempt {}/3", key, attempts);
+	        try {
+	            Thread.sleep(100); // wait 100ms before checking again
+	        } catch (InterruptedException e) {
+	            Thread.currentThread().interrupt();
+	            logger.warn("Thread interrupted while waiting for OTP for key {}", key);
+	        }
 
 	    if (storedOtp == null) {
 	        logger.info("No Mobile OTP found for key: {}. Current otpCache keys: {}", key, otpCache.keySet());
