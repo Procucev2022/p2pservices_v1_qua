@@ -15,6 +15,7 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Random;
 import java.util.concurrent.ConcurrentHashMap;
 import org.apache.commons.csv.CSVFormat;
@@ -44,6 +45,7 @@ import com.portal.procucev.dao.ClientDao;
 import com.portal.procucev.dao.MasterStatusDao;
 import com.portal.procucev.dao.OrgDao;
 import com.portal.procucev.dao.OrgTypeDao;
+import com.portal.procucev.dao.OtpStoreDao;
 import com.portal.procucev.dao.PincodeDao;
 import com.portal.procucev.dao.RoleDao;
 import com.portal.procucev.dao.UserDao;
@@ -51,6 +53,7 @@ import com.portal.procucev.model.MasterStatus;
 import com.portal.procucev.model.OrgType;
 import com.portal.procucev.model.Organization;
 import com.portal.procucev.model.OtpDetails;
+import com.portal.procucev.model.OtpStore;
 import com.portal.procucev.model.PincodeData;
 import com.portal.procucev.model.CategoryDivision;
 import com.portal.procucev.model.Role;
@@ -65,6 +68,7 @@ import com.portal.procucev.utils.StatusConstants;
 
 import jakarta.mail.internet.InternetAddress;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.transaction.Transactional;
 
 @Service
 public class SelfRegistrationServiceImpl implements SelfRegistrationService {
@@ -108,6 +112,9 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 
 	@Autowired
 	private PincodeDao pinCodeDao;
+
+	@Autowired
+	private OtpStoreDao otpStoreDao;
 
 	private final Map<String, OtpDetails> otpMap = new ConcurrentHashMap<>();
 
@@ -374,7 +381,7 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 		logger.info("Entered to generate OTP");
 
 		String email = null;
-		String key = null;
+		// String key = null;
 
 		try {
 			if (organization != null) {
@@ -387,11 +394,19 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 					email = organization.getEmail().trim().toLowerCase();
 				}
 
-				key = organization.getOrganizationPhonenumber().trim() + "_EMAIL_" + email;
+				String key = organization.getOrganizationPhonenumber().trim() + "_EMAIL_" + email;
 
 				// Store OTP and its expiration time in the map BEFORE sending
-				otpMap.put(key, new OtpDetails(otp, expirationTime));
-				logger.info("Stored OTP [{}] for key [{}] expiring at [{}]", otp, key, expirationTime);
+				// otpMap.put(key, new OtpDetails(otp, expirationTime));
+
+				// Save or update in DB
+				otpStoreDao.findByOtpKey(key).ifPresentOrElse(existing -> {
+					existing.setOtp(otp);
+					existing.setExpirationTime(expirationTime);
+					otpStoreDao.save(existing);
+				}, () -> otpStoreDao.save(new OtpStore(key, otp, expirationTime)));
+
+				logger.info("Stored OTP [{}] in DB for key [{}] expiring at [{}]", otp, key, expirationTime);
 
 				// Send OTP via email AFTER storing
 				InternetAddress add = new InternetAddress(mailFom, "Procucev Notifications");
@@ -627,50 +642,49 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 		String key = organization.getOrganizationPhonenumber().trim() + "_EMAIL_" + email;
 		logger.info("Validating email OTP for key: {}", key);
 
-		OtpDetails otpDetails = otpMap.get(key);
-		int attempts = 0;
-		while (otpDetails == null && attempts < 3) { // retry 3 times
-			attempts++;
-			logger.info("OTP not found for key {}. Retry attempt {}/3", key, attempts);
-			try {
-				Thread.sleep(100); // wait 100ms before checking again
-			} catch (InterruptedException e) {
-				Thread.currentThread().interrupt();
-				logger.warn("Thread interrupted while waiting for OTP for key {}", key);
-			}
-			otpDetails = otpMap.get(key);
+//		OtpDetails otpDetails = otpMap.get(key);
+//		int attempts = 0;
+//		while (otpDetails == null && attempts < 3) { // retry 3 times
+//			attempts++;
+//			logger.info("OTP not found for key {}. Retry attempt {}/3", key, attempts);
+//			try {
+//				Thread.sleep(100); // wait 100ms before checking again
+//			} catch (InterruptedException e) {
+//				Thread.currentThread().interrupt();
+//				logger.warn("Thread interrupted while waiting for OTP for key {}", key);
+//			}
+//			otpDetails = otpMap.get(key);
+//		}
+
+		Optional<OtpStore> recordOpt = otpStoreDao.findByOtpKey(key);
+		if (recordOpt.isEmpty()) {
+			logger.warn("No Email OTP found for key: {}", key);
+			return false;
 		}
-		if (otpDetails == null) {
-			logger.warn("OTP not found for key {}. Current otpMap keys: {}", key, otpMap.keySet());
+		OtpStore record = recordOpt.get();
+		if (LocalDateTime.now().isAfter(record.getExpirationTime())) {
+			logger.warn("Email OTP expired for key: {}", key);
+			otpStoreDao.deleteByOtpKey(key);
 			return false;
 		}
 
-		LocalDateTime now = LocalDateTime.now();
-		logger.info("Current time: {}, OTP expiration time: {}", now, otpDetails.getExpirationTime());
-		logger.info("User entered OTP: {}, Expected OTP: {}", organization.getEmailOtp(), otpDetails.getOtp());
-
-		boolean valid = now.isBefore(otpDetails.getExpirationTime())
-				&& otpDetails.getOtp().equals(organization.getEmailOtp());
-
-		if (valid) {
-			logger.info("Email OTP is valid for key: {}", key);
-		} else if (!otpDetails.getOtp().equals(organization.getEmailOtp())) {
-			logger.warn("Invalid email OTP entered for key: {}", key);
-		} else {
-			logger.warn("Email OTP expired for key: {}", key);
-		}
+		boolean valid = record.getOtp().equals(organization.getEmailOtp());
+		logger.info(valid ? "Email OTP valid for key: {}" : "Email OTP invalid for key: {}", key);
 
 		return valid;
 	}
 
 	@Override
+	@Transactional
 	public void removeEmailOtp(Organization organization) {
 		String email = (organization.getTempEmail() != null && !organization.getTempEmail().isEmpty())
 				? organization.getTempEmail().trim().toLowerCase()
 				: organization.getEmail().trim().toLowerCase();
 
 		String key = organization.getOrganizationPhonenumber().trim() + "_EMAIL_" + email;
-		otpMap.remove(key);
+		// otpMap.remove(key);
+		otpStoreDao.deleteByOtpKey(key);
+		logger.info("Removed email OTP from DB for key: {}", key);
 		logger.info("Removed email OTP from cache for key: {}", key);
 	}
 

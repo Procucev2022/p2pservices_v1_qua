@@ -1,10 +1,12 @@
 package com.portal.procucev.service;
 
 import java.nio.charset.StandardCharsets;
+import java.time.LocalDateTime;
 import java.util.Base64;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.web.client.RestTemplateBuilder;
 import org.springframework.http.HttpMethod;
@@ -22,7 +24,11 @@ import java.util.concurrent.ConcurrentHashMap;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.portal.procucev.Dto.SmsRequest;
+import com.portal.procucev.dao.OtpStoreDao;
 import com.portal.procucev.model.Organization;
+import com.portal.procucev.model.OtpStore;
+
+import jakarta.transaction.Transactional;
 
 @Service
 public class SmsServiceImpl implements SmsService {
@@ -32,6 +38,9 @@ public class SmsServiceImpl implements SmsService {
 
 	@Value("${sms.api.authkey}")
 	private String authKey;
+	
+	@Autowired
+	private OtpStoreDao otpStoreDao;
 
 	private final Map<String, String> otpCache = new ConcurrentHashMap<>();
 
@@ -49,8 +58,18 @@ public class SmsServiceImpl implements SmsService {
 		String message = "OTP for registering your access to Get My quoTe (GMT): " + otp
 				+ ". Valid for 5 mins. Do not share. - Team Procucev.";
 		String key = org.getEmail().trim().toLowerCase()+"_MOBILE_"+phoneNumber.trim();
-		otpCache.put(key, otp);
-		logger.info("Generated OTP (expected OTP): {} for key: {}", otp, key);
+		//otpCache.put(key, otp);
+		LocalDateTime expirationTime = LocalDateTime.now().plusMinutes(15);
+		otpStoreDao.findByOtpKey(key).ifPresentOrElse(
+	            existing -> {
+	                existing.setOtp(otp);
+	                existing.setExpirationTime(expirationTime);
+	                otpStoreDao.save(existing);
+	            },
+	            () -> otpStoreDao.save(new OtpStore(key, otp, expirationTime))
+	    );
+
+		   logger.info("Generated Mobile OTP [{}] stored in DB for key [{}]", otp, key);
 
 		Map<String, Object> body = new HashMap<>();
 		body.put("user", "Procucev_OTP");
@@ -119,50 +138,52 @@ public class SmsServiceImpl implements SmsService {
 	            : org.getOrganizationPhonenumber().trim();
 
 
-	    String key = org.getEmail().trim().toLowerCase()+"_MOBILE_"+phoneNumber.trim();
+	    String key = org.getEmail().trim().toLowerCase() + "_MOBILE_" + phoneNumber.trim();
 	    logger.info("Validating Mobile OTP for key: {}", key);
-	    int attempts = 0;
-	    String storedOtp = otpCache.get(key);
-	    while (storedOtp == null && attempts < 3) { // retry 3 times
-	        attempts++;
-	        logger.info("OTP not found for key {}. Retry attempt {}/3", key, attempts);
-	        try {
-	            Thread.sleep(100); // wait 100ms before checking again
-	        } catch (InterruptedException e) {
-	            Thread.currentThread().interrupt();
-	            logger.warn("Thread interrupted while waiting for OTP for key {}", key);
-	        }   storedOtp = otpCache.get(key);
-	    }
+//	    int attempts = 0;
+//	    String storedOtp = otpCache.get(key);
+//	    while (storedOtp == null && attempts < 3) { // retry 3 times
+//	        attempts++;
+//	        logger.info("OTP not found for key {}. Retry attempt {}/3", key, attempts);
+//	        try {
+//	            Thread.sleep(100); // wait 100ms before checking again
+//	        } catch (InterruptedException e) {
+//	            Thread.currentThread().interrupt();
+//	            logger.warn("Thread interrupted while waiting for OTP for key {}", key);
+//	        }   storedOtp = otpCache.get(key);
+//	    }
 
-	    if (storedOtp == null) {
-	        logger.info("No Mobile OTP found for key: {}. Current otpCache keys: {}", key, otpCache.keySet());
+	    Optional<OtpStore> recordOpt = otpStoreDao.findByOtpKey(key);
+	    if (recordOpt.isEmpty()) {
+	        logger.warn("No Mobile OTP found for key: {}", key);
 	        return false;
 	    }
 
-	    // Log expected vs entered OTP
-	    logger.info("Expected Mobile OTP: {}, Entered Mobile OTP: {}", storedOtp, org.getMobileOtp());
-	   
-
-	    boolean isValid = storedOtp.equals(org.getMobileOtp());
-
-	    if (isValid) {
-	        logger.info("Mobile OTP matched successfully for key: {}. Not removing from cache yet.", key);
-	    } else {
-	        logger.warn("Invalid Mobile OTP entered for key: {}. OTP mismatch.", key);
+	    OtpStore record = recordOpt.get();
+	    if (LocalDateTime.now().isAfter(record.getExpirationTime())) {
+	        logger.warn("Mobile OTP expired for key: {}", key);
+	        otpStoreDao.deleteByOtpKey(key);
+	        return false;
 	    }
 
-	    return isValid;
+	    boolean valid = record.getOtp().equals(org.getMobileOtp());
+	    logger.info(valid ? "Mobile OTP valid for key: {}" : "Invalid Mobile OTP for key: {}", key);
+
+
+	    return valid;
 	}
 
 	@Override
+	@Transactional
 	public void removeMobileOtp(Organization org) {
 	    String phoneNumber = (org.getTempPhone() != null && !org.getTempPhone().isEmpty())
 	            ? org.getTempPhone().trim()
 	            : org.getOrganizationPhonenumber().trim();
 
 	    String key = org.getEmail().trim().toLowerCase() + "_MOBILE_" + phoneNumber.trim();
-	    otpCache.remove(key);
-	    logger.info("Removed mobile OTP from cache for key: {}", key);
+	    //otpCache.remove(key);
+	    otpStoreDao.deleteByOtpKey(key);
+	    logger.info("Removed mobile OTP from DB for key: {}", key);
 	}
 
 }
