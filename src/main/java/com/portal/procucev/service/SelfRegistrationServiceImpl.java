@@ -638,6 +638,16 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 	    logger.info("Validating email OTP for key: {}", key);
 
 	    OtpDetails otpDetails = otpMap.get(key);
+	    int attempts = 0;
+	    while (otpDetails == null && attempts < 3) { // retry 3 times
+	        attempts++;
+	        logger.info("OTP not found for key {}. Retry attempt {}/3", key, attempts);
+	        try {
+	            Thread.sleep(100); // wait 100ms before checking again
+	        } catch (InterruptedException e) {
+	            Thread.currentThread().interrupt();
+	            logger.warn("Thread interrupted while waiting for OTP for key {}", key);
+	        }
 	    if (otpDetails == null) {
 	        logger.warn("OTP not found for key {}. Current otpMap keys: {}", key, otpMap.keySet());
 	        return false;
