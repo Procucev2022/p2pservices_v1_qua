@@ -131,7 +131,8 @@ public class SmsServiceImpl implements SmsService {
 	        } catch (InterruptedException e) {
 	            Thread.currentThread().interrupt();
 	            logger.warn("Thread interrupted while waiting for OTP for key {}", key);
-	        }
+	        }   storedOtp = otpCache.get(key);
+	    }
 
 	    if (storedOtp == null) {
 	        logger.info("No Mobile OTP found for key: {}. Current otpCache keys: {}", key, otpCache.keySet());
