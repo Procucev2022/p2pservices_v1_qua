@@ -43,11 +43,14 @@ public class SmsServiceImpl implements SmsService {
 		} else {
 			phoneNumber = org.getOrganizationPhonenumber();
 		}
+		
 		String url = "https://sms.sendmsg.in/datasend";
 		String otp = String.valueOf(new Random().nextInt(900000) + 100000);
 		String message = "OTP for registering your access to Get My quoTe (GMT): " + otp
 				+ ". Valid for 5 mins. Do not share. - Team Procucev.";
-		  
+		String key = org.getEmail().trim().toLowerCase()+"_MOBILE_"+phoneNumber.trim();
+		otpCache.put(key, otp);
+		logger.info("Generated OTP (expected OTP): {} for key: {}", otp, key);
 
 		Map<String, Object> body = new HashMap<>();
 		body.put("user", "Procucev_OTP");
@@ -78,9 +81,7 @@ public class SmsServiceImpl implements SmsService {
 			RestTemplate restTemplate = new RestTemplate();
 
 			ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.POST, requestEntity, String.class);
-			String key = org.getEmail().trim().toLowerCase()+"_MOBILE_"+phoneNumber.trim();
-			otpCache.put(key, otp);
-			logger.info("Generated OTP (expected OTP): {} for key: {}", otp, key);
+			
 			return ResponseEntity.ok("OTP sent to " + phoneNumber + ". SMS API Response: " + response.getBody());
 
 		} catch (HttpClientErrorException | HttpServerErrorException ex) {
@@ -124,7 +125,7 @@ public class SmsServiceImpl implements SmsService {
 	    String storedOtp = otpCache.get(key);
 
 	    if (storedOtp == null) {
-	        logger.warn("No Mobile OTP found for key: {}. Current otpCache keys: {}", key, otpCache.keySet());
+	        logger.info("No Mobile OTP found for key: {}. Current otpCache keys: {}", key, otpCache.keySet());
 	        return false;
 	    }
 
