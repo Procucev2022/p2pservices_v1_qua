@@ -595,42 +595,22 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 			key = organization.getOrganizationPhonenumber().trim() + "_EMAIL_" + email;
 		}
 
-		logger.info("Validating OTP for key: {}", key);
-
-		// Retrieve OTP details
-		OtpDetails otpDetails = otpMap.get(key);
-		logger.info("Fetched OTP details from otpMap for key {}: {}", key, otpDetails);
-		if (otpDetails == null) {
-			logger.warn("OTP not found for key {}. Retrying after short delay...", key);
-			try {
-				Thread.sleep(300);
-			} catch (InterruptedException ignored) {
-			}
-			otpDetails = otpMap.get(key);
+		Optional<OtpStore> recordOpt = otpStoreDao.findByOtpKey(key);
+		if (recordOpt.isEmpty()) {
+			logger.warn("No Email OTP found for key: {}", key);
+			return false;
 		}
-		if (otpDetails == null) {
-			logger.warn("No OTP found for key: {}. Current otpMap keys: {}", key, otpMap.keySet());
+		OtpStore record = recordOpt.get();
+		if (LocalDateTime.now().isAfter(record.getExpirationTime())) {
+			logger.warn("Email OTP expired for key: {}", key);
+			otpStoreDao.deleteByOtpKey(key);
 			return false;
 		}
 
-		LocalDateTime expirationTime = otpDetails.getExpirationTime();
-		LocalDateTime now = LocalDateTime.now();
-		logger.info("Now: {}, ExpirationTime: {}", now, expirationTime);
-		logger.info("User entered OTP: {}, Expected OTP: {}", organization.getEmailOtp(), otpDetails.getOtp());
+		boolean valid = record.getOtp().equals(organization.getEmailOtp());
+		logger.info(valid ? "Email OTP valid for key: {}" : "Email OTP invalid for key: {}", key);
 
-		// Validate OTP
-		if (now.isBefore(expirationTime) && otpDetails.getOtp().equals(organization.getEmailOtp())) {
-			logger.info("OTP matched and is valid. Removing OTP entry from otpMap for key: {}", key);
-			otpMap.remove(key); // ✅ fix: previously removing using 'email' instead of 'key'
-			logger.info("otpMap after removal: {}", otpMap.keySet());
-			return true;
-		} else if (!otpDetails.getOtp().equals(organization.getEmailOtp())) {
-			logger.warn("Invalid OTP entered for key: {}", key);
-		} else {
-			logger.warn("OTP expired for key: {}", key);
-		}
-
-		return false;
+		return valid;
 	}
 
 	@Override
@@ -704,7 +684,14 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 				LocalDateTime expirationTime = LocalDateTime.now().plusMinutes(15);
 				String key = phone.trim() + "_EMAIL_" + email.toLowerCase().trim();
 				// Store OTP and its expiration time in the map
-				otpMap.put(key, new OtpDetails(otp, expirationTime));
+				//tpMap.put(key, new OtpDetails(otp, expirationTime));
+				otpStoreDao.findByOtpKey(key).ifPresentOrElse(existing -> {
+					existing.setOtp(otp);
+					existing.setExpirationTime(expirationTime);
+					otpStoreDao.save(existing);
+				}, () -> otpStoreDao.save(new OtpStore(key, otp, expirationTime)));
+
+				logger.info("Stored OTP [{}] in DB for key [{}] expiring at [{}]", otp, key, expirationTime);
 
 				// Send OTP via email
 				InternetAddress add = new InternetAddress(mailFom, "Procucev Notifications");
