@@ -134,6 +134,7 @@ public class PartialVendorController {
 	    boolean status = regService.validateEmailOtp(organization);
 
 	    if (status) {
+	    	 regService.removeEmailOtp(organization);
 	        MessageResponse response = new MessageResponse(
 	                "200",
 	                ApplicationConstants.OTP_VALID_SUCCESS,
