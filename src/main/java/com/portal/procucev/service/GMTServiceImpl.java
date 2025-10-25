@@ -1238,6 +1238,7 @@ public class GMTServiceImpl implements GMTService {
 				logger.info("setting vendor id to rfqvendor{}", savedVendor.getId());
 				rfqVendor.setOrganization(savedVendor);
 				rfqVendor.setRfq(savedRfq);
+				rfqVendor.setRequestType(vendor.getRequestType());
 
 				// Collect RfqVendor object
 				rfqVendors.add(rfqVendor);
@@ -1323,10 +1324,30 @@ public class GMTServiceImpl implements GMTService {
 
 			logger.info("Size of vendors List-->" + vendors.size());
 			vendors.forEach(vendor -> {
+				
 				try {
+					String requestType = vendor.getRequestType(); // assuming you have this field in RFQ
+			        
+			        if ("Forward".equalsIgnoreCase(requestType)) {
 					MailUtility.emailNewRfqForNoPR("NewRfq", javaMailSender, rfqData, host, vendor.getEmail(), username,
 							vendor.getOtherEmails(), phoneNumber, rfqDueDate, fullName, mailIdWrapper[0],
 							passwordWrapper[0]);
+			        }
+			        else {
+			                  // Send the new “invite” email
+			                  MailUtility.emailInviteRfq(
+			                          javaMailSender,
+			                          rfqData,
+			                          host,
+			                          vendor.getEmail(),
+			                          username,
+			                          vendor.getOtherEmails(),
+			                          phoneNumber,
+			                          fullName,
+			                          mailIdWrapper[0],
+			                          passwordWrapper[0]
+			                  );
+			        }
 				} catch (MessagingException e) {
 					// TODO Auto-generated catch block
 					e.printStackTrace();
