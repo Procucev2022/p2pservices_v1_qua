@@ -129,5 +129,9 @@ public class Rfq extends Procucev {
 	private String rfqId;
 
 	private String description;
+	
+	@Transient
+	private String requestType;
+	
 
 }

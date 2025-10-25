@@ -310,4 +310,7 @@ public class Organization extends Procucev {
 	
 	@Column(name="subscription_expiry")
 	private Date subscriptionExpiry;
+	
+	@Transient
+	private String requestType;
 }

@@ -295,15 +295,38 @@ public class GMTController {
 		return new ResponseEntity<>(responseObj, HttpStatus.OK);
 	}
 
+//	@PostMapping(value = "/forwardRfq")
+//	public ResponseEntity<?> forwardRfqForNoPr(@RequestBody Rfq rfq) {
+//		boolean response = gmtService.forwardRfqForNoPr(rfq);
+//		String statusCode = response ? String.valueOf(ApplicationConstants.SUCCESS)
+//				: String.valueOf(ApplicationConstants.FAILURE);
+//		String msg = response ? String.format(ApplicationConstants.RFQ_FORWARD_SUCCESS, "")
+//				: String.format(ApplicationConstants.RFQ_FORWARD_FAILURE, "");
+//		MessageResponse responseObj = new MessageResponse(StatusCodes.OK_VENDOR_CODE, msg, null, statusCode);
+//		return new ResponseEntity<>(responseObj, HttpStatus.OK);
+//	}
 	@PostMapping(value = "/forwardRfq")
 	public ResponseEntity<?> forwardRfqForNoPr(@RequestBody Rfq rfq) {
-		boolean response = gmtService.forwardRfqForNoPr(rfq);
-		String statusCode = response ? String.valueOf(ApplicationConstants.SUCCESS)
-				: String.valueOf(ApplicationConstants.FAILURE);
-		String msg = response ? String.format(ApplicationConstants.RFQ_FORWARD_SUCCESS, "")
-				: String.format(ApplicationConstants.RFQ_FORWARD_FAILURE, "");
-		MessageResponse responseObj = new MessageResponse(StatusCodes.OK_VENDOR_CODE, msg, null, statusCode);
-		return new ResponseEntity<>(responseObj, HttpStatus.OK);
+	    boolean response = gmtService.forwardRfqForNoPr(rfq);
+	    String statusCode = response ? ApplicationConstants.SUCCESS : ApplicationConstants.FAILURE;
+	    String msg;
+
+	    if (response) {
+	        if ("Forward".equalsIgnoreCase(rfq.getRequestType())) {
+	            msg = "RFQ Forwarded Successfully";
+	        } else {
+	            msg = "RFQ Invited Successfully";
+	        }
+	    } else {
+	        if ("Forward".equalsIgnoreCase(rfq.getRequestType())) {
+	            msg = "RFQ Forward Failed";
+	        } else {
+	            msg = "RFQ Invitation Failed";
+	        }
+	    }
+
+	    MessageResponse responseObj = new MessageResponse(StatusCodes.OK_VENDOR_CODE, msg, null, statusCode);
+	    return new ResponseEntity<>(responseObj, HttpStatus.OK);
 	}
 
 	@PostMapping(value = "/getItemsbyrfqid")
