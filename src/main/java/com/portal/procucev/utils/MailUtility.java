@@ -824,6 +824,71 @@ public class MailUtility {
 			return false;
 		}
 	}
+	
+public static boolean emailInviteRfq(JavaMailSender javaMailSender, Rfq rfqData, String host,
+            String mailId, String fromAddress, String ccAdd, String phonenumber,
+            String fullName, String mailId2, String password) throws MessagingException {
+LOGGER.info("Entered to send Invite RFQ Email to Vendor");
+try {
+String subject = rfqData.getCategory() + " - New Invitation from QUA by Procucev";
+StringBuilder email = new StringBuilder();
+
+email.append("<html><body>");
+email.append("Dear Partner,<br><br>");
+email.append("Greetings from <b>Procucev!</b><br>");
+email.append("Welcome to <b>QUA by Procucev</b> – a trusted AI B2B Procurement platform connecting genuine buyers and quality sellers across India.<br><br>");
+email.append("QUA is an AI Agent for <b>Get My quoTe (GMT)</b> and <b>Buy From Stock (BFS)</b> helping you grow your business with enquiries (RFQs) and immediate requirements from genuine buyers.<br><br>");
+email.append("One of our corporate buyers has the below requirement that matches your offerings. Please find the enquiry details below:<br><br>");
+
+// Build RFQ items table
+email.append("<table style='border:1px solid black;border-collapse:collapse;'>");
+email.append("<tr><th>Sl No</th><th>Item Description</th><th>Item Specification</th><th>UOM</th><th>Quantity</th><th>Location</th><th>Pincode</th></tr>");
+int i = 1;
+if (!CollectionUtils.isEmpty(rfqData.getRfqItem())) {
+for (RfqItem item : rfqData.getRfqItem()) {
+String city = null, pincode = null;
+if (!CollectionUtils.isEmpty(rfqData.getClientdeliverylocationrfq())) {
+city = rfqData.getClientdeliverylocationrfq().get(0).getCity();
+pincode = rfqData.getClientdeliverylocationrfq().get(0).getPincode();
+}
+
+email.append("<tr>");
+email.append("<td style='border:1px solid black;'>").append(i++).append("</td>");
+email.append("<td style='border:1px solid black;'>").append(item.getDescription()).append("</td>");
+email.append("<td style='border:1px solid black;'>").append(item.getBrand()).append("</td>");
+email.append("<td style='border:1px solid black;'>").append(item.getUnitofMeasures()).append("</td>");
+email.append("<td style='border:1px solid black;'>").append(item.getQuantity()).append("</td>");
+email.append("<td style='border:1px solid black;'>").append(city != null ? city : "").append("</td>");
+email.append("<td style='border:1px solid black;'>").append(pincode != null ? pincode : "").append("</td>");
+email.append("</tr>");
+}
+}
+email.append("</table><br><br>");
+
+email.append("In order to submit quotations for the same and receive future enquiries,<br>");
+email.append("Visit <a href=\"https://qua.procucev.com/login\">qua.procucev.com/login</a> or WhatsApp “Hi” to <b>+91 70901 70801</b> to view or download your Request For Quote (RFQ).<br><br>");
+email.append("<b>Best Regards,</b><br>");
+email.append("<b>QUA by Procucev</b><br>");
+email.append("Your partner in growth<br>");
+email.append("Visit: <a href=\"https://www.procucev.com\">www.procucev.com</a><br>");
+email.append("</body></html>");
+
+MimeBodyPart messageBodyPart = new MimeBodyPart();
+messageBodyPart.setContent(email.toString(), "text/html");
+
+MimeMultipart multipart = new MimeMultipart();
+multipart.addBodyPart(messageBodyPart);
+
+JavaMailSender javaMailSender2 = getJavaMailSender(mailId2, password);
+emailNotifierGenericNoPRBySenderList(subject, mailId, javaMailSender2, fromAddress, ccAdd, multipart, mailId2);
+
+return true;
+} catch (MessagingException e) {
+e.printStackTrace();
+return false;
+}
+}
+
 
 	private static boolean emailNotifierGenericNoPRBySenderList(String subject, String mailId,
 			JavaMailSender javaMailSender, String fromAddress, String ccAdd, MimeMultipart multipart, String mailId2) {

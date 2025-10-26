@@ -105,6 +105,9 @@ public class RfqVendor extends Procucev {
 
 	@Transient
 	private String numberOfItems;
+	
+	@Column(name="request_type")
+	private String requestType;
 
 	public RfqVendor(String companyName, String vendorId, String companyId) {
 		super();
