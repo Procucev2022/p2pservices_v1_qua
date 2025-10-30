@@ -1331,7 +1331,7 @@ public class GMTServiceImpl implements GMTService {
 			        if ("Forward".equalsIgnoreCase(requestType)) {
 					MailUtility.emailNewRfqForNoPR("NewRfq", javaMailSender, rfqData, host, vendor.getEmail(), username,
 							vendor.getOtherEmails(), phoneNumber, rfqDueDate, fullName, mailIdWrapper[0],
-							passwordWrapper[0]);
+							passwordWrapper[0],vendor.getId());
 			        }
 			        else {
 			                  // Send the new “invite” email
@@ -1744,7 +1744,7 @@ public class GMTServiceImpl implements GMTService {
 				if (!CollectionUtils.isEmpty(usersList)) {
 					MailUtility.emailNewRfqForNoPR("NewRfq", javaMailSender, rfqData, host, usersList.get(0),
 							username, gmtVendor.getOtherEmails(), phoneNumber, rfqDueDate, fullName,
-							mailIdWrapper[0], passwordWrapper[0]);
+							mailIdWrapper[0], passwordWrapper[0],vendorId);
 				}
 			}
 			return true;
@@ -2354,8 +2354,8 @@ public class GMTServiceImpl implements GMTService {
 	            rfqDueDate,
 	            null,                // full name
 	            mailFom,             // mailId
-	            emailPassword        // password
-	        );
+	            emailPassword,       // password
+	        vendor.getId());
 
 	        return status;  // ✅ return actual send result
 
