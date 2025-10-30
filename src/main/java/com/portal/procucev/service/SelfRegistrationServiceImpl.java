@@ -94,7 +94,9 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 
 	@Value("${host}")
 	String host;
-
+	
+	@Value("${mailPassword}")
+	String mailPassword;
 	@Autowired
 	private OrgDao orgDao;
 
@@ -1054,21 +1056,21 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 	public void registerFromExcel(MultipartFile file) throws Exception {
 		try (InputStream inputStream = file.getInputStream()) {
 			Workbook workbook = WorkbookFactory.create(inputStream);
-			Sheet sheet = workbook.getSheetAt(0);
+			Sheet sheet = workbook.getSheetAt(2);
 
 			for (int i = 1; i <= sheet.getLastRowNum(); i++) { // skip header
 				Row row = sheet.getRow(i);
 				if (row == null)
 					continue;
 
-				String username = getCellValue(row.getCell(3));
-				String fullName = getCellValue(row.getCell(4));
-				String companyName = getCellValue(row.getCell(5));
-				String address1 = getCellValue(row.getCell(6));
-				String state = getCellValue(row.getCell(7));
-				String pincode = getCellValue(row.getCell(8));
-				String phone = getCellValue(row.getCell(9));
-				String clientstatus = getCellValue(row.getCell(12)); // assuming email in column 8
+				String username = getCellValue(row.getCell(2));
+				String fullName = getCellValue(row.getCell(3));
+				String companyName = getCellValue(row.getCell(4));
+				String address1 = getCellValue(row.getCell(5));
+				String state = getCellValue(row.getCell(6));
+				String pincode = getCellValue(row.getCell(7));
+				String phone = getCellValue(row.getCell(8));
+				String clientstatus = getCellValue(row.getCell(11)); // assuming email in column 8
 
 				// Basic validation
 				if (companyName == null || companyName.isEmpty()) {
@@ -1156,7 +1158,7 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 //		                MailUtility.sendClientEmailForCM2(
 //		                        "New Client Registration", toAddress, org, javaMailSender, add, host
 //		                );
-					MailUtility.mailingVerificationLinkWithSelfUserLogin(javaMailSender, toAddress, add, pswd, host,
+					MailUtility.mailingVerificationLinkWithSelfUserLogin(javaMailSender, mailid, add, mailPassword, host,
 							savedUser);
 				} catch (Exception e) {
 					logger.error("Failed processing row {}: {}", i, e.getMessage(), e);
