@@ -686,10 +686,11 @@ public class MailUtility {
 	
 	public static boolean emailNewRfqForNoPR(String string, JavaMailSender javaMailSender, Rfq rfqData, String host,
 			String mailId, String fromAddress, String ccAdd, String phonenumber, String rfqDueDate, String fullName,
-			String mailId2, String password) throws MessagingException {
+			String mailId2, String password, String vendorId) throws MessagingException {
 		LOGGER.info("Entered To Send Email To Vendor Regarding RFQ");
 		try {
-			String subject = rfqData.getCategory() + " - You have an Enquiry RFQ No " + rfqData.getRfqId();
+			String subject =  "You have an Enquiry RFQ No " + rfqData.getRfqId() + " - " 
+	                + vendorId;;
 			String message;
 			String pincode = null;
 			int i = 1;
@@ -781,14 +782,15 @@ public class MailUtility {
 			email.append("<b>Thanks,</b><br>");
 			email.append(fullName);
 			email.append("<br><br>");
-			email.append("Category Lead");
+			email.append("Team GMT");
 			email.append("<br>");
-			if (phonenumber != null) {
-				email.append("T: +91" + phonenumber);
-			}
-			email.append("<br>");
-			email.append("A: "
-					+ "302,1st Floor,Sharda,<br>Above Axis Bank,<br>ACES Layout,Kundalahalli,<br>Bengaluru,Karnataka");
+			email.append("Procucev");
+//			if (phonenumber != null) {
+//				email.append("T: +91" + phonenumber);
+//			}
+//			email.append("<br>");
+//			email.append("A: "
+//					+ "302,1st Floor,Sharda,<br>Above Axis Bank,<br>ACES Layout,Kundalahalli,<br>Bengaluru,Karnataka");
 			email.append("<br><br>");
 
 			List<RFQDocument> documentList = rfqData.getRfqDocument();
@@ -830,7 +832,7 @@ public static boolean emailInviteRfq(JavaMailSender javaMailSender, Rfq rfqData,
             String fullName, String mailId2, String password) throws MessagingException {
 LOGGER.info("Entered to send Invite RFQ Email to Vendor");
 try {
-String subject = rfqData.getCategory() + " - New Invitation from QUA by Procucev";
+String subject = "Partner, We have an enquiry for you!!";
 StringBuilder email = new StringBuilder();
 
 email.append("<html><body>");
@@ -910,7 +912,7 @@ return false;
 //	        String[] ccAddresses = ccList.toArray(new String[0]);
 			mimeMessageHelper.setTo(mailId);
 			mimeMessageHelper.setFrom(mailId2);
-			mimeMessageHelper.setCc(ccAddresses);
+			//mimeMessageHelper.setCc(ccAddresses);
 			mimeMessageHelper.setSubject(subject);
 			mimeMessageHelper.setText("Please find the attachments below.");
 			mimeMessageHelper.getMimeMessage().setContent(multipart); // Set the MimeMultipart as the content
