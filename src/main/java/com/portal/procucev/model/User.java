@@ -97,6 +97,9 @@ public class User extends Procucev {
 	@Column(name = "activity_ts")
 	private Date activityTs;
 	
+	@Column(name="bfs_group")
+	private String bfsGroup;
+	
 //	@ManyToMany(fetch = FetchType.EAGER)
 //	@JoinTable(name = "user_permission", joinColumns = {
 //			@JoinColumn(referencedColumnName = "uuid") }, inverseJoinColumns = {
@@ -147,7 +150,14 @@ public class User extends Procucev {
 		this.fullName = fullName;
 		this.active = active;
 	}
-
+	public User(String id,Date createdTS,String username, String phone,  String fullName) {
+		super();
+		this.id=id;
+		this.createdTS=createdTS;
+		this.username = username;
+		this.phone = phone;
+		this.fullName = fullName;
+	}
 
 
 	public User(String id,String username, String phone,String companyName, String fullName, String orgId, String uniqueId, Date activityTs, boolean isWebApp, boolean isWhatsApp,boolean isBot,String zipCode,MasterStatus clientStatus,Date createdTS,String sourceType) {
@@ -191,7 +201,13 @@ public class User extends Procucev {
 	}
 
 
-
+	public User(String username, String phone, String companyName,String fullName) {
+		super();
+		this.username = username;
+		this.phone = phone;
+		this.companyName = companyName;
+		this.fullName = fullName;
+	}
 
 
 

@@ -313,4 +313,24 @@ public class Organization extends Procucev {
 	
 	@Transient
 	private String requestType;
+	
+
+	public Organization(String id,String companyName, String pan, String address1, String city, String email, OrgType orgType,String companyId) {
+		super();
+		this.id=id;
+		this.companyName = companyName;
+		this.pan = pan;
+		this.address1 = address1;
+		this.city = city;
+		this.email = email;
+		this.orgType = orgType;
+		this.companyId=companyId;
+	}
+
+
+	public Organization() {
+		super();
+		// TODO Auto-generated constructor stub
+	}
+
 }

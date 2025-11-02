@@ -1010,8 +1010,8 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 			response.put("fullName", user.getFullName());
 			response.put("verificationStatus", user.getVerificationStatus());
 
-			InternetAddress add = new InternetAddress(mailid, "Procucev Notifications");
-			MailUtility.mailingVerificationLinkWithUser(javaMailSender, add, host, savedUser);
+//			InternetAddress add = new InternetAddress(mailid, "Procucev Notifications");
+//			MailUtility.mailingVerificationLinkWithUser(javaMailSender, add, host, savedUser);
 
 			return response;
 		} catch (Exception e) {
@@ -1056,7 +1056,7 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 	public void registerFromExcel(MultipartFile file) throws Exception {
 		try (InputStream inputStream = file.getInputStream()) {
 			Workbook workbook = WorkbookFactory.create(inputStream);
-			Sheet sheet = workbook.getSheetAt(2);
+			Sheet sheet = workbook.getSheetAt(0);
 
 			for (int i = 1; i <= sheet.getLastRowNum(); i++) { // skip header
 				Row row = sheet.getRow(i);
