@@ -1,4 +1,5 @@
 package com.portal.procucev.service;
+import java.io.UnsupportedEncodingException;
 import java.util.List;
 
 import com.portal.procucev.Dto.VendorSummaryResponse;
@@ -48,7 +49,7 @@ public interface UserService {
 
 	boolean generateOtp(Organization organization, HttpServletRequest request);
 
-	boolean validateEmailOtp(Organization organization);
+	boolean validateEmailOtp(Organization organization) throws UnsupportedEncodingException;
 
 	boolean validateOtp(Organization organization);
 

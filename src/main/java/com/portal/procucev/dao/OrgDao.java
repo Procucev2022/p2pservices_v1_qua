@@ -75,5 +75,9 @@ public interface OrgDao  extends JpaRepository<Organization, String> {
            "    o.rfqUsedCount = o.rfqUsedCount + 1 " +
            "WHERE o.id = :id AND o.rfqCredits > 0")
 	int updateRfqCreditsAndUsage(@Param("id") String id);
+	
+	@Query("SELECT new Organization(o.id,o.companyName,o.pan,o.address1,o.city,o.email,o.orgType,o.companyId) FROM Organization o WHERE o.orgType IN (:client, :vendor) AND LOWER(o.companyName) LIKE LOWER(CONCAT('%', :companyName, '%'))")
+	List<Organization> findOrganizationsByTypeAndNameIgnoreCase(@Param("client") OrgType client,
+			@Param("vendor") OrgType vendor, @Param("companyName") String companyName);
 
 }
