@@ -421,6 +421,12 @@ public class GMTController {
 		List<User> status = gmtService.getGmtBuyers();
 		return new ResponseEntity<>(status, HttpStatus.OK);
 	}
+	
+	@GetMapping(value = "/runEmailForwarder")
+	public ResponseEntity<?> emailForwarder() {
+		gmtService.emailForwarder();
+		return new ResponseEntity<>( HttpStatus.OK);
+	}
 
 //	@PostMapping(value = "/createRFQByClient")
 //	public ResponseEntity<?> createRFQByClient(@RequestBody Rfq rfq) throws Exception {
