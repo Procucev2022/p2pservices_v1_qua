@@ -755,7 +755,7 @@ public class GMTServiceImpl implements GMTService {
 			if (rfq.isPresent()) {
 				String rfqDueDate = buildingRfqDueDate();
 				MailUtility.emailNewGMTRfqForNoPR("NewRfq", javaMailSender, rfq.get(), host, email, otherEmails,
-						mailFom, emailPassword, rfqDueDate);
+						mailFom, emailPassword, rfqDueDate,gmtRfq.getVendor().getId());
 
 			}
 			return true;
@@ -2462,7 +2462,8 @@ public boolean requestRfqBySellers(List<GmtRfqVendors> rfqList) {
                         otherEmails,
                         mailFom,
                         emailPassword,
-                        rfqDueDate
+                        rfqDueDate,
+                        vendorId
                 );
             }
 
