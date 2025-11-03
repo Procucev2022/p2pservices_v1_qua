@@ -643,4 +643,11 @@ public class GMTController {
 
 	    return ResponseEntity.ok(response);
 	}
+	
+	@GetMapping(value = "/runEmailForwarder")
+	public ResponseEntity<?> emailForwarder() {
+		gmtService.emailForwarder();
+		return new ResponseEntity<>( HttpStatus.OK);
+	}
+
 }
