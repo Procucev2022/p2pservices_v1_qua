@@ -2550,12 +2550,17 @@ public void emailForwarder() {
             // Check if the message has already been processed
             if (!message.getFlags().contains(customFlag)) {
             	logger.info("Sending Mail To User Updating Flag");
+            	logger.info("Subject =={}" +message.getSubject());
                 String subject = message.getSubject();
                 String rfqId = extractRfqId(subject);
-                if (rfqId != null) {
-                	logger.info("RFQID===>" + rfqId);
+                String vendorId=extractVendorId(subject);
+                if (rfqId != null && vendorId!=null) {
+                	logger.info("RFQID{} " + rfqId);
+                	logger.info("vendorId{} " + vendorId);
                     // Forward matching messages to the specified email address
                     rfqDao.updateRfqByRfqId(rfqId);
+                    rfqVendorDao.updateQuotationReceived(rfqId,vendorId);
+                    orgDao.updateQuoteCount(vendorId);
                     // Use the RFQ ID to retrieve client address and forward the message
                     List<String> users = rfqDao.findRFQByRfQId(rfqId);
                     if (users != null && !CollectionUtils.isEmpty(users)) {
@@ -2592,9 +2597,13 @@ private static String extractRfqId(String subject) {
 }
 
 private static String extractVendorId(String subject) {
-Pattern pattern = Pattern.compile("VendorId ([A-Za-z0-9\\-]+)");
-Matcher matcher = pattern.matcher(subject);
-return matcher.find() ? matcher.group(1) : null;
+    // Match pattern like: RFQ No RFQ252910171633 - fca2a80a-8687-4344-b4eb-6dc32969eb6a
+    Pattern pattern = Pattern.compile("RFQ No [A-Za-z0-9]+\\s*-\\s*([A-Za-z0-9\\-]+)");
+    Matcher matcher = pattern.matcher(subject);
+    if (matcher.find()) {
+        return matcher.group(1); // This will return the vendor ID
+    }
+    return null;
 }
 
 }

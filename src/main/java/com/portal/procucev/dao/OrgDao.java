@@ -80,4 +80,9 @@ public interface OrgDao  extends JpaRepository<Organization, String> {
 	List<Organization> findOrganizationsByTypeAndNameIgnoreCase(@Param("client") OrgType client,
 			@Param("vendor") OrgType vendor, @Param("companyName") String companyName);
 
+	@Modifying
+    @Transactional
+    @Query("UPDATE Organization o SET o.quoteSubmitted = o.quoteSubmitted + 1 WHERE o.id = :vendorId ")
+	void updateQuoteCount(@Param("vendorId") String vendorId);
+
 }
