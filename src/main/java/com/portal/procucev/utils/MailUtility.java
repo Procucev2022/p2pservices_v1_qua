@@ -944,10 +944,12 @@ return false;
 	}
 
 	public static void emailNewGMTRfqForNoPR(String string, JavaMailSender javaMailSender, Rfq rfqData, String host,
-			String vendorMail, String otherEmails, String mailFom, String emailPassword, String rfqDueDate)
+			String vendorMail, String otherEmails, String mailFom, String emailPassword, String rfqDueDate, String vendorId)
 			throws MessagingException {
 		// TODO Auto-generated method stub
-		String subject = rfqData.getCategory() + " - You have an Enquiry RFQ No " + rfqData.getRfqId();
+		//String subject = rfqData.getCategory() + " - You have an Enquiry RFQ No " + rfqData.getRfqId();
+		String subject =  "You have an Enquiry RFQ No " + rfqData.getRfqId() + " - " 
+                + vendorId;;
 		String message;
 		String pincode = null;
 		int i = 1;
@@ -1061,8 +1063,9 @@ return false;
 				multipart.addBodyPart(attachmentPart);
 			}
 		}
+		JavaMailSender javaMailSender2 = getJavaMailSender(mailFom, emailPassword);
 		// Custom from address
-		emailNotifierGenericNoPRGmtBySenderList(subject, javaMailSender, mailFom, otherEmails, multipart, vendorMail);
+		emailNotifierGenericNoPRGmtBySenderList(subject, javaMailSender2, mailFom, otherEmails, multipart, vendorMail);
 
 	}
 
