@@ -3,6 +3,7 @@ package com.portal.procucev.controller;
 
 import java.util.List;
 import java.util.Map;
+import java.io.UnsupportedEncodingException;
 import java.util.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -189,7 +190,7 @@ public class UserController {
 //	        : ResponseEntity.status(HttpStatus.CREATED).body(response); // 201
 	
 	@PostMapping(value = "/validateOtp")
-	public ResponseEntity<?> validateOtp(@RequestBody Organization organization) {
+	public ResponseEntity<?> validateOtp(@RequestBody Organization organization) throws UnsupportedEncodingException {
 
 	    logger.info("Entered to validate OTP");
 

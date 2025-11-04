@@ -61,12 +61,15 @@ public class ProcUserServiceImpl implements UserService {
 
 	@Autowired
 	private UserDao userDao;
-	
+
 	@Autowired
 	private OrgDao orgDao;
 
 	@Autowired
 	private OrgTypeDao orgTypeDao;
+	
+	@Value("${mailid}")
+	String mailid;
 	
 	@Autowired
 	private EmailUserRepo emailUserRepo;
@@ -79,7 +82,7 @@ public class ProcUserServiceImpl implements UserService {
 
 	@Value("${host}")
 	String host;
-	
+
 	private Map<String, OtpDetails> otpsMap = new ConcurrentHashMap<>();
 
 	@Override
@@ -118,9 +121,9 @@ public class ProcUserServiceImpl implements UserService {
 
 	@Override
 	public User getUserByEmail(User user) {
-		  String normalizedPhone = normalizePhone(user.getPhone());
-		//User userObject = userDao.findByUsernameAndActive(user.getUsername(), true);
-		User userObject = userDao.findByUsernameAndPhoneAndActive(user.getUsername(),normalizedPhone, true);
+		String normalizedPhone = normalizePhone(user.getPhone());
+		// User userObject = userDao.findByUsernameAndActive(user.getUsername(), true);
+		User userObject = userDao.findByUsernameAndPhoneAndActive(user.getUsername(), normalizedPhone, true);
 		if (userObject != null) {
 
 			List<String> permissionDetails = new ArrayList<>();
@@ -133,7 +136,7 @@ public class ProcUserServiceImpl implements UserService {
 				});
 			}
 			// To update last activity
-			userDao.updateActivityTs(user.getUsername(),user.getPhone());
+			userDao.updateActivityTs(user.getUsername(), user.getPhone());
 			EmailUser res = emailUserRepo.findByEmail(user.getUsername());
 			if (res != null) {
 				userObject.setAuth(true);
@@ -142,7 +145,7 @@ public class ProcUserServiceImpl implements UserService {
 			}
 			userObject.setListofPermission(permissionDetails);
 
-			//List<Permission> ownPermissionList = userObject.getOwnPermissionList();
+			// List<Permission> ownPermissionList = userObject.getOwnPermissionList();
 			List<Permission> ownPermissionList = new ArrayList<>();
 			if (!ownPermissionList.isEmpty() && ownPermissionList != null) {
 				List<String> ownPermissionDetails = new ArrayList<>();
@@ -191,42 +194,34 @@ public class ProcUserServiceImpl implements UserService {
 //
 //	}
 
-	
 	@Override
 	public boolean changePassword(ResetPassword reset) {
 
-	    String pass = reset.getPassword();
-	    String newPass = reset.getNewpassword();
-	    String normalizedPhone = normalizePhone(reset.getPhone());
+		String pass = reset.getPassword();
+		String newPass = reset.getNewpassword();
+		String normalizedPhone = normalizePhone(reset.getPhone());
 
-	    User users = userDao.findByUsernameAndPhoneAndActive(reset.getUserName(), normalizedPhone, true);
+		User users = userDao.findByUsernameAndPhoneAndActive(reset.getUserName(), normalizedPhone, true);
 
-	    if (users == null) {
-	        throw new AppException(
-	            HttpStatus.NOT_FOUND.value(),
-	            "User not found. Please check your username or phone number.",
-	            ApplicationConstants.BUSSINESS_EXCEPTION,
-	            ApplicationConstants.FAILURE
-	        );
-	    }
-	    String password = users.getPassword();
+		if (users == null) {
+			throw new AppException(HttpStatus.NOT_FOUND.value(),
+					"User not found. Please check your username or phone number.",
+					ApplicationConstants.BUSSINESS_EXCEPTION, ApplicationConstants.FAILURE);
+		}
+		String password = users.getPassword();
 
-	    if (!pass.equals(password)) {
-	        throw new AppException(
-	            HttpStatus.BAD_REQUEST.value(),
-	            "Current password is incorrect. Please try again.",
-	            ApplicationConstants.BUSSINESS_EXCEPTION,
-	            ApplicationConstants.FAILURE
-	        );
-	    }
+		if (!pass.equals(password)) {
+			throw new AppException(HttpStatus.BAD_REQUEST.value(), "Current password is incorrect. Please try again.",
+					ApplicationConstants.BUSSINESS_EXCEPTION, ApplicationConstants.FAILURE);
+		}
 
-	    users.setResetPassword(false);
-	    users.setPassword(newPass);
-	    userDao.save(users);
+		users.setResetPassword(false);
+		users.setPassword(newPass);
+		userDao.save(users);
 
-	    return true;
+		return true;
 	}
-	
+
 	/**
 	 * Checks whether given email exist in database
 	 */
@@ -266,9 +261,9 @@ public class ProcUserServiceImpl implements UserService {
 	@Override
 	public boolean forgotPassword(User users) {
 		boolean status = false;
-		 String normalizedPhone = normalizePhone(users.getPhone());
-		//User user = userDao.findByUsernameAndActive(users.getUsername(), true);
-		User user = userDao.findByUsernameAndPhoneAndActive(users.getUsername(),normalizedPhone, true);
+		String normalizedPhone = normalizePhone(users.getPhone());
+		// User user = userDao.findByUsernameAndActive(users.getUsername(), true);
+		User user = userDao.findByUsernameAndPhoneAndActive(users.getUsername(), normalizedPhone, true);
 		if (user == null) {
 			throw new AppException(HttpStatus.NO_CONTENT.value(), ApplicationConstants.NO_USER_FOUND,
 					ApplicationConstants.BUSSINESS_EXCEPTION, ApplicationConstants.FAILURE);
@@ -331,12 +326,11 @@ public class ProcUserServiceImpl implements UserService {
 			log.info("Deactivated User");
 			String orgId = userDao.findOrgIdByUser(user.getId());
 			List<String> emails = userDao.findByOrg(orgId);
-			if(!emails.isEmpty() && emails!=null) {
-				 orgDao.updateEmailByOrg(orgId,emails.get(0));
-			}
-			else {
-				String email=null;
-				orgDao.updateEmailByOrg(orgId,email);
+			if (!emails.isEmpty() && emails != null) {
+				orgDao.updateEmailByOrg(orgId, emails.get(0));
+			} else {
+				String email = null;
+				orgDao.updateEmailByOrg(orgId, email);
 			}
 			return true;
 		} else {
@@ -347,54 +341,50 @@ public class ProcUserServiceImpl implements UserService {
 	}
 
 	public boolean generateOtp(Organization organization, HttpServletRequest request) {
-	    log.info("Entered to generate OTP");
+		log.info("Entered to generate OTP");
 
-	    try {
-	        if (organization != null) {
-	            String email = organization.getEmail();
-	            String phone = organization.getOrganizationPhonenumber();
+		try {
+			if (organization != null) {
+				String email = organization.getEmail();
+				String phone = organization.getOrganizationPhonenumber();
 
-	            //  Check if user exists
-	            String normalizedPhone = normalizePhone(phone);
-	            User user = userDao.findByUsernameAndPhoneAndActive(email, normalizedPhone, true);
-	            if (user == null) {
-	                log.error("User not found for email: {} and phone: {}", email, normalizedPhone);
-	                return false;
-	            }
+				// Check if user exists
+				String normalizedPhone = normalizePhone(phone);
+				User user = userDao.findByUsernameAndPhoneAndActive(email, normalizedPhone, true);
+				if (user == null) {
+					log.error("User not found for email: {} and phone: {}", email, normalizedPhone);
+					return false;
+				}
 
-	            //  Generate OTP
-	            String otp = generateOTPForEmail();
-	            LocalDateTime expirationTime = LocalDateTime.now().plusMinutes(15);
+				// Generate OTP
+				String otp = generateOTPForEmail();
+				LocalDateTime expirationTime = LocalDateTime.now().plusMinutes(15);
 
-	            //  Store OTP
-	            // Store using unique key (email + phone)
-	            String otpKey = email + "|" + normalizedPhone;
-	            otpsMap.put(otpKey, new OtpDetails(otp, expirationTime));
-	            //otpsMap.put(email, new OtpDetails(otp, expirationTime));
+				// Store OTP
+				// Store using unique key (email + phone)
+				String otpKey = email + "|" + normalizedPhone;
+				otpsMap.put(otpKey, new OtpDetails(otp, expirationTime));
+				// otpsMap.put(email, new OtpDetails(otp, expirationTime));
 
-	            // Send OTP
-	            InternetAddress fromAddress = new InternetAddress(mailFom, "Procucev Notifications");
-	            MailUtility.sendOtpForEmail("OTP", email, javaMailSender, fromAddress, host, otp);
+				// Send OTP
+				InternetAddress fromAddress = new InternetAddress(mailFom, "Procucev Notifications");
+				MailUtility.sendOtpForEmail("OTP", email, javaMailSender, fromAddress, host, otp);
 
-	            log.info("OTP sent successfully to {}", email);
-	            return true;
+				log.info("OTP sent successfully to {}", email);
+				return true;
 
-	        } else {
-	            log.error("Organization object is null");
-	            throw new AppException(
-	                    HttpStatus.NO_CONTENT.value(),
-	                    ApplicationConstants.NO_DATA_FOUND,
-	                    ApplicationConstants.BUSINESS_EXCEPTION,
-	                    ApplicationConstants.FAILURE
-	            );
-	        }
-	    } catch (UnsupportedEncodingException e) {
-	        log.error("Encoding error while sending OTP", e);
-	    } catch (Exception ex) {
-	        log.error("Unexpected error while sending OTP", ex);
-	    }
+			} else {
+				log.error("Organization object is null");
+				throw new AppException(HttpStatus.NO_CONTENT.value(), ApplicationConstants.NO_DATA_FOUND,
+						ApplicationConstants.BUSINESS_EXCEPTION, ApplicationConstants.FAILURE);
+			}
+		} catch (UnsupportedEncodingException e) {
+			log.error("Encoding error while sending OTP", e);
+		} catch (Exception ex) {
+			log.error("Unexpected error while sending OTP", ex);
+		}
 
-	    return false;
+		return false;
 	}
 
 	private static String generateOTPForEmail() {
@@ -408,89 +398,97 @@ public class ProcUserServiceImpl implements UserService {
 
 		return otp.toString();
 	}
+
 	@Override
 	public boolean validateOtp(Organization organization) {
-	    if (organization == null) {
-	        log.error("Organization object is null in validateOtp()");
-	        return false;
-	    }
+		if (organization == null) {
+			log.error("Organization object is null in validateOtp()");
+			return false;
+		}
 
-	    String email = organization.getEmail();
-	    String phone = organization.getOrganizationPhonenumber();
+		String email = organization.getEmail();
+		String phone = organization.getOrganizationPhonenumber();
 
-	    if (email == null || phone == null || organization.getEmailOtp() == null) {
-	        log.warn("Missing email, phone, or OTP in request");
-	        return false;
-	    }
+		if (email == null || phone == null || organization.getEmailOtp() == null) {
+			log.warn("Missing email, phone, or OTP in request");
+			return false;
+		}
 
-	    String key = email + "|" + phone;
-	    OtpDetails otpDetails = otpsMap.get(key);
+		String key = email + "|" + phone;
+		OtpDetails otpDetails = otpsMap.get(key);
 
-	    // Validate OTP
-	    if (otpDetails != null) {
-	        LocalDateTime expirationTime = otpDetails.getExpirationTime();
-	        LocalDateTime now = LocalDateTime.now();
+		// Validate OTP
+		if (otpDetails != null) {
+			LocalDateTime expirationTime = otpDetails.getExpirationTime();
+			LocalDateTime now = LocalDateTime.now();
 
-	        // Check if OTP is still valid (not expired) and matches
-	        if (now.isBefore(expirationTime) && otpDetails.getOtp().equals(organization.getEmailOtp())) {
-	            // Remove OTP from the map after successful validation
-	            otpsMap.remove(key);
-	            log.info("OTP validated successfully for key: {}", key);
-	            return true;
-	        } else {
-	            log.warn("OTP expired or mismatch for key: {}", key);
-	        }
-	    } else {
-	        log.warn("No OTP entry found for key: {}", key);
-	    }
+			// Check if OTP is still valid (not expired) and matches
+			if (now.isBefore(expirationTime) && otpDetails.getOtp().equals(organization.getEmailOtp())) {
+				// Remove OTP from the map after successful validation
+				otpsMap.remove(key);
+				log.info("OTP validated successfully for key: {}", key);
+				return true;
+			} else {
+				log.warn("OTP expired or mismatch for key: {}", key);
+			}
+		} else {
+			log.warn("No OTP entry found for key: {}", key);
+		}
 
-	    return false;
+		return false;
 	}
-	
+
 	@Transactional
 	@Override
-	public boolean validateEmailOtp(Organization organization) {
-	    if (organization == null) {
-	        log.error("Organization object is null in validateOtp()");
-	        return false;
-	    }
+	public boolean validateEmailOtp(Organization organization) throws UnsupportedEncodingException {
+		if (organization == null) {
+			log.error("Organization object is null in validateOtp()");
+			return false;
+		}
 
-	    String email = organization.getEmail();
-	    String phone = organization.getOrganizationPhonenumber();
-	  
-	    if (email == null || phone == null || organization.getEmailOtp() == null) {
-	        log.warn("Missing email, phone, or OTP in request");
-	        return false;
-	    }
-	    String normalizedPhone = normalizePhone(phone);
-	    String key = email + "|" + normalizedPhone;
-	    OtpDetails otpDetails = otpsMap.get(key);
+		String email = organization.getEmail();
+		String phone = organization.getOrganizationPhonenumber();
 
-	    // Validate OTP
-	    if (otpDetails != null) {
-	        LocalDateTime expirationTime = otpDetails.getExpirationTime();
-	        LocalDateTime now = LocalDateTime.now();
+		if (email == null || phone == null || organization.getEmailOtp() == null) {
+			log.warn("Missing email, phone, or OTP in request");
+			return false;
+		}
+		String normalizedPhone = normalizePhone(phone);
+		String key = email + "|" + normalizedPhone;
+		OtpDetails otpDetails = otpsMap.get(key);
 
-	        // Check if OTP is still valid (not expired) and matches
-	        if (now.isBefore(expirationTime) && otpDetails.getOtp().equals(organization.getEmailOtp())) {
-	            // Remove OTP from the map after successful validation
-	            int updated = userDao.updateActivityTs(email,phone,StatusConstants.EMAIL_VERIFIED);
-	            if (updated > 0) {
-	                otpsMap.remove(key);
-	                log.info("OTP validated and status updated successfully for key: {}", key);
-	                return true;
-	            }
-	        } else {
-	            log.warn("OTP expired or mismatch for key: {}", key);
-	        }
-	    } else {
-	        log.warn("No OTP entry found for key: {}", key);
-	          userDao.updateVerificationStatus(email,phone,StatusConstants.EMAIL_VERIFICATION_FAILED);
-	    }
+		// Validate OTP
+		if (otpDetails != null) {
+			LocalDateTime expirationTime = otpDetails.getExpirationTime();
+			LocalDateTime now = LocalDateTime.now();
 
-	    return false;
+			// Check if OTP is still valid (not expired) and matches
+			if (now.isBefore(expirationTime) && otpDetails.getOtp().equals(organization.getEmailOtp())) {
+				// Remove OTP from the map after successful validation
+			
+				User user = userDao.findByUsernameAndPhoneAndActive(email, normalizedPhone, true);
+				if (user != null 
+				        && !StatusConstants.EMAIL_VERIFIED.equals(user.getVerificationStatus()) 
+				        && !user.isSelfClient()) {
+					InternetAddress add = new InternetAddress(mailid, "Procucev Notifications");
+					MailUtility.mailingVerificationLinkWithUser(javaMailSender, add, host, user);
+				}
+				int updated = userDao.updateActivityTs(email, phone, StatusConstants.EMAIL_VERIFIED);
+				if (updated > 0) {
+					otpsMap.remove(key);
+					log.info("OTP validated and status updated successfully for key: {}", key);
+					return true;
+				}
+			} else {
+				log.warn("OTP expired or mismatch for key: {}", key);
+			}
+		} else {
+			log.warn("No OTP entry found for key: {}", key);
+			userDao.updateVerificationStatus(email, phone, StatusConstants.EMAIL_VERIFICATION_FAILED);
+		}
+
+		return false;
 	}
-
 
 //	    public String processBuyerExcel(MultipartFile file) throws Exception {
 //	        Workbook workbook = WorkbookFactory.create(file.getInputStream());
@@ -571,223 +569,240 @@ public class ProcUserServiceImpl implements UserService {
 //	        }
 //	    }
 //	}
-	
-	
+
 	@Transactional
 	public boolean updateOrganization(Organization updatedOrg) {
-		  if (updatedOrg == null) {
-		        log.error("updatedOrg object is null in updateOrganization() ");
-		        return false;
-		    }
-		  else {
-	    Organization existingOrg = orgDao.findById(updatedOrg.getId())
-	            .orElseThrow(() -> new RuntimeException("Organization not found"));
+		if (updatedOrg == null) {
+			log.error("updatedOrg object is null in updateOrganization() ");
+			return false;
+		} else {
+			Organization existingOrg = orgDao.findById(updatedOrg.getId())
+					.orElseThrow(() -> new RuntimeException("Organization not found"));
 
-	    // Overwrite only the fields you care about
-	    if (updatedOrg.getCompanyName() != null) existingOrg.setCompanyName(updatedOrg.getCompanyName());
-	    if (updatedOrg.getDetails() != null) existingOrg.setDetails(updatedOrg.getDetails());
-	    if (updatedOrg.getGstin() != null) existingOrg.setGstin(updatedOrg.getGstin());
-	    if (updatedOrg.getAddress1() != null) existingOrg.setAddress1(updatedOrg.getAddress1());
-	    if (updatedOrg.getState() != null) existingOrg.setState(updatedOrg.getState());
-	    if (updatedOrg.getCity() != null) existingOrg.setCity(updatedOrg.getCity());
-	    if (updatedOrg.getZipCode() != null) existingOrg.setZipCode(updatedOrg.getZipCode());
-	    if (updatedOrg.getContactPerson() != null) existingOrg.setContactPerson(updatedOrg.getContactPerson());
-	    if (updatedOrg.getEmail() != null) existingOrg.setEmail(updatedOrg.getEmail());
-	    if (updatedOrg.getOrganizationPhonenumber() != null) existingOrg.setOrganizationPhonenumber(updatedOrg.getOrganizationPhonenumber());
-	    
-	    if (updatedOrg.getSubscriptionPlan() != null) {
-            existingOrg.setSubscriptionPlan(updatedOrg.getSubscriptionPlan());
-        }
+			// Overwrite only the fields you care about
+			if (updatedOrg.getCompanyName() != null)
+				existingOrg.setCompanyName(updatedOrg.getCompanyName());
+			if (updatedOrg.getDetails() != null)
+				existingOrg.setDetails(updatedOrg.getDetails());
+			if (updatedOrg.getGstin() != null)
+				existingOrg.setGstin(updatedOrg.getGstin());
+			if (updatedOrg.getAddress1() != null)
+				existingOrg.setAddress1(updatedOrg.getAddress1());
+			if (updatedOrg.getState() != null)
+				existingOrg.setState(updatedOrg.getState());
+			if (updatedOrg.getCity() != null)
+				existingOrg.setCity(updatedOrg.getCity());
+			if (updatedOrg.getZipCode() != null)
+				existingOrg.setZipCode(updatedOrg.getZipCode());
+			if (updatedOrg.getContactPerson() != null)
+				existingOrg.setContactPerson(updatedOrg.getContactPerson());
+			if (updatedOrg.getEmail() != null)
+				existingOrg.setEmail(updatedOrg.getEmail());
+			if (updatedOrg.getOrganizationPhonenumber() != null)
+				existingOrg.setOrganizationPhonenumber(updatedOrg.getOrganizationPhonenumber());
 
-	    // Optional: if nested collections are passed, handle them
-	    if (updatedOrg.getBranches() != null) {
-	        existingOrg.getBranches().clear();
-	        for (OrgBranches branch : updatedOrg.getBranches()) {
-	            branch.setOrganization(existingOrg); // Set back reference
-	            existingOrg.getBranches().add(branch);
-	        }
-	    }
+			if (updatedOrg.getSubscriptionPlan() != null) {
+				existingOrg.setSubscriptionPlan(updatedOrg.getSubscriptionPlan());
+			}
 
-	    if (updatedOrg.getDivisionCategories() != null) {
-	        existingOrg.getDivisionCategories().clear();
-	        for (OrgDivisionCategory divCat : updatedOrg.getDivisionCategories()) {
-	            divCat.setOrganization(existingOrg); // Set back reference
-	            existingOrg.getDivisionCategories().add(divCat);
-	        }
-	    }
-	    orgDao.save(existingOrg);
-			
-	    return true;
-	}
+			// Optional: if nested collections are passed, handle them
+			if (updatedOrg.getBranches() != null) {
+				existingOrg.getBranches().clear();
+				for (OrgBranches branch : updatedOrg.getBranches()) {
+					branch.setOrganization(existingOrg); // Set back reference
+					existingOrg.getBranches().add(branch);
+				}
+			}
+
+			if (updatedOrg.getDivisionCategories() != null) {
+				existingOrg.getDivisionCategories().clear();
+				for (OrgDivisionCategory divCat : updatedOrg.getDivisionCategories()) {
+					divCat.setOrganization(existingOrg); // Set back reference
+					existingOrg.getDivisionCategories().add(divCat);
+				}
+			}
+			orgDao.save(existingOrg);
+
+			return true;
+		}
 	}
 
 	@Override
 	public boolean updateBuyer(Organization updatedOrg) {
 		// TODO Auto-generated method stub
-		  if (updatedOrg == null) {
-		        log.error("updatedOrg object is null in updateBuyer() ");
-		        return false;
-		    }
-		  else {
-	    Organization existingOrg = orgDao.findById(updatedOrg.getId())
-	            .orElseThrow(() -> new RuntimeException("Organization not found"));
+		if (updatedOrg == null) {
+			log.error("updatedOrg object is null in updateBuyer() ");
+			return false;
+		} else {
+			Organization existingOrg = orgDao.findById(updatedOrg.getId())
+					.orElseThrow(() -> new RuntimeException("Organization not found"));
 
-	    // Overwrite only the fields you care about
-	    if (updatedOrg.getCompanyName() != null) existingOrg.setCompanyName(updatedOrg.getCompanyName());
-	    if (updatedOrg.getDetails() != null) existingOrg.setDetails(updatedOrg.getDetails());
-	    if (updatedOrg.getGstin() != null) existingOrg.setGstin(updatedOrg.getGstin());
-	    if (updatedOrg.getAddress1() != null) existingOrg.setAddress1(updatedOrg.getAddress1());
-	    if (updatedOrg.getState() != null) existingOrg.setState(updatedOrg.getState());
-	    if (updatedOrg.getCity() != null) existingOrg.setCity(updatedOrg.getCity());
-	    if (updatedOrg.getZipCode() != null) existingOrg.setZipCode(updatedOrg.getZipCode());
-	    if (updatedOrg.getContactPerson() != null) existingOrg.setContactPerson(updatedOrg.getContactPerson());
-	    if (updatedOrg.getEmail() != null) existingOrg.setEmail(updatedOrg.getEmail());
-	    if (updatedOrg.getOrganizationPhonenumber() != null) existingOrg.setOrganizationPhonenumber(updatedOrg.getOrganizationPhonenumber());
+			// Overwrite only the fields you care about
+			if (updatedOrg.getCompanyName() != null)
+				existingOrg.setCompanyName(updatedOrg.getCompanyName());
+			if (updatedOrg.getDetails() != null)
+				existingOrg.setDetails(updatedOrg.getDetails());
+			if (updatedOrg.getGstin() != null)
+				existingOrg.setGstin(updatedOrg.getGstin());
+			if (updatedOrg.getAddress1() != null)
+				existingOrg.setAddress1(updatedOrg.getAddress1());
+			if (updatedOrg.getState() != null)
+				existingOrg.setState(updatedOrg.getState());
+			if (updatedOrg.getCity() != null)
+				existingOrg.setCity(updatedOrg.getCity());
+			if (updatedOrg.getZipCode() != null)
+				existingOrg.setZipCode(updatedOrg.getZipCode());
+			if (updatedOrg.getContactPerson() != null)
+				existingOrg.setContactPerson(updatedOrg.getContactPerson());
+			if (updatedOrg.getEmail() != null)
+				existingOrg.setEmail(updatedOrg.getEmail());
+			if (updatedOrg.getOrganizationPhonenumber() != null)
+				existingOrg.setOrganizationPhonenumber(updatedOrg.getOrganizationPhonenumber());
 
-	    // Update divisions
-	    if (updatedOrg.getDivisionCategories() != null && !updatedOrg.getDivisionCategories().isEmpty()) {
-	        List<OrgDivisionCategory> newDivs = new ArrayList<>();
-	        for (OrgDivisionCategory divCat : updatedOrg.getDivisionCategories()) {
-	            OrgDivisionCategory newCat = new OrgDivisionCategory();
-	            newCat.setDivision(divCat.getDivision());   // copy from payload
-	            newCat.setCategory(divCat.getCategory());   // copy from payload
-	            newCat.setOrganization(existingOrg);        // back reference
-	            newCat.setUserId(updatedOrg.getUserId());   // user link
-	            newDivs.add(newCat);
-	        }
-	        existingOrg.getDivisionCategories().clear();
-	        existingOrg.getDivisionCategories().addAll(newDivs);
-	    }
-	    orgDao.save(existingOrg);
-			
-	    return true;
-	}
-	}
+			// Update divisions
+			if (updatedOrg.getDivisionCategories() != null && !updatedOrg.getDivisionCategories().isEmpty()) {
+				List<OrgDivisionCategory> newDivs = new ArrayList<>();
+				for (OrgDivisionCategory divCat : updatedOrg.getDivisionCategories()) {
+					OrgDivisionCategory newCat = new OrgDivisionCategory();
+					newCat.setDivision(divCat.getDivision()); // copy from payload
+					newCat.setCategory(divCat.getCategory()); // copy from payload
+					newCat.setOrganization(existingOrg); // back reference
+					newCat.setUserId(updatedOrg.getUserId()); // user link
+					newDivs.add(newCat);
+				}
+				existingOrg.getDivisionCategories().clear();
+				existingOrg.getDivisionCategories().addAll(newDivs);
+			}
+			orgDao.save(existingOrg);
 
-
-public List<VendorSummaryResponse> getVendorSummary() {
-    Logger logger = LoggerFactory.getLogger(getClass());
-
-    OrgType orgTypeObject = orgTypeDao.findByTypeName(ApplicationConstants.VENDOR);
-    List<Organization> vendors = orgDao.findByOrgType(orgTypeObject);
-
-    if (vendors == null || vendors.isEmpty()) {
-        logger.warn("No vendors found for orgType={}", ApplicationConstants.VENDOR);
-        return Collections.emptyList();
-    }
-
-    List<VendorSummaryResponse> response = new ArrayList<>();
-
-    for (Organization vendor : vendors) {
-        VendorSummaryResponse summary = new VendorSummaryResponse();
-        try {
-            logger.info("Processing vendor with ID={} and Name={}", vendor.getId(), vendor.getName());
-
-            // Set values into DTO
-            summary.setId(vendor.getId());
-            summary.setCompanyId(vendor.getCompanyId());
-            summary.setCompanyName(vendor.getCompanyName());
-            summary.setName(vendor.getName());
-            summary.setEmail(vendor.getEmail());
-            summary.setGst(vendor.getGstin());
-            summary.setPincode(vendor.getZipCode());
-            summary.setPhoneNumber(vendor.getOrganizationPhonenumber());
-            summary.setDetails(vendor.getDetails());
-
-            summary.setSubscribed(vendor.getSubscriptionPlan() != null ? "Yes" : "No");
-
-            // Rfqs created (safe null handling)
-            //summary.setRfqsCreated(vendor.getRfqsCreated() != null ? vendor.getRfqsCreated() : 0L);
-
-            // Rfqs consumed
-            summary.setRfqsConsumed(vendor.getRfqUsedCount() != null ? vendor.getRfqUsedCount() : 0L);
-
-            // Subscription expiry
-            if (vendor.getSubscriptionExpiry() != null) {
-                summary.setSubscriptionExpiry(vendor.getSubscriptionExpiry());
-            }
-
-            // Vendor class
-            summary.setVendorClass(vendor.getVendorClass());
-
-            // Last login from user activity
-            List<Date> activityTimestamps = userDao.findActivityTsByOrg(vendor.getId());
-            if (!CollectionUtils.isEmpty(activityTimestamps)) {
-                summary.setLastLogin(activityTimestamps.get(0));
-            }
-
-            // Quotes submitted
-            summary.setQuotesSubmitted(vendor.getQuoteSubmitted() != null ? vendor.getQuoteSubmitted() : 0L);
-
-            // No errors
-            summary.setError(null);
-
-        } catch (Exception ex) {
-            logger.error("Error processing vendor ID={}: {}", vendor.getId(), ex.getMessage(), ex);
-
-            // Populate minimal vendor details with error message
-            summary.setId(vendor.getId());
-            summary.setCompanyId(vendor.getCompanyId());
-            summary.setCompanyName(vendor.getCompanyName());
-            summary.setName(vendor.getName());
-            summary.setSubscribed("Unknown");
-            summary.setError("Error fetching data: " + ex.getMessage());
-        }
-
-        response.add(summary);
-    }
-
-    logger.info("Vendor summary generated for {} vendors", response.size());
-    return response;
-}
-
-@Override
-public boolean deactivateOrgUser(User user) {
-	// TODO Auto-generated method stub
-	log.info("Entered To Disable User::");
-	String normalizedPhone = normalizePhone(user.getPhone());
-	User userfound = userDao.findByUsernameAndPhoneAndActive(user.getUsername(),normalizedPhone,true);
-	if (userfound!=null) {
-		userDao.deactiveUser(userfound.getId());
-		log.info("Deactivated User");
-		String orgId = userDao.findOrgIdByUser(userfound.getId());
-		List<String> emails = userDao.findByOrg(orgId);
-		if(!emails.isEmpty() && emails!=null) {
-			 orgDao.updateEmailByOrg(orgId,emails.get(0));
+			return true;
 		}
-		else {
-			String email=null;
-			orgDao.updateEmailByOrg(orgId,email);
-		}
-		return true;
-	} else {
-		throw new AppException(HttpStatus.NO_CONTENT.value(), ApplicationConstants.NO_DATA_FOUND,
-				ApplicationConstants.BUSSINESS_EXCEPTION, ApplicationConstants.FAILURE);
 	}
 
-}
-private String normalizePhone(String phone) {
-    if (phone == null || phone.isBlank()) {
-        return phone;
-    }
+	public List<VendorSummaryResponse> getVendorSummary() {
+		Logger logger = LoggerFactory.getLogger(getClass());
 
-    // Keep only digits
-    String digits = phone.replaceAll("[^0-9]", "");
+		OrgType orgTypeObject = orgTypeDao.findByTypeName(ApplicationConstants.VENDOR);
+		List<Organization> vendors = orgDao.findByOrgType(orgTypeObject);
 
-    // Remove leading zeros
-    digits = digits.replaceFirst("^0+", "");
+		if (vendors == null || vendors.isEmpty()) {
+			logger.warn("No vendors found for orgType={}", ApplicationConstants.VENDOR);
+			return Collections.emptyList();
+		}
 
-    // If it's a 10-digit number, assume Indian mobile and add +91
-    if (digits.length() == 10) {
-        return "+91" + digits;
-    }
+		List<VendorSummaryResponse> response = new ArrayList<>();
 
-    // If it already starts with 91 and is 12 digits → enforce +91
-    if (digits.length() == 12 && digits.startsWith("91")) {
-        return "+91" + digits.substring(2);
-    }
+		for (Organization vendor : vendors) {
+			VendorSummaryResponse summary = new VendorSummaryResponse();
+			try {
+				logger.info("Processing vendor with ID={} and Name={}", vendor.getId(), vendor.getName());
 
-    // Otherwise, fallback with + (handles rare cases, but ensures valid format)
-    return "+" + digits;
-}
+				// Set values into DTO
+				summary.setId(vendor.getId());
+				summary.setCompanyId(vendor.getCompanyId());
+				summary.setCompanyName(vendor.getCompanyName());
+				summary.setName(vendor.getName());
+				summary.setEmail(vendor.getEmail());
+				summary.setGst(vendor.getGstin());
+				summary.setPincode(vendor.getZipCode());
+				summary.setPhoneNumber(vendor.getOrganizationPhonenumber());
+				summary.setDetails(vendor.getDetails());
+
+				summary.setSubscribed(vendor.getSubscriptionPlan() != null ? "Yes" : "No");
+
+				// Rfqs created (safe null handling)
+				// summary.setRfqsCreated(vendor.getRfqsCreated() != null ?
+				// vendor.getRfqsCreated() : 0L);
+
+				// Rfqs consumed
+				summary.setRfqsConsumed(vendor.getRfqUsedCount() != null ? vendor.getRfqUsedCount() : 0L);
+
+				// Subscription expiry
+				if (vendor.getSubscriptionExpiry() != null) {
+					summary.setSubscriptionExpiry(vendor.getSubscriptionExpiry());
+				}
+
+				// Vendor class
+				summary.setVendorClass(vendor.getVendorClass());
+
+				// Last login from user activity
+				List<Date> activityTimestamps = userDao.findActivityTsByOrg(vendor.getId());
+				if (!CollectionUtils.isEmpty(activityTimestamps)) {
+					summary.setLastLogin(activityTimestamps.get(0));
+				}
+
+				// Quotes submitted
+				summary.setQuotesSubmitted(vendor.getQuoteSubmitted() != null ? vendor.getQuoteSubmitted() : 0L);
+
+				// No errors
+				summary.setError(null);
+
+			} catch (Exception ex) {
+				logger.error("Error processing vendor ID={}: {}", vendor.getId(), ex.getMessage(), ex);
+
+				// Populate minimal vendor details with error message
+				summary.setId(vendor.getId());
+				summary.setCompanyId(vendor.getCompanyId());
+				summary.setCompanyName(vendor.getCompanyName());
+				summary.setName(vendor.getName());
+				summary.setSubscribed("Unknown");
+				summary.setError("Error fetching data: " + ex.getMessage());
+			}
+
+			response.add(summary);
+		}
+
+		logger.info("Vendor summary generated for {} vendors", response.size());
+		return response;
+	}
+
+	@Override
+	public boolean deactivateOrgUser(User user) {
+		// TODO Auto-generated method stub
+		log.info("Entered To Disable User::");
+		String normalizedPhone = normalizePhone(user.getPhone());
+		User userfound = userDao.findByUsernameAndPhoneAndActive(user.getUsername(), normalizedPhone, true);
+		if (userfound != null) {
+			userDao.deactiveUser(userfound.getId());
+			log.info("Deactivated User");
+			String orgId = userDao.findOrgIdByUser(userfound.getId());
+			List<String> emails = userDao.findByOrg(orgId);
+			if (!emails.isEmpty() && emails != null) {
+				orgDao.updateEmailByOrg(orgId, emails.get(0));
+			} else {
+				String email = null;
+				orgDao.updateEmailByOrg(orgId, email);
+			}
+			return true;
+		} else {
+			throw new AppException(HttpStatus.NO_CONTENT.value(), ApplicationConstants.NO_DATA_FOUND,
+					ApplicationConstants.BUSSINESS_EXCEPTION, ApplicationConstants.FAILURE);
+		}
+
+	}
+
+	private String normalizePhone(String phone) {
+		if (phone == null || phone.isBlank()) {
+			return phone;
+		}
+
+		// Keep only digits
+		String digits = phone.replaceAll("[^0-9]", "");
+
+		// Remove leading zeros
+		digits = digits.replaceFirst("^0+", "");
+
+		// If it's a 10-digit number, assume Indian mobile and add +91
+		if (digits.length() == 10) {
+			return "+91" + digits;
+		}
+
+		// If it already starts with 91 and is 12 digits → enforce +91
+		if (digits.length() == 12 && digits.startsWith("91")) {
+			return "+91" + digits.substring(2);
+		}
+
+		// Otherwise, fallback with + (handles rare cases, but ensures valid format)
+		return "+" + digits;
+	}
 }

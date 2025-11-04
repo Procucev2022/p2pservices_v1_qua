@@ -755,7 +755,7 @@ public class GMTServiceImpl implements GMTService {
 			if (rfq.isPresent()) {
 				String rfqDueDate = buildingRfqDueDate();
 				MailUtility.emailNewGMTRfqForNoPR("NewRfq", javaMailSender, rfq.get(), host, email, otherEmails,
-						mailFom, emailPassword, rfqDueDate);
+						mailFom, emailPassword, rfqDueDate,gmtRfq.getVendor().getId());
 
 			}
 			return true;
@@ -1383,81 +1383,6 @@ public class GMTServiceImpl implements GMTService {
 		}
 		// TODO Auto-generated method stub
 
-	}
-	
-	@Override
-	public void emailForwarder() {
-	    logger.info("Entered into emailForwarder()");
-	    String subjectPattern = "You have an Enquiry RFQ No";
-
-	    Properties properties = new Properties();
-	    properties.put("mail.store.protocol", "imaps");
-	    properties.put("mail.imaps.host", "imap.gmail.com");
-	    properties.put("mail.imaps.port", "993");
-	    properties.put("mail.imaps.ssl.enable", "true");
-	    properties.put("mail.imaps.ssl.trust", "imap.gmail.com");
-
-	    Session emailSession = Session.getInstance(properties);
-
-	    try (Store store = emailSession.getStore("imaps")) {
-	        store.connect(mailFom, emailPassword);
-
-	        Folder inbox = store.getFolder("INBOX");
-	        inbox.open(Folder.READ_WRITE);
-
-	        Message[] allMessages = inbox.getMessages();
-	        logger.info("Total messages in inbox: " + allMessages.length);
-
-	        // Search for messages containing the specified subject pattern
-	        Message[] messages = inbox.search(new SubjectTerm(subjectPattern));
-	        logger.info("Total messages with Subject Term: " + messages.length);
-
-	        Flags customFlag = new Flags("Processed");
-
-	        // Forward matching messages to the specified email address
-	        for (Message message : messages) {
-	            // Check if the message has already been processed
-	            if (!message.getFlags().contains(customFlag)) {
-	            	logger.info("Sending Mail To User Updating Flag");
-	                String subject = message.getSubject();
-	                String rfqId = extractRfqId(subject);
-	                if (rfqId != null) {
-	                	logger.info("RFQID===>" + rfqId);
-	                    // Forward matching messages to the specified email address
-	                    rfqDao.updateRfqByRfqId(rfqId);
-	                    // Use the RFQ ID to retrieve client address and forward the message
-	                    List<String> users = rfqDao.findRFQByRfQId(rfqId);
-	                    if (users != null && !CollectionUtils.isEmpty(users)) {
-	                        String userId = users.get(0);
-	                        if (userId != null) {
-	                            String forwardAddress = userDao.findEmailById(users.get(0));
-	                            logger.info("forward address======>" + forwardAddress);
-	                            MailUtility.forwardMessage(forwardAddress, javaMailSender, mailFom, message);
-
-	                            // Mark the message as processed
-	                            message.setFlags(customFlag, true);
-	                        }
-	                    } else {
-	                    	logger.info("user object is empty");
-	                    }
-	                }
-	            }
-	        }
-
-	        // Close the folders and store
-	        inbox.close(false);
-	    } catch (Exception e) {
-	        e.printStackTrace();
-	    }
-	}
-
-	private static String extractRfqId(String subject) {
-		Pattern pattern = Pattern.compile("RFQ No ([A-Za-z0-9]+)");
-		Matcher matcher = pattern.matcher(subject);
-		if (matcher.find()) {
-			return matcher.group(1);
-		}
-		return null;
 	}
 	
 	@Override
@@ -2537,7 +2462,8 @@ public boolean requestRfqBySellers(List<GmtRfqVendors> rfqList) {
                         otherEmails,
                         mailFom,
                         emailPassword,
-                        rfqDueDate
+                        rfqDueDate,
+                        vendorId
                 );
             }
 
@@ -2591,5 +2517,94 @@ public VendorInfoDto getVendorInfo(Organization orgRequest) {
     return dto;
 }
 
+@Override
+public void emailForwarder() {
+    logger.info("Entered into emailForwarder()");
+    String subjectPattern = "You have an Enquiry RFQ No";
+
+    Properties properties = new Properties();
+    properties.put("mail.store.protocol", "imaps");
+    properties.put("mail.imaps.host", "imap.gmail.com");
+    properties.put("mail.imaps.port", "993");
+    properties.put("mail.imaps.ssl.enable", "true");
+    properties.put("mail.imaps.ssl.trust", "imap.gmail.com");
+
+    Session emailSession = Session.getInstance(properties);
+
+    try (Store store = emailSession.getStore("imaps")) {
+        store.connect(mailFom, emailPassword);
+
+        Folder inbox = store.getFolder("INBOX");
+        inbox.open(Folder.READ_WRITE);
+
+        Message[] allMessages = inbox.getMessages();
+        logger.info("Total messages in inbox: " + allMessages.length);
+
+        // Search for messages containing the specified subject pattern
+        Message[] messages = inbox.search(new SubjectTerm(subjectPattern));
+        logger.info("Total messages with Subject Term: " + messages.length);
+
+        Flags customFlag = new Flags("Processed");
+
+        // Forward matching messages to the specified email address
+        for (Message message : messages) {
+            // Check if the message has already been processed
+            if (!message.getFlags().contains(customFlag)) {
+            	logger.info("Sending Mail To User Updating Flag");
+            	logger.info("Subject =={}" +message.getSubject());
+                String subject = message.getSubject();
+                String rfqId = extractRfqId(subject);
+                String vendorId=extractVendorId(subject);
+                if (rfqId != null && vendorId!=null) {
+                	logger.info("RFQID{} " + rfqId);
+                	logger.info("vendorId{} " + vendorId);
+                    // Forward matching messages to the specified email address
+                    rfqDao.updateRfqByRfqId(rfqId);
+                    rfqVendorDao.updateQuotationReceived(rfqId,vendorId);
+                    orgDao.updateQuoteCount(vendorId);
+                    // Use the RFQ ID to retrieve client address and forward the message
+                    List<String> users = rfqDao.findRFQByRfQId(rfqId);
+                    if (users != null && !CollectionUtils.isEmpty(users)) {
+                        String userId = users.get(0);
+                        if (userId != null) {
+                            String forwardAddress = userDao.findEmailById(users.get(0));
+                            logger.info("forward address======>" + forwardAddress);
+                            MailUtility.forwardMessage(forwardAddress, javaMailSender, mailFom, message);
+
+                            // Mark the message as processed
+                            message.setFlags(customFlag, true);
+                        }
+                    } else {
+                    	logger.info("user object is empty");
+                    }
+                }
+            }
+        }
+
+        // Close the folders and store
+        inbox.close(false);
+    } catch (Exception e) {
+        e.printStackTrace();
+    }
+}
+
+private static String extractRfqId(String subject) {
+	Pattern pattern = Pattern.compile("RFQ No ([A-Za-z0-9]+)");
+	Matcher matcher = pattern.matcher(subject);
+	if (matcher.find()) {
+		return matcher.group(1);
+	}
+	return null;
+}
+
+private static String extractVendorId(String subject) {
+    // Match pattern like: RFQ No RFQ252910171633 - fca2a80a-8687-4344-b4eb-6dc32969eb6a
+    Pattern pattern = Pattern.compile("RFQ No [A-Za-z0-9]+\\s*-\\s*([A-Za-z0-9\\-]+)");
+    Matcher matcher = pattern.matcher(subject);
+    if (matcher.find()) {
+        return matcher.group(1); // This will return the vendor ID
+    }
+    return null;
+}
 
 }
