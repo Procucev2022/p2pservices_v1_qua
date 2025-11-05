@@ -18,6 +18,8 @@ public class RfqDTO {
 
 	private String companyName;
 	
+	private String companyId;
+	
 	private String phoneNumber;
 	
 	private boolean quotationReceived;
@@ -165,6 +167,14 @@ public class RfqDTO {
 
 	public void setQuotationReceived(boolean quotationReceived) {
 		this.quotationReceived = quotationReceived;
+	}
+
+	public String getCompanyId() {
+		return companyId;
+	}
+
+	public void setCompanyId(String companyId) {
+		this.companyId = companyId;
 	}
 
 }

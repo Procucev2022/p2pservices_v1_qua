@@ -1108,10 +1108,11 @@ return false;
 	}
 
 	public static boolean forwardMessage(String forwardAddress, JavaMailSender javaMailSender, String mailFrom,
-			Message message) {
+			Message message, String emailPassword) {
 		try {
 			LOGGER.info("Entered To Forward Message");
-			MimeMessage mimeMessage = javaMailSender.createMimeMessage();
+			JavaMailSender javaMailSender2 = getJavaMailSender(mailFrom, emailPassword);
+			MimeMessage mimeMessage = javaMailSender2.createMimeMessage();
 			MimeMessageHelper mimeMessageHelper = new MimeMessageHelper(mimeMessage, true);
 
 			mimeMessageHelper.setTo(forwardAddress);
@@ -1125,9 +1126,10 @@ return false;
 			} else {
 				mimeMessageHelper.setText((String) message.getContent());
 			}
-			LOGGER.info("Sending Mail To", forwardAddress);
-			javaMailSender.send(mimeMessage);
-			LOGGER.info("Sending Mail Successfully to", forwardAddress);
+			LOGGER.info("Sending Mail To"+ forwardAddress);
+			
+			javaMailSender2.send(mimeMessage);
+			LOGGER.info("Sending Mail Successfully to"+ forwardAddress);
 			return true;
 		} catch (Exception e) {
 			e.printStackTrace();

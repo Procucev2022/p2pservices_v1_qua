@@ -14,11 +14,12 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.*;
 import java.util.Optional;
 import java.util.Properties;
 import java.util.function.Function;
@@ -26,8 +27,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
-import org.springframework.data.domain.Pageable;
-import org.antlr.v4.runtime.atn.SemanticContext.OR;
+
 import org.apache.commons.lang3.StringUtils;
 import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.DataFormatter;
@@ -35,12 +35,14 @@ import org.apache.poi.ss.usermodel.RichTextString;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.xssf.usermodel.XSSFSheet;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+import org.eclipse.angus.mail.imap.IMAPFolder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DataAccessException;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -51,8 +53,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
-import jakarta.mail.Address;
-import jakarta.mail.internet.MimeMessage;
+
 import com.portal.procucev.Dto.ClientRFQDto;
 import com.portal.procucev.Dto.ForwardRfqVendorRequest;
 import com.portal.procucev.Dto.GMTRfqVendorDto;
@@ -108,8 +109,11 @@ import jakarta.mail.SendFailedException;
 import jakarta.mail.Session;
 import jakarta.mail.Store;
 import jakarta.mail.Transport;
-import jakarta.mail.internet.AddressException;
 import jakarta.mail.internet.InternetAddress;
+import jakarta.mail.internet.MimeMessage;
+import jakarta.mail.search.AndTerm;
+import jakarta.mail.search.FlagTerm;
+import jakarta.mail.search.SearchTerm;
 import jakarta.mail.search.SubjectTerm;
 import jakarta.transaction.Transactional;
 
@@ -935,6 +939,10 @@ public class GMTServiceImpl implements GMTService {
 		String compantName = userDao.findByUser(rfq.getUser());
 		if (compantName != null) {
 			rfqDto.setCompanyName(compantName);
+		}
+		String companyId = userDao.findOrgIdByUser(rfq.getUser());
+		if (companyId != null) {
+			rfqDto.setCompanyId(companyId);
 		}
 		return rfqDto;
 	}
@@ -2520,71 +2528,85 @@ public VendorInfoDto getVendorInfo(Organization orgRequest) {
 @Override
 public void emailForwarder() {
     logger.info("Entered into emailForwarder()");
-    String subjectPattern = "You have an Enquiry RFQ No";
+    final String subjectPattern = "You have an Enquiry RFQ No";
 
-    Properties properties = new Properties();
-    properties.put("mail.store.protocol", "imaps");
-    properties.put("mail.imaps.host", "imap.gmail.com");
-    properties.put("mail.imaps.port", "993");
-    properties.put("mail.imaps.ssl.enable", "true");
-    properties.put("mail.imaps.ssl.trust", "imap.gmail.com");
+    // IMAPS (Gmail)
+    Properties props = new Properties();
+    props.put("mail.store.protocol", "imaps");
+    props.put("mail.imaps.host", "imap.gmail.com");
+    props.put("mail.imaps.port", "993");
+    props.put("mail.imaps.ssl.enable", "true");
+    props.put("mail.imaps.ssl.trust", "imap.gmail.com");
 
-    Session emailSession = Session.getInstance(properties);
+    Session session = Session.getInstance(props);
 
-    try (Store store = emailSession.getStore("imaps")) {
+    try (Store store = session.getStore("imaps")) {
+        // mailFrom / emailPassword are your existing fields/configs
         store.connect(mailFom, emailPassword);
 
-        Folder inbox = store.getFolder("INBOX");
+        IMAPFolder inbox = (IMAPFolder) store.getFolder("INBOX");
         inbox.open(Folder.READ_WRITE);
 
-        Message[] allMessages = inbox.getMessages();
-        logger.info("Total messages in inbox: " + allMessages.length);
+        // Build search: Subject AND (UNSEEN) AND (NOT already 'Processed')
+        Flags processedFlag = new Flags("Processed");
+        SearchTerm term = new AndTerm(
+            new SubjectTerm(subjectPattern),
+            new AndTerm(
+                new FlagTerm(new Flags(Flags.Flag.SEEN), false),
+                new FlagTerm(processedFlag, false)
+            )
+        );
 
-        // Search for messages containing the specified subject pattern
-        Message[] messages = inbox.search(new SubjectTerm(subjectPattern));
-        logger.info("Total messages with Subject Term: " + messages.length);
+        Message[] messages = inbox.search(term);
+        logger.info("Messages to process: {}", messages.length);
 
-        Flags customFlag = new Flags("Processed");
-
-        // Forward matching messages to the specified email address
         for (Message message : messages) {
-            // Check if the message has already been processed
-            if (!message.getFlags().contains(customFlag)) {
-            	logger.info("Sending Mail To User Updating Flag");
-            	logger.info("Subject =={}" +message.getSubject());
-                String subject = message.getSubject();
-                String rfqId = extractRfqId(subject);
-                String vendorId=extractVendorId(subject);
-                if (rfqId != null && vendorId!=null) {
-                	logger.info("RFQID{} " + rfqId);
-                	logger.info("vendorId{} " + vendorId);
-                    // Forward matching messages to the specified email address
-                    rfqDao.updateRfqByRfqId(rfqId);
-                    rfqVendorDao.updateQuotationReceived(rfqId,vendorId);
-                    orgDao.updateQuoteCount(vendorId);
-                    // Use the RFQ ID to retrieve client address and forward the message
-                    List<String> users = rfqDao.findRFQByRfQId(rfqId);
-                    if (users != null && !CollectionUtils.isEmpty(users)) {
-                        String userId = users.get(0);
-                        if (userId != null) {
-                            String forwardAddress = userDao.findEmailById(users.get(0));
-                            logger.info("forward address======>" + forwardAddress);
-                            MailUtility.forwardMessage(forwardAddress, javaMailSender, mailFom, message);
+            String subject = message.getSubject();
+            if (subject == null) {
+                continue;
+            }
 
-                            // Mark the message as processed
-                            message.setFlags(customFlag, true);
-                        }
-                    } else {
-                    	logger.info("user object is empty");
-                    }
-                }
+            String rfqId = extractRfqId(subject);
+            String vendorId = extractVendorId(subject);
+            if (rfqId == null || vendorId == null) {
+                logger.info("Skipping message due to missing rfqId/vendorId. Subject={}", subject);
+                // Mark seen to avoid re-hitting on next run if you want:
+                message.setFlag(Flags.Flag.SEEN, true);
+                continue;
+            }
+
+            logger.info("Processing RFQID={}, vendorId={}", rfqId, vendorId);
+        	MasterStatus quoteStatus = masterStatusDao.findByStatus(StatusConstants.VENDOR_QUOTE_SUBMITTED);
+            // Your business updates
+            rfqDao.updateRfqByRfqId(rfqId);
+            rfqVendorDao.updateQuotationReceived(rfqId, vendorId,quoteStatus);
+            List<String> rfqIds = rfqDao.getIdbyRfqId(rfqId);
+            if(!CollectionUtils.isEmpty(rfqIds))
+            {
+            gmtRfqVendorDao.updateQuotationReceived(rfqIds.get(0), vendorId,quoteStatus);
+            }
+            orgDao.updateQuoteCount(vendorId);
+
+            // Forward to the first matched user email
+            List<String> users = rfqDao.findRFQByRfQId(rfqId);
+            if (users != null && !users.isEmpty()) {
+                String forwardAddress = userDao.findEmailById(users.get(0));
+                logger.info("Forwarding to: {}", forwardAddress);
+                MailUtility.forwardMessage(forwardAddress, javaMailSender, mailFom, message,emailPassword);
+
+                // Mark as processed so we won't forward again
+                message.setFlags(processedFlag, true);
+                message.setFlag(Flags.Flag.SEEN, true);
+            } else {
+                logger.info("No users found for RFQID={}", rfqId);
+                // Optionally mark SEEN to avoid re-processing
+                message.setFlag(Flags.Flag.SEEN, true);
             }
         }
 
-        // Close the folders and store
-        inbox.close(false);
+        inbox.close(false); // don't expunge
     } catch (Exception e) {
-        e.printStackTrace();
+        logger.error("emailForwarder failed", e);
     }
 }
 
