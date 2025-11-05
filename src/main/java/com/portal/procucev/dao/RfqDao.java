@@ -65,6 +65,9 @@ public interface RfqDao extends JpaRepository<Rfq, String>{
 
 	Rfq findByRfqId(String rfqId);
 
+	@Query("SELECT r.id FROM Rfq r WHERE r.rfqId=:rfqId")
+	List<String> getIdbyRfqId(@Param("rfqId") String rfqId);
+
 
 
 

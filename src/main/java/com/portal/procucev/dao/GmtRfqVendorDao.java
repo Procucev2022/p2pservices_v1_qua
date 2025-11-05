@@ -46,4 +46,10 @@ public interface GmtRfqVendorDao extends JpaRepository<GmtRfqVendors, String> {
 	           "ORDER BY gv.requestedDate DESC")
 	    List<GmtRfqVendors> findLastOpenRfqsByVendor(@Param("vendorId") String vendorId, Pageable pageable);
 
+	@Modifying
+	@Transactional
+	@Query("UPDATE  GmtRfqVendors r SET r.quotationReceived = true, r.status=:quoteStatus WHERE  r.rfq.id=:rfqId and r.vendor.id=:vendorId")
+	void updateQuotationReceived(@Param("rfqId") String rfqId,@Param("vendorId") String vendorId, @Param("quoteStatus") MasterStatus quoteStatus);
+
+
 }
