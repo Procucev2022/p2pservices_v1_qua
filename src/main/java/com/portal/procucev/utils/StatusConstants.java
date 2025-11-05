@@ -293,4 +293,6 @@ public interface StatusConstants {
     
     public static final String EMAIL_VERIFIED = "EMAIL_VERIFIED";
 
+	public static final String VENDOR_QUOTE_SUBMITTED = "VENDOR_QUOTE_SUBMITTED";
+
 }

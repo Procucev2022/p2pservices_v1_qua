@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import com.portal.procucev.model.MasterStatus;
 import com.portal.procucev.model.Organization;
 import com.portal.procucev.model.Rfq;
 import com.portal.procucev.model.RfqVendor;
@@ -26,8 +27,8 @@ public interface RfqVendorDao extends JpaRepository<RfqVendor, String> {
 
 	@Modifying
 	@Transactional
-	@Query("UPDATE  RfqVendor r SET r.quotationReceived = true WHERE  r.rfqId=:rfqId and r.organization.id=:vendorId")
-	void updateQuotationReceived(@Param("rfqId") String rfqId,@Param("vendorId") String vendorId);
+	@Query("UPDATE  RfqVendor r SET r.quotationReceived = true, r.vendorStatus=:quoteStatus WHERE  r.rfqId=:rfqId and r.organization.id=:vendorId")
+	void updateQuotationReceived(@Param("rfqId") String rfqId,@Param("vendorId") String vendorId, @Param("quoteStatus") MasterStatus quoteStatus);
 
 		
 
