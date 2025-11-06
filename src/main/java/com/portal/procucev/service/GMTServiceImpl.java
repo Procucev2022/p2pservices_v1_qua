@@ -897,6 +897,8 @@ public class GMTServiceImpl implements GMTService {
 		rfqDto.setByClient(rfq.isByClient());
 		rfqDto.setCount(rfq.getCount());
 		rfqDto.setQuotationReceived(rfq.isQuotationReceived());
+		rfqDto.setNoOfQuotes(rfq.getQuoteCount());
+		rfqDto.setNoOfVendors(rfqVendorDao.findByVendorsByRfq(rfq.getId()));;
 		return rfqDto;
 	}
 
@@ -904,6 +906,7 @@ public class GMTServiceImpl implements GMTService {
 	public boolean raiseQueryByVendor(GmtRfqVendors rfq) {
 		// TODO Auto-generated method stub
 		logger.info("Entered To Raise Query By Vendor For Rfq");
+		MasterStatus resultStatus = masterStatusDao.findByStatus(StatusConstants.VENDOR_RFQ_QUERIED);
 		try {
 			if (rfq != null)
 
@@ -911,11 +914,11 @@ public class GMTServiceImpl implements GMTService {
 				GmtRfqVendors gmtRfq = gmtRfqVendorDao.findByVendorAndRfq(rfq.getVendor(), rfq.getRfq());
 				if (gmtRfq != null) {
 					logger.info("Updating Query As Record Already Exists");
-					gmtRfqVendorDao.updateQuery(rfq.getRfq().getId(), rfq.getVendor().getId(), rfq.getQuery());
+					gmtRfqVendorDao.updateQuery(rfq.getRfq().getId(), rfq.getVendor().getId(), rfq.getQuery(), resultStatus);
 				} else {
 
 					logger.info("Saving Query Record For First Time With New Status");
-					MasterStatus resultStatus = masterStatusDao.findByStatus(StatusConstants.VENDOR_RFQ_QUERIED);
+				
 					rfq.setStatus(resultStatus);
 					gmtRfqVendorDao.save(rfq);
 				}

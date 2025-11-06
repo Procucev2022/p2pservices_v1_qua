@@ -31,8 +31,8 @@ public interface GmtRfqVendorDao extends JpaRepository<GmtRfqVendors, String> {
 
 	@Modifying
 	@Transactional
-	@Query("UPDATE GmtRfqVendors g SET g.query = :query WHERE g.rfq.id = :rfq and g.vendor.id= :vendor")
-	void updateQuery(@Param("rfq") String rfq,@Param("vendor") String vendor,@Param("query") String query);
+	@Query("UPDATE GmtRfqVendors g SET g.query = :query,g.status = :resultStatus  WHERE g.rfq.id = :rfq and g.vendor.id= :vendor")
+	void updateQuery(@Param("rfq") String rfq,@Param("vendor") String vendor,@Param("query") String query,@Param("resultStatus") MasterStatus resultStatus);
 
 
 	@Modifying
