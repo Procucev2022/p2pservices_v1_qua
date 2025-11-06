@@ -18,7 +18,6 @@ import com.portal.procucev.model.Rfq;
 import com.portal.procucev.model.RfqItem;
 import com.portal.procucev.model.User;
 
-
 import jakarta.activation.DataHandler;
 import jakarta.mail.Message;
 import jakarta.mail.MessagingException;
@@ -29,12 +28,10 @@ import jakarta.mail.internet.MimeMessage;
 import jakarta.mail.internet.MimeMultipart;
 import jakarta.mail.util.ByteArrayDataSource;
 
-
 public class MailUtility {
 
 	static final Logger LOGGER = LoggerFactory.getLogger(MailUtility.class);
 
-	
 	public static void emailVendorApprovedStatus(String type, String toAddress, JavaMailSender javaMailSender,
 			InternetAddress add, String host, User user) {
 
@@ -125,7 +122,6 @@ public class MailUtility {
 		return false;
 	}
 
-	
 	public static boolean sendemailForNewRfq(String toAddress, InternetAddress add, JavaMailSender javaMailSender,
 			String message, String type) {
 
@@ -181,7 +177,6 @@ public class MailUtility {
 
 	}
 
-	
 	public static boolean eamilfornewVendor(String toAddress, InternetAddress add, JavaMailSender javaMailSender,
 			String message, String type) {
 		LOGGER.info("Entered To send Email");
@@ -214,7 +209,6 @@ public class MailUtility {
 
 	}
 
-	
 	public static boolean emailforforgotpassword(String toAddress, InternetAddress add, JavaMailSender javaMailSender,
 			String message, String type) {
 
@@ -247,8 +241,6 @@ public class MailUtility {
 		emailforforgotpassword(username, add, javaMailSender, message, type);
 
 	}
-
-	
 
 	public static void mailingVerificationLinkWithUserLogin(JavaMailSender javaMailSender, String from,
 			InternetAddress add, String pswd, String hostName, User user) {
@@ -315,9 +307,6 @@ public class MailUtility {
 
 		return false;
 	}
-	
-
-	
 
 	public static boolean sendemail(String toAddress, InternetAddress add, JavaMailSender javaMailSender,
 			String message, String type, String subject) {
@@ -341,7 +330,6 @@ public class MailUtility {
 		return false;
 	}
 
-	
 	/**
 	 * Generic method which accepts below params and sends email to all list of
 	 * users
@@ -430,7 +418,6 @@ public class MailUtility {
 		emailNotifierGenericBySenderList(subject, userlist, fromAddress, javaMailSender, message, type);
 	}
 
-	
 	public static void emailVendorDBDownloadByVendorExc(String type, String username, JavaMailSender javaMailSender,
 			InternetAddress add, String host) {
 		// TODO Auto-generated method stub
@@ -667,7 +654,7 @@ public class MailUtility {
 		try {
 			mimeMessageHelper.setTo(user.getUsername());
 			mimeMessageHelper.setFrom(from); // from Address
-			//mimeMessageHelper.setCc(username);
+			// mimeMessageHelper.setCc(username);
 			mimeMessageHelper.setSubject(subject);
 			mimeMessageHelper.setText(message, true);
 			if (ccAddress != null && !ccAddress.isEmpty()) {
@@ -683,14 +670,13 @@ public class MailUtility {
 		return false;
 	}
 
-	
 	public static boolean emailNewRfqForNoPR(String string, JavaMailSender javaMailSender, Rfq rfqData, String host,
 			String mailId, String fromAddress, String ccAdd, String phonenumber, String rfqDueDate, String fullName,
 			String mailId2, String password, String vendorId) throws MessagingException {
 		LOGGER.info("Entered To Send Email To Vendor Regarding RFQ");
 		try {
-			String subject =  "You have an Enquiry RFQ No " + rfqData.getRfqId() + " - " 
-	                + vendorId;;
+			String subject = "You have an Enquiry RFQ No " + rfqData.getRfqId() + " - " + vendorId;
+			;
 			String message;
 			String pincode = null;
 			int i = 1;
@@ -819,78 +805,87 @@ public class MailUtility {
 			LOGGER.info("Going to emailNotifierGenericNoPRBySenderList() to send email ");
 			emailNotifierGenericNoPRBySenderList(subject, mailId, javaMailSender2, fromAddress, ccAdd, multipart,
 					mailId2);
-		
-		return true;} catch (MessagingException e) {
+
+			return true;
+		} catch (MessagingException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
 			return false;
 		}
 	}
-	
-public static boolean emailInviteRfq(JavaMailSender javaMailSender, Rfq rfqData, String host,
-            String mailId, String fromAddress, String ccAdd, String phonenumber,
-            String fullName, String mailId2, String password) throws MessagingException {
-LOGGER.info("Entered to send Invite RFQ Email to Vendor");
-try {
-String subject = "Partner, We have an enquiry for you!!";
-StringBuilder email = new StringBuilder();
 
-email.append("<html><body>");
-email.append("Dear Partner,<br><br>");
-email.append("Greetings from <b>Procucev!</b><br>");
-email.append("Welcome to <b>QUA by Procucev</b> – a trusted AI B2B Procurement platform connecting genuine buyers and quality sellers across India.<br><br>");
-email.append("QUA is an AI Agent for <b>Get My quoTe (GMT)</b> and <b>Buy From Stock (BFS)</b> helping you grow your business with enquiries (RFQs) and immediate requirements from genuine buyers.<br><br>");
-email.append("One of our corporate buyers has the below requirement that matches your offerings. Please find the enquiry details below:<br><br>");
+	public static boolean emailInviteRfq(JavaMailSender javaMailSender, Rfq rfqData, String host, String mailId,
+			String fromAddress, String ccAdd, String phonenumber, String fullName, String mailId2, String password)
+			throws MessagingException {
+		LOGGER.info("Entered to send Invite RFQ Email to Vendor");
+		try {
+			String subject = "Partner, We have an enquiry for you!!";
+			StringBuilder email = new StringBuilder();
+
+			email.append("<html><body>");
+			email.append("Dear Partner,<br><br>");
+			email.append("Greetings from <b>Procucev!</b><br>");
+			email.append(
+					"Welcome to <b>QUA by Procucev</b> – a trusted AI B2B Procurement platform connecting genuine buyers and quality sellers across India.<br><br>");
+			email.append(
+					"QUA is an AI Agent for <b>Get My quoTe (GMT)</b> and <b>Buy From Stock (BFS)</b> helping you grow your business with enquiries (RFQs) and immediate requirements from genuine buyers.<br><br>");
+			email.append(
+					"One of our corporate buyers has the below requirement that matches your offerings. Please find the enquiry details below:<br><br>");
 
 // Build RFQ items table
-email.append("<table style='border:1px solid black;border-collapse:collapse;'>");
-email.append("<tr><th>Sl No</th><th>Item Description</th><th>Item Specification</th><th>UOM</th><th>Quantity</th><th>Location</th><th>Pincode</th></tr>");
-int i = 1;
-if (!CollectionUtils.isEmpty(rfqData.getRfqItem())) {
-for (RfqItem item : rfqData.getRfqItem()) {
-String city = null, pincode = null;
-if (!CollectionUtils.isEmpty(rfqData.getClientdeliverylocationrfq())) {
-city = rfqData.getClientdeliverylocationrfq().get(0).getCity();
-pincode = rfqData.getClientdeliverylocationrfq().get(0).getPincode();
-}
+			email.append("<table style='border:1px solid black;border-collapse:collapse;'>");
+			email.append(
+					"<tr><th>Sl No</th><th>Item Description</th><th>Item Specification</th><th>UOM</th><th>Quantity</th><th>Location</th><th>Pincode</th></tr>");
+			int i = 1;
+			if (!CollectionUtils.isEmpty(rfqData.getRfqItem())) {
+				for (RfqItem item : rfqData.getRfqItem()) {
+					String city = null, pincode = null;
+					if (!CollectionUtils.isEmpty(rfqData.getClientdeliverylocationrfq())) {
+						city = rfqData.getClientdeliverylocationrfq().get(0).getCity();
+						pincode = rfqData.getClientdeliverylocationrfq().get(0).getPincode();
+					}
 
-email.append("<tr>");
-email.append("<td style='border:1px solid black;'>").append(i++).append("</td>");
-email.append("<td style='border:1px solid black;'>").append(item.getDescription()).append("</td>");
-email.append("<td style='border:1px solid black;'>").append(item.getBrand()).append("</td>");
-email.append("<td style='border:1px solid black;'>").append(item.getUnitofMeasures()).append("</td>");
-email.append("<td style='border:1px solid black;'>").append(item.getQuantity()).append("</td>");
-email.append("<td style='border:1px solid black;'>").append(city != null ? city : "").append("</td>");
-email.append("<td style='border:1px solid black;'>").append(pincode != null ? pincode : "").append("</td>");
-email.append("</tr>");
-}
-}
-email.append("</table><br><br>");
+					email.append("<tr>");
+					email.append("<td style='border:1px solid black;'>").append(i++).append("</td>");
+					email.append("<td style='border:1px solid black;'>").append(item.getDescription()).append("</td>");
+					email.append("<td style='border:1px solid black;'>").append(item.getBrand()).append("</td>");
+					email.append("<td style='border:1px solid black;'>").append(item.getUnitofMeasures())
+							.append("</td>");
+					email.append("<td style='border:1px solid black;'>").append(item.getQuantity()).append("</td>");
+					email.append("<td style='border:1px solid black;'>").append(city != null ? city : "")
+							.append("</td>");
+					email.append("<td style='border:1px solid black;'>").append(pincode != null ? pincode : "")
+							.append("</td>");
+					email.append("</tr>");
+				}
+			}
+			email.append("</table><br><br>");
 
-email.append("In order to submit quotations for the same and receive future enquiries,<br>");
-email.append("Visit <a href=\"https://qua.procucev.com/login\">qua.procucev.com/login</a> or WhatsApp “Hi” to <b>+91 70901 70801</b> to view or download your Request For Quote (RFQ).<br><br>");
-email.append("<b>Best Regards,</b><br>");
-email.append("<b>QUA by Procucev</b><br>");
-email.append("Your partner in growth<br>");
-email.append("Visit: <a href=\"https://www.procucev.com\">www.procucev.com</a><br>");
-email.append("</body></html>");
+			email.append("In order to submit quotations for the same and receive future enquiries,<br>");
+			email.append(
+					"Visit <a href=\"https://qua.procucev.com/login\">qua.procucev.com/login</a> or WhatsApp “Hi” to <b>+91 70901 70801</b> to view or download your Request For Quote (RFQ).<br><br>");
+			email.append("<b>Best Regards,</b><br>");
+			email.append("<b>QUA by Procucev</b><br>");
+			email.append("Your partner in growth<br>");
+			email.append("Visit: <a href=\"https://www.procucev.com\">www.procucev.com</a><br>");
+			email.append("</body></html>");
 
-MimeBodyPart messageBodyPart = new MimeBodyPart();
-messageBodyPart.setContent(email.toString(), "text/html");
+			MimeBodyPart messageBodyPart = new MimeBodyPart();
+			messageBodyPart.setContent(email.toString(), "text/html");
 
-MimeMultipart multipart = new MimeMultipart();
-multipart.addBodyPart(messageBodyPart);
+			MimeMultipart multipart = new MimeMultipart();
+			multipart.addBodyPart(messageBodyPart);
 
-JavaMailSender javaMailSender2 = getJavaMailSender(mailId2, password);
-emailNotifierGenericNoPRBySenderList(subject, mailId, javaMailSender2, fromAddress, ccAdd, multipart, mailId2);
+			JavaMailSender javaMailSender2 = getJavaMailSender(mailId2, password);
+			emailNotifierGenericNoPRBySenderList(subject, mailId, javaMailSender2, fromAddress, ccAdd, multipart,
+					mailId2);
 
-return true;
-} catch (MessagingException e) {
-e.printStackTrace();
-return false;
-}
-}
-
+			return true;
+		} catch (MessagingException e) {
+			e.printStackTrace();
+			return false;
+		}
+	}
 
 	private static boolean emailNotifierGenericNoPRBySenderList(String subject, String mailId,
 			JavaMailSender javaMailSender, String fromAddress, String ccAdd, MimeMultipart multipart, String mailId2) {
@@ -912,7 +907,7 @@ return false;
 //	        String[] ccAddresses = ccList.toArray(new String[0]);
 			mimeMessageHelper.setTo(mailId);
 			mimeMessageHelper.setFrom(mailId2);
-			//mimeMessageHelper.setCc(ccAddresses);
+			// mimeMessageHelper.setCc(ccAddresses);
 			mimeMessageHelper.setSubject(subject);
 			mimeMessageHelper.setText("Please find the attachments below.");
 			mimeMessageHelper.getMimeMessage().setContent(multipart); // Set the MimeMultipart as the content
@@ -944,12 +939,13 @@ return false;
 	}
 
 	public static void emailNewGMTRfqForNoPR(String string, JavaMailSender javaMailSender, Rfq rfqData, String host,
-			String vendorMail, String otherEmails, String mailFom, String emailPassword, String rfqDueDate, String vendorId)
-			throws MessagingException {
+			String vendorMail, String otherEmails, String mailFom, String emailPassword, String rfqDueDate,
+			String vendorId) throws MessagingException {
 		// TODO Auto-generated method stub
-		//String subject = rfqData.getCategory() + " - You have an Enquiry RFQ No " + rfqData.getRfqId();
-		String subject =  "You have an Enquiry RFQ No " + rfqData.getRfqId() + " - " 
-                + vendorId;;
+		// String subject = rfqData.getCategory() + " - You have an Enquiry RFQ No " +
+		// rfqData.getRfqId();
+		String subject = "You have an Enquiry RFQ No " + rfqData.getRfqId() + " - " + vendorId;
+		;
 		String message;
 		String pincode = null;
 		int i = 1;
@@ -1126,10 +1122,10 @@ return false;
 			} else {
 				mimeMessageHelper.setText((String) message.getContent());
 			}
-			LOGGER.info("Sending Mail To"+ forwardAddress);
-			
+			LOGGER.info("Sending Mail To" + forwardAddress);
+
 			javaMailSender2.send(mimeMessage);
-			LOGGER.info("Sending Mail Successfully to"+ forwardAddress);
+			LOGGER.info("Sending Mail Successfully to" + forwardAddress);
 			return true;
 		} catch (Exception e) {
 			e.printStackTrace();
@@ -1171,16 +1167,17 @@ return false;
 	}
 
 	public static void mailingGMTClientRFQMailToinfoTeam(String string, String toEmail, JavaMailSender javaMailSender,
-			InternetAddress add, String host, User user) {
+			InternetAddress add, String host, User user, String email, String phone, String fullName, String orgName) {
 		// TODO Auto-generated method stub
 		LOGGER.info("Entered To SendEmailForVendor()");
 		String subject = user.getSubject();
 		String message = "<!DOCTYPE html>\n" + "<html>\n" + "<body>\n" + "\n" + "Dear " + "Partner" + ", <br><br>\n"
 				+ "\n" + "<b>\n" + user.getMessage() + "<br><br>\n" + "\n" + "<b>\n" + "For RfqId:" + user.getRfqId()
-				+ "<br><br>\n" + "\n" + "<b>\n" + "clientUserName::" + user.getUsername() + "<br><br>\n" + "\n"
-				+ "<b>Warm regards, <br></b>\n" + "\n" + "<b>Procucev Admin,  <br></b>\n"
-				+ "<b>Procucev Enterprise Solutions, <br></b>\n" + "<b>Bangalore <br></b>\n" + "\n" + "</body>\n"
-				+ "</html>";
+				+ "<br><br>\n" + "\n" + "<b>\n" + "<b>Full Name:</b> " + fullName + "<br><br>\n"
+				+ "<b>Organization Name:</b> " + orgName + "<br><br>\n" + "<b>Email:</b> " + email + "<br><br>\n"
+				+ "<b>Phone:</b> " + phone + "<br><br>\n" + "\n" + "<b>Warm regards, <br></b>\n" + "\n"
+				+ "<b>Procucev Admin,  <br></b>\n" + "<b>Procucev Enterprise Solutions, <br></b>\n"
+				+ "<b>Bangalore <br></b>\n" + "\n" + "</body>\n" + "</html>";
 		emailNotifierGenericBySender(subject, toEmail, add, javaMailSender, message, string);
 	}
 
@@ -1276,78 +1273,65 @@ return false;
 		String subject = "New Client Registration!!";
 		String message = "<!DOCTYPE html>\n" + "<html>\n" + "<body>\n" + "\n" + "Dear " + "Partner" + ", <br><br>\n"
 				+ "\n" + "<b>You have received new client registration with User Name </b>" + organization.getEmail()
-				+ "<b>for Client </b>" + organization.getCompanyName() + 
-			 "<br><br>\n" + "\n" + "<b>Address </b>" + organization.getAddress1()
-				//+ "<br><br>\n" + "\n" + "<b>Pan</b>" + organization.getPan()
-				+ "<br><br>\n" + "\n"
-				+ "<b>Phone</b>" + organization.getOrganizationPhonenumber() + "<br><br>\n" + "\n" + "<p><a href=\""
-				+ host + "/login\">Click Here!!</a></p>\n" + "<b>to login into Procucev Portal </b>" + "<br><br>\n"
-				+ "\n" + "<b>Thanks, <br></b>\n" + "\n" + "<b>Procucev Solutions</b>\n" + "\n" + "\n" + "</body>\n"
-				+ "</html>";
+				+ "<b>for Client </b>" + organization.getCompanyName() + "<br><br>\n" + "\n" + "<b>Address </b>"
+				+ organization.getAddress1()
+				// + "<br><br>\n" + "\n" + "<b>Pan</b>" + organization.getPan()
+				+ "<br><br>\n" + "\n" + "<b>Phone</b>" + organization.getOrganizationPhonenumber() + "<br><br>\n" + "\n"
+				+ "<p><a href=\"" + host + "/login\">Click Here!!</a></p>\n" + "<b>to login into Procucev Portal </b>"
+				+ "<br><br>\n" + "\n" + "<b>Thanks, <br></b>\n" + "\n" + "<b>Procucev Solutions</b>\n" + "\n" + "\n"
+				+ "</body>\n" + "</html>";
 		emailNotifierGenericBySender(subject, toAddress, add, javaMailSender, message, type);
 	}
 
-	public static void mailingVerificationLinkWithSelfUserLogin(
-	        JavaMailSender javaMailSender, String from,
-	        InternetAddress add, String pswd, String hostName, User user) {
+	public static void mailingVerificationLinkWithSelfUserLogin(JavaMailSender javaMailSender, String from,
+			InternetAddress add, String pswd, String hostName, User user) {
 
-	    String verificationTemplate =
-	            "<!DOCTYPE html>" +
-	            "<html>" +
-	            "<body style='font-family: Arial, sans-serif; color: #333; line-height: 1.6;'>" +
-	            "<p>Dear Partner,</p>" +
+		String verificationTemplate = "<!DOCTYPE html>" + "<html>"
+				+ "<body style='font-family: Arial, sans-serif; color: #333; line-height: 1.6;'>"
+				+ "<p>Dear Partner,</p>" +
 
-	            "<p>Thank you for registering with <b>Get My quoTe (GMT)</b>. " +
-	            "We are delighted to have you onboard for our new <b>GMT/BFS Portal QUA by Procucev!!</b></p>" +
+				"<p>Thank you for registering with <b>Get My quoTe (GMT)</b>. "
+				+ "We are delighted to have you onboard for our new <b>GMT/BFS Portal QUA by Procucev!!</b></p>" +
 
-	            "<p><i>\"QUA will be your AI partner in Procurement\"</i></p>" +
+				"<p><i>\"QUA will be your AI partner in Procurement\"</i></p>" +
 
-	            "<p><b>Please find your login credentials below:</b></p>" +
-	            "<p><b>Username:</b> " + user.getUsername() + "<br>" +
-	            "<b>Password:</b> " + user.getPassword() + "</p>" +
+				"<p><b>Please find your login credentials below:</b></p>" + "<p><b>Username:</b> " + user.getUsername()
+				+ "<br>" + "<b>Password:</b> " + user.getPassword() + "</p>" +
 
-	            "<p><a href='" + hostName + "/login' " +
-	            "style='background-color:#007bff; color:#fff; padding:10px 15px; text-decoration:none; border-radius:5px;'>" +
-	            "Click here to Login and raise your RFQs</a></p>" +
+				"<p><a href='" + hostName + "/login' "
+				+ "style='background-color:#007bff; color:#fff; padding:10px 15px; text-decoration:none; border-radius:5px;'>"
+				+ "Click here to Login and raise your RFQs</a></p>" +
 
-	            "<p>Start connecting with verified vendors and experience " +
-	            "<b>Fast, Smart, and Better Sourcing with GMT.</b></p>" +
+				"<p>Start connecting with verified vendors and experience "
+				+ "<b>Fast, Smart, and Better Sourcing with GMT.</b></p>" +
 
-	            "<p>Your GMT registration also gives you access to our <b>Buy From Stock (BFS)</b> platform.</p>" +
+				"<p>Your GMT registration also gives you access to our <b>Buy From Stock (BFS)</b> platform.</p>" +
 
-	            "<ul>" +
-	            "<li>Discover ready products at discounted prices instantly.</li>" +
-	            "<li>Sell your excess inventory easily and get the best market value.</li>" +
-	            "</ul>" +
+				"<ul>" + "<li>Discover ready products at discounted prices instantly.</li>"
+				+ "<li>Sell your excess inventory easily and get the best market value.</li>" + "</ul>" +
 
-	            "<p>We are excited to have you with us and look forward to supporting your sourcing journey.</p>" +
-	            "<p>Warm regards,<br><b>QUA by Procucev</b></p>" +
-	            "</body></html>";
+				"<p>We are excited to have you with us and look forward to supporting your sourcing journey.</p>"
+				+ "<p>Warm regards,<br><b>QUA by Procucev</b></p>" + "</body></html>";
 
-	    try {
-	        JavaMailSender mailSender = getJavaMailSender(from, pswd);
-	        MimeMessage mimeMessage = mailSender.createMimeMessage();
-	        MimeMessageHelper helper = new MimeMessageHelper(mimeMessage, true);
+		try {
+			JavaMailSender mailSender = getJavaMailSender(from, pswd);
+			MimeMessage mimeMessage = mailSender.createMimeMessage();
+			MimeMessageHelper helper = new MimeMessageHelper(mimeMessage, true);
 
-	        helper.setTo(user.getUsername());
-	        helper.setFrom(add);
-	        helper.setSubject("Welcome to QUA by Procucev - Your GMT/BFS Portal Access");
-	        helper.setText(verificationTemplate, true);
+			helper.setTo(user.getUsername());
+			helper.setFrom(add);
+			helper.setSubject("Welcome to QUA by Procucev - Your GMT/BFS Portal Access");
+			helper.setText(verificationTemplate, true);
 
-	        mailSender.send(mimeMessage);
-	        LOGGER.info("Sent verification mail successfully to {}", user.getUsername());
+			mailSender.send(mimeMessage);
+			LOGGER.info("Sent verification mail successfully to {}", user.getUsername());
 
-	    } catch (Exception e) {
-	        LOGGER.error("Error in sending creation mail --> {}", e.getMessage(), e);
-	        throw new AppException(
-	                StatusCodes.MAIL_SEND_ERROR,
-	                ApplicationConstants.MAIL_SENDING_FAILURE,
-	                ApplicationConstants.BUSSINESS_EXCEPTION,
-	                ApplicationConstants.FAILURE
-	        );
-	    }
+		} catch (Exception e) {
+			LOGGER.error("Error in sending creation mail --> {}", e.getMessage(), e);
+			throw new AppException(StatusCodes.MAIL_SEND_ERROR, ApplicationConstants.MAIL_SENDING_FAILURE,
+					ApplicationConstants.BUSSINESS_EXCEPTION, ApplicationConstants.FAILURE);
+		}
 	}
-
 
 	public static void emailForBidRequest(String type, String toAddress, JavaMailSender javaMailSender,
 			InternetAddress add, String host, BFSUsers savedUser, User user) {
@@ -1358,8 +1342,8 @@ return false;
 				+ " has requested a bid for the following item:<br><br>\n" + "\n" + "<b>Item Description: </b>"
 				+ savedUser.getItems().getDescription() + "<br>\n" + "<b>Bid Price: </b>" + savedUser.getBuyPrice()
 				+ "<br><br>\n" + "\n" + "You can reach the buyer at <b>Email: </b>" + user.getUsername()
-				+ " or <b>Phone: </b>" + user.getPhone() + "<br><br>\n" + "\n" + "<br><br>\n"
-				+ "Best regards,<br>\n" + "<b>Procucev Solutions</b>\n" + "\n" + "</body>\n" + "</html>";
+				+ " or <b>Phone: </b>" + user.getPhone() + "<br><br>\n" + "\n" + "<br><br>\n" + "Best regards,<br>\n"
+				+ "<b>Procucev Solutions</b>\n" + "\n" + "</body>\n" + "</html>";
 		emailNotifierGenericBySender(subject, toAddress, add, javaMailSender, message, type);
 	}
 
@@ -1369,14 +1353,13 @@ return false;
 		String subject = "New Self Vendor Registration!!";
 		String message = "<!DOCTYPE html>\n" + "<html>\n" + "<body>\n" + "\n" + "Dear " + "Partner" + ", <br><br>\n"
 				+ "\n" + "<b>You have received new vendor registration with User Name </b>" + organization.getEmail()
-				+ "<b>for Client </b>" + organization.getCompanyName() 
-				+"<br><br>\n" + "\n" + "<b>Address </b>" + organization.getAddress1()
-				//+ "<br><br>\n" + "\n" + "<b>Pan</b>" + organization.getPan()
-				+ "<br><br>\n" + "\n"
-				+ "<b>Phone</b>" + organization.getOrganizationPhonenumber() + "<br><br>\n" + "\n" + "<p><a href=\""
-				+ host + "/login\">Click Here!!</a></p>\n" + "<b>to login into Procucev Portal </b>" + "<br><br>\n"
-				+ "\n" + "<b>Thanks, <br></b>\n" + "\n" + "<b>Procucev Solutions</b>\n" + "\n" + "\n" + "</body>\n"
-				+ "</html>";
+				+ "<b>for Client </b>" + organization.getCompanyName() + "<br><br>\n" + "\n" + "<b>Address </b>"
+				+ organization.getAddress1()
+				// + "<br><br>\n" + "\n" + "<b>Pan</b>" + organization.getPan()
+				+ "<br><br>\n" + "\n" + "<b>Phone</b>" + organization.getOrganizationPhonenumber() + "<br><br>\n" + "\n"
+				+ "<p><a href=\"" + host + "/login\">Click Here!!</a></p>\n" + "<b>to login into Procucev Portal </b>"
+				+ "<br><br>\n" + "\n" + "<b>Thanks, <br></b>\n" + "\n" + "<b>Procucev Solutions</b>\n" + "\n" + "\n"
+				+ "</body>\n" + "</html>";
 		emailNotifierGenericBySender(subject, toAddress, add, javaMailSender, message, type);
 	}
 
@@ -1391,8 +1374,8 @@ return false;
 
 				+ "<b>Thanks, <br></b>\n" + "\n" + "<b>Procucev Solutions</b>\n" + "\n" + "\n" + "</body>\n"
 				+ "</html>";
-		emailNotifierGenericBySender(subject, username, add, javaMailSender, message, string);	}
-
+		emailNotifierGenericBySender(subject, username, add, javaMailSender, message, string);
+	}
 
 //
 //	public static void emailForVendor(String string, String email, JavaMailSender javaMailSender, InternetAddress add,
@@ -1455,10 +1438,9 @@ return false;
 //		// TODO Auto-generated method stub
 //		
 //	}
-	
 
-	public static void mailingVerificationLinkWithUser( JavaMailSender javaMailSender,
-			InternetAddress add, String hostName, User user) {
+	public static void mailingVerificationLinkWithUser(JavaMailSender javaMailSender, InternetAddress add,
+			String hostName, User user) {
 		System.out.println("pswdd mail---" + user.getPassword());
 		String verificationTemplate = "<!DOCTYPE html>\n" + "<html>\n" + "<body>\n" + "\n" + "Dear " + "Partner"
 				+ ", <br><br>\n" + "\n" + "Greetings from Procucev!!" + "<br><br>\n" + "\n"
@@ -1491,4 +1473,3 @@ return false;
 	}
 
 }
-

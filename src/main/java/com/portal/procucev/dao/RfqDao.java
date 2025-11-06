@@ -39,7 +39,7 @@ public interface RfqDao extends JpaRepository<Rfq, String>{
 
 	@Modifying
 	@Transactional
-	@Query("UPDATE  Rfq r SET r.quotationReceived = true WHERE  r.rfqId=:rfqId")
+	@Query("UPDATE  Rfq r SET r.quotationReceived = true, r.quoteCount = r.quoteCount + 1 WHERE  r.rfqId=:rfqId")
 	void updateRfqByRfqId(@Param("rfqId") String rfqId);
 
 	@Query("SELECT r FROM Rfq r WHERE  (r.noPrFlag = true and r.byClient = false)or (r.byClient = true and r.clientStatus =:status )Order By r.createdTS DESC")
