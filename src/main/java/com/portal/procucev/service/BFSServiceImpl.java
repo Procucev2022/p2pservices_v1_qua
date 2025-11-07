@@ -667,8 +667,8 @@ public class BFSServiceImpl implements BFSService {
 				bfsDao.updateAvailableQuantity(availableQuantity, bfsUsers.getItems().getId());
 				String uniqueId = new SimpleDateFormat("yyMMddHHmmss").format(new Date());
 				bfsUserDao.updateUniqueId(uniqueId, bfsUser.getId());
-				String userName = userDao.findByID(bfsUsers.getUser().getId());
-				String clientName = userDao.findByID(bfsUsers.getItems().getUserId());
+				String userName = userDao.findByUserID(bfsUsers.getUser().getId());
+				String clientName = userDao.findByUserID(bfsUsers.getItems().getUserId());
 				String cmUser = "srinivas.mukku@procucev.com";
 				try {
 					InternetAddress add = new InternetAddress(mailFom, "Procucev Notifications");

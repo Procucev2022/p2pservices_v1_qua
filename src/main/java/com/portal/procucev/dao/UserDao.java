@@ -118,6 +118,6 @@ public interface UserDao extends JpaRepository<User, String> {
 	User findOrgByID(@Param("id") String id);
 
 	@Query("select u.username from User u where u.id=:clientInitiator")
-	String findByID(@Param("clientInitiator") String clientInitiator);
+	String findByUserID(@Param("clientInitiator") String clientInitiator);
 
 }

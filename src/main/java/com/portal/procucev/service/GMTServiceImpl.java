@@ -592,12 +592,28 @@ public class GMTServiceImpl implements GMTService {
 	public boolean queryMail(User user) throws UnsupportedEncodingException {
 		// TODO Auto-generated method stub
 		logger.info("Entered To Send mail To");
+		String email=null;
+		String OrgName=null;
+		String phone=null;
+		String fullName=null;
+		
 		if (user != null) {
 			String toEmail = "info@procucev.com";
 			InternetAddress add = new InternetAddress(mailFom, "Procucev Notifications");
 			logger.info("Sending mail to::" + toEmail);
+			if(user.getId()!=null)
+			{
+				 User findByID = userDao.findById(user.getId()).get();
+				 if(findByID!=null)
+				 {
+					 email=findByID.getUsername();
+					 phone=findByID.getPhone();
+					 fullName=findByID.getFullName();
+					 OrgName=findByID.getOrg().getCompanyName();
+				 }
+			}
 			MailUtility.mailingGMTClientRFQMailToinfoTeam("Sending GMT Query Successfull", toEmail, javaMailSender, add,
-					host, user);
+					host, user,email,phone,fullName,OrgName);
 
 			logger.info("Completed sending email");
 			return true;
@@ -881,6 +897,8 @@ public class GMTServiceImpl implements GMTService {
 		rfqDto.setByClient(rfq.isByClient());
 		rfqDto.setCount(rfq.getCount());
 		rfqDto.setQuotationReceived(rfq.isQuotationReceived());
+		rfqDto.setNoOfQuotes(rfq.getQuoteCount());
+		rfqDto.setNoOfVendors(rfqVendorDao.findByVendorsByRfq(rfq.getId()));;
 		return rfqDto;
 	}
 
@@ -888,6 +906,7 @@ public class GMTServiceImpl implements GMTService {
 	public boolean raiseQueryByVendor(GmtRfqVendors rfq) {
 		// TODO Auto-generated method stub
 		logger.info("Entered To Raise Query By Vendor For Rfq");
+		MasterStatus resultStatus = masterStatusDao.findByStatus(StatusConstants.VENDOR_RFQ_QUERIED);
 		try {
 			if (rfq != null)
 
@@ -895,11 +914,11 @@ public class GMTServiceImpl implements GMTService {
 				GmtRfqVendors gmtRfq = gmtRfqVendorDao.findByVendorAndRfq(rfq.getVendor(), rfq.getRfq());
 				if (gmtRfq != null) {
 					logger.info("Updating Query As Record Already Exists");
-					gmtRfqVendorDao.updateQuery(rfq.getRfq().getId(), rfq.getVendor().getId(), rfq.getQuery());
+					gmtRfqVendorDao.updateQuery(rfq.getRfq().getId(), rfq.getVendor().getId(), rfq.getQuery(), resultStatus);
 				} else {
 
 					logger.info("Saving Query Record For First Time With New Status");
-					MasterStatus resultStatus = masterStatusDao.findByStatus(StatusConstants.vendorRfqNew);
+				
 					rfq.setStatus(resultStatus);
 					gmtRfqVendorDao.save(rfq);
 				}
@@ -931,6 +950,8 @@ public class GMTServiceImpl implements GMTService {
 		rfqDto.setDivision(rfq.getDivision());
 		rfqDto.setClientStatus(rfq.getClientStatus());
 		rfqDto.setRfqId(rfq.getRfqId());
+		rfqDto.setNoOfQuotes(rfq.getQuoteCount());
+		rfqDto.setNoOfVendors(rfqVendorDao.findByVendorsByRfq(rfq.getId()));
 		String phone = userDao.findPhoneByUser(rfq.getUser());
 		if (phone != null) {
 			rfqDto.setPhoneNumber(phone);

@@ -295,4 +295,6 @@ public interface StatusConstants {
 
 	public static final String VENDOR_QUOTE_SUBMITTED = "VENDOR_QUOTE_SUBMITTED";
 
+	public static final String VENDOR_RFQ_QUERIED = "VENDOR_RFQ_QUERIED";
+
 }
