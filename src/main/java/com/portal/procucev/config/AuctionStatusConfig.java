@@ -22,9 +22,7 @@ public class AuctionStatusConfig {
 	@Value("${jobs.enabled}")
 	private boolean isEnabled;
 
-	//@Scheduled(cron = "0 0 22 * * ?")
 	@Scheduled(cron = "0 0 12,15,18 * * ?")
-	@PostConstruct
 	public void scheduleTaskWithCronExpressionsforForwardEmailToClient() {
 		if (isEnabled) {
 			log.info("Scheduled Service to Forward Vendor Quotation To Client Started");
