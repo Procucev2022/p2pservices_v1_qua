@@ -33,6 +33,7 @@ import com.portal.procucev.model.PincodeData;
 import com.portal.procucev.model.PostOffice;
 import com.portal.procucev.model.User;
 import com.portal.procucev.service.ExcelReader;
+import com.portal.procucev.service.GMTService;
 import com.portal.procucev.service.SelfRegistrationService;
 import com.portal.procucev.service.SmsService;
 import com.portal.procucev.service.UserService;
@@ -53,6 +54,9 @@ public class PartialVendorController {
 
 	@Autowired
 	SmsService smsService;
+	
+	@Autowired
+	GMTService gmtService;
 
 	@Autowired
 	UserService userServices;
@@ -591,4 +595,10 @@ public class PartialVendorController {
 	        }
 	    }
 
+		
+		@GetMapping(value = "/updateVendorClasses")
+		public ResponseEntity<?> updateVendorClasses() {
+			gmtService.updateVendorClasses();
+			return new ResponseEntity<>( HttpStatus.OK);
+		}
 }

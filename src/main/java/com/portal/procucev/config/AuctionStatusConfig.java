@@ -31,6 +31,13 @@ public class AuctionStatusConfig {
 		}
 	}
 
+	@Scheduled(cron = "0 0 0 * * ?")  // every day at 00:00
+	public void scheduledVendorClassUpdate() {
+	    log.info("Starting scheduled vendor classification update...");
+	    gmtService.updateVendorClasses();
+	    log.info("Completed scheduled vendor classification update.");
+	}
+	
 }
 
 

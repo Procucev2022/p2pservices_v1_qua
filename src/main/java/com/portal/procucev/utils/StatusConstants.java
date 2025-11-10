@@ -294,7 +294,16 @@ public interface StatusConstants {
     public static final String EMAIL_VERIFIED = "EMAIL_VERIFIED";
 
 	public static final String VENDOR_QUOTE_SUBMITTED = "VENDOR_QUOTE_SUBMITTED";
-
+	
 	public static final String VENDOR_RFQ_QUERIED = "VENDOR_RFQ_QUERIED";
+
+	public static final String Marketing = "10";
+	
+	public static final String Diamond = "20";
+	
+	public static final String Gold = "30";
+	
+	public static final String Opt_Out = "40";
+	
 
 }

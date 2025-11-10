@@ -16,6 +16,11 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 @Builder
 public class VendorCatalogue extends Procucev{
 
+	/**
+	 * 
+	 */
+	private static final long serialVersionUID = 1L;
+
 	@Column(name="material_description")
     private String materialDescription;
 

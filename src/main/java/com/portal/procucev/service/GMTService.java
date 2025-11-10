@@ -136,5 +136,7 @@ public interface GMTService {
 
 	VendorInfoDto getVendorInfo(Organization orgRequest);
 
+	void updateVendorClasses();
+
 
 }

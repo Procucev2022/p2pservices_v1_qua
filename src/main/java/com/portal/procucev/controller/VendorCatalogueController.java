@@ -18,6 +18,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.portal.procucev.customexception.MessageResponse;
 import com.portal.procucev.model.Organization;
 import com.portal.procucev.model.VendorCatalogue;
+import com.portal.procucev.model.VendorTermsConditions;
 import com.portal.procucev.service.VendorCatalogueService;
 
 @RestController
@@ -126,5 +127,103 @@ public class VendorCatalogueController {
 	            return ResponseEntity.internalServerError().body(response);
 	        }
 	    }
+	 
+	 
+	 @PostMapping("/saveSellerTC")
+		public ResponseEntity<?> saveTermsAndConditions(@RequestBody VendorTermsConditions conditions) {
+		    log.info("API Called: /vendor/saveSellerTC");
+
+		    try {
+		    	VendorTermsConditions saved = catalogueService.saveTermsAndConditions(conditions);
+
+		        MessageResponse response = new MessageResponse(
+		                "200",
+		                "Terms And Conditions Added successfully",
+		                null,
+		                new Date(),
+		                "Success",
+		                null
+		        );
+
+		        // Optionally include saved catalogue in response data
+		        response.setData(Map.of("catalogueId", saved.getId()));
+
+		        return ResponseEntity.ok(response);
+
+		    } catch (IllegalArgumentException ex) {
+		        log.error("Validation failed: {}", ex.getMessage());
+
+		        MessageResponse response = new MessageResponse(
+		                "200",
+		                "Validation failed",
+		                List.of(ex.getMessage()), // errorMsg is List<String>
+		                new Date(),
+		                "Failure",
+		                "VALIDATION_ERROR"
+		        );
+
+		        return ResponseEntity.badRequest().body(response);
+
+		    } catch (Exception ex) {
+		        log.error("Unexpected error while saving catalogue", ex);
+
+		        MessageResponse response = new MessageResponse(
+		                "200",
+		                "Internal server error",
+		                List.of(ex.getMessage()), // errorMsg as list
+		                new Date(),
+		                "Failure",
+		                "SYSTEM_ERROR"
+		        );
+
+		        return ResponseEntity.internalServerError().body(response);
+		    }
+		}
+	 
+	 @PostMapping("/getSellerTC")
+	   public ResponseEntity<MessageResponse> getSellerTC(@RequestBody Organization org) {
+	        log.info("API Called: /vendor/catalogue/getSellerTC/{}", org.getId());
+
+	        try {
+	            List<VendorTermsConditions> conditions = catalogueService.getTCByVendorId(org.getId());
+
+	            if (conditions.isEmpty()) {
+	                MessageResponse response = MessageResponse.error(
+	                        "No Terms and Conditions found for this vendor",
+	                        List.of("CATALOGUE_NOT_FOUND")
+	                );
+	                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(response);
+	            }
+
+	            MessageResponse response = MessageResponse.success(
+	                    "Catalogues retrieved successfully",
+	                    Map.of("catalogues", conditions)
+	            );
+	            return ResponseEntity.ok(response);
+
+	        } catch (IllegalArgumentException ex) {
+	            log.error("Validation failed: {}", ex.getMessage());
+
+	            MessageResponse response = MessageResponse.error(
+	                    "Validation failed",
+	                    List.of(ex.getMessage())
+	            );
+	            return ResponseEntity.badRequest().body(response);
+
+	        } catch (Exception ex) {
+	            log.error("Unexpected error while fetching conditions", ex);
+
+	            MessageResponse response = new MessageResponse(
+	                    "500",
+	                    "Internal server error",
+	                    List.of(ex.getMessage()),
+	                    new Date(),
+	                    "Failure",
+	                    "SYSTEM_ERROR"
+	            );
+	            return ResponseEntity.internalServerError().body(response);
+	        }
+	    }
+	 
 }
 
