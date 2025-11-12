@@ -124,6 +124,17 @@
 			<version>3.17</version>
 		</dependency>
 		<dependency>
+    <groupId>net.javacrumbs.shedlock</groupId>
+    <artifactId>shedlock-spring</artifactId>
+    <version>5.10.0</version>
+</dependency>
+<dependency>
+    <groupId>net.javacrumbs.shedlock</groupId>
+    <artifactId>shedlock-provider-jdbc-template</artifactId>
+    <version>5.10.0</version>
+</dependency>
+
+		<dependency>
 			<groupId>com.itextpdf</groupId>
 			<artifactId>itextpdf</artifactId>
 			<version>5.5.13.4</version>
