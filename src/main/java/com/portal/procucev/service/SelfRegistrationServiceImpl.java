@@ -497,6 +497,7 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 			organization.setProcucevStatus(vendorStatus);
 			organization.setGmtName(StatusConstants.GMT_Basic);
 			organization.setBfsName(StatusConstants.BFS_PRO);
+			organization.setVendorClass(StatusConstants.Marketing);
 
 			// Pincode enrichment
 			if (organization.getZipCode() != null) {
@@ -979,6 +980,7 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 			organization.setBfsName(StatusConstants.BFS_PRO);
 			organization.setProcucevStatus(vendorstatus);
 			organization.setVendorStatus(vendorstatus);
+			organization.setVendorClass(StatusConstants.Marketing);
 			String companyId = generateId(organization.getCompanyName());
 			organization.setCompanyId(companyId);
 			organization.setRfqCredits(1);

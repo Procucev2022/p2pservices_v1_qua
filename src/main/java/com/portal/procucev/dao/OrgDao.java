@@ -85,4 +85,8 @@ public interface OrgDao  extends JpaRepository<Organization, String> {
     @Query("UPDATE Organization o SET o.quoteSubmitted = o.quoteSubmitted + 1 WHERE o.id = :vendorId ")
 	void updateQuoteCount(@Param("vendorId") String vendorId);
 
+	@Modifying
+    @Query("UPDATE Organization o SET o.vendorClass = :vendorClass WHERE o.id = :id")
+    void updateVendorClass(@Param("id") String id, @Param("vendorClass") String vendorClass);
+
 }

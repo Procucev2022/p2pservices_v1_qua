@@ -10,7 +10,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
 
 import com.portal.procucev.dao.VendorCatalogueDao;
+import com.portal.procucev.dao.VendorTermsConditionsDao;
 import com.portal.procucev.model.VendorCatalogue;
+import com.portal.procucev.model.VendorTermsConditions;
 
 @Service
 public class VendorCatalogueServiceImpl implements VendorCatalogueService {
@@ -18,6 +20,9 @@ public class VendorCatalogueServiceImpl implements VendorCatalogueService {
 
 	@Autowired
 	private VendorCatalogueDao vendorCatalogueDao;
+	
+	@Autowired
+	private VendorTermsConditionsDao termsDao;
 
 	@Override
 	public VendorCatalogue saveCatalogue(VendorCatalogue catalogue) {
@@ -51,6 +56,42 @@ public class VendorCatalogueServiceImpl implements VendorCatalogueService {
 
 	    log.info("Found {} catalogues for vendor id: {}", cataloguesList.size(), id);
 	    return cataloguesList;
+	}
+
+	@Override
+	public VendorTermsConditions saveTermsAndConditions(VendorTermsConditions conditions) {
+		// TODO Auto-generated method stub
+		 log.info("Saving Vendor Catalogue: {}", conditions);
+
+		    if (conditions == null) {
+		        log.error("Terms Conditions object is null");
+		        throw new IllegalArgumentException("Terms Conditions cannot be null");
+		    }
+
+		    VendorTermsConditions savedTC = termsDao.save(conditions);
+		    log.info("Vendor Terms Comditions saved successfully with ID: {}", savedTC.getId());
+		    return savedTC;
+	}
+
+	@Override
+	public List<VendorTermsConditions> getTCByVendorId(String id) {
+		// TODO Auto-generated method stub
+		  if (id == null) {
+		        log.warn("get Terms and Conditions By VendorId() called with null id");
+		        return Collections.emptyList();
+		    }
+
+		    log.info("Fetching Terms and Conditions for vendor id: {}", id);
+
+		    List<VendorTermsConditions> tcList = termsDao.findByOrgIdOrderByCreatedTSDesc(id);
+
+		    if (CollectionUtils.isEmpty(tcList)) {
+		        log.info("No Terms and Conditions found for vendor id: {}", id);
+		        return Collections.emptyList();
+		    }
+
+		    log.info("Found {} Terms and Conditions for vendor id: {}", tcList.size(), id);
+		    return tcList;
 	}
 
 }
