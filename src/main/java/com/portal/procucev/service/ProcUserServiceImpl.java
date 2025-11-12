@@ -707,6 +707,7 @@ public class ProcUserServiceImpl implements UserService {
 				summary.setPincode(vendor.getZipCode());
 				summary.setPhoneNumber(vendor.getOrganizationPhonenumber());
 				summary.setDetails(vendor.getDetails());
+				summary.setSourceType(vendor.getSourceType());
 
 				summary.setSubscribed(vendor.getSubscriptionPlan() != null ? "Yes" : "No");
 

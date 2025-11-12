@@ -29,4 +29,5 @@ public class VendorSummaryResponse {
     private String gst;
     private String details;
     private String phoneNumber;
+    private String sourceType;
 }

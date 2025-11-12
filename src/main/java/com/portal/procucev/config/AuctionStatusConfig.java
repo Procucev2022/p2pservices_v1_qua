@@ -1,5 +1,6 @@
 package com.portal.procucev.config;
 import jakarta.annotation.PostConstruct;
+import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -23,14 +24,23 @@ public class AuctionStatusConfig {
 	private boolean isEnabled;
 
 	@Scheduled(cron = "0 0 12,15,18 * * ?")
+	@SchedulerLock(name = "emailForwardJob")
 	public void scheduleTaskWithCronExpressionsforForwardEmailToClient() {
 		if (isEnabled) {
-			log.info("Scheduled Service to Forward Vendor Quotation To Client Started");
+			log.info("Scheduled Service to Forward Vendor Quotation To Client Started  with ShedLock...");
 			gmtService.emailForwarder();
-			log.info("Scheduled Service to Send Reminder Email to vendors  Ended");
+			log.info("Scheduled Service to Send Reminder Email to vendors  Ended  with ShedLock...");
 		}
 	}
 
+	@Scheduled(cron = "0 0 0 * * ?")  // every day at 00:00
+	@SchedulerLock(name = "vendorClassUpdate")
+	public void scheduledVendorClassUpdate() {
+	    log.info("Starting scheduled vendor classification update  with ShedLock......");
+	    gmtService.updateVendorClasses();
+	    log.info("Completed scheduled vendor classification update ended with ShedLock...");
+	}
+	
 }
 
 
