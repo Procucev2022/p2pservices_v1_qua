@@ -23,6 +23,8 @@ public class ClientRFQDto {
 	private String  createdBy;
 	
 	private Date createdTS;
+	
+	private int quoteCount;
 
 	public String getId() {
 		return id;
@@ -94,6 +96,14 @@ public class ClientRFQDto {
 
 	public void setQuotationReceived(boolean quotationReceived) {
 		this.quotationReceived = quotationReceived;
+	}
+
+	public int getQuoteCount() {
+		return quoteCount;
+	}
+
+	public void setQuoteCount(int quoteCount) {
+		this.quoteCount = quoteCount;
 	}
 	
 	
