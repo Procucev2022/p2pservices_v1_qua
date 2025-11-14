@@ -43,6 +43,7 @@ import com.portal.procucev.customexception.AppException;
 import com.portal.procucev.dao.CategoryDivisionDao;
 import com.portal.procucev.dao.ClientDao;
 import com.portal.procucev.dao.MasterStatusDao;
+import com.portal.procucev.dao.OrgCategoryDivisionDao;
 import com.portal.procucev.dao.OrgDao;
 import com.portal.procucev.dao.OrgTypeDao;
 import com.portal.procucev.dao.OtpStoreDao;
@@ -50,6 +51,7 @@ import com.portal.procucev.dao.PincodeDao;
 import com.portal.procucev.dao.RoleDao;
 import com.portal.procucev.dao.UserDao;
 import com.portal.procucev.model.MasterStatus;
+import com.portal.procucev.model.OrgDivisionCategory;
 import com.portal.procucev.model.OrgType;
 import com.portal.procucev.model.Organization;
 import com.portal.procucev.model.OtpDetails;
@@ -99,6 +101,9 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 	String mailPassword;
 	@Autowired
 	private OrgDao orgDao;
+	
+	@Autowired
+	private OrgCategoryDivisionDao orgCategoryDivisionDao;
 
 	@Autowired
 	private CategoryDivisionDao categoryDivisionDao;
@@ -1000,6 +1005,15 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 
 			user.setOrg(savedOrg);
 			User savedUser = setSellerUserDetails(organization, user);
+			 // ---------- Save Division Categories ----------
+	        if (organization.getDivisionCategories() != null) {
+	            for (OrgDivisionCategory dc : organization.getDivisionCategories()) {
+	                dc.setOrganization(savedOrg);
+	                dc.setUserId(savedUser.getId());
+	                orgCategoryDivisionDao.save(dc);
+	            }
+	        }
+
 
 			response.put("orgId", savedOrg.getId());
 			response.put("companyId", savedOrg.getCompanyId());
