@@ -601,4 +601,25 @@ public class PartialVendorController {
 			gmtService.updateVendorClasses();
 			return new ResponseEntity<>( HttpStatus.OK);
 		}
+		
+		
+		@PostMapping("/uploadSellerDetails")
+
+	    public ResponseEntity<String> uploadSellerDetails(@RequestParam("file") MultipartFile file) {
+
+	        try {
+
+	        	Map<String, Object> res=	regService.SellerregisterFromExcel(file);
+
+	            return ResponseEntity.ok("Excel uploaded and registration completed successfully!");
+
+	        } catch (Exception e) {
+
+	            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+
+	                                 .body("Error processing Excel: " + e.getMessage());
+
+	        }
+
+	    }
 }

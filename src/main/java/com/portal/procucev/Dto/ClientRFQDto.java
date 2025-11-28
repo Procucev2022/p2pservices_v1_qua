@@ -25,6 +25,8 @@ public class ClientRFQDto {
 	private Date createdTS;
 	
 	private int quoteCount;
+	
+	private Date quoteSubmittedDate;
 
 	public String getId() {
 		return id;
@@ -104,6 +106,14 @@ public class ClientRFQDto {
 
 	public void setQuoteCount(int quoteCount) {
 		this.quoteCount = quoteCount;
+	}
+
+	public Date getQuoteSubmittedDate() {
+		return quoteSubmittedDate;
+	}
+
+	public void setQuoteSubmittedDate(Date quoteSubmittedDate) {
+		this.quoteSubmittedDate = quoteSubmittedDate;
 	}
 	
 	
