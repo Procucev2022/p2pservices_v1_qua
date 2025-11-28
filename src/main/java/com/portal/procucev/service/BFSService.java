@@ -2,6 +2,8 @@ package com.portal.procucev.service;
 
 import java.util.List;
 
+import com.portal.procucev.Dto.BFSItemDto;
+import com.portal.procucev.Dto.BFSItemMainDetailsDTO;
 import com.portal.procucev.Dto.BfsDTO;
 import com.portal.procucev.Dto.VendorInfoBean;
 import com.portal.procucev.model.BFSDocuments;
@@ -71,5 +73,7 @@ public interface BFSService {
 	VendorInfoBean getuserInfoById(User user);
 
 	boolean deactivateCommentsFlag(BFSItems item);
+
+	List<BFSItemMainDetailsDTO> getBfsItemsByCategory(List<BFSItemDto> items);
 
 }

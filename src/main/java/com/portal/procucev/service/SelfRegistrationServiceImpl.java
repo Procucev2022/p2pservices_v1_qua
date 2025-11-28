@@ -21,6 +21,8 @@ import java.util.concurrent.ConcurrentHashMap;
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVRecord;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.poi.EncryptedDocumentException;
+import org.apache.poi.openxml4j.exceptions.InvalidFormatException;
 import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.DateUtil;
 import org.apache.poi.ss.usermodel.FormulaEvaluator;
@@ -96,12 +98,12 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 
 	@Value("${host}")
 	String host;
-	
+
 	@Value("${mailPassword}")
 	String mailPassword;
 	@Autowired
 	private OrgDao orgDao;
-	
+
 	@Autowired
 	private OrgCategoryDivisionDao orgCategoryDivisionDao;
 
@@ -503,7 +505,7 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 			organization.setGmtName(StatusConstants.GMT_Basic);
 			organization.setBfsName(StatusConstants.BFS_PRO);
 			organization.setVendorClass(StatusConstants.Marketing);
-
+			organization.setCompanyId(generateId(organization.getCompanyName()));
 			// Pincode enrichment
 			if (organization.getZipCode() != null) {
 				PincodeData pincodeData = getCityByPincode(organization.getZipCode());
@@ -692,7 +694,7 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 				LocalDateTime expirationTime = LocalDateTime.now().plusMinutes(15);
 				String key = phone.trim() + "_EMAIL_" + email.toLowerCase().trim();
 				// Store OTP and its expiration time in the map
-				//tpMap.put(key, new OtpDetails(otp, expirationTime));
+				// tpMap.put(key, new OtpDetails(otp, expirationTime));
 				otpStoreDao.findByOtpKey(key).ifPresentOrElse(existing -> {
 					existing.setOtp(otp);
 					existing.setExpirationTime(expirationTime);
@@ -986,6 +988,7 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 			organization.setProcucevStatus(vendorstatus);
 			organization.setVendorStatus(vendorstatus);
 			organization.setVendorClass(StatusConstants.Marketing);
+			organization.setCompanyId(generateId(organization.getCompanyName()));
 			String companyId = generateId(organization.getCompanyName());
 			organization.setCompanyId(companyId);
 			organization.setRfqCredits(1);
@@ -1005,15 +1008,14 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 
 			user.setOrg(savedOrg);
 			User savedUser = setSellerUserDetails(organization, user);
-			 // ---------- Save Division Categories ----------
-	        if (organization.getDivisionCategories() != null) {
-	            for (OrgDivisionCategory dc : organization.getDivisionCategories()) {
-	                dc.setOrganization(savedOrg);
-	                dc.setUserId(savedUser.getId());
-	                orgCategoryDivisionDao.save(dc);
-	            }
-	        }
-
+			// ---------- Save Division Categories ----------
+			if (organization.getDivisionCategories() != null) {
+				for (OrgDivisionCategory dc : organization.getDivisionCategories()) {
+					dc.setOrganization(savedOrg);
+					dc.setUserId(savedUser.getId());
+					orgCategoryDivisionDao.save(dc);
+				}
+			}
 
 			response.put("orgId", savedOrg.getId());
 			response.put("companyId", savedOrg.getCompanyId());
@@ -1174,8 +1176,8 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 //		                MailUtility.sendClientEmailForCM2(
 //		                        "New Client Registration", toAddress, org, javaMailSender, add, host
 //		                );
-					MailUtility.mailingVerificationLinkWithSelfUserLogin(javaMailSender, mailid, add, mailPassword, host,
-							savedUser);
+					MailUtility.mailingVerificationLinkWithSelfUserLogin(javaMailSender, mailid, add, mailPassword,
+							host, savedUser);
 				} catch (Exception e) {
 					logger.error("Failed processing row {}: {}", i, e.getMessage(), e);
 				}
@@ -1255,5 +1257,206 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 			}
 		}
 	}
+
+	@Override
+	public Map<String, Object> SellerregisterFromExcel(MultipartFile file)
+			throws EncryptedDocumentException, InvalidFormatException, IOException {
+
+		Map<String, Object> response = new HashMap<>();
+		List<String> successRows = new ArrayList<>();
+		List<String> errorRows = new ArrayList<>();
+
+		try (InputStream inputStream = file.getInputStream()) {
+
+			Workbook workbook = WorkbookFactory.create(inputStream);
+			Sheet sheet = workbook.getSheetAt(0);
+
+			for (int i = 1; i <= sheet.getLastRowNum(); i++) {
+
+				Row row = sheet.getRow(i);
+				if (row == null)
+					continue;
+
+				try {
+
+					String companyName = getCellValue(row.getCell(1));
+					String contactName = getCellValue(row.getCell(2));
+					String email = getCellValue(row.getCell(3));
+					String mobile = getCellValue(row.getCell(4));
+					String gstin = getCellValue(row.getCell(5));
+
+					String pinCode = getCellValue(row.getCell(6));
+					String city = getCellValue(row.getCell(7));
+					String state = getCellValue(row.getCell(8));
+
+					String cate1 = getCellValue(row.getCell(9));
+					String cate2 = getCellValue(row.getCell(10));
+					String cate3 = getCellValue(row.getCell(11));
+					String cate4 = getCellValue(row.getCell(12));
+					String cate5 = getCellValue(row.getCell(13));
+
+					String products = getCellValue(row.getCell(14));
+
+					// VALIDATIONS
+					if (companyName == null || companyName.isEmpty()) {
+						errorRows.add("Row " + (i + 1) + ": Company Name missing");
+						continue;
+					}
+
+					if (email == null || email.isEmpty()) {
+						errorRows.add("Row " + (i + 1) + ": Email missing");
+						continue;
+					}
+
+					if (mobile == null || mobile.isEmpty()) {
+						errorRows.add("Row " + (i + 1) + ": Phone missing");
+						continue;
+					}
+
+					String normalizedPhone = PhoneNumberUtils.normalize(mobile);
+
+					if (checkUserexistWithPhone(email.trim(), normalizedPhone)) {
+						errorRows.add("Row " + (i + 1) + ": User already exists");
+						continue;
+					}
+
+					// fetch master setup
+					OrgType orgTypeObject = orgTypeDao.findByTypeName(ApplicationConstants.VENDOR);
+					MasterStatus vendorStatus = masterStatusDao.findByStatus(StatusConstants.SELF_REGISTER_VC_ACCEPTED);
+					MasterStatus evaluationStatus = masterStatusDao
+							.findByStatus(StatusConstants.EVALUATION_NOT_STARTED);
+
+					Organization org = new Organization();
+
+					org.setCompanyName(companyName);
+					org.setCompanyId(generateId(companyName));
+					org.setEmail(email);
+					org.setGstin(gstin);
+
+					org.setOrgType(orgTypeObject);
+					org.setVendorStatus(vendorStatus);
+					org.setStatus(evaluationStatus);
+					org.setProcucevStatus(vendorStatus);
+
+					org.setZipCode(pinCode);
+					org.setCity(city);
+					org.setState(state);
+
+					org.setOrganizationPhonenumber(normalizedPhone);
+					org.setSubCategory(products);
+					org.setSourceType(ApplicationConstants.TOOL);
+
+					org.setGmtName(StatusConstants.GMT_Basic);
+					org.setBfsName(StatusConstants.BFS_PRO);
+					org.setVendorClass(StatusConstants.Marketing);
+					org.setRfqCredits(1);
+
+					// save org
+					Organization savedOrg = orgDao.save(org);
+
+					// Create user
+					User user = new User();
+					User savedUser = setExcelSellerUserDetails(savedOrg, user, contactName);
+
+					// category mapping
+					List<OrgDivisionCategory> divisions = new ArrayList<>();
+					if (cate1 != null && !cate1.isEmpty())
+						divisions.add(buildDivisionCategory(cate1, savedOrg, savedUser));
+					if (cate2 != null && !cate2.isEmpty())
+						divisions.add(buildDivisionCategory(cate2, savedOrg, savedUser));
+					if (cate3 != null && !cate3.isEmpty())
+						divisions.add(buildDivisionCategory(cate3, savedOrg, savedUser));
+					if (cate4 != null && !cate4.isEmpty())
+						divisions.add(buildDivisionCategory(cate4, savedOrg, savedUser));
+					if (cate5 != null && !cate5.isEmpty())
+						divisions.add(buildDivisionCategory(cate5, savedOrg, savedUser));
+
+					orgCategoryDivisionDao.saveAll(divisions);
+
+					Map<String, Object> result = sellerRegistration(org);
+
+					if (Boolean.TRUE.equals(result.get("confirmationFlag"))) {
+						successRows.add("Row " + (i + 1));
+					} else {
+						errorRows.add("Row " + (i + 1) + ": Failed");
+					}
+
+				} catch (Exception e) {
+					errorRows.add("Row " + (i + 1) + ": " + e.getMessage());
+				}
+			}
+
+			workbook.close();
+		}
+
+		response.put("confirmationFlag", errorRows.isEmpty());
+		response.put("successRows", successRows);
+		response.put("errorRows", errorRows);
+
+		return response;
+	}
+
+	private User setExcelSellerUserDetails(Organization organization, User user, String contactName) {
+		// TODO Auto-generated method stub
+		logger.info("Setting User Details::");
+		User existingUsers = userDao.findByUsernameAndPhoneAndActive(organization.getEmail(),
+				organization.getOrganizationPhonenumber(), true);
+
+		if (existingUsers != null) {
+			logger.warn("User already exists with the given email and phone");
+		}
+		// MasterStatus status =
+		// masterStatusDao.findByStatus(StatusConstants.CLIENT_NEW);
+		Role vendor = roleDao.findByRoleNameAndActive(StatusConstants.VENDOR, true);
+		String uniqueId = generateUserId(organization.getOrganizationPhonenumber());
+		user.setUsername(organization.getEmail());
+		user.setFullName(contactName);
+		user.setPhone(PhoneNumberUtils.normalize(organization.getOrganizationPhonenumber()));
+		user.setResetPassword(true);
+		user.setActive(true);
+		// user.setClientStatus(status);
+		user.setOrg(organization);
+		user.setRole(vendor);
+		user.setSourceType(organization.getSourceType());
+		user.setUniqueId(uniqueId);
+		user.setVerificationStatus(StatusConstants.PENDING_EMAIL_VERIFICATION);
+		user.setPassword("Welcome@123");
+		logger.info("saving User Details");
+		User savedUser = userDao.save(user);
+		return savedUser;
+	}
+
+	// helper: create OrgDivisionCategory from Cate value
+
+	private OrgDivisionCategory buildDivisionCategory(String cateValue, Organization savedOrg, User savedUser) {
+		OrgDivisionCategory dc = new OrgDivisionCategory();
+		dc.setCategory(cateValue); // or dc.setDivisionName(...) based on your entity
+		// set other defaults if needed
+		dc.setOrganization(savedOrg);
+		dc.setUserId(savedUser.getId());
+
+		return dc;
+	}
+
+	@Override
+	public boolean validateUserApproval(String username, String phone) {
+
+	    // Fetch user by username, phone and active = true
+	    User user = userDao.findByUsernameAndPhoneAndActive(username, phone, true);
+
+	    // If no user found → fail
+	    if (user == null) {
+	        return false;
+	    }
+
+	    // If selfClient = false → automatically pass
+	    if (!user.isSelfClient()) {
+	        return true;
+	    }
+
+	    // If selfClient = true → must be approved
+	    return user.isApproved();
+	}
+
 
 }
