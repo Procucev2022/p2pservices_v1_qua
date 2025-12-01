@@ -935,6 +935,7 @@ public class GMTServiceImpl implements GMTService {
 					rfq.setStatus(resultStatus);
 					gmtRfqVendorDao.save(rfq);
 				}
+				rfqDao.updateRfqStatus(rfq.getRfq(),resultStatus);
 				return true;
 			} else {
 				logger.warn("No Data Found");
@@ -2538,7 +2539,7 @@ public class GMTServiceImpl implements GMTService {
 				// Your business updates
 				
                 //rfqDao.updateQuoteSubmissionDate(rfqId);
-				rfqDao.updateRfqByRfqId(rfqId);
+				rfqDao.updateRfqByRfqId(rfqId,quoteStatus);
 				rfqVendorDao.updateQuotationReceived(rfqId, vendorId, quoteStatus);
 				List<String> rfqIds = rfqDao.getIdbyRfqId(rfqId);
 				if (!CollectionUtils.isEmpty(rfqIds)) {

@@ -9,8 +9,10 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
 
+import com.portal.procucev.dao.BFSDao;
 import com.portal.procucev.dao.VendorCatalogueDao;
 import com.portal.procucev.dao.VendorTermsConditionsDao;
+import com.portal.procucev.model.BFSItems;
 import com.portal.procucev.model.VendorCatalogue;
 import com.portal.procucev.model.VendorTermsConditions;
 
@@ -23,7 +25,10 @@ public class VendorCatalogueServiceImpl implements VendorCatalogueService {
 	
 	@Autowired
 	private VendorTermsConditionsDao termsDao;
-
+	
+	@Autowired
+	private BFSDao bfsDao;
+	
 	@Override
 	public VendorCatalogue saveCatalogue(VendorCatalogue catalogue) {
 	    log.info("Saving Vendor Catalogue: {}", catalogue);
@@ -34,6 +39,18 @@ public class VendorCatalogueServiceImpl implements VendorCatalogueService {
 	    }
 
 	    VendorCatalogue savedCatalogue = vendorCatalogueDao.save(catalogue);
+	    BFSItems bfsItem = new BFSItems();
+	    bfsItem.setDescription(catalogue.getMaterialDescription());
+	    bfsItem.setUnitofMeasures(catalogue.getUom());
+	    bfsItem.setTotalQuantity(catalogue.getMinOrderQuantity());
+	    bfsItem.setAvailableQuantity(catalogue.getAvailableQuantity());
+	    bfsItem.setSellPrice(catalogue.getPricePerUom().doubleValue());
+	    bfsItem.setAskPrice(catalogue.getPricePerUom().doubleValue());
+	    bfsItem.setUserId(catalogue.getUser());
+	    // set org based on dto.getOrg().getId()
+	     bfsItem.setOrg(catalogue.getOrg());
+
+	    bfsDao.save(bfsItem);
 	    log.info("Vendor Catalogue saved successfully with ID: {}", savedCatalogue.getId());
 	    return savedCatalogue;
 	}
