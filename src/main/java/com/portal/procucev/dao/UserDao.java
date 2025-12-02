@@ -2,6 +2,7 @@ package com.portal.procucev.dao;
 
 import java.util.Date;
 import java.util.List;
+import java.util.Optional;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
@@ -11,6 +12,7 @@ import org.springframework.stereotype.Repository;
 
 import com.portal.procucev.model.MasterStatus;
 import com.portal.procucev.model.Organization;
+import com.portal.procucev.model.Rfq;
 import com.portal.procucev.model.Role;
 import com.portal.procucev.model.User;
 
@@ -119,5 +121,9 @@ public interface UserDao extends JpaRepository<User, String> {
 
 	@Query("select u.username from User u where u.id=:clientInitiator")
 	String findByUserID(@Param("clientInitiator") String clientInitiator);
+
+
+	@Query("SELECT  new User(u.username,u.phone,u.org.companyName,u.fullName) from User u where u.id=:id")
+	User findUserById(@Param("id") String id);
 
 }

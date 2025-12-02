@@ -653,6 +653,7 @@ public class GMTServiceImpl implements GMTService {
 					gmtRfqVendorDto.setStatus(existsByOrgAndRfq.getStatus());
 					gmtRfqVendorDto.setRequestedDate(existsByOrgAndRfq.getRequestedDate());
 					gmtRfqVendorDto.setAcceptedDate(existsByOrgAndRfq.getAcceptedDate());
+					gmtRfqVendorDto.setQuoteSubmittedDate(existsByOrgAndRfq.getQuoteSubmittedDate());
 					if (existsByOrgAndRfq.getQuery() != null) {
 						gmtRfqVendorDto.setQuery(existsByOrgAndRfq.getQuery());
 					}
@@ -2635,4 +2636,46 @@ public class GMTServiceImpl implements GMTService {
 
 		}
 	}
+
+	@Override
+	public User getBuyerDataByRFQ(Rfq rfq) {
+	    if (rfq == null) {
+	        logger.warn("getBuyerDataByRFQ called with null RFQ");
+	        return null;
+	    }
+
+	    logger.info("Fetching buyer data for RFQ ID: {}", rfq.getId());
+
+	    // 1. Load RFQ from DB to ensure it's managed / fresh
+	    Rfq rfqData = rfqDao.findById(rfq.getId()).orElse(null);
+
+	    if (rfqData == null) {
+	        logger.warn("RFQ not found for ID: {}", rfq.getId());
+	        return null;
+	    }
+
+	    logger.debug("RFQ found. Extracting userId from RFQ ID: {}", rfqData.getId());
+
+	    // 2. Extract userId string from RFQ
+	    String userIdStr = rfqData.getUser();
+
+	    if (userIdStr == null || userIdStr.trim().isEmpty()) {
+	        logger.warn("No userId found in RFQ ID: {}", rfqData.getId());
+	        return null;
+	    }
+
+	    logger.info("User ID '{}' found in RFQ ID: {}", userIdStr, rfqData.getId());
+
+	    // 3. Fetch user (assuming userDao.findUserById(String id) exists)
+	    User user = userDao.findUserById(userIdStr);
+
+	    if (user == null) {
+	        logger.warn("User not found for userId: {}", userIdStr);
+	    } else {
+	        logger.info("User details fetched successfully for userId: {}", userIdStr);
+	    }
+
+	    return user;
+	}
+
 }
