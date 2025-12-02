@@ -935,6 +935,7 @@ public class GMTServiceImpl implements GMTService {
 					rfq.setStatus(resultStatus);
 					gmtRfqVendorDao.save(rfq);
 				}
+				rfqDao.updateRfqStatus(rfq.getRfq(),resultStatus);
 				return true;
 			} else {
 				logger.warn("No Data Found");
@@ -2050,7 +2051,8 @@ public class GMTServiceImpl implements GMTService {
 		List<String> categoryList = orgCategoryDivisionDao.findCategoryByOrg(org.getId());
 		logger.info("Fetching RFQs by categories: {} for orgId: {}", categoryList, org.getId());
 
-		List<Rfq> rfqs = rfqDao.findByRfqItemCategory(categoryList);
+		Pageable topFive = PageRequest.of(0, 5); // only fetch 5 results
+	    List<Rfq> rfqs = rfqDao.findTopRfqsByCategory(categoryList, topFive);
 		long totalCount = rfqDao.countByRfqItemCategory(categoryList);
 
 		result.put("rfqs", rfqs);
@@ -2535,7 +2537,9 @@ public class GMTServiceImpl implements GMTService {
 				logger.info("Processing RFQID={}, vendorId={}", rfqId, vendorId);
 				MasterStatus quoteStatus = masterStatusDao.findByStatus(StatusConstants.VENDOR_QUOTE_SUBMITTED);
 				// Your business updates
-				rfqDao.updateRfqByRfqId(rfqId);
+				
+                //rfqDao.updateQuoteSubmissionDate(rfqId);
+				rfqDao.updateRfqByRfqId(rfqId,quoteStatus);
 				rfqVendorDao.updateQuotationReceived(rfqId, vendorId, quoteStatus);
 				List<String> rfqIds = rfqDao.getIdbyRfqId(rfqId);
 				if (!CollectionUtils.isEmpty(rfqIds)) {

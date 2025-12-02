@@ -37,18 +37,25 @@ public class VendorCatalogueController {
 	    log.info("API Called: /vendor/catalogue/save");
 
 	    try {
+
+	        boolean isUpdate = (catalogue.getId() != null);  // CHECK IF ID EXISTS
+
 	        VendorCatalogue saved = catalogueService.saveCatalogue(catalogue);
+
+	        // Decide message based on ID
+	        String message = isUpdate 
+	                ? "Catalogue updated successfully"
+	                : "Catalogue created successfully";
 
 	        MessageResponse response = new MessageResponse(
 	                "200",
-	                "Catalogue created successfully",
+	                message,
 	                null,
 	                new Date(),
 	                "Success",
 	                null
 	        );
 
-	        // Optionally include saved catalogue in response data
 	        response.setData(Map.of("catalogueId", saved.getId()));
 
 	        return ResponseEntity.ok(response);
@@ -59,7 +66,7 @@ public class VendorCatalogueController {
 	        MessageResponse response = new MessageResponse(
 	                "400",
 	                "Validation failed",
-	                List.of(ex.getMessage()), // errorMsg is List<String>
+	                List.of(ex.getMessage()),
 	                new Date(),
 	                "Failure",
 	                "VALIDATION_ERROR"
@@ -73,7 +80,7 @@ public class VendorCatalogueController {
 	        MessageResponse response = new MessageResponse(
 	                "500",
 	                "Internal server error",
-	                List.of(ex.getMessage()), // errorMsg as list
+	                List.of(ex.getMessage()),
 	                new Date(),
 	                "Failure",
 	                "SYSTEM_ERROR"
@@ -82,6 +89,7 @@ public class VendorCatalogueController {
 	        return ResponseEntity.internalServerError().body(response);
 	    }
 	}
+
 
 	 @PostMapping("/getCataloguesBySeller")
 	   public ResponseEntity<MessageResponse> getCataloguesByVendorId(@RequestBody Organization org) {

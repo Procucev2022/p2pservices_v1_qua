@@ -61,6 +61,10 @@ public class Rfq extends Procucev {
 	@Column(name="quote_count")
 	private int quoteCount;
 	
+
+	@Column(name = "quote_submitted_date")
+	private Date quoteSubmittedDate;
+
 	@Transient
 	private boolean fromClient;
 

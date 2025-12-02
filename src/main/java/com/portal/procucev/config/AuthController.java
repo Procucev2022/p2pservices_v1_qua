@@ -87,7 +87,14 @@ public class AuthController {
                   response.put("methodType", "validate");
                 return ResponseEntity.ok(response);
             }
-
+            // Validate if user is approved or not 
+            boolean isValid = userService.validateUserApproval(authRequest.getUsername(), authRequest.getPhone());
+            if (!isValid) {
+            	  response.put("status", "error");
+                  response.put("message", "Your registration is under validation. You will receive login details through email.");
+                  response.put("methodType", "validate");
+                return ResponseEntity.ok(response);
+            }
             // 2. If OTP flag is true, send OTP and exit
             if (authRequest.isOtp()) {
             	if(authRequest.getTempEmail()!=null && !authRequest.getTempEmail().isEmpty())

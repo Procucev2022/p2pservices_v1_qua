@@ -6,10 +6,12 @@ import java.io.UnsupportedEncodingException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.Date;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.*;
 import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -28,6 +30,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.mail.javamail.JavaMailSender;
@@ -43,7 +46,10 @@ import com.portal.procucev.dao.BFSUserDao;
 import com.portal.procucev.dao.MasterStatusDao;
 import com.portal.procucev.dao.OrgDao;
 import com.portal.procucev.dao.OrgTypeDao;
+import com.portal.procucev.dao.SearchRepository;
 import com.portal.procucev.dao.UserDao;
+import com.portal.procucev.Dto.BFSItemDto;
+import com.portal.procucev.Dto.BFSItemMainDetailsDTO;
 import com.portal.procucev.Dto.BfsDTO;
 import com.portal.procucev.Dto.VendorInfoBean;
 import com.portal.procucev.model.BFSDocuments;
@@ -97,6 +103,9 @@ public class BFSServiceImpl implements BFSService {
 
 	@Autowired
 	private BFSDocumentsDao bFSDocumentsDao;
+	
+	@Autowired
+	private SearchRepository searchRepository;
 
 	@Autowired
 	private BFSUserCommentsDao bfsUserCommentsDao;
@@ -1109,4 +1118,27 @@ public class BFSServiceImpl implements BFSService {
 		}
 	}
 
+	@Override
+	public List<BFSItemMainDetailsDTO> getBfsItemsByCategory(List<BFSItemDto> items) {
+
+	    // Collect distinct keyword list
+	    Set<String> keywords = new HashSet<>();
+
+	    for (BFSItemDto dto : items) {
+	        if (dto.getDescription() != null) {
+	            dto.getDescription().forEach(k ->
+	                    keywords.add(k.toLowerCase())
+	            );
+	        }
+	    }
+
+	    log.info("Keywords => {}", keywords);
+
+	    // Convert to list
+	    List<String> keywordList = new ArrayList<>(keywords);
+
+	    return searchRepository.searchItems(keywordList, 5);
+	}
+
 }
+

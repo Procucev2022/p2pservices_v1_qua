@@ -2,10 +2,12 @@ package com.portal.procucev.dao;
 
 import java.util.List;
 
-
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import com.portal.procucev.model.BFSItems;
 import com.portal.procucev.model.MasterStatus;
@@ -30,10 +32,10 @@ public interface BFSDao extends JpaRepository<BFSItems, String>{
 		       "FROM BFSItems b " +
 		       "WHERE b.userId != :user " +
 		       "ORDER BY b.createdTS DESC")
-	List<BFSItems> findAllItems(String user);
+	List<BFSItems> findAllItems(@Param("user") String user);
 
 	@Query("select new BFSItems(b.id,b.createdTS,b.description,b.specification,b.totalQuantity,b.availableQuantity,b.category,b.itemNumber,b.location,b.ageOfAsset,b.sellPrice,b.discount,b.askPrice,b.bfsGroup,b.proxyId,b.unitofMeasures,b.remarks,b.status,b.commentsFlag,b.buyPriceDisclosure,b.disclosedBuypriceValue)from BFSItems b where b.org.id =:id and b.userId=:user or b.proxyId=:user Order By b.createdTS DESC")
-	List<BFSItems> findByOrgAndUser(String id, String user);
+	List<BFSItems> findByOrgAndUser(@Param("id") String id,@Param("user")  String user);
 
 	@Query("select new BFSItems(b.id,b.createdTS,b.description,b.specification,b.totalQuantity,b.availableQuantity,b.category,b.itemNumber,b.location,b.ageOfAsset,b.sellPrice,b.discount,b.askPrice,b.bfsGroup,b.proxyId,b.unitofMeasures,b.remarks,b.status,b.commentsFlag,b.buyPriceDisclosure,b.disclosedBuypriceValue)from BFSItems b where b.id IN (:itemIds) Order By b.createdTS DESC")
 	List<BFSItems> findByIdIn(List<String> itemIds);
@@ -41,21 +43,21 @@ public interface BFSDao extends JpaRepository<BFSItems, String>{
 	@Modifying
 	@Transactional
 	@Query("UPDATE  BFSItems b SET b.availableQuantity =:availableQuantity WHERE  b.id=:id")
-	void updateAvailableQuantity(double availableQuantity, String id);
+	void updateAvailableQuantity(@Param("availableQuantity") double availableQuantity,@Param("id") String id);
 
 	@Modifying
 	@Transactional
 	@Query("UPDATE  BFSItems b SET b.commentsFlag = true WHERE  b.id=:id")
-	void updateCommentsFlag(String id);
+	void updateCommentsFlag(@Param("id") String id);
 
 	@Modifying
 	@Transactional
 	@Query("UPDATE  BFSItems b SET b.commentsFlag = false WHERE  b.id=:id")
-	void deactivateComment(String id);
+	void deactivateComment(@Param("id") String id);
 
 	@Modifying
 	@Transactional
 	@Query("UPDATE  BFSItems b SET b.status =:status WHERE  b.id=:id")
-	void updateStatus(String id, MasterStatus status);
+	void updateStatus(@Param("id") String id,@Param("MasterStatus") MasterStatus status);
 
 }

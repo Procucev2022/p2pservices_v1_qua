@@ -1,7 +1,9 @@
 package com.portal.procucev.controller;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -16,6 +18,8 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.portal.procucev.customexception.AppException;
 import com.portal.procucev.customexception.MessageResponse;
+import com.portal.procucev.Dto.BFSItemDto;
+import com.portal.procucev.Dto.BFSItemMainDetailsDTO;
 import com.portal.procucev.Dto.BfsDTO;
 import com.portal.procucev.Dto.VendorInfoBean;
 import com.portal.procucev.model.BFSDocuments;
@@ -295,5 +299,17 @@ public class BFSController {
 		boolean response = bfsService.deactivateCommentsFlag(item);
 		return new ResponseEntity<>(response, HttpStatus.OK);
 
+	}
+	
+	@PostMapping("/getBfsItemsByCategory")
+	public ResponseEntity<?> getBfsItemsByCategory(@RequestBody List<BFSItemDto> item) throws IOException {
+		log.info("Entered to get Top 5 items of BFS");
+	    List<BFSItemMainDetailsDTO> items = bfsService.getBfsItemsByCategory(item);
+
+		Map<String, Object> response = new HashMap<>();
+		response.put("success", true);
+		response.put("data", items);
+
+		return ResponseEntity.ok(response);
 	}
 }

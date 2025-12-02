@@ -5,6 +5,8 @@ import java.io.UnsupportedEncodingException;
 import java.util.List;
 import java.util.Map;
 
+import org.apache.poi.EncryptedDocumentException;
+import org.apache.poi.openxml4j.exceptions.InvalidFormatException;
 import org.springframework.web.multipart.MultipartFile;
 
 import com.portal.procucev.model.Organization;
@@ -63,5 +65,9 @@ public interface SelfRegistrationService {
 	void removeEmailOtp(Organization organization);
 
 	boolean isEmailOtpValid(Organization organization);
+
+	Map<String, Object> SellerregisterFromExcel(MultipartFile file) throws EncryptedDocumentException, InvalidFormatException, IOException;
+
+	boolean validateUserApproval(String username, String phone);
 
 }
