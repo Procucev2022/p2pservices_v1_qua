@@ -51,6 +51,9 @@ public class GmtRfqVendors extends Procucev {
 	@Column(name="accepted_date")
 	private Date acceptedDate;
 	
+	@Column(name="quote_submitted_date")
+	private Date quoteSubmittedDate;
+	
 	private String query;
 	
 	public GmtRfqVendors(String id,String vendorUuid, String vendorName, String vendorId, MasterStatus status,String query,String otherEmails) {

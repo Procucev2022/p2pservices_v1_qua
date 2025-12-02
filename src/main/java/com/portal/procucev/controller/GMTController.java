@@ -649,5 +649,13 @@ public class GMTController {
 		gmtService.emailForwarder();
 		return new ResponseEntity<>( HttpStatus.OK);
 	}
+	
+	@PostMapping(value = "/getBuyerDataByRFQ")
+	public ResponseEntity<?> getBuyerDataByRFQ(@RequestBody Rfq rfq) {
+		logger.info("Entered to get buyer data by Rfq");
+		User response = gmtService.getBuyerDataByRFQ(rfq);
+		return new ResponseEntity<>(response, HttpStatus.OK);
+
+	}
 
 }

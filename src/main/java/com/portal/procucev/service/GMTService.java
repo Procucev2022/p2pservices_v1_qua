@@ -138,5 +138,7 @@ public interface GMTService {
 
 	void updateVendorClasses();
 
+	User getBuyerDataByRFQ(Rfq rfq);
+
 
 }
