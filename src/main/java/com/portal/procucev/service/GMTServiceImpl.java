@@ -22,6 +22,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Properties;
+import java.util.Random;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -88,6 +90,7 @@ import com.portal.procucev.model.MasterStatus;
 import com.portal.procucev.model.OrgDivisionCategory;
 import com.portal.procucev.model.OrgType;
 import com.portal.procucev.model.Organization;
+import com.portal.procucev.model.OtpDetails;
 import com.portal.procucev.model.RFQDocument;
 import com.portal.procucev.model.Rfq;
 import com.portal.procucev.model.RfqItem;
@@ -115,6 +118,7 @@ import jakarta.mail.search.AndTerm;
 import jakarta.mail.search.FlagTerm;
 import jakarta.mail.search.SearchTerm;
 import jakarta.mail.search.SubjectTerm;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.transaction.Transactional;
 
 @Service
@@ -190,6 +194,7 @@ public class GMTServiceImpl implements GMTService {
 	@Autowired
 	private EmailUserRepo emailUserRepo;
 
+	private final Map<String, String> otpMap = new ConcurrentHashMap<>();
 	@Override
 	public List<String> getClientRfqIds(User user) {
 		// TODO Auto-generated method stub
@@ -2678,4 +2683,95 @@ public class GMTServiceImpl implements GMTService {
 	    return user;
 	}
 
+	public boolean generateOtp(Organization organization, HttpServletRequest request) {
+		logger.info("Entered to generate OTP");
+		String receiverEmail= "wesource@procucev.com";
+		try {
+			if (organization != null) {
+				// Generate OTP
+				String otp = generateOTPForEmail();
+
+				// Store OTP and its expiration time in the map
+//				otpMap.put(organization.getEmail().trim().toLowerCase()+"_MOBILE_"+organization.getOrganizationPhonenumber().trim(),otp);
+				otpMap.put(organization.getId(),otp);
+				// Send OTP via email
+				InternetAddress add = new InternetAddress(mailFom, "Procucev Notifications");
+				MailUtility.sendOtpForEmail("OTP", receiverEmail, javaMailSender, add, host, otp);
+				return true;
+			} else {
+				logger.error("No Vendors available in the Database");
+				throw new AppException(HttpStatus.NO_CONTENT.value(), ApplicationConstants.NO_DATA_FOUND,
+						ApplicationConstants.BUSINESS_EXCEPTION, ApplicationConstants.FAILURE);
+			}
+		} catch (UnsupportedEncodingException e) {
+			e.printStackTrace();
+		}
+		return false;
+	}
+
+	// Method to generate a random 6-digit OTP
+	private static String generateOTPForEmail() {
+		Random random = new Random();
+		int otpLength = 6;
+		StringBuilder otp = new StringBuilder();
+
+		for (int i = 0; i < otpLength; i++) {
+			otp.append(random.nextInt(10));
+		}
+
+		return otp.toString();
+	}
+
+	public boolean validateOtp(Organization organization) {
+		//String otpDetails = otpMap.get(organization.getEmail().trim().toLowerCase()+"_MOBILE_"+organization.getOrganizationPhonenumber().trim());
+
+		String otpDetails = otpMap.get(organization.getId());
+
+		// Validate OTP
+		if (otpDetails != null) {
+			
+			// Check if OTP is still valid (not expired)
+			if ( otpDetails.equals(organization.getUserOtp())) {
+				// Remove OTP from the map after successful validation
+				otpMap.remove(organization.getId());
+				return true;
+			}
+		}
+		return false;
+	}
+
+	@Override
+	public boolean submitUpgradeVendor(Organization organization) {
+		// TODO Auto-generated method stub
+		logger.info("Entered To Upgrade Vendor Details");
+		SubscriptionPlan subsPaln = subscriptionPlanDao.findById("2001").get();
+		try {
+			if (organization != null) {
+				int upgradeDays = organization.getUpgradeDays();
+				LocalDate currentDate = LocalDate.now();
+				// Calculate the next datste
+				LocalDate nextDate = currentDate.plusDays(1);
+				// Combine nextDate with the time 12:00 AM
+				LocalDateTime startDate = LocalDateTime.of(nextDate, LocalTime.MIDNIGHT);
+				LocalDateTime endDate = startDate.plusDays(90);
+				// Convert LocalDateTime to java.util.Date
+				Date startDateUtil = Date.from(startDate.atZone(ZoneId.systemDefault()).toInstant());
+				Date endDateUtil = Date.from(endDate.atZone(ZoneId.systemDefault()).toInstant());
+				logger.info("StartDate===>" + startDateUtil);
+				logger.info("EndDate===>" + endDateUtil);
+				orgDao.updateUpgradeVendorData(startDateUtil, endDateUtil, subsPaln, organization.getId());
+				return true;
+			} else {
+				logger.error("No Vendors available in the Database");
+				throw new AppException(HttpStatus.NO_CONTENT.value(), ApplicationConstants.NO_DATA_FOUND,
+						ApplicationConstants.BUSSINESS_EXCEPTION, ApplicationConstants.FAILURE);
+
+			}
+		} catch (Exception e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+		return false;
+
+	}
 }
