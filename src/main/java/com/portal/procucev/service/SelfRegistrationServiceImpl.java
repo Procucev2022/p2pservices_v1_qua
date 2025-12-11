@@ -1213,50 +1213,91 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 		}
 	}
 
+//	public void importCategoriesFromExcel(MultipartFile file) throws IOException {
+//		try (XSSFWorkbook workbook = new XSSFWorkbook(file.getInputStream())) {
+//			Sheet sheet = workbook.getSheetAt(0);
+//
+//			// Row 1 (second row in Excel) contains division headers
+//			Row headerRow = sheet.getRow(1); // <-- changed to 1
+//
+//			if (headerRow == null) {
+//				throw new IllegalStateException("Header row (row index 1) is missing in the Excel sheet.");
+//			}
+//
+//			// Iterate columns C (index 2) to M (index 12)
+//			for (int col = 2; col <= 12; col++) {
+//				Cell headerCell = headerRow.getCell(col);
+//				if (headerCell == null)
+//					continue;
+//
+//				String division = headerCell.getStringCellValue().trim();
+//				if (division.isEmpty())
+//					continue;
+//
+//				// Now read categories under this division (start from row 3, i.e. index 2)
+//				for (int row = 2; row <= sheet.getLastRowNum(); row++) {
+//					Row currentRow = sheet.getRow(row);
+//					if (currentRow == null)
+//						continue;
+//
+//					Cell categoryCell = currentRow.getCell(col);
+//					if (categoryCell == null)
+//						continue;
+//
+//					String category = categoryCell.getStringCellValue().trim();
+//					if (category.isEmpty())
+//						continue;
+//
+//					CategoryDivision cd = new CategoryDivision();
+//					cd.setDivision(division);
+//					cd.setCategory(category);
+//
+//					categoryDivisionDao.save(cd);
+//				}
+//			}
+//		}
+//	}
+	
 	public void importCategoriesFromExcel(MultipartFile file) throws IOException {
-		try (XSSFWorkbook workbook = new XSSFWorkbook(file.getInputStream())) {
-			Sheet sheet = workbook.getSheetAt(0);
+	    try (XSSFWorkbook workbook = new XSSFWorkbook(file.getInputStream())) {
+	        Sheet sheet = workbook.getSheetAt(0);
 
-			// Row 1 (second row in Excel) contains division headers
-			Row headerRow = sheet.getRow(1); // <-- changed to 1
+	        // Row 0 (first row in Excel) contains division headers
+	        Row headerRow = sheet.getRow(0);
 
-			if (headerRow == null) {
-				throw new IllegalStateException("Header row (row index 1) is missing in the Excel sheet.");
-			}
+	        if (headerRow == null) {
+	            throw new IllegalStateException("Header row (row index 0) is missing in the Excel sheet.");
+	        }
 
-			// Iterate columns C (index 2) to M (index 12)
-			for (int col = 2; col <= 12; col++) {
-				Cell headerCell = headerRow.getCell(col);
-				if (headerCell == null)
-					continue;
+	        // Iterate columns C (index 2) to H (index 7) – or keep 12 if you expect more
+	        for (int col = 2; col <= 15; col++) {
+	            Cell headerCell = headerRow.getCell(col);
+	            if (headerCell == null) continue;
 
-				String division = headerCell.getStringCellValue().trim();
-				if (division.isEmpty())
-					continue;
+	            String division = headerCell.getStringCellValue().trim();
+	            if (division.isEmpty()) continue;
 
-				// Now read categories under this division (start from row 3, i.e. index 2)
-				for (int row = 2; row <= sheet.getLastRowNum(); row++) {
-					Row currentRow = sheet.getRow(row);
-					if (currentRow == null)
-						continue;
+	            // Now read categories under this division (start from row 1 = second row in Excel)
+	            for (int row = 1; row <= sheet.getLastRowNum(); row++) {
+	                Row currentRow = sheet.getRow(row);
+	                if (currentRow == null) continue;
 
-					Cell categoryCell = currentRow.getCell(col);
-					if (categoryCell == null)
-						continue;
+	                Cell categoryCell = currentRow.getCell(col);
+	                if (categoryCell == null) continue;
 
-					String category = categoryCell.getStringCellValue().trim();
-					if (category.isEmpty())
-						continue;
+	                String category = categoryCell.getStringCellValue().trim();
+	                if (category.isEmpty()) continue;
 
-					CategoryDivision cd = new CategoryDivision();
-					cd.setDivision(division);
-					cd.setCategory(category);
+	                CategoryDivision cd = new CategoryDivision();
+	                cd.setDivision(division);
+	                cd.setCategory(category);
 
-					categoryDivisionDao.save(cd);
-				}
-			}
-		}
+	                categoryDivisionDao.save(cd);
+	            }
+	        }
+	    }
 	}
+
 
 	@Override
 	public Map<String, Object> SellerregisterFromExcel(MultipartFile file)
