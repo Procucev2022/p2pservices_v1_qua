@@ -10,6 +10,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 
+import jakarta.servlet.http.HttpServletRequest;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -649,5 +651,53 @@ public class GMTController {
 		gmtService.emailForwarder();
 		return new ResponseEntity<>( HttpStatus.OK);
 	}
+	
+	@PostMapping(value = "/getBuyerDataByRFQ")
+	public ResponseEntity<?> getBuyerDataByRFQ(@RequestBody Rfq rfq) {
+		logger.info("Entered to get buyer data by Rfq");
+		User response = gmtService.getBuyerDataByRFQ(rfq);
+		return new ResponseEntity<>(response, HttpStatus.OK);
 
+	}
+
+	@PostMapping(value = "/sendVmOtp")
+	public ResponseEntity<?> sendOtp(@RequestBody Organization organization, HttpServletRequest request) {
+		boolean status = gmtService.generateOtp(organization,request);
+		String statusCode = status ? String.valueOf(ApplicationConstants.SUCCESS)
+				: String.valueOf(ApplicationConstants.FAILURE);
+		String msg = status ? String.format(ApplicationConstants.OTP_GENERATE_SUCCESS, "")
+				: String.format(ApplicationConstants.OTP_GENERATE_FAILED, "");
+		MessageResponse response = new MessageResponse(StatusCodes.NEW_VENDOR_CODE, msg, null, statusCode);
+		return new ResponseEntity<>(response, HttpStatus.OK);
+
+		
+	}
+	
+	@PostMapping(value = "/validateVmOtp")
+	public ResponseEntity<?> validateOtp(@RequestBody Organization organization) {
+		boolean status = gmtService.validateOtp(organization);		
+		String statusCode = status ? String.valueOf(ApplicationConstants.SUCCESS)
+				: String.valueOf(ApplicationConstants.FAILURE);
+		String msg = status ? String.format(ApplicationConstants.OTP_VALID_SUCCESS, "")
+				: String.format(ApplicationConstants.OTP_VALID_FAILED, "");
+		MessageResponse response = new MessageResponse(StatusCodes.NEW_VENDOR_CODE, msg, null, statusCode);
+		return new ResponseEntity<>(response, HttpStatus.OK);
+
+	}
+	
+	@PostMapping(value = "/upgradeGmtVendor")
+	public ResponseEntity<?> upgradeGmtVendor(@RequestBody Organization organization) throws IOException {
+
+		logger.info("Entered to upgrade the vendor");
+
+		boolean status = gmtService.submitUpgradeVendor(organization);
+
+		String statusCode = status ? String.valueOf(ApplicationConstants.SUCCESS)
+				: String.valueOf(ApplicationConstants.FAILURE);
+		String msg = status ? String.format(ApplicationConstants.VENDOR_UPGRADE_SUCCESS)
+				: String.format(ApplicationConstants.VENDOR_UPGRADE_FAILED, "");
+		MessageResponse response = new MessageResponse(StatusCodes.NEW_VENDOR_CODE, msg, null, statusCode);
+		return new ResponseEntity<>(response, HttpStatus.OK);
+
+	}
 }

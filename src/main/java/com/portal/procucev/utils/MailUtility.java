@@ -19,6 +19,7 @@ import com.portal.procucev.model.RfqItem;
 import com.portal.procucev.model.User;
 
 import jakarta.activation.DataHandler;
+import jakarta.mail.BodyPart;
 import jakarta.mail.Message;
 import jakarta.mail.MessagingException;
 import jakarta.mail.Multipart;
@@ -1103,34 +1104,83 @@ public class MailUtility {
 		emailNotifierGenericBySender(subject, email, add, javaMailSender, message, string);
 	}
 
-	public static boolean forwardMessage(String forwardAddress, JavaMailSender javaMailSender, String mailFrom,
-			Message message, String emailPassword) {
-		try {
-			LOGGER.info("Entered To Forward Message");
-			JavaMailSender javaMailSender2 = getJavaMailSender(mailFrom, emailPassword);
-			MimeMessage mimeMessage = javaMailSender2.createMimeMessage();
-			MimeMessageHelper mimeMessageHelper = new MimeMessageHelper(mimeMessage, true);
+	public static boolean forwardMessage(
+	        String forwardAddress,
+	        JavaMailSender javaMailSender,
+	        String mailFrom,
+	        Message originalMessage,
+	        String emailPassword) {
 
-			mimeMessageHelper.setTo(forwardAddress);
-			mimeMessageHelper.setFrom(mailFrom);
-			mimeMessageHelper.setSubject("Fwd: " + message.getSubject());
-			mimeMessageHelper.setText("Original message forwarded. Please see attachments.");
+	    try {
+	        LOGGER.info("Entered To Forward Message");
 
-// Copy the content of the original message to the forwarded message
-			if (message.getContent() instanceof Multipart) {
-				mimeMessageHelper.getMimeMessage().setContent((Multipart) message.getContent());
-			} else {
-				mimeMessageHelper.setText((String) message.getContent());
-			}
-			LOGGER.info("Sending Mail To" + forwardAddress);
+	        JavaMailSender sender = getJavaMailSender(mailFrom, emailPassword);
+	        MimeMessage forward = sender.createMimeMessage();
 
-			javaMailSender2.send(mimeMessage);
-			LOGGER.info("Sending Mail Successfully to" + forwardAddress);
-			return true;
-		} catch (Exception e) {
-			e.printStackTrace();
-			return false;
-		}
+	        // Basic headers
+	        forward.setFrom(new InternetAddress(mailFrom));
+	        forward.setRecipient(Message.RecipientType.TO, new InternetAddress(forwardAddress));
+	        forward.setSubject("Fwd: " + originalMessage.getSubject());
+
+	        // We'll build our own multipart content
+	        Multipart multipart = new MimeMultipart();
+
+	        // 1) Intro text
+	        MimeBodyPart introPart = new MimeBodyPart();
+	        introPart.setText(
+	                "Original message forwarded. Please see the content/attachments below.",
+	                "UTF-8"
+	        );
+	        multipart.addBodyPart(introPart);
+
+	        // 2) Original content
+	        Object content = originalMessage.getContent();
+
+	        if (content instanceof Multipart) {
+	            Multipart originalMultipart = (Multipart) content;
+
+	            // Copy each part from the original message into the new multipart
+	            for (int i = 0; i < originalMultipart.getCount(); i++) {
+	                BodyPart originalPart = originalMultipart.getBodyPart(i);
+
+	                // You can clone if you really want to be safe; often reusing is fine:
+	                MimeBodyPart copiedPart = new MimeBodyPart();
+	                copiedPart.setDataHandler(originalPart.getDataHandler());
+	                copiedPart.setDisposition(originalPart.getDisposition());
+	                copiedPart.setFileName(originalPart.getFileName());
+	                copiedPart.setDescription(originalPart.getDescription());
+	                copiedPart.setHeader("Content-Type", originalPart.getContentType());
+
+	                multipart.addBodyPart(copiedPart);
+	            }
+
+	        } else if (content instanceof String) {
+	            // Simple text message
+	            MimeBodyPart textPart = new MimeBodyPart();
+	            textPart.setText((String) content, "UTF-8");
+	            multipart.addBodyPart(textPart);
+
+	        } else {
+	            // Fallback: attach whatever it is as a generic part
+	            MimeBodyPart genericPart = new MimeBodyPart();
+	            genericPart.setDataHandler(originalMessage.getDataHandler());
+	            genericPart.setFileName("original-message.dat");
+	            multipart.addBodyPart(genericPart);
+	        }
+
+	        forward.setContent(multipart);
+	        forward.saveChanges();
+
+	        LOGGER.info("Sending Mail To {}", forwardAddress);
+	        sender.send(forward);
+	        LOGGER.info("Sending Mail Successfully to {}", forwardAddress);
+
+	        return true;
+
+	    } catch (Exception e) {
+	        LOGGER.error("Error while forwarding message", e);
+	        return false;
+	    }
 	}
 
 	public static void sendEmailForClient(String string, String email, JavaMailSender javaMailSender,

@@ -33,6 +33,8 @@ public class GMTRfqVendorDto {
 	private Date requestedDate;
 	
 	private Date acceptedDate;
+	
+	private Date quoteSubmittedDate;
 
 	public Date getAcceptedDate() {
 		return acceptedDate;
@@ -144,6 +146,14 @@ public class GMTRfqVendorDto {
 
 	public void setUserId(String userId) {
 		this.userId = userId;
+	}
+
+	public Date getQuoteSubmittedDate() {
+		return quoteSubmittedDate;
+	}
+
+	public void setQuoteSubmittedDate(Date quoteSubmittedDate) {
+		this.quoteSubmittedDate = quoteSubmittedDate;
 	}
 
 

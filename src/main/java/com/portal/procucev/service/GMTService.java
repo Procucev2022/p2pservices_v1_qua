@@ -27,6 +27,7 @@ import com.portal.procucev.model.SubscriptionPlan;
 import com.portal.procucev.model.User;
 
 import jakarta.mail.MessagingException;
+import jakarta.servlet.http.HttpServletRequest;
 
 public interface GMTService {
 
@@ -137,6 +138,14 @@ public interface GMTService {
 	VendorInfoDto getVendorInfo(Organization orgRequest);
 
 	void updateVendorClasses();
+
+	User getBuyerDataByRFQ(Rfq rfq);
+
+	boolean generateOtp(Organization organization, HttpServletRequest request);
+
+	boolean validateOtp(Organization organization);
+
+	boolean submitUpgradeVendor(Organization organization);
 
 
 }

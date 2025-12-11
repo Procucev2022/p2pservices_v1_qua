@@ -1,4 +1,5 @@
 package com.portal.procucev.dao;
+import java.util.Date;
 import java.util.List;
 
 import jakarta.transaction.Transactional;
@@ -12,6 +13,7 @@ import org.springframework.data.repository.query.Param;
 import com.portal.procucev.model.MasterStatus;
 import com.portal.procucev.model.OrgType;
 import com.portal.procucev.model.Organization;
+import com.portal.procucev.model.SubscriptionPlan;
 
 public interface OrgDao  extends JpaRepository<Organization, String> {
 	
@@ -86,7 +88,13 @@ public interface OrgDao  extends JpaRepository<Organization, String> {
 	void updateQuoteCount(@Param("vendorId") String vendorId);
 
 	@Modifying
+	@Transactional
     @Query("UPDATE Organization o SET o.vendorClass = :vendorClass WHERE o.id = :id")
     void updateVendorClass(@Param("id") String id, @Param("vendorClass") String vendorClass);
+
+	@Modifying
+	@Transactional
+    @Query("UPDATE Organization o SET o.subscriptionStart = :startDateUtil, o.subscriptionExpiry = :endDateUtil, o.subscriptionPlan =:subsPaln, o.rfqCredits = o.rfqCredits + 50 WHERE o.id = :id")
+	void updateUpgradeVendorData(@Param("startDateUtil")  Date startDateUtil,@Param("endDateUtil")  Date endDateUtil,@Param("subsPaln") SubscriptionPlan subsPaln, @Param("id") String id);
 
 }
