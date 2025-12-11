@@ -2495,86 +2495,188 @@ public class GMTServiceImpl implements GMTService {
 		return dto;
 	}
 
+//	@Override
+//	public void emailForwarder() {
+//		logger.info("Entered into emailForwarder()");
+//		final String subjectPattern = "You have an Enquiry RFQ No";
+//
+//		// IMAPS (Gmail)
+//		Properties props = new Properties();
+//		props.put("mail.store.protocol", "imaps");
+//		props.put("mail.imaps.host", "imap.gmail.com");
+//		props.put("mail.imaps.port", "993");
+//		props.put("mail.imaps.ssl.enable", "true");
+//		props.put("mail.imaps.ssl.trust", "imap.gmail.com");
+//
+//		Session session = Session.getInstance(props);
+//
+//		try (Store store = session.getStore("imaps")) {
+//			// mailFrom / emailPassword are your existing fields/configs
+//			store.connect(mailFom, emailPassword);
+//
+//			IMAPFolder inbox = (IMAPFolder) store.getFolder("INBOX");
+//			inbox.open(Folder.READ_WRITE);
+//
+//			// Build search: Subject AND (UNSEEN) AND (NOT already 'Processed')
+//			Flags processedFlag = new Flags("Processed");
+//			SearchTerm term = new AndTerm(new SubjectTerm(subjectPattern),
+//					new AndTerm(new FlagTerm(new Flags(Flags.Flag.SEEN), false), new FlagTerm(processedFlag, false)));
+//
+//			Message[] messages = inbox.search(term);
+//			logger.info("Messages to process: {}", messages.length);
+//
+//			for (Message message : messages) {
+//				String subject = message.getSubject();
+//				if (subject == null) {
+//					continue;
+//				}
+//
+//				String rfqId = extractRfqId(subject);
+//				String vendorId = extractVendorId(subject);
+//				if (rfqId == null || vendorId == null) {
+//					logger.info("Skipping message due to missing rfqId/vendorId. Subject={}", subject);
+//					// Mark seen to avoid re-hitting on next run if you want:
+//					message.setFlag(Flags.Flag.SEEN, true);
+//					continue;
+//				}
+//
+//				logger.info("Processing RFQID={}, vendorId={}", rfqId, vendorId);
+//				MasterStatus quoteStatus = masterStatusDao.findByStatus(StatusConstants.VENDOR_QUOTE_SUBMITTED);
+//				// Your business updates
+//				
+//                //rfqDao.updateQuoteSubmissionDate(rfqId);
+//				rfqDao.updateRfqByRfqId(rfqId,quoteStatus);
+//				rfqVendorDao.updateQuotationReceived(rfqId, vendorId, quoteStatus);
+//				List<String> rfqIds = rfqDao.getIdbyRfqId(rfqId);
+//				if (!CollectionUtils.isEmpty(rfqIds)) {
+//					gmtRfqVendorDao.updateQuotationReceived(rfqIds.get(0), vendorId, quoteStatus);
+//				}
+//				orgDao.updateQuoteCount(vendorId);
+//
+//				// Forward to the first matched user email
+//				List<String> users = rfqDao.findRFQByRfQId(rfqId);
+//				if (users != null && !users.isEmpty()) {
+//					String forwardAddress = userDao.findEmailById(users.get(0));
+//					logger.info("Forwarding to: {}", forwardAddress);
+//					MailUtility.forwardMessage(forwardAddress, javaMailSender, mailFom, message, emailPassword);
+//
+//					// Mark as processed so we won't forward again
+//					message.setFlags(processedFlag, true);
+//					message.setFlag(Flags.Flag.SEEN, true);
+//				} else {
+//					logger.info("No users found for RFQID={}", rfqId);
+//					// Optionally mark SEEN to avoid re-processing
+//					message.setFlag(Flags.Flag.SEEN, true);
+//				}
+//			}
+//
+//			inbox.close(false); // don't expunge
+//		} catch (Exception e) {
+//			logger.error("emailForwarder failed", e);
+//		}
+//	}
+	
 	@Override
 	public void emailForwarder() {
-		logger.info("Entered into emailForwarder()");
-		final String subjectPattern = "You have an Enquiry RFQ No";
+	    logger.info("Entered into emailForwarder()");
 
-		// IMAPS (Gmail)
-		Properties props = new Properties();
-		props.put("mail.store.protocol", "imaps");
-		props.put("mail.imaps.host", "imap.gmail.com");
-		props.put("mail.imaps.port", "993");
-		props.put("mail.imaps.ssl.enable", "true");
-		props.put("mail.imaps.ssl.trust", "imap.gmail.com");
+	    final String subjectPattern = "You have an Enquiry RFQ No";
 
-		Session session = Session.getInstance(props);
+	    Properties props = new Properties();
+	    props.put("mail.store.protocol", "imaps");
+	    props.put("mail.imaps.host", "imap.gmail.com");
+	    props.put("mail.imaps.port", "993");
+	    props.put("mail.imaps.ssl.enable", "true");
+	    props.put("mail.imaps.ssl.trust", "imap.gmail.com");
 
-		try (Store store = session.getStore("imaps")) {
-			// mailFrom / emailPassword are your existing fields/configs
-			store.connect(mailFom, emailPassword);
+	    Session session = Session.getInstance(props);
 
-			IMAPFolder inbox = (IMAPFolder) store.getFolder("INBOX");
-			inbox.open(Folder.READ_WRITE);
+	    try (Store store = session.getStore("imaps")) {
 
-			// Build search: Subject AND (UNSEEN) AND (NOT already 'Processed')
-			Flags processedFlag = new Flags("Processed");
-			SearchTerm term = new AndTerm(new SubjectTerm(subjectPattern),
-					new AndTerm(new FlagTerm(new Flags(Flags.Flag.SEEN), false), new FlagTerm(processedFlag, false)));
+	        store.connect(mailFom, emailPassword);
 
-			Message[] messages = inbox.search(term);
-			logger.info("Messages to process: {}", messages.length);
+	        IMAPFolder inbox = (IMAPFolder) store.getFolder("INBOX");
+	        inbox.open(Folder.READ_WRITE);
 
-			for (Message message : messages) {
-				String subject = message.getSubject();
-				if (subject == null) {
-					continue;
-				}
+	        Flags processedFlag = new Flags("Processed");
 
-				String rfqId = extractRfqId(subject);
-				String vendorId = extractVendorId(subject);
-				if (rfqId == null || vendorId == null) {
-					logger.info("Skipping message due to missing rfqId/vendorId. Subject={}", subject);
-					// Mark seen to avoid re-hitting on next run if you want:
-					message.setFlag(Flags.Flag.SEEN, true);
-					continue;
-				}
+	        SearchTerm term = new AndTerm(
+	                new SubjectTerm(subjectPattern),
+	                new AndTerm(
+	                        new FlagTerm(new Flags(Flags.Flag.SEEN), false),
+	                        new FlagTerm(processedFlag, false)
+	                )
+	        );
 
-				logger.info("Processing RFQID={}, vendorId={}", rfqId, vendorId);
-				MasterStatus quoteStatus = masterStatusDao.findByStatus(StatusConstants.VENDOR_QUOTE_SUBMITTED);
-				// Your business updates
-				
-                //rfqDao.updateQuoteSubmissionDate(rfqId);
-				rfqDao.updateRfqByRfqId(rfqId,quoteStatus);
-				rfqVendorDao.updateQuotationReceived(rfqId, vendorId, quoteStatus);
-				List<String> rfqIds = rfqDao.getIdbyRfqId(rfqId);
-				if (!CollectionUtils.isEmpty(rfqIds)) {
-					gmtRfqVendorDao.updateQuotationReceived(rfqIds.get(0), vendorId, quoteStatus);
-				}
-				orgDao.updateQuoteCount(vendorId);
+	        Message[] messages = inbox.search(term);
+	        logger.info("Messages found: {}", messages.length);
 
-				// Forward to the first matched user email
-				List<String> users = rfqDao.findRFQByRfQId(rfqId);
-				if (users != null && !users.isEmpty()) {
-					String forwardAddress = userDao.findEmailById(users.get(0));
-					logger.info("Forwarding to: {}", forwardAddress);
-					MailUtility.forwardMessage(forwardAddress, javaMailSender, mailFom, message, emailPassword);
+	        for (Message message : messages) {
 
-					// Mark as processed so we won't forward again
-					message.setFlags(processedFlag, true);
-					message.setFlag(Flags.Flag.SEEN, true);
-				} else {
-					logger.info("No users found for RFQID={}", rfqId);
-					// Optionally mark SEEN to avoid re-processing
-					message.setFlag(Flags.Flag.SEEN, true);
-				}
-			}
+	            String subject = message.getSubject();
+	            if (subject == null) continue;
 
-			inbox.close(false); // don't expunge
-		} catch (Exception e) {
-			logger.error("emailForwarder failed", e);
-		}
+	            String rfqId = extractRfqId(subject);
+	            String vendorId = extractVendorId(subject);
+
+	            if (rfqId == null || vendorId == null) {
+	                logger.warn("Skipping due to missing RFQ or Vendor. Subject={}", subject);
+	                message.setFlag(Flags.Flag.SEEN, true);
+	                continue;
+	            }
+
+	            logger.info("Processing RFQID={}, vendorId={}", rfqId, vendorId);
+
+	            List<String> users = rfqDao.findRFQByRfQId(rfqId);
+	            if (users == null || users.isEmpty()) {
+	                logger.warn("No buyer user found for RFQ {}", rfqId);
+	                message.setFlag(Flags.Flag.SEEN, true);
+	                continue;
+	            }
+
+	            String forwardAddress = userDao.findEmailById(users.get(0));
+	            logger.info("Forwarding to buyer: {}", forwardAddress);
+
+	            boolean sent = MailUtility.forwardMessage(
+	                    forwardAddress,
+	                    javaMailSender,
+	                    mailFom,
+	                    message,
+	                    emailPassword
+	            );
+
+	            if (!sent) {
+	                logger.error("Forward FAILED for RFQ={} vendor={}. NOT marking as processed.", rfqId, vendorId);
+	                // leave UNSEEN so scheduler retries
+	                continue;
+	            }
+
+	            // ONLY update if email sent successfully
+	            MasterStatus quoteStatus =
+	                    masterStatusDao.findByStatus(StatusConstants.VENDOR_QUOTE_SUBMITTED);
+
+	            rfqDao.updateRfqByRfqId(rfqId, quoteStatus);
+	            rfqVendorDao.updateQuotationReceived(rfqId, vendorId, quoteStatus);
+
+	            List<String> rfqIds = rfqDao.getIdbyRfqId(rfqId);
+	            if (!CollectionUtils.isEmpty(rfqIds))
+	                gmtRfqVendorDao.updateQuotationReceived(rfqIds.get(0), vendorId, quoteStatus);
+
+	            orgDao.updateQuoteCount(vendorId);
+
+	            // NOW mark message processed
+	            message.setFlags(processedFlag, true);
+	            message.setFlag(Flags.Flag.SEEN, true);
+
+	        }
+
+	        inbox.close(false);
+
+	    } catch (Exception e) {
+	        logger.error("emailForwarder failed", e);
+	    }
 	}
+
 
 	private static String extractRfqId(String subject) {
 		Pattern pattern = Pattern.compile("RFQ No ([A-Za-z0-9]+)");
