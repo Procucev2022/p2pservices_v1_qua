@@ -251,6 +251,8 @@ public class GMTServiceImpl implements GMTService {
 		rfqDto.setQuotationReceived(rfq.isQuotationReceived());
 		rfqDto.setUser(rfq.getUser());
 		rfqDto.setQuoteCount(rfq.getQuoteCount());
+		rfqDto.setQuoteSubmittedDate(rfq.getQuoteSubmittedDate());
+		
 		return rfqDto;
 	}
 
@@ -903,7 +905,8 @@ public class GMTServiceImpl implements GMTService {
 		rfqDto.setQuotationReceived(rfq.isQuotationReceived());
 		rfqDto.setNoOfQuotes(rfq.getQuoteCount());
 		rfqDto.setNoOfVendors(rfqVendorDao.findByVendorsByRfq(rfq.getId()));
-		
+		rfqDto.setQuoteSubmittedDate(rfq.getQuoteSubmittedDate());
+		rfqDto.setClientStatus(rfq.getClientStatus());
 
 		String companyName = userDao.findByUser(rfq.getUser());
 		if (companyName != null) {
