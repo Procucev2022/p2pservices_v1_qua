@@ -40,6 +40,8 @@ public class RfqDTO {
 	private int noOfQuotes;
 
 	private long noOfVendors;
+	
+	private Date quoteSubmittedDate;
 
 	public String getId() {
 		return id;
@@ -176,5 +178,15 @@ public class RfqDTO {
 	public void setCompanyId(String companyId) {
 		this.companyId = companyId;
 	}
+
+	public Date getQuoteSubmittedDate() {
+		return quoteSubmittedDate;
+	}
+
+	public void setQuoteSubmittedDate(Date quoteSubmittedDate) {
+		this.quoteSubmittedDate = quoteSubmittedDate;
+	}
+	
+	
 
 }
