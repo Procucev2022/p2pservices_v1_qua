@@ -7,6 +7,8 @@ public class EmailRequest {
     private List<String> bcc;
     private String subject;
     private String body;
+ // Optional attachments
+    private List<EmailAttachment> attachments;
 
     // Getters and Setters
     public List<String> getTo() {
@@ -39,4 +41,11 @@ public class EmailRequest {
     public void setBody(String body) {
         this.body = body;
     }
+	public List<EmailAttachment> getAttachments() {
+		return attachments;
+	}
+	public void setAttachments(List<EmailAttachment> attachments) {
+		this.attachments = attachments;
+	}
+    
 }

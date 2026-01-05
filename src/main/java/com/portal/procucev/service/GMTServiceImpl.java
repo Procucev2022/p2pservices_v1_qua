@@ -3,6 +3,7 @@ package com.portal.procucev.service;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
+import java.nio.charset.StandardCharsets;
 import java.text.SimpleDateFormat;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -12,6 +13,7 @@ import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
@@ -42,6 +44,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.ByteArrayResource;
 import org.springframework.dao.DataAccessException;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -51,6 +54,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.mail.MailSendException;
 import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
+import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Service;
@@ -82,6 +86,7 @@ import com.portal.procucev.dao.SubscriptionPlanDao;
 import com.portal.procucev.dao.UserDao;
 import com.portal.procucev.model.CategoryDivision;
 import com.portal.procucev.model.ClientDeliveryLocationRfq;
+import com.portal.procucev.model.EmailAttachment;
 import com.portal.procucev.model.EmailRequest;
 import com.portal.procucev.model.EmailUser;
 import com.portal.procucev.model.GmtItems;
@@ -634,7 +639,7 @@ public class GMTServiceImpl implements GMTService {
 	@Override
 	public List<GMTRfqVendorDto> getAllGMTRfq(Organization org) {
 		logger.info("Entered to get all Gmt Rfq's");
-		MasterStatus status = masterStatusDao.findByStatus(StatusConstants.CM_RFQ_ACCEPTED);
+		MasterStatus status = masterStatusDao.findByStatus(StatusConstants.CM_RFQ_ACCEPTED);// add queried// add ignored//add 
 		List<Rfq> rfqList = rfqDao.findAllRfqNoPr(status);
 		// TODO Auto-generated method stub
 		List<GMTRfqVendorDto> gmtRfqList = new ArrayList<>();
@@ -1877,45 +1882,148 @@ public class GMTServiceImpl implements GMTService {
 //	        }
 //	    }
 
-	public MessageResponse sendEmail(EmailRequest emailRequest) {
-		List<String> invalidEmails = new ArrayList<>();
+//	public MessageResponse sendEmail(EmailRequest emailRequest) {
+//		List<String> invalidEmails = new ArrayList<>();
+//
+//		// Validate format + MX record
+//		EmailValidatorUtil.validateEmails(emailRequest.getTo(), invalidEmails);
+//		EmailValidatorUtil.validateEmails(emailRequest.getCc(), invalidEmails);
+//		EmailValidatorUtil.validateEmails(emailRequest.getBcc(), invalidEmails);
+//
+//		if (!invalidEmails.isEmpty()) {
+//			return new MessageResponse("206", "Invalid email addresses found", invalidEmails, new Date(),
+//					"Partial Failure", null);
+//		}
+//
+//		// Attempt SMTP verification
+//		List<String> smtpInvalidEmails = verifyRecipientsSMTP(emailRequest);
+//		if (!smtpInvalidEmails.isEmpty()) {
+//			return new MessageResponse("206", "Some recipients could not be verified", smtpInvalidEmails, new Date(),
+//					"Partial Failure", null);
+//		}
+//
+//		// Prepare and send message
+//		SimpleMailMessage message = new SimpleMailMessage();
+//		if (emailRequest.getTo() != null)
+//			message.setTo(emailRequest.getTo().toArray(new String[0]));
+//		if (emailRequest.getCc() != null)
+//			message.setCc(emailRequest.getCc().toArray(new String[0]));
+//		if (emailRequest.getBcc() != null)
+//			message.setBcc(emailRequest.getBcc().toArray(new String[0]));
+//		message.setSubject(emailRequest.getSubject());
+//		message.setText(emailRequest.getBody());
+//
+//		try {
+//			javaMailSender.send(message);
+//			return new MessageResponse("200", "Email sent successfully", null, new Date(), "Success", null);
+//		} catch (MailSendException e) {
+//			return new MessageResponse("500", "Failed to send email", List.of(e.getMessage()), new Date(), "Error",
+//					null);
+//		}
+//	}
+	
 
-		// Validate format + MX record
-		EmailValidatorUtil.validateEmails(emailRequest.getTo(), invalidEmails);
-		EmailValidatorUtil.validateEmails(emailRequest.getCc(), invalidEmails);
-		EmailValidatorUtil.validateEmails(emailRequest.getBcc(), invalidEmails);
+	 public MessageResponse sendEmail(EmailRequest emailRequest) {
 
-		if (!invalidEmails.isEmpty()) {
-			return new MessageResponse("206", "Invalid email addresses found", invalidEmails, new Date(),
-					"Partial Failure", null);
-		}
+	        List<String> invalidEmails = new ArrayList<>();
 
-		// Attempt SMTP verification
-		List<String> smtpInvalidEmails = verifyRecipientsSMTP(emailRequest);
-		if (!smtpInvalidEmails.isEmpty()) {
-			return new MessageResponse("206", "Some recipients could not be verified", smtpInvalidEmails, new Date(),
-					"Partial Failure", null);
-		}
+	        EmailValidatorUtil.validateEmails(emailRequest.getTo(), invalidEmails);
+	        EmailValidatorUtil.validateEmails(emailRequest.getCc(), invalidEmails);
+	        EmailValidatorUtil.validateEmails(emailRequest.getBcc(), invalidEmails);
 
-		// Prepare and send message
-		SimpleMailMessage message = new SimpleMailMessage();
-		if (emailRequest.getTo() != null)
-			message.setTo(emailRequest.getTo().toArray(new String[0]));
-		if (emailRequest.getCc() != null)
-			message.setCc(emailRequest.getCc().toArray(new String[0]));
-		if (emailRequest.getBcc() != null)
-			message.setBcc(emailRequest.getBcc().toArray(new String[0]));
-		message.setSubject(emailRequest.getSubject());
-		message.setText(emailRequest.getBody());
+	        if (!invalidEmails.isEmpty()) {
+	            return new MessageResponse(
+	                "206", "Invalid email addresses found",
+	                invalidEmails, new Date(), "Partial Failure", null
+	            );
+	        }
 
-		try {
-			javaMailSender.send(message);
-			return new MessageResponse("200", "Email sent successfully", null, new Date(), "Success", null);
-		} catch (MailSendException e) {
-			return new MessageResponse("500", "Failed to send email", List.of(e.getMessage()), new Date(), "Error",
-					null);
-		}
-	}
+	        boolean hasAttachments =
+	            emailRequest.getAttachments() != null &&
+	            !emailRequest.getAttachments().isEmpty();
+
+	        try {
+	            if (!hasAttachments) {
+
+	                // ===== SIMPLE EMAIL =====
+	                SimpleMailMessage message = new SimpleMailMessage();
+
+	                if (emailRequest.getTo() != null)
+	                    message.setTo(emailRequest.getTo().toArray(new String[0]));
+	                if (emailRequest.getCc() != null)
+	                    message.setCc(emailRequest.getCc().toArray(new String[0]));
+	                if (emailRequest.getBcc() != null)
+	                    message.setBcc(emailRequest.getBcc().toArray(new String[0]));
+
+	                message.setSubject(emailRequest.getSubject());
+	                message.setText(emailRequest.getBody());
+
+	                javaMailSender.send(message);
+
+	            } else {
+
+	                // ===== EMAIL WITH ATTACHMENTS =====
+	                MimeMessage mimeMessage = javaMailSender.createMimeMessage();
+	                MimeMessageHelper helper =
+	                    new MimeMessageHelper(mimeMessage, true);
+
+	                if (emailRequest.getTo() != null)
+	                    helper.setTo(emailRequest.getTo().toArray(new String[0]));
+	                if (emailRequest.getCc() != null)
+	                    helper.setCc(emailRequest.getCc().toArray(new String[0]));
+	                if (emailRequest.getBcc() != null)
+	                    helper.setBcc(emailRequest.getBcc().toArray(new String[0]));
+
+	                helper.setSubject(emailRequest.getSubject());
+	                helper.setText(emailRequest.getBody(), false);
+
+	                // 🔥 BASE64 → byte[] (CORRECT)
+	                for (EmailAttachment attachment : emailRequest.getAttachments()) {
+
+	                    if (attachment.getFileData() == null || attachment.getFileData().isBlank()) {
+	                        throw new IllegalArgumentException(
+	                            "Base64 data missing for file: " + attachment.getFileName()
+	                        );
+	                    }
+
+	                    // Remove whitespace / line breaks
+	                    String base64 =
+	                        attachment.getFileData().replaceAll("\\s+", "");
+
+	                    byte[] decodedBytes;
+	                    try {
+	                        decodedBytes = Base64.getMimeDecoder().decode(base64);
+	                    } catch (IllegalArgumentException ex) {
+	                        throw new IllegalArgumentException(
+	                            "Invalid Base64 content for file: " + attachment.getFileName()
+	                        );
+	                    }
+
+	                    attachment.setDecodedFileData(decodedBytes);
+
+	                    helper.addAttachment(
+	                        attachment.getFileName(),
+	                        new ByteArrayResource(decodedBytes),
+	                        attachment.getContentType()
+	                    );
+	                }
+
+	                javaMailSender.send(mimeMessage);
+	            }
+
+	            return new MessageResponse(
+	                "200", "Email sent successfully",
+	                null, new Date(), "Success", null
+	            );
+
+	        } catch (MailSendException | MessagingException | IllegalArgumentException e) {
+	            return new MessageResponse(
+	                "500", "Failed to send email",
+	                List.of(e.getMessage()), new Date(), "Error", null
+	            );
+	        }
+	    }
+	
 
 	private List<String> verifyRecipientsSMTP(EmailRequest emailRequest) {
 		List<String> invalid = new ArrayList<>();
