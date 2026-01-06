@@ -4,7 +4,8 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-
+import java.util.ArrayList;
+import java.util.Date;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -82,17 +83,37 @@ public class BFSController {
 
 	@PostMapping(value = "/requestBfsItem")
 	public ResponseEntity<?> requestBfsItem(@RequestBody BFSUsers bfsUser) throws AppException {
-		log.info("Request BFS By User");
-		boolean status = bfsService.requestBfsItem(bfsUser);
-		String statusCode = status ? String.valueOf(ApplicationConstants.SUCCESS)
-				: String.valueOf(ApplicationConstants.FAILURE);
-		String msg = status ? String.format(ApplicationConstants.BFS_REQUEST_SUCCESS)
-				: String.format(ApplicationConstants.BFS_REQUEST_FAILED);
-		String code = status ? String.valueOf(HttpStatus.OK.value())
-				: String.valueOf(HttpStatus.INTERNAL_SERVER_ERROR.value());
-		MessageResponse response = new MessageResponse(code, msg, null, statusCode);
-		return new ResponseEntity<>(response, HttpStatus.OK);
+	    log.info("Request BFS By User");
+
+	    boolean success = bfsService.requestBfsItem(bfsUser);
+
+	    // business code (not HTTP code)
+	    String businessCode = success ? "200" : "500";
+
+	    String msg = success
+	            ? ApplicationConstants.BFS_REQUEST_SUCCESS
+	            : ApplicationConstants.BFS_REQUEST_FAILED;
+
+	    // optional data payload (null or empty map as per your API standard)
+	    
+	    // MessageResponse(String code, String message, Object data, String status, Date timestamp)
+	    MessageResponse response = new MessageResponse(
+	            businessCode,
+	            msg,
+	            new Date(),
+	            success ? "Success" : "Failure",null);
+
+	    // set error messages on failure
+	    if (!success) {
+	        List<String> errors = new ArrayList<>();
+	        errors.add("Error occurred while requesting BFS item");
+	        response.setErrorMsg(errors);
+	    }
+
+	    // Always return HTTP 200
+	    return ResponseEntity.ok(response);
 	}
+
 
 	@PostMapping(value = "/approveBfsItem")
 	public ResponseEntity<?> approveBfsItem(@RequestBody BFSUsers bfsUser) throws AppException {
