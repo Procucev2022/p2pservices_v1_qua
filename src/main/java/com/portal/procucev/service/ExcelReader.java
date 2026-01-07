@@ -112,7 +112,7 @@ public class ExcelReader {
     public void uploadExcelToDB(InputStream inputStream) {
         try (Workbook workbook = new XSSFWorkbook(inputStream)) {
             FormulaEvaluator evaluator = workbook.getCreationHelper().createFormulaEvaluator();
-            Sheet sheet = workbook.getSheetAt(1);
+            Sheet sheet = workbook.getSheetAt(0);
 
             for (int i = 1; i <= sheet.getLastRowNum(); i++) { // Skip header row
                 Row row = sheet.getRow(i);
