@@ -161,34 +161,72 @@ public class BFSController {
 
 	@PostMapping(value = "/acceptBfsItemBySeller")
 	public ResponseEntity<?> acceptBfsItem(@RequestBody BFSUsers bfsUser) throws AppException {
-		log.info("Accept BFS By Seller ==>");
-		String msg = null;
-		boolean status = bfsService.acceptBfsItemBySeller(bfsUser);
-		String statusCode = status ? String.valueOf(ApplicationConstants.SUCCESS)
-				: String.valueOf(ApplicationConstants.FAILURE);
-		msg = status ? String.format(ApplicationConstants.BFS_ACCEPT_SUCCESS)
-				: String.format(ApplicationConstants.BFS_ACCEPT_FAILED);
 
-		String code = status ? String.valueOf(HttpStatus.OK.value())
-				: String.valueOf(HttpStatus.INTERNAL_SERVER_ERROR.value());
-		MessageResponse response = new MessageResponse(code, msg, null, statusCode);
-		return new ResponseEntity<>(response, HttpStatus.OK);
+	    log.info("Accept BFS By Seller ==>");
+
+	    boolean success = bfsService.acceptBfsItemBySeller(bfsUser);
+
+	    // business code (not HTTP status)
+	    String businessCode = success ? "200" : "500";
+
+	    String msg = success
+	            ? ApplicationConstants.BFS_ACCEPT_SUCCESS
+	            : ApplicationConstants.BFS_ACCEPT_FAILED;
+
+	    // optional data payload
+	   
+	    // MessageResponse(String code, String message, Object data, String status, Date timestamp)
+	    MessageResponse response = new MessageResponse(
+	            businessCode,
+	            msg,
+	           null,
+	            success ? "Success" : "Failure",
+	            new Date()
+	    );
+
+	    // add error message only on failure
+	    if (!success) {
+	        List<String> errors = new ArrayList<>();
+	        errors.add("Error occurred while accepting BFS item by seller");
+	        response.setErrorMsg(errors);
+	    }
+
+	    // Always return HTTP 200
+	    return ResponseEntity.ok(response);
 	}
 
 	@PostMapping(value = "/rejectBfsItemBySeller")
 	public ResponseEntity<?> rejectBfsItemBySeller(@RequestBody BFSUsers bfsUser) throws AppException {
-		log.info("Reject BFS By User");
-		String msg = null;
-		boolean status = bfsService.rejectBfsItemBySeller(bfsUser);
-		String statusCode = status ? String.valueOf(ApplicationConstants.SUCCESS)
-				: String.valueOf(ApplicationConstants.FAILURE);
-		msg = status ? String.format(ApplicationConstants.BFS_REJECT_SUCCESS)
-				: String.format(ApplicationConstants.BFS_REJECT_FAILED);
 
-		String code = status ? String.valueOf(HttpStatus.OK.value())
-				: String.valueOf(HttpStatus.INTERNAL_SERVER_ERROR.value());
-		MessageResponse response = new MessageResponse(code, msg, null, statusCode);
-		return new ResponseEntity<>(response, HttpStatus.OK);
+	    log.info("Reject BFS By Seller ==>");
+
+	    boolean success = bfsService.rejectBfsItemBySeller(bfsUser);
+
+	    // business code (not HTTP status)
+	    String businessCode = success ? "200" : "500";
+
+	    String msg = success
+	            ? ApplicationConstants.BFS_REJECT_SUCCESS
+	            : ApplicationConstants.BFS_REJECT_FAILED;
+
+	 // MessageResponse(String code, String message, Object data, String status, Date timestamp)
+	    MessageResponse response = new MessageResponse(
+	            businessCode,
+	            msg,
+	            null,
+	            success ? "Success" : "Failure",
+	            new Date()
+	    );
+
+	    // add error message only on failure
+	    if (!success) {
+	        List<String> errors = new ArrayList<>();
+	        errors.add("Error occurred while rejecting BFS item by seller");
+	        response.setErrorMsg(errors);
+	    }
+
+	    // Always return HTTP 200
+	    return ResponseEntity.ok(response);
 	}
 
 	@PostMapping("/getDocumentsByBfs")
