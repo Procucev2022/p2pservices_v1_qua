@@ -70,13 +70,6 @@ public class BFSUsers extends Procucev {
 	
 	@ManyToOne(fetch = FetchType.LAZY)
 	private User user;
-	
-	@Column(name="buyer_phone")
-	private String buyerPhone;
-	
-	@Column(name="seller_phone")
-	private String sellerPhone;
-
 
 	public BFSUsers(String id,Date createdTS,double buyPrice, double discount, int quantity, double askPrice, MasterStatus status,
 			String companyName, String email, String city,String cmRemarks,String sellerRemarks,String buyerRemarks,String userId) {

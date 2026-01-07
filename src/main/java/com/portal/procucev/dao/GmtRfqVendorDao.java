@@ -43,7 +43,7 @@ public interface GmtRfqVendorDao extends JpaRepository<GmtRfqVendors, String> {
 	@Query("SELECT gv FROM GmtRfqVendors gv " +
 	           "WHERE gv.vendor.id = :vendorId " +
 	           "AND gv.quotationReceived = false " +
-	           "ORDER BY gv.requestedDate DESC")
+	           "ORDER BY gv.requestedDate ASC")
 	    List<GmtRfqVendors> findLastOpenRfqsByVendor(@Param("vendorId") String vendorId, Pageable pageable);
 
 	@Modifying
