@@ -75,6 +75,41 @@ public interface RfqDao extends JpaRepository<Rfq, String>{
 	@Transactional
 	@Query("UPDATE  Rfq r SET r.clientStatus = :resultStatus WHERE  r =:rfq")
 	void updateRfqStatus(@Param("rfq") Rfq rfq,@Param("resultStatus") MasterStatus resultStatus);
+	
+	@Query("""
+			   SELECT r
+			   FROM Rfq r
+			   WHERE r.rfqId IN :rfqIds
+			   AND NOT EXISTS (
+			       SELECT 1
+			       FROM GmtRfqVendors v
+			       WHERE v.rfq = r
+			       AND v.vendor.id = :sellerId
+			   )
+			""")
+			List<Rfq> findRfqsByIdsExcludingSellerRequested(
+			        @Param("rfqIds") List<String> rfqIds,
+			        @Param("sellerId") String sellerId
+			);
+	
+	@Query("""
+			   SELECT r
+			   FROM Rfq r
+			   WHERE NOT EXISTS (
+			       SELECT 1
+			       FROM GmtRfqVendors v
+			       WHERE v.rfq = r
+			       AND v.vendor.id = :sellerId
+			   )
+			   ORDER BY r.createdTS DESC
+			""")
+			List<Rfq> findLatest5RfqsExcludingSellerRequested(
+			        @Param("sellerId") String sellerId,
+			        Pageable pageable
+			);
+
+
+
 
 //	@Modifying
 //	@Transactional

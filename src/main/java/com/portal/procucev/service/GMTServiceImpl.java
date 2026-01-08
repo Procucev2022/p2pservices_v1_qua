@@ -311,7 +311,7 @@ public class GMTServiceImpl implements GMTService {
 
 	private GmtItems mapRfqItemToGmtItem(RfqItem rfqItem) {
 		GmtItems gmtItem = new GmtItems();
-		gmtItem.setBrand(rfqItem.getBrand());
+		gmtItem.setBrand(rfqItem.getRemarks());
 		gmtItem.setDescription(rfqItem.getDescription());
 		gmtItem.setQuantity(rfqItem.getQuantity());
 		gmtItem.setRemarks(rfqItem.getRemarks());
@@ -2126,6 +2126,75 @@ public class GMTServiceImpl implements GMTService {
 
 		return responses;
 	}
+	@Override
+	public List<RfqStatusResponse> getRfqSellerStatuses(RfqStatusRequest request) {
+
+	    List<RfqStatusResponse> responses = new ArrayList<>();
+
+	    if (request.getRfqIds() != null && !request.getRfqIds().isEmpty()) {
+
+	        // Normalize RFQ IDs
+	        List<String> normalizedIds = request.getRfqIds().stream()
+	                .map(id -> id != null && id.startsWith("RFQ") ? id : "RFQ" + id)
+	                .toList();
+
+	        List<Rfq> rfqs =
+	                rfqDao.findRfqsByIdsExcludingSellerRequested(
+	                        	                        normalizedIds,request.getClientId()
+	                );
+
+	        Map<String, Rfq> rfqMap = rfqs.stream()
+	                .collect(Collectors.toMap(Rfq::getRfqId, r -> r));
+
+	        for (String rfqId : normalizedIds) {
+	            RfqStatusResponse dto = new RfqStatusResponse();
+	            dto.setRfqid(rfqId);
+
+	            if (rfqMap.containsKey(rfqId)) {
+	                Rfq r = rfqMap.get(rfqId);
+	                dto.setStatus(
+	                        r.getStatus() != null
+	                                ? r.getStatus().getUiDisplay()
+	                                : "Unknown"
+	                );
+	            } else {
+	                // Either seller-requested RFQ or invalid RFQ
+	                dto.setStatus("Invalid RFQID");
+	            }
+	            responses.add(dto);
+	        }
+
+	    } else {
+
+	        // No RFQ IDs → fetch latest 5 buyer RFQs
+	        List<Rfq> rfqs =
+	                rfqDao.findLatest5RfqsExcludingSellerRequested(
+	                        request.getClientId(),
+	                        PageRequest.of(0, 5)
+	                );
+
+	        if (rfqs.isEmpty()) {
+	            RfqStatusResponse dto = new RfqStatusResponse();
+	            dto.setRfqid(null);
+	            dto.setStatus("Not Found");
+	            responses.add(dto);
+	        } else {
+	            for (Rfq r : rfqs) {
+	                RfqStatusResponse dto = new RfqStatusResponse();
+	                dto.setRfqid(r.getRfqId());
+	                dto.setStatus(
+	                        r.getStatus() != null
+	                                ? r.getStatus().getUiDisplay()
+	                                : "Unknown"
+	                );
+	                responses.add(dto);
+	            }
+	        }
+	    }
+
+	    return responses;
+	}
+
 
 	@Override
 	public int getSellerRfqCredits(Organization org) {
