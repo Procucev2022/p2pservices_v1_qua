@@ -149,5 +149,7 @@ public interface GMTService {
 
 	List<RfqStatusResponse> getRfqSellerStatuses(RfqStatusRequest request);
 
+	List<RfqStatusResponse> getSellerRfqStatusData(RfqStatusRequest request);
+
 
 }

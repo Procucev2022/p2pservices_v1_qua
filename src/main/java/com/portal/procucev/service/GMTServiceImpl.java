@@ -22,6 +22,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Properties;
 import java.util.Random;
@@ -3056,4 +3057,93 @@ public class GMTServiceImpl implements GMTService {
 		return false;
 
 	}
+
+	@Override
+	public List<RfqStatusResponse> getSellerRfqStatusData(RfqStatusRequest request) {
+
+	    List<RfqStatusResponse> responses = new ArrayList<>();
+
+	    String vendorUuid = request.getClientId(); // seller/vendor UUID
+
+	    // ----------------------------
+	    // CASE 1: RFQ IDs PROVIDED
+	    // ----------------------------
+	    if (request.getRfqIds() != null && !request.getRfqIds().isEmpty()) {
+
+	        List<String> normalizedIds = request.getRfqIds().stream()
+	                .filter(Objects::nonNull)
+	                .map(id -> id.startsWith("RFQ") ? id : "RFQ" + id)
+	                .toList();
+	        List<GmtRfqVendors> vendorRfqs =
+	                gmtRfqVendorDao.findByVendorUuidAndRfqIds(
+	                        vendorUuid,
+	                        normalizedIds
+	                );
+
+	        Map<String, GmtRfqVendors> vendorRfqMap =
+	                vendorRfqs.stream()
+	                        .collect(Collectors.toMap(
+	                                v -> v.getRfq().getRfqId(),
+	                                v -> v
+	                        ));
+
+	        for (String rfqId : normalizedIds) {
+
+	            RfqStatusResponse dto = new RfqStatusResponse();
+	            dto.setRfqid(rfqId);
+
+	            if (vendorRfqMap.containsKey(rfqId)) {
+	                GmtRfqVendors v = vendorRfqMap.get(rfqId);
+
+	                if(v.isQuotationReceived()) {
+	    	        	dto.setStatus("Quote_Submitted");
+	    	        }
+	    	        else {
+	    	        	dto.setStatus("In_Progress");
+	    	        }
+	            }
+	            else {
+	            	dto.setStatus("Un_Known");
+	            }
+	            responses.add(dto);
+	        }
+
+	        return responses;
+	    }
+
+	    // ----------------------------
+	    // CASE 2: NO RFQ IDs → LATEST 5
+	    // ----------------------------
+	    List<GmtRfqVendors> latestVendorRfqs =
+	            gmtRfqVendorDao.findLatest5ByVendorUuid(
+	                    vendorUuid,
+	                    PageRequest.of(0, 5)
+	            );
+
+	    if (latestVendorRfqs.isEmpty()) {
+	        RfqStatusResponse dto = new RfqStatusResponse();
+	        dto.setRfqid(null);
+	        dto.setStatus("Not Found");
+	        responses.add(dto);
+	        return responses;
+	    }
+
+	    for (GmtRfqVendors v : latestVendorRfqs) {
+
+	        RfqStatusResponse dto = new RfqStatusResponse();
+	        dto.setRfqid(v.getRfq().getRfqId());
+	        if(v.isQuotationReceived()) {
+	        	dto.setStatus("Quote_Submitted");
+	        }
+	        else {
+	        	dto.setStatus("In_Progress");
+	        }
+
+	        responses.add(dto);
+	    }
+
+	    return responses;
+	}
+
+
 }

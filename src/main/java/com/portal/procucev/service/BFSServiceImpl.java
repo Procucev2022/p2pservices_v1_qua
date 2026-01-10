@@ -18,12 +18,17 @@ import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
 import jakarta.mail.internet.InternetAddress;
+import jakarta.transaction.Transactional;
 
 import org.apache.commons.lang3.StringUtils;
 import org.apache.poi.ss.usermodel.Cell;
+import org.apache.poi.ss.usermodel.CellType;
 import org.apache.poi.ss.usermodel.DataFormatter;
 import org.apache.poi.ss.usermodel.RichTextString;
 import org.apache.poi.ss.usermodel.Row;
+import org.apache.poi.ss.usermodel.Sheet;
+import org.apache.poi.ss.usermodel.Workbook;
+import org.apache.poi.ss.usermodel.WorkbookFactory;
 import org.apache.poi.xssf.usermodel.XSSFSheet;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.slf4j.Logger;
@@ -36,6 +41,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
+import org.springframework.web.multipart.MultipartFile;
 
 import com.portal.procucev.customexception.AppException;
 import com.portal.procucev.dao.BFSDao;
@@ -1139,6 +1145,92 @@ public class BFSServiceImpl implements BFSService {
 
 	    return searchRepository.searchItems(keywordList, 5);
 	}
+
+	@Transactional
+	public void processExcel(MultipartFile file) {
+
+	    List<BFSItems> items = new ArrayList<>();
+
+	    try (Workbook workbook = WorkbookFactory.create(file.getInputStream())) {
+
+	        Sheet sheet = workbook.getSheetAt(0);
+	        MasterStatus status = masterStatusDao.findByStatus(StatusConstants.BFS_NEW);
+
+	        for (int i = 1; i <= sheet.getLastRowNum(); i++) { // skip header
+
+	            final int rowNum = i + 1;
+
+	            Row row = sheet.getRow(i);
+	            if (row == null) continue;
+
+	            String orgUuid = getString(row.getCell(12));
+	            String userId = getString(row.getCell(13));
+
+//	            if (orgUuid == null || userId == null) {
+//	                throw new RuntimeException("Missing orgId or userId at row " + rowNum);
+//	            }
+//
+	            if(orgUuid!=null)
+	            {
+	            Organization org = orgDao.findById(orgUuid)
+	                    .orElseThrow(() -> new RuntimeException("Invalid orgId at row " + rowNum));
+
+	            BFSItems item = new BFSItems();
+	            item.setId(UUID.randomUUID().toString());
+	            item.setCreatedTS(new Date());
+
+	            // --- Correct mappings ---
+	            item.setDescription(getString(row.getCell(1)));        // ItemDescription
+	            item.setSpecification(getString(row.getCell(2)));      // Specification
+	            item.setUnitofMeasures(getString(row.getCell(3)));     // Uom
+	            item.setCategory(getString(row.getCell(4)));           // Category
+
+	            double qty = getNumeric(row.getCell(5));               // Quantity
+	            item.setTotalQuantity(qty);
+	            item.setAvailableQuantity(qty);
+
+	            item.setLocation(getString(row.getCell(6)));           // Location
+	            item.setAgeOfAsset(getString(row.getCell(7)));         // AgeOfAsset
+
+	            double buyPrice = getNumeric(row.getCell(8));          // BuyPrice
+	            item.setSellPrice(buyPrice);
+	            item.setAskPrice(buyPrice);
+
+	            item.setDiscount(getNumeric(row.getCell(9)));          // Discount
+	            item.setRemarks(getString(row.getCell(10)));           // Remarks
+	            item.setBfsGroup(getString(row.getCell(11)));          // BFSGroup
+
+	            item.setOrg(org);
+	            item.setUserId(userId);
+	            item.setStatus(status);
+
+	            item.setRequestedFlag(false);
+	            item.setCommentsFlag(false);
+	            item.setImagesFlag(false);
+	            item.setBuyPriceDisclosure(false);
+
+	            items.add(item);
+	        }
+	        }
+	        bfsDao.saveAll(items);
+
+	    } catch (Exception e) {
+	        throw new RuntimeException("Excel processing failed", e);
+	    }
+	}
+
+
+	    private String getString(Cell cell) {
+	        if (cell == null) return null;
+	        cell.setCellType(CellType.STRING);
+	        return cell.getStringCellValue().trim();
+	    }
+
+	    private double getNumeric(Cell cell) {
+	        if (cell == null) return 0;
+	        return cell.getNumericCellValue();
+	    }
+	
 
 }
 

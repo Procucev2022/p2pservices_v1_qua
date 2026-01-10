@@ -15,7 +15,9 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
 import com.portal.procucev.customexception.AppException;
 import com.portal.procucev.customexception.MessageResponse;
@@ -371,4 +373,12 @@ public class BFSController {
 
 		return ResponseEntity.ok(response);
 	}
+	
+	   @PostMapping(value = "/uploadBfsExcel", consumes = "multipart/form-data")
+	    public ResponseEntity<?> uploadExcel(
+	            @RequestParam("file") MultipartFile file) {
+
+		   bfsService.processExcel(file);
+	        return ResponseEntity.ok("Excel uploaded and data inserted successfully");
+	    }
 }

@@ -51,5 +51,28 @@ public interface GmtRfqVendorDao extends JpaRepository<GmtRfqVendors, String> {
 	@Query("UPDATE  GmtRfqVendors r SET r.quotationReceived = true, r.status=:quoteStatus, r.quoteSubmittedDate = COALESCE(r.quoteSubmittedDate, CURRENT_TIMESTAMP) WHERE  r.rfq.id=:rfqId and r.vendor.id=:vendorId")
 	void updateQuotationReceived(@Param("rfqId") String rfqId,@Param("vendorId") String vendorId, @Param("quoteStatus") MasterStatus quoteStatus);
 
+	@Query("""
+		       SELECT v
+		       FROM GmtRfqVendors v
+		       WHERE v.vendor.id = :vendorUuid
+		         AND v.rfq.rfqId IN :rfqIds
+		       """)
+		List<GmtRfqVendors> findByVendorUuidAndRfqIds(
+		        @Param("vendorUuid") String vendorUuid,
+		        @Param("rfqIds") List<String> rfqIds
+		);
+
+
+	@Query("""
+		       SELECT v
+		       FROM GmtRfqVendors v
+		       WHERE v.vendor.id = :vendorUuid
+		       ORDER BY v.requestedDate DESC
+		       """)
+		List<GmtRfqVendors> findLatest5ByVendorUuid(
+		        @Param("vendorUuid") String vendorUuid,
+		        Pageable pageable
+		);
+
 
 }

@@ -711,4 +711,15 @@ public class GMTController {
 		return new ResponseEntity<>(response, HttpStatus.OK);
 
 	}
+	
+	@PostMapping("/getSellerRfqStatus")
+	public ResponseEntity<Map<String, Object>> getSellerRfqStatusData(@RequestBody RfqStatusRequest request) {
+		List<RfqStatusResponse> data = gmtService.getSellerRfqStatusData(request);
+
+		Map<String, Object> response = new HashMap<>();
+		response.put("success", true);
+		response.put("data", data);
+
+		return ResponseEntity.ok(response);
+	}
 }
