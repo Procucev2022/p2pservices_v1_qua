@@ -2,6 +2,8 @@ package com.portal.procucev.service;
 
 import java.util.List;
 
+import org.springframework.web.multipart.MultipartFile;
+
 import com.portal.procucev.Dto.BFSItemDto;
 import com.portal.procucev.Dto.BFSItemMainDetailsDTO;
 import com.portal.procucev.Dto.BfsDTO;
@@ -75,5 +77,7 @@ public interface BFSService {
 	boolean deactivateCommentsFlag(BFSItems item);
 
 	List<BFSItemMainDetailsDTO> getBfsItemsByCategory(List<BFSItemDto> items);
+
+	void processExcel(MultipartFile file);
 
 }
