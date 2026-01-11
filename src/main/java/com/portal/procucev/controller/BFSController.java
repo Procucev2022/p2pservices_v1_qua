@@ -11,6 +11,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -35,6 +36,7 @@ import com.portal.procucev.model.User;
 import com.portal.procucev.service.BFSService;
 import com.portal.procucev.utils.ApplicationConstants;
 
+@CrossOrigin
 @RestController
 @RequestMapping("/rest/bfs")
 public class BFSController {
