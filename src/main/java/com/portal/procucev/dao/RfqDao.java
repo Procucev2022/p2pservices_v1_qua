@@ -59,12 +59,49 @@ public interface RfqDao extends JpaRepository<Rfq, String>{
 	List<Rfq> findLast3ByClientId(@Param("clientId") String clientId, PageRequest of);
 
 	 
-	 @Query("SELECT DISTINCT r FROM Rfq r JOIN r.rfqItem i WHERE i.category IN :category ORDER BY r.createdTS DESC")
-	 List<Rfq> findTopRfqsByCategory(@Param("category") List<String> categoryList, Pageable pageable);
+//	 @Query("SELECT DISTINCT r FROM Rfq r JOIN r.rfqItem i WHERE i.category IN :category ORDER BY r.createdTS DESC")
+//	 List<Rfq> findTopRfqsByCategory(@Param("category") List<String> categoryList, Pageable pageable);
+//
+//	 
+//	 @Query("SELECT COUNT(DISTINCT r) FROM Rfq r JOIN r.rfqItem i WHERE i.category IN :category")
+//	 long countByRfqItemCategory(@Param("category") List<String> categoryList);
+	  
+	  @Query("""
+			    SELECT DISTINCT r
+			    FROM Rfq r
+			    JOIN r.rfqItem i
+			    WHERE i.category IN :category
+			      AND NOT EXISTS (
+			          SELECT 1
+			          FROM GmtRfqVendors v
+			          WHERE v.rfq = r
+			            AND v.vendor.id = :sellerId
+			      )
+			    ORDER BY r.createdTS DESC
+			""")
+			List<Rfq> findTopRfqsByCategory(
+			        @Param("category") List<String> categoryList,
+			        @Param("sellerId") String sellerId,
+			        Pageable pageable
+			);
 
-	 
-	 @Query("SELECT COUNT(DISTINCT r) FROM Rfq r JOIN r.rfqItem i WHERE i.category IN :category")
-	 long countByRfqItemCategory(@Param("category") List<String> categoryList);
+	  
+	  @Query("""
+			    SELECT COUNT(DISTINCT r)
+			    FROM Rfq r
+			    JOIN r.rfqItem i
+			    WHERE i.category IN :category
+			      AND NOT EXISTS (
+			          SELECT 1
+			          FROM GmtRfqVendors v
+			          WHERE v.rfq = r
+			            AND v.vendor.id = :sellerId
+			      )
+			""")
+			long countByRfqItemCategory(
+			        @Param("category") List<String> categoryList,
+			        @Param("sellerId") String sellerId
+			);
 
 	Rfq findByRfqId(String rfqId);
 

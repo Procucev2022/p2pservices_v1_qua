@@ -312,7 +312,7 @@ public class GMTServiceImpl implements GMTService {
 
 	private GmtItems mapRfqItemToGmtItem(RfqItem rfqItem) {
 		GmtItems gmtItem = new GmtItems();
-		gmtItem.setBrand(rfqItem.getRemarks());
+		gmtItem.setBrand(rfqItem.getRemarks()+" "+rfqItem.getBrand());
 		gmtItem.setDescription(rfqItem.getDescription());
 		gmtItem.setQuantity(rfqItem.getQuantity());
 		gmtItem.setRemarks(rfqItem.getRemarks());
@@ -2239,8 +2239,8 @@ public class GMTServiceImpl implements GMTService {
 		logger.info("Fetching RFQs by categories: {} for orgId: {}", categoryList, org.getId());
 
 		Pageable topFive = PageRequest.of(0, 5); // only fetch 5 results
-	    List<Rfq> rfqs = rfqDao.findTopRfqsByCategory(categoryList, topFive);
-		long totalCount = rfqDao.countByRfqItemCategory(categoryList);
+	    List<Rfq> rfqs = rfqDao.findTopRfqsByCategory(categoryList, org.getId(),topFive);
+		long totalCount = rfqDao.countByRfqItemCategory(categoryList,org.getId());
 
 		result.put("rfqs", rfqs);
 		result.put("count", totalCount);
@@ -3099,7 +3099,7 @@ public class GMTServiceImpl implements GMTService {
 	    	        	dto.setStatus("Quote_Submitted");
 	    	        }
 	    	        else {
-	    	        	dto.setStatus("In_Progress");
+	    	        	dto.setStatus("Downloaded");
 	    	        }
 	            }
 	            else {
@@ -3136,7 +3136,7 @@ public class GMTServiceImpl implements GMTService {
 	        	dto.setStatus("Quote_Submitted");
 	        }
 	        else {
-	        	dto.setStatus("In_Progress");
+	        	dto.setStatus("Downloaded");
 	        }
 
 	        responses.add(dto);
