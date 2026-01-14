@@ -2379,6 +2379,35 @@ public class GMTServiceImpl implements GMTService {
 				rfqVendor.setRfq(rfqData);
 				rfqVendor.setVendorId(request.getSellerId());
 				rfqVendor.setEmail(request.getEmail());
+				
+				// ✅ STEP 2: Get status
+				MasterStatus resultStatus = masterStatusDao.findByStatus(StatusConstants.vendorApproved);
+
+				Organization org = orgDao.findById(request.getSellerId()).get();
+				// ✅ STEP 3: Check if record exists
+				GmtRfqVendors existing = gmtRfqVendorDao.findByVendorAndRfq(org,
+						rfqData);
+				GmtRfqVendors gmtRfqVendors= new GmtRfqVendors();
+				
+
+				// ✅ STEP 4: Insert or update
+				if (existing != null) {
+					logger.info("Updating status to Requested as record already exists");
+					
+				} else {
+					logger.info("Saving status to requested for the first time");
+					gmtRfqVendors.setStatus(resultStatus);
+					gmtRfqVendors.setRfq(rfqData);
+					gmtRfqVendors.setVendor(org);
+					gmtRfqVendors.setRequestedDate(new Date());
+					gmtRfqVendorDao.save(gmtRfqVendors);
+				}
+
+				// ✅ STEP 5: Update RFQ count
+				rfqDao.updateCount(rfqData);
+
+				// ✅ STEP 6: Deduct one RFQ credit
+				orgDao.updateRfqCreditsAndUsage(request.getSellerId());
 
 				// Send email
 				boolean emailSent = sendRfqsToVendor(rfqVendor, rfqData);
