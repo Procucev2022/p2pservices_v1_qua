@@ -2588,7 +2588,8 @@ public class GMTServiceImpl implements GMTService {
 				rfqData.put("location", rfq.getClientdeliverylocationrfq().get(0).getCity() + ","
 						+ rfq.getClientdeliverylocationrfq().get(0).getState());
 			}
-			rfqData.put("submission_deadline", rfq.getRfqClosingDate());
+			rfqData.put("submission_deadline",  Date.from(
+					rfq.getCreatedTS().toInstant().plus(5, ChronoUnit.DAYS)));
 			rfqData.put("email_sent_date", gv.getRequestedDate());
 			if (rfq.getRfqClosingDate() != null) {
 				long daysRemaining = ChronoUnit.DAYS.between(LocalDate.now(),
