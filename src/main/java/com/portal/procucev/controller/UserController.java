@@ -286,4 +286,20 @@ public class UserController {
 
 
 		}
+	    
+		@PostMapping("/getSellerByEmail")
+		public ResponseEntity<?> getSellerByEmail(@RequestBody User user) {
+		    if (user.getId() == null) {
+		        return ResponseEntity.ok().body("User Email and Phone Required");
+		    }
+
+		    Organization response = userServices.getSellerByEmail(user);
+
+		    if (response == null) {
+		        return ResponseEntity.status(HttpStatus.OK)
+		                             .body("Vendor not found for orgId: " + user.getEmail());
+		    }
+
+		    return ResponseEntity.ok(response);
+		}
 }

@@ -10,11 +10,15 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
 
 import com.portal.procucev.dao.BFSDao;
+import com.portal.procucev.dao.MasterStatusDao;
+import com.portal.procucev.dao.OrgDao;
 import com.portal.procucev.dao.VendorCatalogueDao;
 import com.portal.procucev.dao.VendorTermsConditionsDao;
 import com.portal.procucev.model.BFSItems;
+import com.portal.procucev.model.MasterStatus;
 import com.portal.procucev.model.VendorCatalogue;
 import com.portal.procucev.model.VendorTermsConditions;
+import com.portal.procucev.utils.StatusConstants;
 
 @Service
 public class VendorCatalogueServiceImpl implements VendorCatalogueService {
@@ -29,6 +33,12 @@ public class VendorCatalogueServiceImpl implements VendorCatalogueService {
 	@Autowired
 	private BFSDao bfsDao;
 	
+	@Autowired
+	private MasterStatusDao masterStatusDao;
+	
+	@Autowired
+	private OrgDao orgDao; 
+	
 	@Override
 	public VendorCatalogue saveCatalogue(VendorCatalogue catalogue) {
 	    log.info("Saving Vendor Catalogue: {}", catalogue);
@@ -39,6 +49,8 @@ public class VendorCatalogueServiceImpl implements VendorCatalogueService {
 	    }
 
 	    VendorCatalogue savedCatalogue = vendorCatalogueDao.save(catalogue);
+
+		MasterStatus status = masterStatusDao.findByStatus(StatusConstants.BFS_NEW);
 	    BFSItems bfsItem = new BFSItems();
 	    bfsItem.setDescription(catalogue.getMaterialDescription());
 	    bfsItem.setUnitofMeasures(catalogue.getUom());
@@ -47,7 +59,14 @@ public class VendorCatalogueServiceImpl implements VendorCatalogueService {
 	    bfsItem.setSellPrice(catalogue.getPricePerUom().doubleValue());
 	    bfsItem.setAskPrice(catalogue.getPricePerUom().doubleValue());
 	    bfsItem.setUserId(catalogue.getUser());
+	    bfsItem.setStatus(status);
+	    bfsItem.setAgeOfAsset("0 Months");
+	    bfsItem.setCategory(catalogue.getCategory());
+	    bfsItem.setBfsGroup(catalogue.getDivision());
+	    bfsItem.setSpecification(catalogue.getMaterialDescription());
+	    String city = orgDao.getCityByOrg(catalogue.getOrg());
 	    // set org based on dto.getOrg().getId()
+	    bfsItem.setLocation(city);
 	     bfsItem.setOrg(catalogue.getOrg());
 
 	    bfsDao.save(bfsItem);

@@ -31,6 +31,7 @@ import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
 import org.apache.commons.lang3.StringUtils;
@@ -92,6 +93,7 @@ import com.portal.procucev.model.EmailRequest;
 import com.portal.procucev.model.EmailUser;
 import com.portal.procucev.model.GmtItems;
 import com.portal.procucev.model.GmtRfqVendors;
+import com.portal.procucev.model.ItemCategory;
 import com.portal.procucev.model.MasterStatus;
 import com.portal.procucev.model.OrgDivisionCategory;
 import com.portal.procucev.model.OrgType;
@@ -351,6 +353,22 @@ public class GMTServiceImpl implements GMTService {
 
 			// Set RFQ ID for RFQ items
 			List<RfqItem> updatedRfqItems = updatedRfq.getRfqItem();
+			List<ItemCategory> itemCategoryList = new ArrayList<>();
+
+			for (RfqItem rfqItem : updatedRfqItems) {
+
+			    ItemCategory itemCategory = new ItemCategory();
+
+			     // or generate if needed
+			    itemCategory.setItem(rfqItem.getDescription());
+			    itemCategory.setCategory(rfqItem.getCategory());
+			    itemCategory.setDivision(rfqItem.getDivision());
+
+			    itemCategoryList.add(itemCategory);
+			}
+
+			// Bulk insert (recommended)
+			itemCategoryDao.saveAll(itemCategoryList);
 			List<GmtItems> existingGmtItems = gmtItemsDao
 					.findByRfqItemIdIn(updatedRfqItems.stream().map(RfqItem::getId).collect(Collectors.toList()));
 
@@ -1783,6 +1801,13 @@ public class GMTServiceImpl implements GMTService {
 			List<GmtItems> gmtItems = rfqItems.stream().map(this::mapRfqItemToGmtItem).collect(Collectors.toList());
 			gmtItemsDao.saveAll(gmtItems);
 			logger.info("Saved RFQ items in GMT Items");
+			// add rfqitems categories here
+			rfqItems.forEach(rfqItem -> {
+			    String brand = Stream.of(rfqItem.getRemarks(), rfqItem.getBrand())
+			            .filter(Objects::nonNull)
+			            .collect(Collectors.joining(" "));
+			    rfqItem.setBrand(brand);
+			});
 
 			Rfq saved = rfqDao.save(rfq);
 			logger.info("Completed Saving RFQ with UUID: {}", saved.getId());
@@ -3174,6 +3199,5 @@ public class GMTServiceImpl implements GMTService {
 
 	    return responses;
 	}
-
 
 }

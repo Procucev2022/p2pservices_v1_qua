@@ -61,4 +61,6 @@ public interface UserService {
 
 	boolean deactivateOrgUser(User user);
 
+	Organization getSellerByEmail(User user);
+
 }
