@@ -806,4 +806,30 @@ public class ProcUserServiceImpl implements UserService {
 		// Otherwise, fallback with + (handles rare cases, but ensures valid format)
 		return "+" + digits;
 	}
+	
+	@Override
+	public Organization getSellerByEmail(User user) {
+	    log.info("Fetching seller details by email and phone");
+
+	    if (user == null || user.getEmail() == null || user.getPhone() == null) {
+	        log.warn("User, email, or phone is null");
+	        return null;
+	    }
+
+	    String normalizedPhone = normalizePhone(user.getPhone());
+
+	    User userData = userDao.findByUsernameAndPhoneAndActive(
+	            user.getEmail(),
+	            normalizedPhone,
+	            true
+	    );
+
+	    if (userData == null) {
+	        log.warn("No active user found for email: {}", user.getEmail());
+	        return null;
+	    }
+
+	    return userData.getOrg();
+	}
+
 }

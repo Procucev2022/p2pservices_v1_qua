@@ -58,4 +58,10 @@ public class VendorCatalogue extends Procucev{
 	private Organization org;
 	
 	private String user;
+	
+	@Column(name="category")
+	private String category;
+	
+	@Column(name="division")
+	private String division;
 }
