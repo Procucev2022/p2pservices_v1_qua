@@ -2134,56 +2134,137 @@ public class GMTServiceImpl implements GMTService {
 		return subscriptionPlanDao.findAll();
 	}
 
-	@Override
-	public List<RfqStatusResponse> getRfqStatuses(RfqStatusRequest request) {
-		List<RfqStatusResponse> responses = new ArrayList<>();
+//	@Override
+//	public List<RfqStatusResponse> getRfqStatuses(RfqStatusRequest request) {
+//		List<RfqStatusResponse> responses = new ArrayList<>();
+//
+//		if (request.getRfqIds() != null && !request.getRfqIds().isEmpty()) {
+//			// Normalize input: ensure every rfqId starts with "RFQ"
+//			List<String> normalizedIds = request.getRfqIds().stream()
+//					.map(id -> id != null && id.startsWith("RFQ") ? id : "RFQ" + id).collect(Collectors.toList());
+//			// Fetch matching RFQs from DB
+//			List<Rfq> rfqs = rfqDao.findByUserAndRfqIdIn(request.getClientId(), normalizedIds);
+//
+//			// Map RFQs by ID for quick lookup
+//			Map<String, Rfq> rfqMap = rfqs.stream().collect(Collectors.toMap(Rfq::getRfqId, r -> r));
+//
+//			// Always include all requested IDs
+//			for (String rfqId : normalizedIds) {
+//				RfqStatusResponse dto = new RfqStatusResponse();
+//				dto.setRfqid(rfqId);
+//
+//				if (rfqMap.containsKey(rfqId)) {
+//					Rfq r = rfqMap.get(rfqId);
+//					dto.setStatus(r.getStatus() != null ? r.getStatus().getUiDisplay() : "Unknown");
+//				} else {
+//					dto.setStatus("Invalid RFQID");
+//				}
+//
+//				responses.add(dto);
+//			}
+//		} else {
+//			// No rfqIds provided → fetch last 3
+//			List<Rfq> rfqs = rfqDao.findLast3ByClientId(request.getClientId(), PageRequest.of(0, 3));
+//
+//			if (rfqs.isEmpty()) {
+//				// Client has no RFQs at all
+//				RfqStatusResponse dto = new RfqStatusResponse();
+//				dto.setRfqid(null);
+//				dto.setStatus("Not Found");
+//				responses.add(dto);
+//			} else {
+//				for (Rfq r : rfqs) {
+//					RfqStatusResponse dto = new RfqStatusResponse();
+//					dto.setRfqid(r.getRfqId());
+//					dto.setStatus(r.getStatus() != null ? r.getStatus().getUiDisplay() : "Unknown");
+//					responses.add(dto);
+//				}
+//			}
+//		}
+//
+//		return responses;
+//	}
+	
+	  @Override
+	    public List<RfqStatusResponse> getRfqStatuses(RfqStatusRequest request) {
 
-		if (request.getRfqIds() != null && !request.getRfqIds().isEmpty()) {
-			// Normalize input: ensure every rfqId starts with "RFQ"
-			List<String> normalizedIds = request.getRfqIds().stream()
-					.map(id -> id != null && id.startsWith("RFQ") ? id : "RFQ" + id).collect(Collectors.toList());
-			// Fetch matching RFQs from DB
-			List<Rfq> rfqs = rfqDao.findByUserAndRfqIdIn(request.getClientId(), normalizedIds);
+	        List<RfqStatusResponse> responses = new ArrayList<>();
 
-			// Map RFQs by ID for quick lookup
-			Map<String, Rfq> rfqMap = rfqs.stream().collect(Collectors.toMap(Rfq::getRfqId, r -> r));
+	        if (request.getRfqIds() != null && !request.getRfqIds().isEmpty()) {
 
-			// Always include all requested IDs
-			for (String rfqId : normalizedIds) {
-				RfqStatusResponse dto = new RfqStatusResponse();
-				dto.setRfqid(rfqId);
+	            // Normalize RFQ IDs → ensure RFQ prefix
+	            List<String> normalizedIds = request.getRfqIds().stream()
+	                    .map(id -> id != null && id.startsWith("RFQ") ? id : "RFQ" + id)
+	                    .collect(Collectors.toList());
 
-				if (rfqMap.containsKey(rfqId)) {
-					Rfq r = rfqMap.get(rfqId);
-					dto.setStatus(r.getStatus() != null ? r.getStatus().getUiDisplay() : "Unknown");
-				} else {
-					dto.setStatus("Invalid RFQID");
-				}
+	            // Fetch RFQs
+	            List<Rfq> rfqs = rfqDao.findByUserAndRfqIdIn(
+	                    request.getClientId(), normalizedIds);
 
-				responses.add(dto);
-			}
-		} else {
-			// No rfqIds provided → fetch last 3
-			List<Rfq> rfqs = rfqDao.findLast3ByClientId(request.getClientId(), PageRequest.of(0, 3));
+	            // Map for quick lookup
+	            Map<String, Rfq> rfqMap = rfqs.stream()
+	                    .collect(Collectors.toMap(Rfq::getRfqId, r -> r));
 
-			if (rfqs.isEmpty()) {
-				// Client has no RFQs at all
-				RfqStatusResponse dto = new RfqStatusResponse();
-				dto.setRfqid(null);
-				dto.setStatus("Not Found");
-				responses.add(dto);
-			} else {
-				for (Rfq r : rfqs) {
-					RfqStatusResponse dto = new RfqStatusResponse();
-					dto.setRfqid(r.getRfqId());
-					dto.setStatus(r.getStatus() != null ? r.getStatus().getUiDisplay() : "Unknown");
-					responses.add(dto);
-				}
-			}
-		}
+	            // Always return all requested RFQs
+	            for (String rfqId : normalizedIds) {
+	                RfqStatusResponse dto = new RfqStatusResponse();
+	                dto.setRfqid(rfqId);
 
-		return responses;
-	}
+	                if (rfqMap.containsKey(rfqId)) {
+	                    dto.setStatus(resolveRfqStatus(rfqMap.get(rfqId)));
+	                } else {
+	                    dto.setStatus("Invalid RFQID");
+	                }
+
+	                responses.add(dto);
+	            }
+
+	        } else {
+	            // No RFQ IDs → fetch last 3
+	            List<Rfq> rfqs = rfqDao.findLast3ByClientId(
+	                    request.getClientId(), PageRequest.of(0, 3));
+
+	            if (rfqs.isEmpty()) {
+	                RfqStatusResponse dto = new RfqStatusResponse();
+	                dto.setRfqid(null);
+	                dto.setStatus("Not Found");
+	                responses.add(dto);
+	            } else {
+	                for (Rfq r : rfqs) {
+	                    RfqStatusResponse dto = new RfqStatusResponse();
+	                    dto.setRfqid(r.getRfqId());
+	                    dto.setStatus(resolveRfqStatus(r));
+	                    responses.add(dto);
+	                }
+	            }
+	        }
+
+	        return responses;
+	    }
+
+	    /**
+	     * Centralized RFQ status resolution logic
+	     */
+	    private String resolveRfqStatus(Rfq rfq) {
+
+	        // 1️⃣ Highest priority
+	        if (Boolean.TRUE.equals(rfq.isQuotationReceived())) {
+	            return "Quotation_Received";
+	        }
+
+	        // 2️⃣ IN_PROGRESS mapping
+	        if (rfq.getStatus() != null) {
+	            String statusCode = rfq.getStatus().getUiDisplay(); // or getName()
+
+	            if ("InProgress".equalsIgnoreCase(statusCode)) {
+	                return "Published To Multiple Sellers";
+	            }
+
+	            return rfq.getStatus().getUiDisplay();
+	        }
+
+	        return "Unknown";
+	    }
 	@Override
 	public List<RfqStatusResponse> getRfqSellerStatuses(RfqStatusRequest request) {
 
