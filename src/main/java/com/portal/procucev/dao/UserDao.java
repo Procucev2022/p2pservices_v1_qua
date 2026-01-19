@@ -126,4 +126,7 @@ public interface UserDao extends JpaRepository<User, String> {
 	@Query("SELECT  new User(u.username,u.phone,u.org.companyName,u.fullName) from User u where u.id=:id")
 	User findUserById(@Param("id") String id);
 
+	@Query("select u from User u where u.username=:email and u.phone=:normalizedPhone and u.active = true and u.role =:role")
+	User findByUsernameAndPhoneAndActiveAndRole(@Param("email") String email,@Param("normalizedPhone") String normalizedPhone,@Param("role") Role role);
+
 }
