@@ -679,12 +679,12 @@ public class MailUtility {
 		return false;
 	}
 
-	public  static boolean emailNewRfqForNoPR(String string, String subjectPrefix, JavaMailSender javaMailSender, Rfq rfqData, String host,
+	public  static boolean emailNewRfqForNoPR(String subjectPrefix, String string, JavaMailSender javaMailSender, Rfq rfqData, String host,
 			String mailId, String fromAddress, String ccAdd, String phonenumber, String rfqDueDate, String fullName,
 			String mailId2, String password, String vendorId) throws MessagingException {
 		LOGGER.info("Entered To Send Email To Vendor Regarding RFQ");
 		try {
-			String subject =  subjectPrefix + "You have an Enquiry RFQ No " + rfqData.getRfqId() + " - " + vendorId;
+			String subject =  subjectPrefix + " You have an Enquiry RFQ No " + rfqData.getRfqId() + " - " + vendorId;
 			String message;
 			String pincode = null;
 			int i = 1;
@@ -952,7 +952,7 @@ public class MailUtility {
 		// TODO Auto-generated method stub
 		// String subject = rfqData.getCategory() + " - You have an Enquiry RFQ No " +
 		// rfqData.getRfqId();
-		String subject = subjectPrefix + "You have an Enquiry RFQ No " + rfqData.getRfqId() + " - " + vendorId;
+		String subject = subjectPrefix + " You have an Enquiry RFQ No " + rfqData.getRfqId() + " - " + vendorId;
 		String message;
 		String pincode = null;
 		int i = 1;
