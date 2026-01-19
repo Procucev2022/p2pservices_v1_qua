@@ -2848,7 +2848,7 @@ public class GMTServiceImpl implements GMTService {
 	public void emailForwarder() {
 	    logger.info("Entered into emailForwarder()");
 
-	    final String subjectPattern = subjectPrefix + "You have an Enquiry RFQ No";
+	    final String subjectPattern = subjectPrefix + " You have an Enquiry RFQ No";
 
 	    Properties props = new Properties();
 	    props.put("mail.store.protocol", "imaps");
