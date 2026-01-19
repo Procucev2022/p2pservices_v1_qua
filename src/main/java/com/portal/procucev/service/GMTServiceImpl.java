@@ -162,6 +162,9 @@ public class GMTServiceImpl implements GMTService {
 
 	@Autowired
 	private ItemCategoryDao itemCategoryDao;
+	
+	@Value("${email.subject.prefix}")
+	private String subjectPrefix;
 
 	@Autowired
 	private OrgDao orgDao;
@@ -806,7 +809,7 @@ public class GMTServiceImpl implements GMTService {
 
 			if (rfq.isPresent()) {
 				String rfqDueDate = buildingRfqDueDate();
-				MailUtility.emailNewGMTRfqForNoPR("NewRfq", javaMailSender, rfq.get(), host, email, otherEmails,
+				MailUtility.emailNewGMTRfqForNoPR("NewRfq",subjectPrefix,javaMailSender, rfq.get(), host, email, otherEmails,
 						mailFom, emailPassword, rfqDueDate, gmtRfq.getVendor().getId());
 
 			}
@@ -1319,6 +1322,34 @@ public class GMTServiceImpl implements GMTService {
 
 				// Collect RfqVendor object
 				rfqVendors.add(rfqVendor);
+				// ✅ STEP 2: Get status
+				MasterStatus resultStatus = masterStatusDao.findByStatus(StatusConstants.vendorApproved);
+
+//				Organization org = orgDao.findById(savedVendor.getId()).get();
+				// ✅ STEP 3: Check if record exists
+				GmtRfqVendors existing = gmtRfqVendorDao.findByVendorAndRfq(savedVendor,
+						savedRfq);
+				GmtRfqVendors gmtRfqVendors= new GmtRfqVendors();
+				
+
+				// ✅ STEP 4: Insert or update
+				if (existing != null) {
+					logger.info("Updating status to Requested as record already exists");
+					
+				} else {
+					logger.info("Saving status to requested for the first time");
+					gmtRfqVendors.setStatus(resultStatus);
+					gmtRfqVendors.setRfq(savedRfq);
+					gmtRfqVendors.setVendor(savedVendor);
+					gmtRfqVendors.setRequestedDate(new Date());
+					gmtRfqVendorDao.save(gmtRfqVendors);
+				}
+
+				// ✅ STEP 5: Update RFQ count
+				rfqDao.updateCount(savedRfq);
+
+				// ✅ STEP 6: Deduct one RFQ credit
+				orgDao.updateRfqCreditsAndUsage(savedVendor.getId());
 			});
 		}
 
@@ -1341,6 +1372,7 @@ public class GMTServiceImpl implements GMTService {
 		logger.info("Entered to sendRfqToVendors()");
 		UserDetails userDetails = (UserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
 		String username = userDetails.getUsername();
+		//phone=userDetails.get check to get phone number 
 		String[] mailIdWrapper = new String[1]; // Using an array to wrap mailId
 		String[] passwordWrapper = new String[1];
 
@@ -1407,7 +1439,7 @@ public class GMTServiceImpl implements GMTService {
 					String requestType = vendor.getRequestType(); // assuming you have this field in RFQ
 
 					if ("Forward".equalsIgnoreCase(requestType)) {
-						MailUtility.emailNewRfqForNoPR("NewRfq", javaMailSender, rfqData, host, vendor.getEmail(),
+						MailUtility.emailNewRfqForNoPR(subjectPrefix,"NewRfq", javaMailSender, rfqData, host, vendor.getEmail(),
 								username, vendor.getOtherEmails(), phoneNumber, rfqDueDate, fullName, mailIdWrapper[0],
 								passwordWrapper[0], vendor.getId());
 					} else {
@@ -1738,7 +1770,7 @@ public class GMTServiceImpl implements GMTService {
 				logger.info("Getting Users List");
 				List<String> usersList = userDao.findByOrg(vendorId);
 				if (!CollectionUtils.isEmpty(usersList)) {
-					MailUtility.emailNewRfqForNoPR("NewRfq", javaMailSender, rfqData, host, usersList.get(0), username,
+					MailUtility.emailNewRfqForNoPR("NewRfq", subjectPrefix, javaMailSender, rfqData, host, usersList.get(0), username,
 							gmtVendor.getOtherEmails(), phoneNumber, rfqDueDate, fullName, mailIdWrapper[0],
 							passwordWrapper[0], vendorId);
 				}
@@ -2515,7 +2547,7 @@ public class GMTServiceImpl implements GMTService {
 			String rfqDueDate = buildingRfqDueDate();
 
 			// Send email and return actual status
-			boolean status = MailUtility.emailNewRfqForNoPR("NewRfq", javaMailSender, rfqData, host, vendor.getEmail(), // main
+			boolean status = MailUtility.emailNewRfqForNoPR("NewRfq", subjectPrefix, javaMailSender, rfqData, host, vendor.getEmail(), // main
 																														// vendor
 																														// email
 					mailFom, // from
@@ -2681,7 +2713,7 @@ public class GMTServiceImpl implements GMTService {
 					String otherEmails = orgDao.findOtherEmailById(vendorId);
 					String rfqDueDate = buildingRfqDueDate();
 
-					MailUtility.emailNewGMTRfqForNoPR("NewRfq", javaMailSender, rfqData.get(), host, email, otherEmails,
+					MailUtility.emailNewGMTRfqForNoPR("NewRfq",subjectPrefix, javaMailSender, rfqData.get(), host, email, otherEmails,
 							mailFom, emailPassword, rfqDueDate, vendorId);
 				}
 
@@ -2816,7 +2848,7 @@ public class GMTServiceImpl implements GMTService {
 	public void emailForwarder() {
 	    logger.info("Entered into emailForwarder()");
 
-	    final String subjectPattern = "You have an Enquiry RFQ No";
+	    final String subjectPattern = subjectPrefix + "You have an Enquiry RFQ No";
 
 	    Properties props = new Properties();
 	    props.put("mail.store.protocol", "imaps");

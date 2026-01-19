@@ -38,6 +38,7 @@ import com.portal.procucev.customexception.AppException;
 import com.portal.procucev.dao.EmailUserRepo;
 import com.portal.procucev.dao.OrgDao;
 import com.portal.procucev.dao.OrgTypeDao;
+import com.portal.procucev.dao.RoleDao;
 import com.portal.procucev.dao.UserDao;
 import com.portal.procucev.model.EmailUser;
 import com.portal.procucev.model.OrgBranches;
@@ -61,6 +62,9 @@ public class ProcUserServiceImpl implements UserService {
 
 	@Autowired
 	private UserDao userDao;
+	
+	@Autowired
+	private RoleDao roleDao;
 
 	@Autowired
 	private OrgDao orgDao;
@@ -811,17 +815,19 @@ public class ProcUserServiceImpl implements UserService {
 	public Organization getSellerByEmail(User user) {
 	    log.info("Fetching seller details by email and phone");
 
-	    if (user == null || user.getEmail() == null || user.getPhone() == null) {
+	    if (user == null || user.getUsername() == null || user.getPhone() == null) {
 	        log.warn("User, email, or phone is null");
 	        return null;
 	    }
+	    Role role = roleDao.findByRoleNameAndActive(ApplicationConstants.Vendor, true);
 
 	    String normalizedPhone = normalizePhone(user.getPhone());
+	    // seller check needs to be added
 
-	    User userData = userDao.findByUsernameAndPhoneAndActive(
-	            user.getEmail(),
+	    User userData = userDao.findByUsernameAndPhoneAndActiveAndRole(
+	            user.getUsername(),
 	            normalizedPhone,
-	            true
+	            role
 	    );
 
 	    if (userData == null) {

@@ -25,7 +25,7 @@ public class AuctionStatusConfig {
 
 	@PostConstruct
 	//@Scheduled(cron = "0 0 12,15,18 * * ?")
-	@Scheduled(cron = "0 */2 * * * ?")
+	@Scheduled(cron = "0 */5 * * * ?")
 	@SchedulerLock(name = "emailForwardJob")
 	public void scheduleTaskWithCronExpressionsforForwardEmailToClient() {
 		if (isEnabled) {

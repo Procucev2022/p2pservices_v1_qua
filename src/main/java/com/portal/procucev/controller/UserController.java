@@ -289,7 +289,7 @@ public class UserController {
 	    
 		@PostMapping("/getSellerByEmail")
 		public ResponseEntity<?> getSellerByEmail(@RequestBody User user) {
-		    if (user.getId() == null) {
+		    if (user.getUsername() == null) {
 		        return ResponseEntity.ok().body("User Email and Phone Required");
 		    }
 
