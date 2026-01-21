@@ -1770,7 +1770,7 @@ public class GMTServiceImpl implements GMTService {
 				logger.info("Getting Users List");
 				List<String> usersList = userDao.findByOrg(vendorId);
 				if (!CollectionUtils.isEmpty(usersList)) {
-					MailUtility.emailNewRfqForNoPR("NewRfq", subjectPrefix, javaMailSender, rfqData, host, usersList.get(0), username,
+					MailUtility.emailNewRfqForNoPR(subjectPrefix,"NewRfq", javaMailSender, rfqData, host, usersList.get(0), username,
 							gmtVendor.getOtherEmails(), phoneNumber, rfqDueDate, fullName, mailIdWrapper[0],
 							passwordWrapper[0], vendorId);
 				}
@@ -2541,11 +2541,7 @@ public class GMTServiceImpl implements GMTService {
 					gmtRfqVendorDao.save(gmtRfqVendors);
 				}
 
-				// ✅ STEP 5: Update RFQ count
-				rfqDao.updateCount(rfqData);
-
-				// ✅ STEP 6: Deduct one RFQ credit
-				orgDao.updateRfqCreditsAndUsage(request.getSellerId());
+			
 
 				// Send email
 				boolean emailSent = sendRfqsToVendor(rfqVendor, rfqData);
@@ -2554,9 +2550,13 @@ public class GMTServiceImpl implements GMTService {
 				if (emailSent) {
 					result.put("message", "Email sent successfully");
 					successful.add(result);
+					// ✅ STEP 5: Update RFQ count
+					rfqDao.updateCount(rfqData);
 
+					// ✅ STEP 6: Deduct one RFQ credit
+					orgDao.updateRfqCreditsAndUsage(request.getSellerId());
 					// Decrement available credits in memory
-					availableCredits--;
+					//availableCredits--;
 
 				} else {
 					result.put("error_code", "SYSTEM_ERROR");
@@ -2573,7 +2573,7 @@ public class GMTServiceImpl implements GMTService {
 		}
 
 		// Update organization credits once at the end
-		orgDao.updateRfqCredits(request.getSellerId(), availableCredits);
+		//orgDao.updateRfqCredits(request.getSellerId(), availableCredits);
 
 		results.put("successful", successful);
 		results.put("failed", failed);
@@ -2628,7 +2628,7 @@ public class GMTServiceImpl implements GMTService {
 			String rfqDueDate = buildingRfqDueDate();
 
 			// Send email and return actual status
-			boolean status = MailUtility.emailNewRfqForNoPR("NewRfq", subjectPrefix, javaMailSender, rfqData, host, vendor.getEmail(), // main
+			boolean status = MailUtility.emailNewRfqForNoPR(subjectPrefix,"NewRfq", javaMailSender, rfqData, host, vendor.getEmail(), // main
 																														// vendor
 																														// email
 					mailFom, // from
