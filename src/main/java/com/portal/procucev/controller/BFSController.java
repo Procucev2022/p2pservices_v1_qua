@@ -5,6 +5,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Date;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -26,6 +27,7 @@ import com.portal.procucev.Dto.BFSItemDto;
 import com.portal.procucev.Dto.BFSItemMainDetailsDTO;
 import com.portal.procucev.Dto.BfsDTO;
 import com.portal.procucev.Dto.VendorInfoBean;
+import com.portal.procucev.customexception.ApiResponse;
 import com.portal.procucev.model.BFSDocuments;
 import com.portal.procucev.model.BFSImages;
 import com.portal.procucev.model.BFSItems;
@@ -364,18 +366,45 @@ public class BFSController {
 
 	}
 	
-	@PostMapping("/getBfsItemsByCategory")
-	public ResponseEntity<?> getBfsItemsByCategory(@RequestBody List<BFSItemDto> item) throws IOException {
-		log.info("Entered to get Top 5 items of BFS");
-	    List<BFSItemMainDetailsDTO> items = bfsService.getBfsItemsByCategory(item);
-
-		Map<String, Object> response = new HashMap<>();
-		response.put("success", true);
-		response.put("data", items);
-
-		return ResponseEntity.ok(response);
-	}
+//	@PostMapping("/getBfsItemsByCategory")
+//	public ResponseEntity<?> getBfsItemsByCategory(@RequestBody List<BFSItemDto> item) throws IOException {
+//		log.info("Entered to get Top 5 items of BFS");
+//	    List<BFSItemMainDetailsDTO> items = bfsService.getBfsItemsByCategory(item);
+//
+//		Map<String, Object> response = new HashMap<>();
+//		response.put("success", true);
+//		response.put("data", items);
+//
+//		return ResponseEntity.ok(response);
+//	}
+//	
 	
+	@PostMapping("/getBfsItemsByCategory")
+	public ResponseEntity<ApiResponse> getBfsItemsByCategory(
+	        @RequestBody List<BFSItemDto> item) {
+
+	    List<BFSItemMainDetailsDTO> items =
+	            bfsService.getBfsItemsByCategory(item);
+
+	    ApiResponse response = new ApiResponse();
+	    response.setStatusCode("200");
+	    response.setStatus("Success");
+	    response.setTimestamp(new Date());
+	    response.setErrorMsg(null);
+
+	    if (items == null || items.isEmpty()) {
+	        response.setMessage("Itseems our sellers don’t have the stock");
+	        response.setData(Collections.emptyList());
+	    } else {
+	        response.setMessage("Items Fetched Successfully");
+	        response.setData(items);
+	    }
+
+	    return ResponseEntity.ok(response);
+	}
+
+
+
 	   @PostMapping(value = "/uploadBfsExcel", consumes = "multipart/form-data")
 	    public ResponseEntity<?> uploadExcel(
 	            @RequestParam("file") MultipartFile file) {
