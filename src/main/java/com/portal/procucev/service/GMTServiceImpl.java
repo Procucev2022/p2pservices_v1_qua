@@ -2637,7 +2637,7 @@ public class GMTServiceImpl implements GMTService {
 					rfqDueDate, null, // full name
 					mailFom, // mailId
 					emailPassword, // password
-					vendor.getId());
+					vendor.getVendorId());
 
 			return status; // ✅ return actual send result
 
