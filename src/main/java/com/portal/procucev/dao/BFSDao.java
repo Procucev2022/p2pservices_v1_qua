@@ -58,6 +58,6 @@ public interface BFSDao extends JpaRepository<BFSItems, String>{
 	@Modifying
 	@Transactional
 	@Query("UPDATE  BFSItems b SET b.status =:status WHERE  b.id=:id")
-	void updateStatus(@Param("id") String id,@Param("MasterStatus") MasterStatus status);
+	void updateStatus(@Param("id") String id,@Param("status") MasterStatus status);
 
 }

@@ -554,6 +554,17 @@ public class GMTController {
 
 		return ResponseEntity.ok(response);
 	}
+	
+	@PostMapping("/rfqSellerStatus")
+	public ResponseEntity<Map<String, Object>> getSellerRfqStatus(@RequestBody RfqStatusRequest request) {
+		List<RfqStatusResponse> data = gmtService.getRfqSellerStatuses(request);
+
+		Map<String, Object> response = new HashMap<>();
+		response.put("success", true);
+		response.put("data", data);
+
+		return ResponseEntity.ok(response);
+	}
 
 	@PostMapping("/getSellerRfqCredits")
 	public ResponseEntity<Map<String, Object>> getSellerRfqCredits(@RequestBody Organization org) {
@@ -646,6 +657,7 @@ public class GMTController {
 	    return ResponseEntity.ok(response);
 	}
 	
+	
 	@GetMapping(value = "/runEmailForwarder")
 	public ResponseEntity<?> emailForwarder() {
 		gmtService.emailForwarder();
@@ -699,5 +711,16 @@ public class GMTController {
 		MessageResponse response = new MessageResponse(StatusCodes.NEW_VENDOR_CODE, msg, null, statusCode);
 		return new ResponseEntity<>(response, HttpStatus.OK);
 
+	}
+	
+	@PostMapping("/getSellerRfqStatus")
+	public ResponseEntity<Map<String, Object>> getSellerRfqStatusData(@RequestBody RfqStatusRequest request) {
+		List<RfqStatusResponse> data = gmtService.getSellerRfqStatusData(request);
+
+		Map<String, Object> response = new HashMap<>();
+		response.put("success", true);
+		response.put("data", data);
+
+		return ResponseEntity.ok(response);
 	}
 }

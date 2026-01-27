@@ -6,6 +6,7 @@ import java.util.Properties;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.JavaMailSenderImpl;
 import org.springframework.mail.javamail.MimeMessageHelper;
@@ -30,7 +31,13 @@ import jakarta.mail.internet.MimeMessage;
 import jakarta.mail.internet.MimeMultipart;
 import jakarta.mail.util.ByteArrayDataSource;
 
+
+
 public class MailUtility {
+	
+
+	@Value("${email.subject.prefix}")
+	private String subjectPrefix;
 
 	static final Logger LOGGER = LoggerFactory.getLogger(MailUtility.class);
 
@@ -672,13 +679,12 @@ public class MailUtility {
 		return false;
 	}
 
-	public static boolean emailNewRfqForNoPR(String string, JavaMailSender javaMailSender, Rfq rfqData, String host,
+	public  static boolean emailNewRfqForNoPR(String subjectPrefix, String string, JavaMailSender javaMailSender, Rfq rfqData, String host,
 			String mailId, String fromAddress, String ccAdd, String phonenumber, String rfqDueDate, String fullName,
 			String mailId2, String password, String vendorId) throws MessagingException {
 		LOGGER.info("Entered To Send Email To Vendor Regarding RFQ");
 		try {
-			String subject = "You have an Enquiry RFQ No " + rfqData.getRfqId() + " - " + vendorId;
-			;
+			String subject =  subjectPrefix + " You have an Enquiry RFQ No " + rfqData.getRfqId() + " - " + vendorId;
 			String message;
 			String pincode = null;
 			int i = 1;
@@ -940,14 +946,13 @@ public class MailUtility {
 		return mailSender;
 	}
 
-	public static void emailNewGMTRfqForNoPR(String string, JavaMailSender javaMailSender, Rfq rfqData, String host,
+	public  static void emailNewGMTRfqForNoPR(String string, String subjectPrefix, JavaMailSender javaMailSender, Rfq rfqData, String host,
 			String vendorMail, String otherEmails, String mailFom, String emailPassword, String rfqDueDate,
 			String vendorId) throws MessagingException {
 		// TODO Auto-generated method stub
 		// String subject = rfqData.getCategory() + " - You have an Enquiry RFQ No " +
 		// rfqData.getRfqId();
-		String subject = "You have an Enquiry RFQ No " + rfqData.getRfqId() + " - " + vendorId;
-		;
+		String subject = subjectPrefix + " You have an Enquiry RFQ No " + rfqData.getRfqId() + " - " + vendorId;
 		String message;
 		String pincode = null;
 		int i = 1;

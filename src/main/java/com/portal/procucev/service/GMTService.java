@@ -147,5 +147,8 @@ public interface GMTService {
 
 	boolean submitUpgradeVendor(Organization organization);
 
+	List<RfqStatusResponse> getRfqSellerStatuses(RfqStatusRequest request);
+
+	List<RfqStatusResponse> getSellerRfqStatusData(RfqStatusRequest request);
 
 }

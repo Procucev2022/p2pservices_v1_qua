@@ -558,20 +558,38 @@ public class PartialVendorController {
 //        //excelReader.uploadExcelToDB(excelPath);
 //        return "Excel data inserted into DB successfully.";
 //    }
-	 @PostMapping("/uploadexcel")
-	    public String uploadExcel() {
-	        try {
-	            ClassPathResource resource = new ClassPathResource("Divisionlist.xlsx");
-	            try (InputStream inputStream = resource.getInputStream()) {
-	                excelReader.uploadExcelToDB(inputStream);
-	            }
-	        } catch (Exception e) {
-	            e.printStackTrace();
-	            return "Error inserting Excel data into DB.";
-	        }
+//	 @PostMapping("/uploadexcel")
+//	    public String uploadExcel() {
+//	        try {
+//	            ClassPathResource resource = new ClassPathResource("Divisionlist.xlsx");
+//	            try (InputStream inputStream = resource.getInputStream()) {
+//	                excelReader.uploadExcelToDB(inputStream);
+//	            }
+//	        } catch (Exception e) {
+//	            e.printStackTrace();
+//	            return "Error inserting Excel data into DB.";
+//	        }
+//
+//	        return "Excel data inserted into DB successfully.";
+//	    }
+	
+	@PostMapping("/uploadexcel")
+	public ResponseEntity<String> uploadExcel1(@RequestParam("file") MultipartFile file) {
 
-	        return "Excel data inserted into DB successfully.";
+	    if (file.isEmpty()) {
+	        return ResponseEntity.badRequest().body("Please upload a valid Excel file.");
 	    }
+
+	    try (InputStream inputStream = file.getInputStream()) {
+	        excelReader.uploadExcelToDB(inputStream);
+	        return ResponseEntity.ok("Excel data inserted into DB successfully.");
+	    } catch (Exception e) {
+	        e.printStackTrace();
+	        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+	                .body("Error inserting Excel data into DB: " + e.getMessage());
+	    }
+	}
+
 	  @PostMapping("/uploadBuyerDetails")
 	    public ResponseEntity<String> uploadExcel(@RequestParam("file") MultipartFile file) {
 	        try {

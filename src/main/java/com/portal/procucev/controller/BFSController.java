@@ -4,17 +4,22 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Date;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
 import com.portal.procucev.customexception.AppException;
 import com.portal.procucev.customexception.MessageResponse;
@@ -22,6 +27,7 @@ import com.portal.procucev.Dto.BFSItemDto;
 import com.portal.procucev.Dto.BFSItemMainDetailsDTO;
 import com.portal.procucev.Dto.BfsDTO;
 import com.portal.procucev.Dto.VendorInfoBean;
+import com.portal.procucev.customexception.ApiResponse;
 import com.portal.procucev.model.BFSDocuments;
 import com.portal.procucev.model.BFSImages;
 import com.portal.procucev.model.BFSItems;
@@ -32,6 +38,7 @@ import com.portal.procucev.model.User;
 import com.portal.procucev.service.BFSService;
 import com.portal.procucev.utils.ApplicationConstants;
 
+@CrossOrigin
 @RestController
 @RequestMapping("/rest/bfs")
 public class BFSController {
@@ -82,17 +89,37 @@ public class BFSController {
 
 	@PostMapping(value = "/requestBfsItem")
 	public ResponseEntity<?> requestBfsItem(@RequestBody BFSUsers bfsUser) throws AppException {
-		log.info("Request BFS By User");
-		boolean status = bfsService.requestBfsItem(bfsUser);
-		String statusCode = status ? String.valueOf(ApplicationConstants.SUCCESS)
-				: String.valueOf(ApplicationConstants.FAILURE);
-		String msg = status ? String.format(ApplicationConstants.BFS_REQUEST_SUCCESS)
-				: String.format(ApplicationConstants.BFS_REQUEST_FAILED);
-		String code = status ? String.valueOf(HttpStatus.OK.value())
-				: String.valueOf(HttpStatus.INTERNAL_SERVER_ERROR.value());
-		MessageResponse response = new MessageResponse(code, msg, null, statusCode);
-		return new ResponseEntity<>(response, HttpStatus.OK);
+	    log.info("Request BFS By User");
+
+	    boolean success = bfsService.requestBfsItem(bfsUser);
+
+	    // business code (not HTTP code)
+	    String businessCode = success ? "200" : "500";
+
+	    String msg = success
+	            ? ApplicationConstants.BFS_REQUEST_SUCCESS
+	            : ApplicationConstants.BFS_REQUEST_FAILED;
+
+	    // optional data payload (null or empty map as per your API standard)
+	    
+	    // MessageResponse(String code, String message, Object data, String status, Date timestamp)
+	    MessageResponse response = new MessageResponse(
+	            businessCode,
+	            msg,
+	            new Date(),
+	            success ? "Success" : "Failure",null);
+
+	    // set error messages on failure
+	    if (!success) {
+	        List<String> errors = new ArrayList<>();
+	        errors.add("Error occurred while requesting BFS item");
+	        response.setErrorMsg(errors);
+	    }
+
+	    // Always return HTTP 200
+	    return ResponseEntity.ok(response);
 	}
+
 
 	@PostMapping(value = "/approveBfsItem")
 	public ResponseEntity<?> approveBfsItem(@RequestBody BFSUsers bfsUser) throws AppException {
@@ -140,34 +167,72 @@ public class BFSController {
 
 	@PostMapping(value = "/acceptBfsItemBySeller")
 	public ResponseEntity<?> acceptBfsItem(@RequestBody BFSUsers bfsUser) throws AppException {
-		log.info("Accept BFS By Seller ==>");
-		String msg = null;
-		boolean status = bfsService.acceptBfsItemBySeller(bfsUser);
-		String statusCode = status ? String.valueOf(ApplicationConstants.SUCCESS)
-				: String.valueOf(ApplicationConstants.FAILURE);
-		msg = status ? String.format(ApplicationConstants.BFS_ACCEPT_SUCCESS)
-				: String.format(ApplicationConstants.BFS_ACCEPT_FAILED);
 
-		String code = status ? String.valueOf(HttpStatus.OK.value())
-				: String.valueOf(HttpStatus.INTERNAL_SERVER_ERROR.value());
-		MessageResponse response = new MessageResponse(code, msg, null, statusCode);
-		return new ResponseEntity<>(response, HttpStatus.OK);
+	    log.info("Accept BFS By Seller ==>");
+
+	    boolean success = bfsService.acceptBfsItemBySeller(bfsUser);
+
+	    // business code (not HTTP status)
+	    String businessCode = success ? "200" : "500";
+
+	    String msg = success
+	            ? ApplicationConstants.BFS_ACCEPT_SUCCESS
+	            : ApplicationConstants.BFS_ACCEPT_FAILED;
+
+	    // optional data payload
+	   
+	    // MessageResponse(String code, String message, Object data, String status, Date timestamp)
+	    MessageResponse response = new MessageResponse(
+	            businessCode,
+	            msg,
+	           null,
+	            success ? "Success" : "Failure",
+	            new Date()
+	    );
+
+	    // add error message only on failure
+	    if (!success) {
+	        List<String> errors = new ArrayList<>();
+	        errors.add("Error occurred while accepting BFS item by seller");
+	        response.setErrorMsg(errors);
+	    }
+
+	    // Always return HTTP 200
+	    return ResponseEntity.ok(response);
 	}
 
 	@PostMapping(value = "/rejectBfsItemBySeller")
 	public ResponseEntity<?> rejectBfsItemBySeller(@RequestBody BFSUsers bfsUser) throws AppException {
-		log.info("Reject BFS By User");
-		String msg = null;
-		boolean status = bfsService.rejectBfsItemBySeller(bfsUser);
-		String statusCode = status ? String.valueOf(ApplicationConstants.SUCCESS)
-				: String.valueOf(ApplicationConstants.FAILURE);
-		msg = status ? String.format(ApplicationConstants.BFS_REJECT_SUCCESS)
-				: String.format(ApplicationConstants.BFS_REJECT_FAILED);
 
-		String code = status ? String.valueOf(HttpStatus.OK.value())
-				: String.valueOf(HttpStatus.INTERNAL_SERVER_ERROR.value());
-		MessageResponse response = new MessageResponse(code, msg, null, statusCode);
-		return new ResponseEntity<>(response, HttpStatus.OK);
+	    log.info("Reject BFS By Seller ==>");
+
+	    boolean success = bfsService.rejectBfsItemBySeller(bfsUser);
+
+	    // business code (not HTTP status)
+	    String businessCode = success ? "200" : "500";
+
+	    String msg = success
+	            ? ApplicationConstants.BFS_REJECT_SUCCESS
+	            : ApplicationConstants.BFS_REJECT_FAILED;
+
+	 // MessageResponse(String code, String message, Object data, String status, Date timestamp)
+	    MessageResponse response = new MessageResponse(
+	            businessCode,
+	            msg,
+	            null,
+	            success ? "Success" : "Failure",
+	            new Date()
+	    );
+
+	    // add error message only on failure
+	    if (!success) {
+	        List<String> errors = new ArrayList<>();
+	        errors.add("Error occurred while rejecting BFS item by seller");
+	        response.setErrorMsg(errors);
+	    }
+
+	    // Always return HTTP 200
+	    return ResponseEntity.ok(response);
 	}
 
 	@PostMapping("/getDocumentsByBfs")
@@ -301,15 +366,50 @@ public class BFSController {
 
 	}
 	
+//	@PostMapping("/getBfsItemsByCategory")
+//	public ResponseEntity<?> getBfsItemsByCategory(@RequestBody List<BFSItemDto> item) throws IOException {
+//		log.info("Entered to get Top 5 items of BFS");
+//	    List<BFSItemMainDetailsDTO> items = bfsService.getBfsItemsByCategory(item);
+//
+//		Map<String, Object> response = new HashMap<>();
+//		response.put("success", true);
+//		response.put("data", items);
+//
+//		return ResponseEntity.ok(response);
+//	}
+//	
+	
 	@PostMapping("/getBfsItemsByCategory")
-	public ResponseEntity<?> getBfsItemsByCategory(@RequestBody List<BFSItemDto> item) throws IOException {
-		log.info("Entered to get Top 5 items of BFS");
-	    List<BFSItemMainDetailsDTO> items = bfsService.getBfsItemsByCategory(item);
+	public ResponseEntity<ApiResponse> getBfsItemsByCategory(
+	        @RequestBody List<BFSItemDto> item) {
 
-		Map<String, Object> response = new HashMap<>();
-		response.put("success", true);
-		response.put("data", items);
+	    List<BFSItemMainDetailsDTO> items =
+	            bfsService.getBfsItemsByCategory(item);
 
-		return ResponseEntity.ok(response);
+	    ApiResponse response = new ApiResponse();
+	    response.setStatusCode("200");
+	    response.setStatus("Success");
+	    response.setTimestamp(new Date());
+	    response.setErrorMsg(null);
+
+	    if (items == null || items.isEmpty()) {
+	        response.setMessage("Itseems our sellers don’t have the stock");
+	        response.setData(Collections.emptyList());
+	    } else {
+	        response.setMessage("Items Fetched Successfully");
+	        response.setData(items);
+	    }
+
+	    return ResponseEntity.ok(response);
 	}
+
+
+
+	   @PostMapping(value = "/uploadBfsExcel", consumes = "multipart/form-data")
+	    public ResponseEntity<?> uploadExcel(
+	            @RequestParam("file") MultipartFile file) {
+
+		   bfsService.processExcel(file);
+	        return ResponseEntity.ok("Excel uploaded and data inserted successfully");
+	    }
 }

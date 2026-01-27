@@ -286,4 +286,33 @@ public class UserController {
 
 
 		}
+	    
+	    @PostMapping("/getSellerByEmail")
+	    public ResponseEntity<?> getSellerByEmail(@RequestBody User user) {
+
+	        if (user.getUsername() == null || user.getPhone() == null) {
+	            // If email/phone missing, you can also return the same format
+	            return ResponseEntity.ok(
+	                Map.of(
+	                    "id", null,
+	                    "message", "User email and phone are required"
+	                )
+	            );
+	        }
+
+	        Organization org = userServices.getSellerByEmail(user);
+
+	        if (org == null) {
+	            return ResponseEntity.ok(
+	                Map.of(
+	                    "id", null,
+	                    "message", "Organization not found with given email / mobile number"
+	                )
+	            );
+	        }
+
+	        // If found, return actual organization
+	        return ResponseEntity.ok(org);
+	    }
+
 }

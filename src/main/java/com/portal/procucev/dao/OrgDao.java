@@ -97,4 +97,7 @@ public interface OrgDao  extends JpaRepository<Organization, String> {
     @Query("UPDATE Organization o SET o.subscriptionStart = :startDateUtil, o.subscriptionExpiry = :endDateUtil, o.subscriptionPlan =:subsPaln, o.rfqCredits = o.rfqCredits + 50 WHERE o.id = :id")
 	void updateUpgradeVendorData(@Param("startDateUtil")  Date startDateUtil,@Param("endDateUtil")  Date endDateUtil,@Param("subsPaln") SubscriptionPlan subsPaln, @Param("id") String id);
 
+	@Query("select o.city from Organization o where o=:org")
+	String getCityByOrg(@Param("org") Organization org);
+
 }

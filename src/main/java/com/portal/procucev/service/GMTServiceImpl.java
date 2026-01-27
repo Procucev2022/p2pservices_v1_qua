@@ -3,6 +3,7 @@ package com.portal.procucev.service;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
+import java.nio.charset.StandardCharsets;
 import java.text.SimpleDateFormat;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -12,6 +13,7 @@ import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
@@ -20,6 +22,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Properties;
 import java.util.Random;
@@ -28,6 +31,7 @@ import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
 import org.apache.commons.lang3.StringUtils;
@@ -42,6 +46,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.ByteArrayResource;
 import org.springframework.dao.DataAccessException;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -51,6 +56,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.mail.MailSendException;
 import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
+import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Service;
@@ -82,10 +88,12 @@ import com.portal.procucev.dao.SubscriptionPlanDao;
 import com.portal.procucev.dao.UserDao;
 import com.portal.procucev.model.CategoryDivision;
 import com.portal.procucev.model.ClientDeliveryLocationRfq;
+import com.portal.procucev.model.EmailAttachment;
 import com.portal.procucev.model.EmailRequest;
 import com.portal.procucev.model.EmailUser;
 import com.portal.procucev.model.GmtItems;
 import com.portal.procucev.model.GmtRfqVendors;
+import com.portal.procucev.model.ItemCategory;
 import com.portal.procucev.model.MasterStatus;
 import com.portal.procucev.model.OrgDivisionCategory;
 import com.portal.procucev.model.OrgType;
@@ -154,6 +162,9 @@ public class GMTServiceImpl implements GMTService {
 
 	@Autowired
 	private ItemCategoryDao itemCategoryDao;
+	
+	@Value("${email.subject.prefix}")
+	private String subjectPrefix;
 
 	@Autowired
 	private OrgDao orgDao;
@@ -251,6 +262,8 @@ public class GMTServiceImpl implements GMTService {
 		rfqDto.setQuotationReceived(rfq.isQuotationReceived());
 		rfqDto.setUser(rfq.getUser());
 		rfqDto.setQuoteCount(rfq.getQuoteCount());
+		rfqDto.setQuoteSubmittedDate(rfq.getQuoteSubmittedDate());
+		
 		return rfqDto;
 	}
 
@@ -304,7 +317,7 @@ public class GMTServiceImpl implements GMTService {
 
 	private GmtItems mapRfqItemToGmtItem(RfqItem rfqItem) {
 		GmtItems gmtItem = new GmtItems();
-		gmtItem.setBrand(rfqItem.getBrand());
+		gmtItem.setBrand(rfqItem.getRemarks()+" "+rfqItem.getBrand());
 		gmtItem.setDescription(rfqItem.getDescription());
 		gmtItem.setQuantity(rfqItem.getQuantity());
 		gmtItem.setRemarks(rfqItem.getRemarks());
@@ -343,6 +356,22 @@ public class GMTServiceImpl implements GMTService {
 
 			// Set RFQ ID for RFQ items
 			List<RfqItem> updatedRfqItems = updatedRfq.getRfqItem();
+			List<ItemCategory> itemCategoryList = new ArrayList<>();
+
+			for (RfqItem rfqItem : updatedRfqItems) {
+
+			    ItemCategory itemCategory = new ItemCategory();
+
+			     // or generate if needed
+			    itemCategory.setItem(rfqItem.getDescription());
+			    itemCategory.setCategory(rfqItem.getCategory());
+			    itemCategory.setDivision(rfqItem.getDivision());
+
+			    itemCategoryList.add(itemCategory);
+			}
+
+			// Bulk insert (recommended)
+			itemCategoryDao.saveAll(itemCategoryList);
 			List<GmtItems> existingGmtItems = gmtItemsDao
 					.findByRfqItemIdIn(updatedRfqItems.stream().map(RfqItem::getId).collect(Collectors.toList()));
 
@@ -632,7 +661,7 @@ public class GMTServiceImpl implements GMTService {
 	@Override
 	public List<GMTRfqVendorDto> getAllGMTRfq(Organization org) {
 		logger.info("Entered to get all Gmt Rfq's");
-		MasterStatus status = masterStatusDao.findByStatus(StatusConstants.CM_RFQ_ACCEPTED);
+		MasterStatus status = masterStatusDao.findByStatus(StatusConstants.CM_RFQ_ACCEPTED);// add queried// add ignored//add 
 		List<Rfq> rfqList = rfqDao.findAllRfqNoPr(status);
 		// TODO Auto-generated method stub
 		List<GMTRfqVendorDto> gmtRfqList = new ArrayList<>();
@@ -780,7 +809,7 @@ public class GMTServiceImpl implements GMTService {
 
 			if (rfq.isPresent()) {
 				String rfqDueDate = buildingRfqDueDate();
-				MailUtility.emailNewGMTRfqForNoPR("NewRfq", javaMailSender, rfq.get(), host, email, otherEmails,
+				MailUtility.emailNewGMTRfqForNoPR("NewRfq",subjectPrefix,javaMailSender, rfq.get(), host, email, otherEmails,
 						mailFom, emailPassword, rfqDueDate, gmtRfq.getVendor().getId());
 
 			}
@@ -903,7 +932,8 @@ public class GMTServiceImpl implements GMTService {
 		rfqDto.setQuotationReceived(rfq.isQuotationReceived());
 		rfqDto.setNoOfQuotes(rfq.getQuoteCount());
 		rfqDto.setNoOfVendors(rfqVendorDao.findByVendorsByRfq(rfq.getId()));
-		
+		rfqDto.setQuoteSubmittedDate(rfq.getQuoteSubmittedDate());
+		rfqDto.setClientStatus(rfq.getClientStatus());
 
 		String companyName = userDao.findByUser(rfq.getUser());
 		if (companyName != null) {
@@ -1292,6 +1322,34 @@ public class GMTServiceImpl implements GMTService {
 
 				// Collect RfqVendor object
 				rfqVendors.add(rfqVendor);
+				// ✅ STEP 2: Get status
+				MasterStatus resultStatus = masterStatusDao.findByStatus(StatusConstants.vendorApproved);
+
+//				Organization org = orgDao.findById(savedVendor.getId()).get();
+				// ✅ STEP 3: Check if record exists
+				GmtRfqVendors existing = gmtRfqVendorDao.findByVendorAndRfq(savedVendor,
+						savedRfq);
+				GmtRfqVendors gmtRfqVendors= new GmtRfqVendors();
+				
+
+				// ✅ STEP 4: Insert or update
+				if (existing != null) {
+					logger.info("Updating status to Requested as record already exists");
+					
+				} else {
+					logger.info("Saving status to requested for the first time");
+					gmtRfqVendors.setStatus(resultStatus);
+					gmtRfqVendors.setRfq(savedRfq);
+					gmtRfqVendors.setVendor(savedVendor);
+					gmtRfqVendors.setRequestedDate(new Date());
+					gmtRfqVendorDao.save(gmtRfqVendors);
+				}
+
+				// ✅ STEP 5: Update RFQ count
+				rfqDao.updateCount(savedRfq);
+
+				// ✅ STEP 6: Deduct one RFQ credit
+				orgDao.updateRfqCreditsAndUsage(savedVendor.getId());
 			});
 		}
 
@@ -1314,6 +1372,7 @@ public class GMTServiceImpl implements GMTService {
 		logger.info("Entered to sendRfqToVendors()");
 		UserDetails userDetails = (UserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
 		String username = userDetails.getUsername();
+		//phone=userDetails.get check to get phone number 
 		String[] mailIdWrapper = new String[1]; // Using an array to wrap mailId
 		String[] passwordWrapper = new String[1];
 
@@ -1380,7 +1439,7 @@ public class GMTServiceImpl implements GMTService {
 					String requestType = vendor.getRequestType(); // assuming you have this field in RFQ
 
 					if ("Forward".equalsIgnoreCase(requestType)) {
-						MailUtility.emailNewRfqForNoPR("NewRfq", javaMailSender, rfqData, host, vendor.getEmail(),
+						MailUtility.emailNewRfqForNoPR(subjectPrefix,"NewRfq", javaMailSender, rfqData, host, vendor.getEmail(),
 								username, vendor.getOtherEmails(), phoneNumber, rfqDueDate, fullName, mailIdWrapper[0],
 								passwordWrapper[0], vendor.getId());
 					} else {
@@ -1711,7 +1770,7 @@ public class GMTServiceImpl implements GMTService {
 				logger.info("Getting Users List");
 				List<String> usersList = userDao.findByOrg(vendorId);
 				if (!CollectionUtils.isEmpty(usersList)) {
-					MailUtility.emailNewRfqForNoPR("NewRfq", javaMailSender, rfqData, host, usersList.get(0), username,
+					MailUtility.emailNewRfqForNoPR(subjectPrefix,"NewRfq", javaMailSender, rfqData, host, usersList.get(0), username,
 							gmtVendor.getOtherEmails(), phoneNumber, rfqDueDate, fullName, mailIdWrapper[0],
 							passwordWrapper[0], vendorId);
 				}
@@ -1774,6 +1833,13 @@ public class GMTServiceImpl implements GMTService {
 			List<GmtItems> gmtItems = rfqItems.stream().map(this::mapRfqItemToGmtItem).collect(Collectors.toList());
 			gmtItemsDao.saveAll(gmtItems);
 			logger.info("Saved RFQ items in GMT Items");
+			// add rfqitems categories here
+			rfqItems.forEach(rfqItem -> {
+			    String brand = Stream.of(rfqItem.getRemarks(), rfqItem.getBrand())
+			            .filter(Objects::nonNull)
+			            .collect(Collectors.joining(" "));
+			    rfqItem.setBrand(brand);
+			});
 
 			Rfq saved = rfqDao.save(rfq);
 			logger.info("Completed Saving RFQ with UUID: {}", saved.getId());
@@ -1874,45 +1940,148 @@ public class GMTServiceImpl implements GMTService {
 //	        }
 //	    }
 
-	public MessageResponse sendEmail(EmailRequest emailRequest) {
-		List<String> invalidEmails = new ArrayList<>();
+//	public MessageResponse sendEmail(EmailRequest emailRequest) {
+//		List<String> invalidEmails = new ArrayList<>();
+//
+//		// Validate format + MX record
+//		EmailValidatorUtil.validateEmails(emailRequest.getTo(), invalidEmails);
+//		EmailValidatorUtil.validateEmails(emailRequest.getCc(), invalidEmails);
+//		EmailValidatorUtil.validateEmails(emailRequest.getBcc(), invalidEmails);
+//
+//		if (!invalidEmails.isEmpty()) {
+//			return new MessageResponse("206", "Invalid email addresses found", invalidEmails, new Date(),
+//					"Partial Failure", null);
+//		}
+//
+//		// Attempt SMTP verification
+//		List<String> smtpInvalidEmails = verifyRecipientsSMTP(emailRequest);
+//		if (!smtpInvalidEmails.isEmpty()) {
+//			return new MessageResponse("206", "Some recipients could not be verified", smtpInvalidEmails, new Date(),
+//					"Partial Failure", null);
+//		}
+//
+//		// Prepare and send message
+//		SimpleMailMessage message = new SimpleMailMessage();
+//		if (emailRequest.getTo() != null)
+//			message.setTo(emailRequest.getTo().toArray(new String[0]));
+//		if (emailRequest.getCc() != null)
+//			message.setCc(emailRequest.getCc().toArray(new String[0]));
+//		if (emailRequest.getBcc() != null)
+//			message.setBcc(emailRequest.getBcc().toArray(new String[0]));
+//		message.setSubject(emailRequest.getSubject());
+//		message.setText(emailRequest.getBody());
+//
+//		try {
+//			javaMailSender.send(message);
+//			return new MessageResponse("200", "Email sent successfully", null, new Date(), "Success", null);
+//		} catch (MailSendException e) {
+//			return new MessageResponse("500", "Failed to send email", List.of(e.getMessage()), new Date(), "Error",
+//					null);
+//		}
+//	}
+	
 
-		// Validate format + MX record
-		EmailValidatorUtil.validateEmails(emailRequest.getTo(), invalidEmails);
-		EmailValidatorUtil.validateEmails(emailRequest.getCc(), invalidEmails);
-		EmailValidatorUtil.validateEmails(emailRequest.getBcc(), invalidEmails);
+	 public MessageResponse sendEmail(EmailRequest emailRequest) {
 
-		if (!invalidEmails.isEmpty()) {
-			return new MessageResponse("206", "Invalid email addresses found", invalidEmails, new Date(),
-					"Partial Failure", null);
-		}
+	        List<String> invalidEmails = new ArrayList<>();
 
-		// Attempt SMTP verification
-		List<String> smtpInvalidEmails = verifyRecipientsSMTP(emailRequest);
-		if (!smtpInvalidEmails.isEmpty()) {
-			return new MessageResponse("206", "Some recipients could not be verified", smtpInvalidEmails, new Date(),
-					"Partial Failure", null);
-		}
+	        EmailValidatorUtil.validateEmails(emailRequest.getTo(), invalidEmails);
+	        EmailValidatorUtil.validateEmails(emailRequest.getCc(), invalidEmails);
+	        EmailValidatorUtil.validateEmails(emailRequest.getBcc(), invalidEmails);
 
-		// Prepare and send message
-		SimpleMailMessage message = new SimpleMailMessage();
-		if (emailRequest.getTo() != null)
-			message.setTo(emailRequest.getTo().toArray(new String[0]));
-		if (emailRequest.getCc() != null)
-			message.setCc(emailRequest.getCc().toArray(new String[0]));
-		if (emailRequest.getBcc() != null)
-			message.setBcc(emailRequest.getBcc().toArray(new String[0]));
-		message.setSubject(emailRequest.getSubject());
-		message.setText(emailRequest.getBody());
+	        if (!invalidEmails.isEmpty()) {
+	            return new MessageResponse(
+	                "206", "Invalid email addresses found",
+	                invalidEmails, new Date(), "Partial Failure", null
+	            );
+	        }
 
-		try {
-			javaMailSender.send(message);
-			return new MessageResponse("200", "Email sent successfully", null, new Date(), "Success", null);
-		} catch (MailSendException e) {
-			return new MessageResponse("500", "Failed to send email", List.of(e.getMessage()), new Date(), "Error",
-					null);
-		}
-	}
+	        boolean hasAttachments =
+	            emailRequest.getAttachments() != null &&
+	            !emailRequest.getAttachments().isEmpty();
+
+	        try {
+	            if (!hasAttachments) {
+
+	                // ===== SIMPLE EMAIL =====
+	                SimpleMailMessage message = new SimpleMailMessage();
+
+	                if (emailRequest.getTo() != null)
+	                    message.setTo(emailRequest.getTo().toArray(new String[0]));
+	                if (emailRequest.getCc() != null)
+	                    message.setCc(emailRequest.getCc().toArray(new String[0]));
+	                if (emailRequest.getBcc() != null)
+	                    message.setBcc(emailRequest.getBcc().toArray(new String[0]));
+
+	                message.setSubject(emailRequest.getSubject());
+	                message.setText(emailRequest.getBody());
+
+	                javaMailSender.send(message);
+
+	            } else {
+
+	                // ===== EMAIL WITH ATTACHMENTS =====
+	                MimeMessage mimeMessage = javaMailSender.createMimeMessage();
+	                MimeMessageHelper helper =
+	                    new MimeMessageHelper(mimeMessage, true);
+
+	                if (emailRequest.getTo() != null)
+	                    helper.setTo(emailRequest.getTo().toArray(new String[0]));
+	                if (emailRequest.getCc() != null)
+	                    helper.setCc(emailRequest.getCc().toArray(new String[0]));
+	                if (emailRequest.getBcc() != null)
+	                    helper.setBcc(emailRequest.getBcc().toArray(new String[0]));
+
+	                helper.setSubject(emailRequest.getSubject());
+	                helper.setText(emailRequest.getBody(), false);
+
+	                // 🔥 BASE64 → byte[] (CORRECT)
+	                for (EmailAttachment attachment : emailRequest.getAttachments()) {
+
+	                    if (attachment.getFileData() == null || attachment.getFileData().isBlank()) {
+	                        throw new IllegalArgumentException(
+	                            "Base64 data missing for file: " + attachment.getFileName()
+	                        );
+	                    }
+
+	                    // Remove whitespace / line breaks
+	                    String base64 =
+	                        attachment.getFileData().replaceAll("\\s+", "");
+
+	                    byte[] decodedBytes;
+	                    try {
+	                        decodedBytes = Base64.getMimeDecoder().decode(base64);
+	                    } catch (IllegalArgumentException ex) {
+	                        throw new IllegalArgumentException(
+	                            "Invalid Base64 content for file: " + attachment.getFileName()
+	                        );
+	                    }
+
+	                    attachment.setDecodedFileData(decodedBytes);
+
+	                    helper.addAttachment(
+	                        attachment.getFileName(),
+	                        new ByteArrayResource(decodedBytes),
+	                        attachment.getContentType()
+	                    );
+	                }
+
+	                javaMailSender.send(mimeMessage);
+	            }
+
+	            return new MessageResponse(
+	                "200", "Email sent successfully",
+	                null, new Date(), "Success", null
+	            );
+
+	        } catch (MailSendException | MessagingException | IllegalArgumentException e) {
+	            return new MessageResponse(
+	                "500", "Failed to send email",
+	                List.of(e.getMessage()), new Date(), "Error", null
+	            );
+	        }
+	    }
+	
 
 	private List<String> verifyRecipientsSMTP(EmailRequest emailRequest) {
 		List<String> invalid = new ArrayList<>();
@@ -1965,56 +2134,206 @@ public class GMTServiceImpl implements GMTService {
 		return subscriptionPlanDao.findAll();
 	}
 
+//	@Override
+//	public List<RfqStatusResponse> getRfqStatuses(RfqStatusRequest request) {
+//		List<RfqStatusResponse> responses = new ArrayList<>();
+//
+//		if (request.getRfqIds() != null && !request.getRfqIds().isEmpty()) {
+//			// Normalize input: ensure every rfqId starts with "RFQ"
+//			List<String> normalizedIds = request.getRfqIds().stream()
+//					.map(id -> id != null && id.startsWith("RFQ") ? id : "RFQ" + id).collect(Collectors.toList());
+//			// Fetch matching RFQs from DB
+//			List<Rfq> rfqs = rfqDao.findByUserAndRfqIdIn(request.getClientId(), normalizedIds);
+//
+//			// Map RFQs by ID for quick lookup
+//			Map<String, Rfq> rfqMap = rfqs.stream().collect(Collectors.toMap(Rfq::getRfqId, r -> r));
+//
+//			// Always include all requested IDs
+//			for (String rfqId : normalizedIds) {
+//				RfqStatusResponse dto = new RfqStatusResponse();
+//				dto.setRfqid(rfqId);
+//
+//				if (rfqMap.containsKey(rfqId)) {
+//					Rfq r = rfqMap.get(rfqId);
+//					dto.setStatus(r.getStatus() != null ? r.getStatus().getUiDisplay() : "Unknown");
+//				} else {
+//					dto.setStatus("Invalid RFQID");
+//				}
+//
+//				responses.add(dto);
+//			}
+//		} else {
+//			// No rfqIds provided → fetch last 3
+//			List<Rfq> rfqs = rfqDao.findLast3ByClientId(request.getClientId(), PageRequest.of(0, 3));
+//
+//			if (rfqs.isEmpty()) {
+//				// Client has no RFQs at all
+//				RfqStatusResponse dto = new RfqStatusResponse();
+//				dto.setRfqid(null);
+//				dto.setStatus("Not Found");
+//				responses.add(dto);
+//			} else {
+//				for (Rfq r : rfqs) {
+//					RfqStatusResponse dto = new RfqStatusResponse();
+//					dto.setRfqid(r.getRfqId());
+//					dto.setStatus(r.getStatus() != null ? r.getStatus().getUiDisplay() : "Unknown");
+//					responses.add(dto);
+//				}
+//			}
+//		}
+//
+//		return responses;
+//	}
+	
+	  @Override
+	    public List<RfqStatusResponse> getRfqStatuses(RfqStatusRequest request) {
+
+	        List<RfqStatusResponse> responses = new ArrayList<>();
+
+	        if (request.getRfqIds() != null && !request.getRfqIds().isEmpty()) {
+
+	            // Normalize RFQ IDs → ensure RFQ prefix
+	            List<String> normalizedIds = request.getRfqIds().stream()
+	                    .map(id -> id != null && id.startsWith("RFQ") ? id : "RFQ" + id)
+	                    .collect(Collectors.toList());
+
+	            // Fetch RFQs
+	            List<Rfq> rfqs = rfqDao.findByUserAndRfqIdIn(
+	                    request.getClientId(), normalizedIds);
+
+	            // Map for quick lookup
+	            Map<String, Rfq> rfqMap = rfqs.stream()
+	                    .collect(Collectors.toMap(Rfq::getRfqId, r -> r));
+
+	            // Always return all requested RFQs
+	            for (String rfqId : normalizedIds) {
+	                RfqStatusResponse dto = new RfqStatusResponse();
+	                dto.setRfqid(rfqId);
+
+	                if (rfqMap.containsKey(rfqId)) {
+	                    dto.setStatus(resolveRfqStatus(rfqMap.get(rfqId)));
+	                } else {
+	                    dto.setStatus("Invalid RFQID");
+	                }
+
+	                responses.add(dto);
+	            }
+
+	        } else {
+	            // No RFQ IDs → fetch last 3
+	            List<Rfq> rfqs = rfqDao.findLast3ByClientId(
+	                    request.getClientId(), PageRequest.of(0, 3));
+
+	            if (rfqs.isEmpty()) {
+	                RfqStatusResponse dto = new RfqStatusResponse();
+	                dto.setRfqid(null);
+	                dto.setStatus("Not Found");
+	                responses.add(dto);
+	            } else {
+	                for (Rfq r : rfqs) {
+	                    RfqStatusResponse dto = new RfqStatusResponse();
+	                    dto.setRfqid(r.getRfqId());
+	                    dto.setStatus(resolveRfqStatus(r));
+	                    responses.add(dto);
+	                }
+	            }
+	        }
+
+	        return responses;
+	    }
+
+	    /**
+	     * Centralized RFQ status resolution logic
+	     */
+	    private String resolveRfqStatus(Rfq rfq) {
+
+	        // 1️⃣ Highest priority
+	        if (Boolean.TRUE.equals(rfq.isQuotationReceived())) {
+	            return "Quotation_Received";
+	        }
+
+	        // 2️⃣ IN_PROGRESS mapping
+	        if (rfq.getStatus() != null) {
+	            String statusCode = rfq.getStatus().getUiDisplay(); // or getName()
+
+	            if ("InProgress".equalsIgnoreCase(statusCode)) {
+	                return "Published To Multiple Sellers";
+	            }
+
+	            return rfq.getStatus().getUiDisplay();
+	        }
+
+	        return "Unknown";
+	    }
 	@Override
-	public List<RfqStatusResponse> getRfqStatuses(RfqStatusRequest request) {
-		List<RfqStatusResponse> responses = new ArrayList<>();
+	public List<RfqStatusResponse> getRfqSellerStatuses(RfqStatusRequest request) {
 
-		if (request.getRfqIds() != null && !request.getRfqIds().isEmpty()) {
-			// Normalize input: ensure every rfqId starts with "RFQ"
-			List<String> normalizedIds = request.getRfqIds().stream()
-					.map(id -> id != null && id.startsWith("RFQ") ? id : "RFQ" + id).collect(Collectors.toList());
-			// Fetch matching RFQs from DB
-			List<Rfq> rfqs = rfqDao.findByUserAndRfqIdIn(request.getClientId(), normalizedIds);
+	    List<RfqStatusResponse> responses = new ArrayList<>();
 
-			// Map RFQs by ID for quick lookup
-			Map<String, Rfq> rfqMap = rfqs.stream().collect(Collectors.toMap(Rfq::getRfqId, r -> r));
+	    if (request.getRfqIds() != null && !request.getRfqIds().isEmpty()) {
 
-			// Always include all requested IDs
-			for (String rfqId : normalizedIds) {
-				RfqStatusResponse dto = new RfqStatusResponse();
-				dto.setRfqid(rfqId);
+	        // Normalize RFQ IDs
+	        List<String> normalizedIds = request.getRfqIds().stream()
+	                .map(id -> id != null && id.startsWith("RFQ") ? id : "RFQ" + id)
+	                .toList();
 
-				if (rfqMap.containsKey(rfqId)) {
-					Rfq r = rfqMap.get(rfqId);
-					dto.setStatus(r.getStatus() != null ? r.getStatus().getUiDisplay() : "Unknown");
-				} else {
-					dto.setStatus("Invalid RFQID");
-				}
+	        List<Rfq> rfqs =
+	                rfqDao.findRfqsByIdsExcludingSellerRequested(
+	                        	                        normalizedIds,request.getClientId()
+	                );
 
-				responses.add(dto);
-			}
-		} else {
-			// No rfqIds provided → fetch last 3
-			List<Rfq> rfqs = rfqDao.findLast3ByClientId(request.getClientId(), PageRequest.of(0, 3));
+	        Map<String, Rfq> rfqMap = rfqs.stream()
+	                .collect(Collectors.toMap(Rfq::getRfqId, r -> r));
 
-			if (rfqs.isEmpty()) {
-				// Client has no RFQs at all
-				RfqStatusResponse dto = new RfqStatusResponse();
-				dto.setRfqid(null);
-				dto.setStatus("Not Found");
-				responses.add(dto);
-			} else {
-				for (Rfq r : rfqs) {
-					RfqStatusResponse dto = new RfqStatusResponse();
-					dto.setRfqid(r.getRfqId());
-					dto.setStatus(r.getStatus() != null ? r.getStatus().getUiDisplay() : "Unknown");
-					responses.add(dto);
-				}
-			}
-		}
+	        for (String rfqId : normalizedIds) {
+	            RfqStatusResponse dto = new RfqStatusResponse();
+	            dto.setRfqid(rfqId);
 
-		return responses;
+	            if (rfqMap.containsKey(rfqId)) {
+	                Rfq r = rfqMap.get(rfqId);
+	                dto.setStatus(
+	                        r.getStatus() != null
+	                                ? r.getStatus().getUiDisplay()
+	                                : "Unknown"
+	                );
+	            } else {
+	                // Either seller-requested RFQ or invalid RFQ
+	                dto.setStatus("Invalid RFQID");
+	            }
+	            responses.add(dto);
+	        }
+
+	    } else {
+
+	        // No RFQ IDs → fetch latest 5 buyer RFQs
+	        List<Rfq> rfqs =
+	                rfqDao.findLatest5RfqsExcludingSellerRequested(
+	                        request.getClientId(),
+	                        PageRequest.of(0, 5)
+	                );
+
+	        if (rfqs.isEmpty()) {
+	            RfqStatusResponse dto = new RfqStatusResponse();
+	            dto.setRfqid(null);
+	            dto.setStatus("Not Found");
+	            responses.add(dto);
+	        } else {
+	            for (Rfq r : rfqs) {
+	                RfqStatusResponse dto = new RfqStatusResponse();
+	                dto.setRfqid(r.getRfqId());
+	                dto.setStatus(
+	                        r.getStatus() != null
+	                                ? r.getStatus().getUiDisplay()
+	                                : "Unknown"
+	                );
+	                responses.add(dto);
+	            }
+	        }
+	    }
+
+	    return responses;
 	}
+
 
 	@Override
 	public int getSellerRfqCredits(Organization org) {
@@ -2058,8 +2377,8 @@ public class GMTServiceImpl implements GMTService {
 		logger.info("Fetching RFQs by categories: {} for orgId: {}", categoryList, org.getId());
 
 		Pageable topFive = PageRequest.of(0, 5); // only fetch 5 results
-	    List<Rfq> rfqs = rfqDao.findTopRfqsByCategory(categoryList, topFive);
-		long totalCount = rfqDao.countByRfqItemCategory(categoryList);
+	    List<Rfq> rfqs = rfqDao.findTopRfqsByCategory(categoryList, org.getId(),topFive);
+		long totalCount = rfqDao.countByRfqItemCategory(categoryList,org.getId());
 
 		result.put("rfqs", rfqs);
 		result.put("count", totalCount);
@@ -2198,6 +2517,31 @@ public class GMTServiceImpl implements GMTService {
 				rfqVendor.setRfq(rfqData);
 				rfqVendor.setVendorId(request.getSellerId());
 				rfqVendor.setEmail(request.getEmail());
+				
+				// ✅ STEP 2: Get status
+				MasterStatus resultStatus = masterStatusDao.findByStatus(StatusConstants.vendorApproved);
+
+				Organization org = orgDao.findById(request.getSellerId()).get();
+				// ✅ STEP 3: Check if record exists
+				GmtRfqVendors existing = gmtRfqVendorDao.findByVendorAndRfq(org,
+						rfqData);
+				GmtRfqVendors gmtRfqVendors= new GmtRfqVendors();
+				
+
+				// ✅ STEP 4: Insert or update
+				if (existing != null) {
+					logger.info("Updating status to Requested as record already exists");
+					
+				} else {
+					logger.info("Saving status to requested for the first time");
+					gmtRfqVendors.setStatus(resultStatus);
+					gmtRfqVendors.setRfq(rfqData);
+					gmtRfqVendors.setVendor(org);
+					gmtRfqVendors.setRequestedDate(new Date());
+					gmtRfqVendorDao.save(gmtRfqVendors);
+				}
+
+			
 
 				// Send email
 				boolean emailSent = sendRfqsToVendor(rfqVendor, rfqData);
@@ -2206,9 +2550,13 @@ public class GMTServiceImpl implements GMTService {
 				if (emailSent) {
 					result.put("message", "Email sent successfully");
 					successful.add(result);
+					// ✅ STEP 5: Update RFQ count
+					rfqDao.updateCount(rfqData);
 
+					// ✅ STEP 6: Deduct one RFQ credit
+					orgDao.updateRfqCreditsAndUsage(request.getSellerId());
 					// Decrement available credits in memory
-					availableCredits--;
+					//availableCredits--;
 
 				} else {
 					result.put("error_code", "SYSTEM_ERROR");
@@ -2225,7 +2573,7 @@ public class GMTServiceImpl implements GMTService {
 		}
 
 		// Update organization credits once at the end
-		orgDao.updateRfqCredits(request.getSellerId(), availableCredits);
+		//orgDao.updateRfqCredits(request.getSellerId(), availableCredits);
 
 		results.put("successful", successful);
 		results.put("failed", failed);
@@ -2280,7 +2628,7 @@ public class GMTServiceImpl implements GMTService {
 			String rfqDueDate = buildingRfqDueDate();
 
 			// Send email and return actual status
-			boolean status = MailUtility.emailNewRfqForNoPR("NewRfq", javaMailSender, rfqData, host, vendor.getEmail(), // main
+			boolean status = MailUtility.emailNewRfqForNoPR(subjectPrefix,"NewRfq", javaMailSender, rfqData, host, vendor.getEmail(), // main
 																														// vendor
 																														// email
 					mailFom, // from
@@ -2289,7 +2637,7 @@ public class GMTServiceImpl implements GMTService {
 					rfqDueDate, null, // full name
 					mailFom, // mailId
 					emailPassword, // password
-					vendor.getId());
+					vendor.getVendorId());
 
 			return status; // ✅ return actual send result
 
@@ -2378,7 +2726,8 @@ public class GMTServiceImpl implements GMTService {
 				rfqData.put("location", rfq.getClientdeliverylocationrfq().get(0).getCity() + ","
 						+ rfq.getClientdeliverylocationrfq().get(0).getState());
 			}
-			rfqData.put("submission_deadline", rfq.getRfqClosingDate());
+			rfqData.put("submission_deadline",  Date.from(
+					rfq.getCreatedTS().toInstant().plus(5, ChronoUnit.DAYS)));
 			rfqData.put("email_sent_date", gv.getRequestedDate());
 			if (rfq.getRfqClosingDate() != null) {
 				long daysRemaining = ChronoUnit.DAYS.between(LocalDate.now(),
@@ -2445,7 +2794,7 @@ public class GMTServiceImpl implements GMTService {
 					String otherEmails = orgDao.findOtherEmailById(vendorId);
 					String rfqDueDate = buildingRfqDueDate();
 
-					MailUtility.emailNewGMTRfqForNoPR("NewRfq", javaMailSender, rfqData.get(), host, email, otherEmails,
+					MailUtility.emailNewGMTRfqForNoPR("NewRfq",subjectPrefix, javaMailSender, rfqData.get(), host, email, otherEmails,
 							mailFom, emailPassword, rfqDueDate, vendorId);
 				}
 
@@ -2580,7 +2929,7 @@ public class GMTServiceImpl implements GMTService {
 	public void emailForwarder() {
 	    logger.info("Entered into emailForwarder()");
 
-	    final String subjectPattern = "You have an Enquiry RFQ No";
+	    final String subjectPattern = subjectPrefix + " You have an Enquiry RFQ No";
 
 	    Properties props = new Properties();
 	    props.put("mail.store.protocol", "imaps");
@@ -2876,4 +3225,92 @@ public class GMTServiceImpl implements GMTService {
 		return false;
 
 	}
+
+	@Override
+	public List<RfqStatusResponse> getSellerRfqStatusData(RfqStatusRequest request) {
+
+	    List<RfqStatusResponse> responses = new ArrayList<>();
+
+	    String vendorUuid = request.getClientId(); // seller/vendor UUID
+
+	    // ----------------------------
+	    // CASE 1: RFQ IDs PROVIDED
+	    // ----------------------------
+	    if (request.getRfqIds() != null && !request.getRfqIds().isEmpty()) {
+
+	        List<String> normalizedIds = request.getRfqIds().stream()
+	                .filter(Objects::nonNull)
+	                .map(id -> id.startsWith("RFQ") ? id : "RFQ" + id)
+	                .toList();
+	        List<GmtRfqVendors> vendorRfqs =
+	                gmtRfqVendorDao.findByVendorUuidAndRfqIds(
+	                        vendorUuid,
+	                        normalizedIds
+	                );
+
+	        Map<String, GmtRfqVendors> vendorRfqMap =
+	                vendorRfqs.stream()
+	                        .collect(Collectors.toMap(
+	                                v -> v.getRfq().getRfqId(),
+	                                v -> v
+	                        ));
+
+	        for (String rfqId : normalizedIds) {
+
+	            RfqStatusResponse dto = new RfqStatusResponse();
+	            dto.setRfqid(rfqId);
+
+	            if (vendorRfqMap.containsKey(rfqId)) {
+	                GmtRfqVendors v = vendorRfqMap.get(rfqId);
+
+	                if(v.isQuotationReceived()) {
+	    	        	dto.setStatus("Quote_Submitted");
+	    	        }
+	    	        else {
+	    	        	dto.setStatus("Downloaded");
+	    	        }
+	            }
+	            else {
+	            	dto.setStatus("Un_Known");
+	            }
+	            responses.add(dto);
+	        }
+
+	        return responses;
+	    }
+
+	    // ----------------------------
+	    // CASE 2: NO RFQ IDs → LATEST 5
+	    // ----------------------------
+	    List<GmtRfqVendors> latestVendorRfqs =
+	            gmtRfqVendorDao.findLatest5ByVendorUuid(
+	                    vendorUuid,
+	                    PageRequest.of(0, 5)
+	            );
+
+	    if (latestVendorRfqs.isEmpty()) {
+	        RfqStatusResponse dto = new RfqStatusResponse();
+	        dto.setRfqid(null);
+	        dto.setStatus("Not Found");
+	        responses.add(dto);
+	        return responses;
+	    }
+
+	    for (GmtRfqVendors v : latestVendorRfqs) {
+
+	        RfqStatusResponse dto = new RfqStatusResponse();
+	        dto.setRfqid(v.getRfq().getRfqId());
+	        if(v.isQuotationReceived()) {
+	        	dto.setStatus("Quote_Submitted");
+	        }
+	        else {
+	        	dto.setStatus("Downloaded");
+	        }
+
+	        responses.add(dto);
+	    }
+
+	    return responses;
+	}
+
 }
