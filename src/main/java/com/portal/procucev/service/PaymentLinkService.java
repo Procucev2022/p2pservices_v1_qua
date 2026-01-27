@@ -1,17 +1,22 @@
 package com.portal.procucev.service;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.portal.procucev.Dto.ZohoPaymentLinkRequest;
 import com.portal.procucev.config.ZohoApiClient;
 import com.portal.procucev.dao.PaymentLinkRepository;
 import com.portal.procucev.dao.SubscriptionPlanDao;
+import com.portal.procucev.dao.UserDao;
 import com.portal.procucev.model.PaymentLink;
 import com.portal.procucev.model.SubscriptionPlan;
+import com.portal.procucev.model.User;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.ZoneId;
@@ -19,6 +24,7 @@ import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 
 @Service
 @RequiredArgsConstructor
@@ -34,14 +40,24 @@ public class PaymentLinkService {
     private final ZohoApiClient zohoApiClient;
     private final PaymentLinkRepository paymentLinkRepo;
     private final SubscriptionPlanDao planRepo;
+    private final UserDao userDao;
+    private final ObjectMapper objectMapper;
 
+    @Transactional
     public PaymentLink createPaymentLink(Long planId,
                                          String customerEmail,
                                          String phone,
-                                         String returnUrl) {
+                                         String returnUrl)  {
         UserDetails userDetails = (UserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
-        log.info("Creating payment link for user: {},  User Id {}", userDetails.getUsername() , userDetails.getId());
-        log.info("Organization Id: {}", userDetails.getOrgId());
+
+        User user = userDao.findByUsername(userDetails.getUsername());
+
+        if (Objects.isNull(user))
+            throw new IllegalArgumentException("User not found");
+
+        if (Objects.isNull(user.getOrg()))
+            throw new IllegalArgumentException("User organization not found");
+        log.info("Creating Payment Link for user {} with org Id {}", userDetails.getUsername(), user.getOrg().getId());
 
         SubscriptionPlan plan = planRepo.findById(String.valueOf(planId))
                 .orElseThrow(() -> new IllegalArgumentException("Subscription Plan not found"));
@@ -51,7 +67,7 @@ public class PaymentLinkService {
         request.setCurrency("INR");
         request.setEmail(customerEmail);
         request.setPhone(phone);
-        request.setDescription("Subscription: " + plan.getPlanName());
+        request.setDescription("Subscription plan name : " + plan.getPlanName());
         request.setReference_id("PLAN-" + planId + "-" + System.currentTimeMillis());
         request.setNotify_user(true);
         request.setReturn_url(returnUrl);
@@ -77,6 +93,13 @@ public class PaymentLinkService {
         link.setZohoPaymentLinkId((String) links.get("payment_link_id"));
         link.setPaymentUrl((String) links.get("url"));
         link.setStatus((String) links.get("status"));
+        link.setUserId(user.getId());
+        link.setOrganization(user.getOrg());
+        try {
+            link.setRawResponse(objectMapper.writeValueAsString(response));
+        } catch (JsonProcessingException e) {
+            log.error("unable to save raw response for payment link creation", e);
+        }
 
         paymentLinkRepo.save(link);
 
