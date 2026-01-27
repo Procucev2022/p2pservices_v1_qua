@@ -36,6 +36,14 @@ public class PaymentLink {
     @Column(columnDefinition = "LONGTEXT")
     private String rawResponse;
 
+    @Lob
+    @Column(columnDefinition = "LONGTEXT")
+    private String zohoRawWebhook;
+
+    @Lob
+    @Column(columnDefinition = "LONGTEXT")
+    private String zohoJobRawResponse;
+
     private Instant createdAt;
     private Instant updatedAt;
 

@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.portal.procucev.Dto.ZohoPaymentLinkRequest;
 import com.portal.procucev.config.ZohoApiClient;
+import com.portal.procucev.customexception.AppException;
 import com.portal.procucev.dao.PaymentLinkRepository;
 import com.portal.procucev.dao.SubscriptionPlanDao;
 import com.portal.procucev.dao.UserDao;
@@ -44,48 +45,42 @@ public class PaymentLinkService {
     private final ObjectMapper objectMapper;
 
     @Transactional
-    public PaymentLink createPaymentLink(Long planId,
-                                         String customerEmail,
-                                         String phone,
-                                         String returnUrl)  {
+    public PaymentLink createPaymentLink(final Long planId, final String userPhone, final String userEmail, final String returnUrl) {
         UserDetails userDetails = (UserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
 
-        User user = userDao.findByUsername(userDetails.getUsername());
+        User user = userDao.findByUsernameAndPhoneAndActive(userEmail, userPhone, true);
 
-        if (Objects.isNull(user))
-            throw new IllegalArgumentException("User not found");
+        if (Objects.isNull(user)) throw new AppException("User not found");
 
-        if (Objects.isNull(user.getOrg()))
-            throw new IllegalArgumentException("User organization not found");
+        if (!userDetails.getUsername().equalsIgnoreCase(user.getUsername()))
+            throw new AppException("User details do not match the authenticated user");
+
+
+        if (Objects.isNull(user.getOrg())) throw new AppException("User organization not found");
         log.info("Creating Payment Link for user {} with org Id {}", userDetails.getUsername(), user.getOrg().getId());
 
-        SubscriptionPlan plan = planRepo.findById(String.valueOf(planId))
-                .orElseThrow(() -> new IllegalArgumentException("Subscription Plan not found"));
+        SubscriptionPlan plan = planRepo.findById(String.valueOf(planId)).orElseThrow(() -> new AppException("Subscription Plan not found"));
 
         ZohoPaymentLinkRequest request = new ZohoPaymentLinkRequest();
-        request.setAmount(BigDecimal.valueOf(plan.getLaunchOfferPrice()));
+        request.setAmount(BigDecimal.valueOf(plan.getLaunchOfferPrice() > 0 ? plan.getLaunchOfferPrice() : plan.getSubscriptionPrice()));
         request.setCurrency("INR");
-        request.setEmail(customerEmail);
-        request.setPhone(phone);
+        request.setEmail(userEmail);
+        request.setPhone(userPhone);
         request.setDescription("Subscription plan name : " + plan.getPlanName());
         request.setReference_id("PLAN-" + planId + "-" + System.currentTimeMillis());
         request.setNotify_user(true);
         request.setReturn_url(returnUrl);
 
-        ZonedDateTime expiry =
-                ZonedDateTime.now(ZoneId.of("Asia/Kolkata")).plusDays(1);
+        ZonedDateTime expiry = ZonedDateTime.now(ZoneId.of("Asia/Kolkata")).plusDays(1);
 
-        request.setExpires_at(expiry.toLocalDate()
-                .format(DateTimeFormatter.ISO_LOCAL_DATE));
+        request.setExpires_at(expiry.toLocalDate().format(DateTimeFormatter.ISO_LOCAL_DATE));
 
 
         String url = zohoPaymentsBaseUrl + "/paymentlinks?account_id=" + zohoAccountId;
 
-        Map<String, Object> response =
-                zohoApiClient.post(url, request, Map.class).getBody();
+        Map<String, Object> response = zohoApiClient.post(url, request, Map.class).getBody();
 
-        Map<String, Object> links =
-                (Map<String, Object>) response.get("payment_links");
+        Map<String, Object> links = (Map<String, Object>) response.get("payment_links");
 
         PaymentLink link = new PaymentLink();
         link.setPlan(plan);

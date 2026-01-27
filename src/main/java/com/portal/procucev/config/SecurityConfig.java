@@ -1,7 +1,9 @@
 package com.portal.procucev.config;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.Ordered;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -33,7 +35,7 @@ public class SecurityConfig {
     	 http.cors(cors -> cors.configurationSource(corsConfigurationSource))
         .csrf(csrf -> csrf.disable())
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/", "/error", "/authenticate", "/mobile/**", "/partialvendor/**").permitAll()
+                        .requestMatchers("/", "/error", "/authenticate", "/mobile/**", "/partialvendor/**","/api/zoho/webhook/**").permitAll()
                         .requestMatchers("/rest/**").authenticated()
                 )
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS));
@@ -45,4 +47,13 @@ public class SecurityConfig {
     public PasswordEncoder passwordEncoder() {
         return NoOpPasswordEncoder.getInstance();
     }
+
+    @Bean
+    public FilterRegistrationBean<RequestBodyCacheFilter> cacheFilter() {
+        FilterRegistrationBean<RequestBodyCacheFilter> bean = new FilterRegistrationBean<>();
+        bean.setFilter(new RequestBodyCacheFilter());
+        bean.setOrder(Ordered.HIGHEST_PRECEDENCE);
+        return bean;
+    }
+
 }

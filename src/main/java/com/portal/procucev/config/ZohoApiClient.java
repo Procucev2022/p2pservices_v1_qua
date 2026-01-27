@@ -7,6 +7,7 @@ import org.springframework.http.*;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
+import java.util.List;
 import java.util.Map;
 
 @Service
@@ -34,5 +35,16 @@ public class ZohoApiClient {
                 clazz
         );
     }
+
+    public <T> ResponseEntity<T> get(String url, Class<T> responseType) {
+        HttpHeaders headers = new HttpHeaders();
+        headers.add("Authorization", "Zoho-oauthtoken " + authService.getValidAccessToken());
+        headers.setAccept(List.of(MediaType.APPLICATION_JSON));
+
+        HttpEntity<Void> entity = new HttpEntity<>(headers);
+
+        return restTemplate.exchange(url, HttpMethod.GET, entity, responseType);
+    }
+
 }
 
