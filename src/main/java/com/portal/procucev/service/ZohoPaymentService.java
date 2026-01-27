@@ -9,7 +9,7 @@ import org.springframework.web.client.RestTemplate;
 public class ZohoPaymentService {
 
     @Autowired
-    private ZohoAuthService zohoAuthService;
+    private ZohoAuthServiceOld zohoAuthService;
 
     private final RestTemplate restTemplate = new RestTemplate();
 
