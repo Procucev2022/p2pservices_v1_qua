@@ -15,48 +15,56 @@ public class ZohoWebhookSignatureUtil {
     @Value("${zoho.webhook.signing-key}")
     private String signingKeyHex;
 
-    public boolean verify(String payload, String receivedSignature) {
+    public boolean verify(String rawBody, String header) {
 
-        if (receivedSignature == null || receivedSignature.isBlank()) {
+        if (header == null || !header.contains("t=") || !header.contains("v=")) {
             return false;
         }
 
-        String computed = computeSignature(payload);
-        return MessageDigest.isEqual(
-                computed.getBytes(StandardCharsets.UTF_8),
-                receivedSignature.getBytes(StandardCharsets.UTF_8)
-        );
+        String[] parts = header.split(",");
+        String timestamp = null;
+        String receivedSigHex = null;
+
+        for (String p : parts) {
+            if (p.startsWith("t=")) timestamp = p.substring(2);
+            if (p.startsWith("v=")) receivedSigHex = p.substring(2);
+        }
+
+        if (timestamp == null || receivedSigHex == null) return false;
+
+        String payload = timestamp + "." + rawBody;
+
+        String computedHex = hmacSha256Hex(hexToBytes(signingKeyHex), payload);
+
+        return MessageDigest.isEqual(computedHex.getBytes(StandardCharsets.UTF_8), receivedSigHex.getBytes(StandardCharsets.UTF_8));
     }
 
+    // ---------------- helpers ----------------
 
-//    public boolean verify(String payload, String receivedSignature) {
-//        String computed = computeSignature(payload);
-//        return MessageDigest.isEqual(computed.getBytes(StandardCharsets.UTF_8), receivedSignature.getBytes(StandardCharsets.UTF_8));
-//    }
-
-    public String computeSignature(String payload) {
+    private static String hmacSha256Hex(byte[] key, String data) {
         try {
-            byte[] keyBytes = hexToBytes(signingKeyHex);
-
             Mac mac = Mac.getInstance("HmacSHA256");
-            SecretKeySpec keySpec = new SecretKeySpec(keyBytes, "HmacSHA256");
-            mac.init(keySpec);
-
-            byte[] rawHmac = mac.doFinal(payload.getBytes(StandardCharsets.UTF_8));
-            return Base64.getEncoder().encodeToString(rawHmac);
-
+            mac.init(new SecretKeySpec(key, "HmacSHA256"));
+            byte[] raw = mac.doFinal(data.getBytes(StandardCharsets.UTF_8));
+            return bytesToHex(raw);
         } catch (Exception e) {
-            throw new RuntimeException("Signature computation failed", e);
+            throw new RuntimeException(e);
         }
     }
 
-    private byte[] hexToBytes(String hex) {
+    private static byte[] hexToBytes(String hex) {
         int len = hex.length();
-        byte[] data = new byte[len / 2];
-
+        byte[] out = new byte[len / 2];
         for (int i = 0; i < len; i += 2) {
-            data[i / 2] = (byte) ((Character.digit(hex.charAt(i), 16) << 4) + Character.digit(hex.charAt(i + 1), 16));
+            out[i / 2] = (byte) ((Character.digit(hex.charAt(i), 16) << 4) + Character.digit(hex.charAt(i + 1), 16));
         }
-        return data;
+        return out;
+    }
+
+    private static String bytesToHex(byte[] bytes) {
+        StringBuilder sb = new StringBuilder(bytes.length * 2);
+        for (byte b : bytes) sb.append(String.format("%02x", b));
+        return sb.toString();
     }
 }
+

@@ -34,55 +34,33 @@ public class ZohoWebhookController {
     private final ObjectMapper objectMapper;
 
     @PostMapping("/webhook")
-    public ResponseEntity<String> handleWebhook(HttpServletRequest request) {
+    public ResponseEntity<String> handleWebhook(HttpServletRequest request,
+                                                @RequestBody String rawBody) throws Exception {
 
-        try {
-            ContentCachingRequestWrapper wrapper =
-                    WebUtils.getNativeRequest(request, ContentCachingRequestWrapper.class);
+        String signatureHeader = request.getHeader("X-Zoho-Webhook-Signature");
 
-            if (wrapper == null) {
-                log.error("Request not wrapped");
-                return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Wrapper missing");
-            }
+        log.info("RAW BODY: {}", rawBody);
+        log.info("HEADER SIG: {}", signatureHeader);
 
-            String rawBody = new String(wrapper.getContentAsByteArray(), StandardCharsets.UTF_8);
-
-            // 🔴 IMPORTANT: log all headers once
-            Collections.list(request.getHeaderNames())
-                    .forEach(h -> log.info("HEADER {} = {}", h, request.getHeader(h)));
-
-            String signature = request.getHeader("X-Zoho-Webhook-Signature");
-
-            log.info("RAW BODY: {}", rawBody);
-            log.info("HEADER SIG: {}", signature);
-
-            if (signature == null || signature.isBlank()) {
-                log.error("Zoho signature header missing");
-                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Missing signature");
-            }
-
-            String computedSig = verifier.computeSignature(rawBody);
-            log.info("COMPUTED SIG: {}", computedSig);
-
-            if (!verifier.verify(rawBody, signature)) {
-                log.error("Invalid Zoho webhook signature");
-                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Invalid signature");
-            }
-
-            ZohoPaymentLinkWebhookRequest event =
-                    objectMapper.readValue(rawBody, ZohoPaymentLinkWebhookRequest.class);
-
-            log.info("Zoho Event Type: {}", event.getEvent_type());
-
-            zohoWebhookService.processWebhook(event);
-
-            return ResponseEntity.ok("OK");
-
-        } catch (Exception e) {
-            log.error("Webhook processing failed", e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Webhook error");
+        if (!verifier.verify(rawBody, signatureHeader)) {
+            log.error("Invalid Zoho webhook signature");
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Invalid signature");
         }
+
+        ZohoPaymentLinkWebhookRequest event =
+                objectMapper.readValue(rawBody, ZohoPaymentLinkWebhookRequest.class);
+
+        log.info("Zoho webhook event: {}", event.getEvent_type());
+
+        if (!expectedAccountId.equals(event.getAccount_id())) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Invalid account");
+        }
+
+        zohoWebhookService.processWebhook(event);
+
+        return ResponseEntity.ok("OK");
     }
+
 
 
 }
