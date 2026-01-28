@@ -16,9 +16,23 @@ public class ZohoWebhookSignatureUtil {
     private String signingKeyHex;
 
     public boolean verify(String payload, String receivedSignature) {
+
+        if (receivedSignature == null || receivedSignature.isBlank()) {
+            return false;
+        }
+
         String computed = computeSignature(payload);
-        return MessageDigest.isEqual(computed.getBytes(StandardCharsets.UTF_8), receivedSignature.getBytes(StandardCharsets.UTF_8));
+        return MessageDigest.isEqual(
+                computed.getBytes(StandardCharsets.UTF_8),
+                receivedSignature.getBytes(StandardCharsets.UTF_8)
+        );
     }
+
+
+//    public boolean verify(String payload, String receivedSignature) {
+//        String computed = computeSignature(payload);
+//        return MessageDigest.isEqual(computed.getBytes(StandardCharsets.UTF_8), receivedSignature.getBytes(StandardCharsets.UTF_8));
+//    }
 
     public String computeSignature(String payload) {
         try {
