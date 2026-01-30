@@ -6,6 +6,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import com.portal.procucev.model.BFSItems;
 import com.portal.procucev.model.BFSUsers;
@@ -91,5 +92,60 @@ public interface BFSUserDao extends JpaRepository<BFSUsers, String>{
 
 	@Query("select b.items.id from BFSUsers b where b.id=:id")
 	String findItemByBfsUser(String id);
+
+	@Query("""
+			select  distinct b.items
+			from BFSUsers b
+			where b.items.id is not null
+			group by b.items
+			order by max(b.createdTS) desc
+			""")
+List<BFSItems> findItemsOrderedByLatestBid();
+
+
+	    @Query("""
+	    select new com.portal.procucev.model.BFSItems(
+	        i.id, i.createdTS,
+	        i.description, i.specification,
+	        i.totalQuantity, i.availableQuantity,
+	        i.category, i.itemNumber, i.location,
+	        i.ageOfAsset, i.sellPrice, i.discount,
+	        i.askPrice, i.bfsGroup, i.proxyId,
+	        i.unitofMeasures, i.remarks,
+	        i.status, i.commentsFlag,
+	        i.buyPriceDisclosure, i.disclosedBuypriceValue, i.latestBidDate
+	    )
+	    from BFSUsers u
+	    join u.items i
+	    group by
+	        i.id, i.createdTS,
+	        i.description, i.specification,
+	        i.totalQuantity, i.availableQuantity,
+	        i.category, i.itemNumber, i.location,
+	        i.ageOfAsset, i.sellPrice, i.discount,
+	        i.askPrice, i.bfsGroup, i.proxyId,
+	        i.unitofMeasures, i.remarks,
+	        i.status, i.commentsFlag,
+	        i.buyPriceDisclosure, i.disclosedBuypriceValue, i.latestBidDate
+	    order by max(u.createdTS) desc
+	    """)
+	    List<BFSItems> findItemsOrderedByLatestBidProjected();
+
+
+	    // 🔹 Bulk requested count
+	    @Query("""
+	    select u.items.id, count(u)
+	    from BFSUsers u
+	    where u.status = :status
+	      and u.items.id in :itemIds
+	    group by u.items.id
+	    """)
+	    List<Object[]> countRequestedByItemIds(
+	            @Param("status") MasterStatus status,
+	            @Param("itemIds") List<String> itemIds
+	    );
+	
+
+	
 
 }
