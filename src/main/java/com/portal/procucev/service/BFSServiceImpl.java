@@ -503,6 +503,7 @@ public class BFSServiceImpl implements BFSService {
 		// Set status and save bfsUser
 		MasterStatus status = masterStatusDao.findByStatus(StatusConstants.BID_REQUESTED);
 		bfsUser.setStatus(status);
+		bfsDao.updateLatestBidDate(bfsUser.getItems());
 		BFSUsers savedUser = bfsUserDao.save(bfsUser);
 		InternetAddress add;
 		User user = userDao.findOrgByID(savedUser.getUser().getId());
@@ -1004,37 +1005,117 @@ public class BFSServiceImpl implements BFSService {
 		}
 	}
 
+//	@Override
+//	public List<BFSItems> getRequestedItemsByCM() {
+//		// TODO Auto-generated method stub
+//		log.info("Entered To Get Requested Items By User");
+//
+//		List<String> itemIds = bfsUserDao.findItems();
+//		if (CollectionUtils.isEmpty(itemIds)) {
+//			log.info("No item IDs found");
+//			return new ArrayList<>();
+//		}
+//
+//		List<BFSItems> bfsItems = bfsDao.findByIdIn(itemIds);
+//		if (CollectionUtils.isEmpty(bfsItems)) {
+//			log.info("No BFS items found for item IDs {}", itemIds);
+//			return new ArrayList<>();
+//		}
+//		for (BFSItems item : bfsItems) {
+//			MasterStatus status = masterStatusDao.findByStatus(StatusConstants.BID_REQUESTED);
+//			long value = bfsUserDao.getCountByStatusAndItem(status, item.getId());
+//			log.info("Item status count for user {}: {}", value);
+//			long bfsCount = bfsImagesDao.findCountByBfs(item);
+//			if (bfsCount > 0) {
+//				item.setImagesFlag(true);
+//			}
+//			if (value > 0) {
+//				item.setRequestedFlag(true);
+//			}
+//		}
+//
+//		return bfsItems;
+//	}
+	
+//	@Override
+//	public List<BFSItems> getRequestedItemsByCM() {
+//
+//	    log.info("Entered To Get Requested Items By User");
+//
+//	    List<BFSItems> bfsItems = bfsUserDao.findItemsOrderedByLatestBid();
+//
+//	    if (CollectionUtils.isEmpty(bfsItems)) {
+//	        log.info("No bid items found");
+//	        return new ArrayList<>();
+//	    }
+//
+//	    MasterStatus status = masterStatusDao.findByStatus(StatusConstants.BID_REQUESTED);
+//
+//	    for (BFSItems item : bfsItems) {
+//
+//	        long value = bfsUserDao.getCountByStatusAndItem(status, item.getId());
+//	        long bfsCount = bfsImagesDao.findCountByBfs(item);
+//
+//	        item.setRequestedFlag(value > 0);
+//	        item.setImagesFlag(bfsCount > 0);
+//	    }
+//
+//	    return bfsItems;
+//	}
+	
 	@Override
 	public List<BFSItems> getRequestedItemsByCM() {
-		// TODO Auto-generated method stub
-		log.info("Entered To Get Requested Items By User");
 
-		List<String> itemIds = bfsUserDao.findItems();
-		if (CollectionUtils.isEmpty(itemIds)) {
-			log.info("No item IDs found");
-			return new ArrayList<>();
-		}
+	    log.info("Entered To Get Requested Items By User");
 
-		List<BFSItems> bfsItems = bfsDao.findByIdIn(itemIds);
-		if (CollectionUtils.isEmpty(bfsItems)) {
-			log.info("No BFS items found for item IDs {}", itemIds);
-			return new ArrayList<>();
-		}
-		for (BFSItems item : bfsItems) {
-			MasterStatus status = masterStatusDao.findByStatus(StatusConstants.BID_REQUESTED);
-			long value = bfsUserDao.getCountByStatusAndItem(status, item.getId());
-			log.info("Item status count for user {}: {}", value);
-			long bfsCount = bfsImagesDao.findCountByBfs(item);
-			if (bfsCount > 0) {
-				item.setImagesFlag(true);
-			}
-			if (value > 0) {
-				item.setRequestedFlag(true);
-			}
-		}
+	    // 1️⃣ Get lightweight items ordered by latest bid
+	    List<BFSItems> bfsItems =
+	            bfsUserDao.findItemsOrderedByLatestBidProjected();
 
-		return bfsItems;
+	    if (CollectionUtils.isEmpty(bfsItems)) {
+	        log.info("No bid items found");
+	        return new ArrayList<>();
+	    }
+
+	    List<String> itemIds = bfsItems.stream()
+	            .map(BFSItems::getId)
+	            .toList();
+
+	    MasterStatus status =
+	            masterStatusDao.findByStatus(StatusConstants.BID_REQUESTED);
+
+	    // 2️⃣ Bulk requested counts
+	    Map<String, Long> requestedCountMap = bfsUserDao
+	            .countRequestedByItemIds(status, itemIds)
+	            .stream()
+	            .collect(Collectors.toMap(
+	                    r -> (String) r[0],
+	                    r -> (Long) r[1]
+	            ));
+
+	    // 3️⃣ Bulk image counts
+	    Map<String, Long> imageCountMap = bfsImagesDao
+	            .countImagesByItemIds(itemIds)
+	            .stream()
+	            .collect(Collectors.toMap(
+	                    r -> (String) r[0],
+	                    r -> (Long) r[1]
+	            ));
+
+	    // 4️⃣ Set flags (NO extra DB calls)
+	    for (BFSItems item : bfsItems) {
+	        item.setRequestedFlag(
+	                requestedCountMap.getOrDefault(item.getId(), 0L) > 0
+	        );
+	        item.setImagesFlag(
+	                imageCountMap.getOrDefault(item.getId(), 0L) > 0
+	        );
+	    }
+
+	    return bfsItems;
 	}
+
+
 
 	@Override
 	public BfsDTO getItemByUniqueId(String uniqueId) {

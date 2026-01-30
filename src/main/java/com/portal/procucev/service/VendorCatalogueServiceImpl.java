@@ -60,7 +60,7 @@ public class VendorCatalogueServiceImpl implements VendorCatalogueService {
 	    bfsItem.setAskPrice(catalogue.getPricePerUom().doubleValue());
 	    bfsItem.setUserId(catalogue.getUser());
 	    bfsItem.setStatus(status);
-	    bfsItem.setAgeOfAsset("0 Months");
+	    bfsItem.setAgeOfAsset("New Stock");
 	    bfsItem.setCategory(catalogue.getCategory());
 	    bfsItem.setBfsGroup(catalogue.getDivision());
 	    bfsItem.setSpecification(catalogue.getMaterialDescription());

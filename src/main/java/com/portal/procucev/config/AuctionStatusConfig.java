@@ -24,10 +24,10 @@ public class AuctionStatusConfig {
 	private boolean isEnabled;
 
 	@PostConstruct
-	//@Scheduled(cron = "0 0 12,15,18 * * ?")
-	@Scheduled(cron = "0 30 13 * * ?", zone = "Asia/Kolkata") // 1:30 PM IST
-	@Scheduled(cron = "0 30 17 * * ?", zone = "Asia/Kolkata") // 5:30 PM IST
-	@Scheduled(cron = "0 0 23 * * ?", zone = "Asia/Kolkata")   // 11:00 PM
+//	@Scheduled(cron = "0 30 13 * * ?", zone = "Asia/Kolkata") // 1:30 PM IST
+//	@Scheduled(cron = "0 30 17 * * ?", zone = "Asia/Kolkata") // 5:30 PM IST
+//	@Scheduled(cron = "0 0 23 * * ?", zone = "Asia/Kolkata")   // 11:00 PM
+	@Scheduled(cron = "0 0 */2 * * ?", zone = "Asia/Kolkata")
 	@SchedulerLock(name = "emailForwardJob")
 	public void scheduleTaskWithCronExpressionsforForwardEmailToClient() {
 		if (isEnabled) {
