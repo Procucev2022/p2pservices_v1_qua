@@ -34,7 +34,7 @@ public interface BFSDao extends JpaRepository<BFSItems, String>{
 		       "ORDER BY b.createdTS DESC")
 	List<BFSItems> findAllItems(@Param("user") String user);
 
-	@Query("select new BFSItems(b.id,b.createdTS,b.description,b.specification,b.totalQuantity,b.availableQuantity,b.category,b.itemNumber,b.location,b.ageOfAsset,b.sellPrice,b.discount,b.askPrice,b.bfsGroup,b.proxyId,b.unitofMeasures,b.remarks,b.status,b.commentsFlag,b.buyPriceDisclosure,b.disclosedBuypriceValue,b.latestBidDate)from BFSItems b where b.org.id =:id and b.userId=:user or b.proxyId=:user Order By b.createdTS DESC")
+	@Query("select new BFSItems(b.id,b.createdTS,b.description,b.specification,b.totalQuantity,b.availableQuantity,b.category,b.itemNumber,b.location,b.ageOfAsset,b.sellPrice,b.discount,b.askPrice,b.bfsGroup,b.proxyId,b.unitofMeasures,b.remarks,b.status,b.commentsFlag,b.buyPriceDisclosure,b.disclosedBuypriceValue,b.latestBidDate)from BFSItems b where b.org.id =:id and b.userId=:user or b.proxyId=:user Order By b.latestBidDate DESC")
 	List<BFSItems> findByOrgAndUser(@Param("id") String id,@Param("user")  String user);
 
 	@Query("select new BFSItems(b.id,b.createdTS,b.description,b.specification,b.totalQuantity,b.availableQuantity,b.category,b.itemNumber,b.location,b.ageOfAsset,b.sellPrice,b.discount,b.askPrice,b.bfsGroup,b.proxyId,b.unitofMeasures,b.remarks,b.status,b.commentsFlag,b.buyPriceDisclosure,b.disclosedBuypriceValue,b.latestBidDate)from BFSItems b where b.id IN (:itemIds) Order By b.createdTS DESC")
