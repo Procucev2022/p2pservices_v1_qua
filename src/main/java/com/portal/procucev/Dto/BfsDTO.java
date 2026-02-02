@@ -35,6 +35,8 @@ public class BfsDTO {
 	private double buyerDiscount;
 
 	private double buyerFinalPrice;
+	
+	private double askPrice;
 
 	private double totalQuantity;
 

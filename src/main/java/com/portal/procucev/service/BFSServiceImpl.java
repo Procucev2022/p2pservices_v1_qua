@@ -501,7 +501,7 @@ public class BFSServiceImpl implements BFSService {
 //			throw new AppException(HttpStatus.CONFLICT.value(), "Item has already been requested.");
 //		}
 		// Set status and save bfsUser
-		MasterStatus status = masterStatusDao.findByStatus(StatusConstants.BID_REQUESTED);
+		MasterStatus status = masterStatusDao.findByStatus(StatusConstants.BID_APPROVED);
 		bfsUser.setStatus(status);
 		bfsDao.updateLatestBidDate(bfsUser.getItems());
 		BFSUsers savedUser = bfsUserDao.save(bfsUser);
