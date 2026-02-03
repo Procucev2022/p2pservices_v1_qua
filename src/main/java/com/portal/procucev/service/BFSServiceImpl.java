@@ -587,8 +587,13 @@ public class BFSServiceImpl implements BFSService {
 		bfsDto.setDiscount(user.getItems().getDiscount());
 		bfsDto.setUnitofMeasures(user.getItems().getUnitofMeasures());
 		bfsDto.setAskPrice(user.getAskPrice());
-		bfsDto.setSellerCompanyName(user.getOrg().getCompanyName());
-		bfsDto.setSellerEmail(userDao.findEmailById(user.getItems().getUserId()));
+		User userData = userDao.findById(user.getItems().getUserId()).get();
+		if(userData!=null) {
+			bfsDto.setSellerCompanyName(userData.getOrg().getCompanyName());
+			bfsDto.setSellerEmail(userData.getUsername());
+			bfsDto.setSellerName(userData.getFullName());
+		}
+		
 		bfsDto.setSellerId(user.getItems().getUserId());
 		bfsDto.setQuantity(user.getQuantity());
 		bfsDto.setAvailableQuantity(user.getItems().getAvailableQuantity());
@@ -1168,14 +1173,15 @@ public class BFSServiceImpl implements BFSService {
 				User userRes = userData.get();
 
 				vendorInfoBean.setSubCategory(userRes.getOrg().getSubCategory());
-				vendorInfoBean.setCategory(userRes.getOrg().getVendorcategory());
+				vendorInfoBean.setCategory(userRes.getOrg().getDetails());
 				vendorInfoBean.setEmail(userRes.getUsername());
 				vendorInfoBean.setOrganizationPhonenumber(userRes.getPhone());
-				vendorInfoBean.setPan(userRes.getOrg().getPan());
+				vendorInfoBean.setPan(userRes.getOrg().getGstin());
 				vendorInfoBean.setCompanyName(userRes.getOrg().getCompanyName());
 				vendorInfoBean.setFullName(userRes.getFullName());
 				vendorInfoBean.setCity(userRes.getOrg().getCity());
 				vendorInfoBean.setAddress(userRes.getOrg().getAddress1());
+				vendorInfoBean.setVendorClass(user.getOrg().getVendorClass());
 
 			}
 
