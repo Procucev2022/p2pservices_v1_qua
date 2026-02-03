@@ -1181,7 +1181,7 @@ public class BFSServiceImpl implements BFSService {
 				vendorInfoBean.setFullName(userRes.getFullName());
 				vendorInfoBean.setCity(userRes.getOrg().getCity());
 				vendorInfoBean.setAddress(userRes.getOrg().getAddress1());
-				vendorInfoBean.setVendorClass(user.getOrg().getVendorClass());
+				vendorInfoBean.setVendorClass(userRes.getOrg().getVendorClass());
 
 			}
 
