@@ -581,11 +581,12 @@ public class BFSServiceImpl implements BFSService {
 		bfsDto.setSpecification(user.getItems().getSpecification());
 		bfsDto.setBuyPrice(user.getBuyPrice());
 		bfsDto.setBuyerDiscount(user.getDiscount());
-		bfsDto.setBuyerFinalPrice(user.getAskPrice());
+		bfsDto.setBuyerFinalPrice(user.getBuyPrice());
 		bfsDto.setSellPrice(user.getItems().getSellPrice());
 		bfsDto.setSellFinalPrice(user.getItems().getAskPrice());
 		bfsDto.setDiscount(user.getItems().getDiscount());
 		bfsDto.setUnitofMeasures(user.getItems().getUnitofMeasures());
+		bfsDto.setAskPrice(user.getBuyPrice());
 		bfsDto.setSellerCompanyName(user.getOrg().getCompanyName());
 		bfsDto.setSellerEmail(userDao.findEmailById(user.getItems().getUserId()));
 		bfsDto.setSellerId(user.getItems().getUserId());

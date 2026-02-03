@@ -27,6 +27,8 @@ public class BfsDTO {
 	private String sellerEmail;
 
 	private String sellerName;
+	
+	private double askPrice;
 
 	private String sellerCompanyName;
 
@@ -35,8 +37,6 @@ public class BfsDTO {
 	private double buyerDiscount;
 
 	private double buyerFinalPrice;
-	
-	private double askPrice;
 
 	private double totalQuantity;
 
@@ -268,6 +268,14 @@ public class BfsDTO {
 
 	public void setDisclosedBuypriceValue(String disclosedBuypriceValue) {
 		this.disclosedBuypriceValue = disclosedBuypriceValue;
+	}
+
+	public double getAskPrice() {
+		return askPrice;
+	}
+
+	public void setAskPrice(double askPrice) {
+		this.askPrice = askPrice;
 	}
 	
 	
