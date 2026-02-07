@@ -412,4 +412,11 @@ public class BFSController {
 		   bfsService.processExcel(file);
 	        return ResponseEntity.ok("Excel uploaded and data inserted successfully");
 	    }
+	   
+	   
+		@PostMapping("/getBidsBySeller")
+		public ResponseEntity<?> getBidsBySeller(@RequestBody BFSUsers user) throws AppException {
+			List<BfsDTO> usersList = bfsService.getBidsBySeller(user);
+			return new ResponseEntity<>(usersList, HttpStatus.OK);
+		}
 }

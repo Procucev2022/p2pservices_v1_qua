@@ -683,7 +683,7 @@ public class BFSServiceImpl implements BFSService {
 				BFSUsers bfsUsers = findById.get();
 				int quantity = bfsUsers.getQuantity();
 
-				double totalQuantity = bfsUsers.getItems().getTotalQuantity();
+				double totalQuantity = bfsUsers.getItems().getAvailableQuantity();
 				double availableQuantity = totalQuantity - quantity;
 				log.info("Buyer Quantity" + quantity + " Item Total Quantity" + totalQuantity);
 				bfsDao.updateAvailableQuantity(availableQuantity, bfsUsers.getItems().getId());
@@ -1318,6 +1318,25 @@ public class BFSServiceImpl implements BFSService {
 	        if (cell == null) return 0;
 	        return cell.getNumericCellValue();
 	    }
+
+		@Override
+		public List<BfsDTO> getBidsBySeller(BFSUsers user) {
+			// TODO Auto-generated method stub
+			log.info("Entered To Get Bids Buyer And Item");
+			List<BfsDTO> bfsList = new ArrayList<>();
+			List<BFSUsers> usersList = bfsUserDao.findByOrg(user.getOrg());
+			if (!CollectionUtils.isEmpty(usersList)) {
+				for (BFSUsers bfsUser : usersList) {
+					BfsDTO bfsDto = bfsDetails(bfsUser);
+					bfsList.add(bfsDto);
+				}
+				return bfsList;
+			} else {
+				log.warn("No BFS Users found with the requested status {}", StatusConstants.BID_REQUESTED);
+				throw new AppException(HttpStatus.NO_CONTENT.value(), ApplicationConstants.NO_DATA_FOUND,
+						ApplicationConstants.BUSSINESS_EXCEPTION, ApplicationConstants.FAILURE);
+			}
+		}
 	
 
 }

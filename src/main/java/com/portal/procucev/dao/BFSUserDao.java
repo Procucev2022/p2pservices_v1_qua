@@ -11,6 +11,7 @@ import org.springframework.data.repository.query.Param;
 import com.portal.procucev.model.BFSItems;
 import com.portal.procucev.model.BFSUsers;
 import com.portal.procucev.model.MasterStatus;
+import com.portal.procucev.model.Organization;
 
 import jakarta.transaction.Transactional;
 
@@ -144,6 +145,8 @@ List<BFSItems> findItemsOrderedByLatestBid();
 	            @Param("status") MasterStatus status,
 	            @Param("itemIds") List<String> itemIds
 	    );
+
+		List<BFSUsers> findByOrg(Organization org);
 	
 
 	

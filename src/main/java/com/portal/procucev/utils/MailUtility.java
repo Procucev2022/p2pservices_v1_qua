@@ -1280,7 +1280,7 @@ public class MailUtility {
 		email.append(bfsUser.getQuantity());
 		email.append("</td>");
 		email.append("<td style='border: 1px solid black;'>");
-		email.append(bfsUser.getBuyPrice());
+		email.append(bfsUser.getAskPrice());
 
 		email.append("</table>"); // Close the table
 		email.append("<br><br>");
