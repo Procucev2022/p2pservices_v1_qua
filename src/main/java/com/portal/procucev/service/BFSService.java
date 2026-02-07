@@ -80,4 +80,6 @@ public interface BFSService {
 
 	void processExcel(MultipartFile file);
 
+	List<BfsDTO> getBidsBySeller(BFSUsers user);
+
 }
