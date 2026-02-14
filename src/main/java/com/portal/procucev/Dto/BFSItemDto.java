@@ -8,7 +8,9 @@ import lombok.NoArgsConstructor;
 @Data
 @NoArgsConstructor
 public class BFSItemDto {
-
+	
+	private List<String> category;
+	
 	private List<String> description;
 	
 	private String location;
