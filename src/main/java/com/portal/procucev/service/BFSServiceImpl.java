@@ -1215,23 +1215,23 @@ public class BFSServiceImpl implements BFSService {
 	@Override
 	public List<BFSItemMainDetailsDTO> getBfsItemsByCategory(List<BFSItemDto> items) {
 
-	    // Collect distinct keyword list
-	    Set<String> keywords = new HashSet<>();
+		Set<String> categoryKeywords = new HashSet<>();
+	    Set<String> descriptionKeywords = new HashSet<>();
 
 	    for (BFSItemDto dto : items) {
+	        if (dto.getCategory() != null) {
+	            dto.getCategory().forEach(k -> categoryKeywords.add(k.toLowerCase()));
+	        }
 	        if (dto.getDescription() != null) {
-	            dto.getDescription().forEach(k ->
-	                    keywords.add(k.toLowerCase())
-	            );
+	            dto.getDescription().forEach(k -> descriptionKeywords.add(k.toLowerCase()));
 	        }
 	    }
 
-	    log.info("Keywords => {}", keywords);
+	    log.info("Category Keywords => {}", categoryKeywords);
+	    log.info("Description Keywords => {}", descriptionKeywords);
 
-	    // Convert to list
-	    List<String> keywordList = new ArrayList<>(keywords);
-
-	    return searchRepository.searchItems(keywordList, 5);
+	    // Call optimized search with separate keyword lists
+	    return searchRepository.searchItems(categoryKeywords, descriptionKeywords, 5);
 	}
 
 	@Transactional
@@ -1324,7 +1324,7 @@ public class BFSServiceImpl implements BFSService {
 			// TODO Auto-generated method stub
 			log.info("Entered To Get Bids Buyer And Item");
 			List<BfsDTO> bfsList = new ArrayList<>();
-			List<BFSUsers> usersList = bfsUserDao.findByOrg(user.getOrg());
+			List<BFSUsers> usersList = bfsUserDao.findByUser(user.getId());
 			if (!CollectionUtils.isEmpty(usersList)) {
 				for (BFSUsers bfsUser : usersList) {
 					BfsDTO bfsDto = bfsDetails(bfsUser);
