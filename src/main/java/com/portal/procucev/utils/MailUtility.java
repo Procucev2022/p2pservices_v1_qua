@@ -1372,13 +1372,13 @@ public class MailUtility {
 	}
 
 	public static void emailForBidRequest(String type, String toAddress, JavaMailSender javaMailSender,
-			InternetAddress add, String host, BFSUsers savedUser, User user) {
+			InternetAddress add, String host, BFSUsers savedUser, User user, String desc) {
 		// TODO Auto-generated method stub
-		String subject = "Email For Bid Request!!";
+		String subject = "New Bid Request from " + user.getCompanyName() +" for Item: " + savedUser.getItems().getDescription();
 		String message = "<!DOCTYPE html>\n" + "<html>\n" + "<body>\n" + "\n" + "Dear Partner,<br><br>\n" + "\n"
 				+ "This is to inform you that <b>Buyer : </b>" + user.getCompanyName()
 				+ " has requested a bid for the following item:<br><br>\n" + "\n" + "<b>Item Description: </b>"
-				+ savedUser.getItems().getDescription() + "<br>\n" + "<b>Bid Price: </b>" + savedUser.getBuyPrice()
+				+ desc + "<br>\n" + "<b>Bid Price: </b>" + savedUser.getBuyPrice()
 				+ "<br><br>\n" + "\n" + "You can reach the buyer at <b>Email: </b>" + user.getUsername()
 				+ " or <b>Phone: </b>" + user.getPhone() + "<br><br>\n" + "\n" + "<br><br>\n" + "Best regards,<br>\n"
 				+ "<b>Procucev Solutions</b>\n" + "\n" + "</body>\n" + "</html>";
@@ -1508,6 +1508,38 @@ public class MailUtility {
 					ApplicationConstants.BUSSINESS_EXCEPTION, ApplicationConstants.FAILURE);
 		}
 		LOGGER.info("Sent verifiation mail successfully");
+	}
+
+	public static void emailForBuyerBidRequest(String type, String username, JavaMailSender javaMailSender,
+			InternetAddress add, String host, BFSUsers savedUser, User user, String desc) {
+		// TODO Auto-generated method stub
+		String subject = "Confirmation: Your Bid Request for " 
+		        + desc 
+		        + " Has Been Submitted";
+		String message = "<!DOCTYPE html>\n" + "<html>\n" + "<body>\n" + "\n" + "Dear Partner,<br><br>\n" + "\n"
+				+ "This is to inform you that you have requested a bid for the following item:<br><br>\n" + "\n" + "<b>Item Description: </b>"
+				+ savedUser.getItems().getDescription() + "<br>\n" + "<b>Bid Price: </b>" + savedUser.getBuyPrice()
+				+ "<br><br>\n" + "\n" + "You can reach the buyer at <b>Email: </b>" + user.getUsername()
+				+ " or <b>Phone: </b>" + user.getPhone() + "<br><br>\n" + "\n" + "<br><br>\n" + "Best regards,<br>\n"
+				+ "<b>Procucev Solutions</b>\n" + "\n" + "</body>\n" + "</html>";
+		emailNotifierGenericBySender(subject, username, add, javaMailSender, message, type);
+		
+	}
+
+	public static void emailForsellerBidRequest(String type, String sellerEmail, JavaMailSender javaMailSender,
+			InternetAddress add, String host, BFSUsers savedUser, User user, String desc) {
+		// TODO Auto-generated method stub
+		String subject = "New Bid Request from " + user.getCompanyName() +" for Item: " + savedUser.getItems().getDescription();
+		String message = "<!DOCTYPE html>\n" + "<html>\n" + "<body>\n" + "\n" + "Dear Partner,<br><br>\n" + "\n"
+				+ "This is to inform you that <b>Buyer : </b>" + user.getCompanyName()
+				+ " has requested a bid for the following item:<br><br>\n" + "\n" + "<b>Item Description: </b>"
+				+ desc + "<br>\n" + "<b>Bid Price: </b>" + savedUser.getBuyPrice()
+				+ "<br><br>\n" + "\n" + "You can reach the buyer at <b>Email: </b>" + user.getUsername()
+				+ " or <b>Phone: </b>" + user.getPhone() + "<br><br>\n" + "\n" + "<br><br>\n" + "Best regards,<br>\n"
+				+ "<b>Procucev Solutions</b>\n" + "\n" + "</body>\n" + "</html>";
+		emailNotifierGenericBySender(subject, sellerEmail, add, javaMailSender, message, type);
+	
+		
 	}
 
 }

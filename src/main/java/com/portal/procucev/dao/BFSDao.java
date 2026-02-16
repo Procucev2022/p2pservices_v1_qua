@@ -67,4 +67,8 @@ public interface BFSDao extends JpaRepository<BFSItems, String>{
 	    @Query("UPDATE  BFSItems b SET b.latestBidDate = CURRENT_TIMESTAMP where b = :itemId")
 	    void updateLatestBidDate(@Param("itemId") BFSItems itemId);
 
+
+	    @Query("select new BFSItems(b.description,b.org.id) from BFSItems b where b.id=:id")
+		BFSItems findSellerById(String id);
+
 }

@@ -88,6 +88,9 @@ public class BFSItems extends Procucev {
 	
 	private String remarks;
 	
+	@Transient
+	private String orgId;
+	
 	@Column(name="requested_flag")
 	private boolean requestedFlag;
 	
@@ -137,5 +140,11 @@ public class BFSItems extends Procucev {
 		this.buyPriceDisclosure=buyPriceDisclosure;
 		this.disclosedBuypriceValue=disclosedBuypriceValue;
 		this.latestBidDate=latestBidDate;
+	}
+	
+
+	public BFSItems(String description,String orgId) {
+		this.description=description;
+		this.orgId=orgId;
 	}
 }
