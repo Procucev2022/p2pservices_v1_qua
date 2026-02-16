@@ -505,12 +505,23 @@ public class BFSServiceImpl implements BFSService {
 		bfsUser.setStatus(status);
 		bfsDao.updateLatestBidDate(bfsUser.getItems());
 		BFSUsers savedUser = bfsUserDao.save(bfsUser);
+		BFSItems itemDetails = bfsDao.findSellerById(bfsUser.getItems().getId());
+		List<User> sellerDetails =userDao.findByOrganization(itemDetails.getOrgId());
 		InternetAddress add;
 		User user = userDao.findOrgByID(savedUser.getUser().getId());
 		try {
 			add = new InternetAddress(mailFom,"Procucev Notifications");
 			MailUtility.emailForBidRequest("Request For Bid", toAddress, javaMailSender, add, host,
-					savedUser,user);
+					savedUser,user,itemDetails.getDescription());
+			MailUtility.emailForBuyerBidRequest("Bid Request For Bid", user.getUsername(), javaMailSender, add, host,
+					savedUser,user,itemDetails.getDescription());
+			if(!CollectionUtils.isEmpty(sellerDetails)){
+				String sellerEmail = sellerDetails.get(0).getUsername();
+				MailUtility.emailForsellerBidRequest("Bid Request For Bid", sellerEmail, javaMailSender, add, host,
+						savedUser,user,itemDetails.getDescription());
+			}
+			
+			
 		} catch (UnsupportedEncodingException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
