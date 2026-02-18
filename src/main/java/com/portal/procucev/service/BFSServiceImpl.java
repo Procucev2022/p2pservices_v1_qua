@@ -194,7 +194,7 @@ public class BFSServiceImpl implements BFSService {
 		List<BFSItems> bfsList = bfsDao.findByOrgAndUser(user.getOrg().getId(), user.getId());
 
 		if (bfsList == null || bfsList.isEmpty()) {
-			log.warn("No BFS items found for the given organization and User (Org ID: {}, User ID: {}).",
+			log.warn("No BFS items found for the given organization and  User (Org ID: {}, User ID: {}).",
 					user.getOrg().getId(), user.getId());
 			throw new AppException(HttpStatus.NO_CONTENT.value(), ApplicationConstants.NO_DATA_FOUND,
 					ApplicationConstants.BUSSINESS_EXCEPTION, ApplicationConstants.FAILURE);
