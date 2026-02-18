@@ -70,5 +70,8 @@ public interface BFSDao extends JpaRepository<BFSItems, String>{
 
 	    @Query("select new BFSItems(b.description,b.org.id) from BFSItems b where b.id=:id")
 		BFSItems findSellerById(String id);
+	    
+	    @Query("SELECT DISTINCT b.id FROM BFSItems b WHERE b.userId = :id")
+	    List<String> findDistinctItemIdsBySellerId(@Param("id") String id);
 
 }

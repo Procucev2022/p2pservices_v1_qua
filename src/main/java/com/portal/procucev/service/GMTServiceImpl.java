@@ -1368,6 +1368,102 @@ public class GMTServiceImpl implements GMTService {
 		return status;
 	}
 
+	
+
+	private boolean saveVendorsForForwardRfq(Rfq rfq, Rfq savedRfq) {
+		logger.info("Entered to save Vendors For RFQ");
+		List<RfqVendor> rfqVendors = new ArrayList<>();
+		List<Organization> vendorList = rfq.getVendors();
+		boolean status = false;
+
+		if (!CollectionUtils.isEmpty(vendorList)) {
+			vendorList.forEach(vendor -> {
+				Organization savedVendor;
+
+				if (vendor.getId() == null) {
+					// Save the new organization
+					OrgType orgTypeObject = orgTypeDao.findByTypeName(ApplicationConstants.VENDOR);
+					MasterStatus vendorStatus = masterStatusDao.findByStatus(StatusConstants.VENDOR_ADDED);
+					MasterStatus evalStatus = masterStatusDao.findByStatus(StatusConstants.EVALUATION_NOT_STARTED);
+
+					if (selfRegistrationService.checkOrgexist(vendor.getCompanyName())) {
+						// Exception occurs when User is already associated to an Account/registered
+						throw new AppException(HttpStatus.INTERNAL_SERVER_ERROR.value(),
+								"Vendor Already Registered with name " + vendor.getCompanyName(),
+								ApplicationConstants.BUSSINESS_EXCEPTION, ApplicationConstants.FAILURE);
+					}
+
+					vendor.setOrgType(orgTypeObject);
+					vendor.setVendorStatus(vendorStatus);
+					vendor.setStatus(evalStatus);
+					vendor.setVendorcategory(savedRfq.getCategory());
+					savedVendor = orgDao.save(vendor);
+				} else {
+					// Use the existing organization
+					logger.info("Saving the existing vendor with other email");
+					savedVendor = vendor;
+					if (vendor.getOtherEmails() != null) {
+						orgDao.updateOtherEmail(vendor.getOtherEmails(), vendor.getId());
+					}
+				}
+
+				// Build and save the RfqVendor object
+				// Build the RfqVendor object
+				savedVendor = orgDao.findById(savedVendor.getId()).get();
+				RfqVendor rfqVendor = new RfqVendor();
+				logger.info("setting vendor id to rfqvendor{}", savedVendor.getId());
+				rfqVendor.setOrganization(savedVendor);
+				rfqVendor.setRfq(savedRfq);
+				rfqVendor.setRequestType(vendor.getRequestType());
+
+				// Collect RfqVendor object
+				rfqVendors.add(rfqVendor);
+				// ✅ STEP 2: Get status
+				MasterStatus resultStatus = masterStatusDao.findByStatus(StatusConstants.vendorApproved);
+
+//				Organization org = orgDao.findById(savedVendor.getId()).get();
+				// ✅ STEP 3: Check if record exists
+//				GmtRfqVendors existing = gmtRfqVendorDao.findByVendorAndRfq(savedVendor,
+//						savedRfq);
+//				GmtRfqVendors gmtRfqVendors= new GmtRfqVendors();
+//				
+//
+//				// ✅ STEP 4: Insert or update
+//				if (existing != null) {
+//					logger.info("Updating status to Requested as record already exists");
+//					
+//				} else {
+//					logger.info("Saving status to requested for the first time");
+//					gmtRfqVendors.setStatus(resultStatus);
+//					gmtRfqVendors.setRfq(savedRfq);
+//					gmtRfqVendors.setVendor(savedVendor);
+//					gmtRfqVendors.setRequestedDate(new Date());
+//					gmtRfqVendorDao.save(gmtRfqVendors);
+//				}
+//
+//				// ✅ STEP 5: Update RFQ count
+//				rfqDao.updateCount(savedRfq);
+//
+//				// ✅ STEP 6: Deduct one RFQ credit
+//				orgDao.updateRfqCreditsAndUsage(savedVendor.getId());
+		});
+		}
+
+		// here need to set rfqvendors object
+		try {
+			sendRfqToVendors(rfqVendors, savedRfq);
+		} catch (MessagingException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+
+		// sendRfqToVendors(rfq.getRfqVendors());
+		logger.info("RFQ Created Successfully" + rfq.toString());
+		status = true;
+
+		return status;
+	}
+
 	public boolean sendRfqToVendors(List<RfqVendor> rfq, Rfq rfqData) throws MessagingException {
 		logger.info("Entered to sendRfqToVendors()");
 		UserDetails userDetails = (UserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
