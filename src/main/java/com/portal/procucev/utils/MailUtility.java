@@ -1378,7 +1378,7 @@ public class MailUtility {
 		String message = "<!DOCTYPE html>\n" + "<html>\n" + "<body>\n" + "\n" + "Dear Partner,<br><br>\n" + "\n"
 				+ "This is to inform you that <b>Buyer : </b>" + user.getCompanyName()
 				+ " has requested a bid for the following item:<br><br>\n" + "\n" + "<b>Item Description: </b>"
-				+ desc + "<br>\n" + "<b>Bid Price: </b>" + savedUser.getBuyPrice()
+				+ desc + "<br>\n" + "<b>Bid Price: </b>" + savedUser.getAskPrice()
 				+ "<br><br>\n" + "\n" + "You can reach the buyer at <b>Email: </b>" + user.getUsername()
 				+ " or <b>Phone: </b>" + user.getPhone() + "<br><br>\n" + "\n" + "<br><br>\n" + "Best regards,<br>\n"
 				+ "<b>Procucev Solutions</b>\n" + "\n" + "</body>\n" + "</html>";
@@ -1518,9 +1518,8 @@ public class MailUtility {
 		        + " Has Been Submitted";
 		String message = "<!DOCTYPE html>\n" + "<html>\n" + "<body>\n" + "\n" + "Dear Partner,<br><br>\n" + "\n"
 				+ "This is to inform you that you have requested a bid for the following item:<br><br>\n" + "\n" + "<b>Item Description: </b>"
-				+ savedUser.getItems().getDescription() + "<br>\n" + "<b>Bid Price: </b>" + savedUser.getBuyPrice()
-				+ "<br><br>\n" + "\n" + "You can reach the buyer at <b>Email: </b>" + user.getUsername()
-				+ " or <b>Phone: </b>" + user.getPhone() + "<br><br>\n" + "\n" + "<br><br>\n" + "Best regards,<br>\n"
+				+ desc + "<br>\n" + "<b>Bid Price: </b>" + savedUser.getAskPrice()
+				+ "<br><br>\n" + "\n" + "<br><br>\n" + "Best regards,<br>\n"
 				+ "<b>Procucev Solutions</b>\n" + "\n" + "</body>\n" + "</html>";
 		emailNotifierGenericBySender(subject, username, add, javaMailSender, message, type);
 		
@@ -1531,11 +1530,9 @@ public class MailUtility {
 		// TODO Auto-generated method stub
 		String subject = "New Bid Request from " + user.getCompanyName() +" for Item: " + savedUser.getItems().getDescription();
 		String message = "<!DOCTYPE html>\n" + "<html>\n" + "<body>\n" + "\n" + "Dear Partner,<br><br>\n" + "\n"
-				+ "This is to inform you that <b>Buyer : </b>" + user.getCompanyName()
-				+ " has requested a bid for the following item:<br><br>\n" + "\n" + "<b>Item Description: </b>"
-				+ desc + "<br>\n" + "<b>Bid Price: </b>" + savedUser.getBuyPrice()
-				+ "<br><br>\n" + "\n" + "You can reach the buyer at <b>Email: </b>" + user.getUsername()
-				+ " or <b>Phone: </b>" + user.getPhone() + "<br><br>\n" + "\n" + "<br><br>\n" + "Best regards,<br>\n"
+				+ "This is to inform you that <b>Buyer  has requested a bid for the following item:<br><br>\n" + "\n" + "<b>Item Description: </b>"
+				+ desc + "<br>\n" + "<b>Bid Price: </b>" + savedUser.getAskPrice()
+				+ "<br><br>\n" + "\n" +  "\n" + "<br><br>\n" + "Best regards,<br>\n"
 				+ "<b>Procucev Solutions</b>\n" + "\n" + "</body>\n" + "</html>";
 		emailNotifierGenericBySender(subject, sellerEmail, add, javaMailSender, message, type);
 	
