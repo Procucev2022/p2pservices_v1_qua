@@ -274,7 +274,7 @@ public class ProcUserServiceImpl implements UserService {
 		}
 		user.setResetPassword(true);
 		char[] pswd = ProcucevUtils.generatePassword(8);
-		user.setPassword(pswd.toString());
+		user.setPassword(new String(pswd));
 		try {
 			userDao.save(user);
 			InternetAddress add = new InternetAddress(mailFom, "Procucev Notifications");
