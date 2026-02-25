@@ -308,7 +308,7 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 		user.setRole(initiatorRole);
 		user.setUniqueId(generateUserId(organization.getOrganizationPhonenumber()));
 		user.setSourceType(organization.getSourceType());
-		user.setPassword(String.valueOf(ProcucevUtils.generatePassword(8)));
+		user.setPassword(new String(ProcucevUtils.generatePassword(8)));
 		user.setVerificationStatus(StatusConstants.PENDING_EMAIL_VERIFICATION);
 
 		// Save user
@@ -1064,7 +1064,7 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 		user.setUniqueId(uniqueId);
 		user.setVerificationStatus(StatusConstants.PENDING_EMAIL_VERIFICATION);
 		char[] pswd = ProcucevUtils.generatePassword(8);
-		user.setPassword(pswd.toString());
+		user.setPassword(new String(pswd));
 		logger.info("saving User Details");
 		User savedUser = userDao.save(user);
 		return savedUser;
