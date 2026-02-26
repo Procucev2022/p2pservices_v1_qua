@@ -678,6 +678,7 @@ public class GMTServiceImpl implements GMTService {
 				gmtRfqVendorDto.setDeliveryDate(rfq.getDeliveryDate());
 				gmtRfqVendorDto.setCategory(rfq.getCategory());
 				gmtRfqVendorDto.setUserId(rfq.getUser());
+				gmtRfqVendorDto.setQuoteSubmittedDate(rfq.getQuoteSubmittedDate());
 				if (!(rfq.getClientdeliverylocationrfq()).isEmpty()) {
 					gmtRfqVendorDto.setDeliveryLocation(rfq.getClientdeliverylocationrfq().get(0).getCity());
 				}
@@ -3407,6 +3408,32 @@ public class GMTServiceImpl implements GMTService {
 	    }
 
 	    return responses;
+	}
+
+	@Override
+	public User getBuyerByRFQ(Rfq rfq) {
+	    logger.info("Entered to getBuyerByRFQ");
+
+	    if (rfq == null || rfq.getId() == null) {
+	        logger.warn("RFQ or RFQ ID is null");
+	        return null;
+	    }
+
+	    String orgId = rfqDao.findClientById(rfq.getId());
+
+	    if (orgId == null) {
+	        logger.warn("No Organization found for RFQ ID: {}", rfq.getId());
+	        return null;
+	    }
+
+	    User users = userDao.findUserByOrgId(orgId);
+
+	    if (users != null ) {
+	        return users;   // return first active user
+	    }
+
+	    logger.warn("No active users found for Organization ID: {}", orgId);
+	    return null;
 	}
 
 }

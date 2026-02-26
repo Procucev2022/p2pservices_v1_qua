@@ -144,6 +144,10 @@ public interface RfqDao extends JpaRepository<Rfq, String>{
 			        @Param("sellerId") String sellerId,
 			        Pageable pageable
 			);
+	
+	
+	@Query("select r.org.id from Rfq r WHERE r.id = :id")
+	String findClientById(@Param("id") String id);
 
 
 
