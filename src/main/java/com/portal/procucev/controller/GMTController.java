@@ -723,4 +723,11 @@ public class GMTController {
 
 		return ResponseEntity.ok(response);
 	}
+	
+	@PostMapping("/getBuyerByRFQ")
+	public ResponseEntity<?> getBuyerByRFQ(@RequestBody Rfq rfq) throws IOException {
+		logger.info("Entered to fetch the Buyer list by RFQ");
+	User vendorList = gmtService.getBuyerByRFQ(rfq);
+		return new ResponseEntity<>(vendorList, HttpStatus.OK);
+}
 }
