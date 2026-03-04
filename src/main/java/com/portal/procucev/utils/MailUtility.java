@@ -1231,6 +1231,81 @@ public class MailUtility {
 		emailNotifierGenericBySender(subject, userName, add, javaMailSender, message, type);
 	}
 
+	public static void buyerEmailBFSAccepted(String type, String userName, JavaMailSender javaMailSender,
+	        InternetAddress add, BFSUsers bfsUser, String host, String uniqueId) {
+
+	    String subject = "Your Bid Has Been Accepted – Next Steps on BFS";
+
+	    StringBuilder email = new StringBuilder();
+
+	    email.append("<html>");
+	    email.append("<head>");
+	    email.append("<style>");
+	    email.append("table { border-collapse: collapse; width: 100%; }");
+	    email.append("th, td { border: 1px solid #000; padding: 8px; text-align: left; }");
+	    email.append("th { background-color: #f2f2f2; }");
+	    email.append("</style>");
+	    email.append("</head>");
+
+	    email.append("<body style='font-family: Arial, sans-serif; color:#333;'>");
+
+	    email.append("Dear Partner,<br><br>");
+
+	    email.append("We are pleased to inform you that your bid for the below listed item(s) ");
+	    email.append("has been accepted by the seller through BFS.<br><br>");
+
+	    // Item Table
+	    email.append("<table>");
+	    email.append("<tr>");
+	    email.append("<th>Item No</th>");
+	    email.append("<th>Item Name</th>");
+	    email.append("<th>Quantity</th>");
+	    email.append("<th>Price</th>");
+	    email.append("</tr>");
+
+	    email.append("<tr>");
+	    email.append("<td>");
+	    if (bfsUser.getItems().getItemNumber() != null) {
+	        email.append(bfsUser.getItems().getItemNumber());
+	    }
+	    email.append("</td>");
+
+	    email.append("<td>");
+	    email.append(bfsUser.getItems().getDescription());
+	    email.append("</td>");
+
+	    email.append("<td>");
+	    email.append(bfsUser.getQuantity());
+	    email.append("</td>");
+
+	    email.append("<td>");
+	    email.append(bfsUser.getAskPrice());
+	    email.append("</td>");
+	    email.append("</tr>");
+
+	    email.append("</table><br>");
+
+	    // Unique Passcode
+	    email.append("<b>Transaction Unique Passcode: </b>");
+	    email.append(uniqueId);
+	    email.append("<br><br>");
+
+	    email.append("Kindly share this code with your Procucev associate to proceed with the transaction. ");
+	    email.append("Our team will support you in completing the deal smoothly and efficiently.<br><br>");
+
+	    email.append("Looking to buy more? Simply search available stock on BFS and place your next bid.<br><br>");
+
+	    email.append("Regards,<br>");
+	    email.append("<b>Team QUA AI</b>");
+
+	    email.append("</body>");
+	    email.append("</html>");
+
+	    String message = email.toString();
+
+	    emailNotifierGenericBySender(subject, userName, add, javaMailSender, message, type);
+	}
+	
 	public static void emailBFSAccepted(String type, String userName, JavaMailSender javaMailSender,
 			InternetAddress add, BFSUsers bfsUser, String host, String uniqueId) {
 		// TODO Auto-generated method stub
@@ -1304,6 +1379,83 @@ public class MailUtility {
 		message = email.toString();
 		emailNotifierGenericBySender(subject, userName, add, javaMailSender, message, type);
 	}
+	
+	public static void sellerEmailBFSAccepted(String type, String userName, JavaMailSender javaMailSender,
+	        InternetAddress add, BFSUsers bfsUser, String host, String uniqueId) {
+
+	    String subject = "Bid Accepted Successfully – Proceed with BFS Transaction";
+
+	    StringBuilder email = new StringBuilder();
+
+	    email.append("<html>");
+	    email.append("<head>");
+	    email.append("<style>");
+	    email.append("table { border-collapse: collapse; width: 100%; }");
+	    email.append("th, td { border: 1px solid #000; padding: 8px; text-align: left; }");
+	    email.append("th { background-color: #f2f2f2; }");
+	    email.append("</style>");
+	    email.append("</head>");
+
+	    email.append("<body style='font-family: Arial, sans-serif; color:#333;'>");
+
+	    email.append("Dear Partner,<br><br>");
+
+	    email.append("You have successfully accepted the buyer’s bid for the below listed item(s) under BFS.<br><br>");
+
+	    // Item & Bid Details Table
+	    email.append("<table>");
+	    email.append("<tr>");
+	    email.append("<th>Item No</th>");
+	    email.append("<th>Item Name</th>");
+	    email.append("<th>Quantity</th>");
+	    email.append("<th>Accepted Bid Price</th>");
+	    email.append("</tr>");
+
+	    email.append("<tr>");
+
+	    email.append("<td>");
+	    if (bfsUser.getItems().getItemNumber() != null) {
+	        email.append(bfsUser.getItems().getItemNumber());
+	    }
+	    email.append("</td>");
+
+	    email.append("<td>");
+	    email.append(bfsUser.getItems().getDescription());
+	    email.append("</td>");
+
+	    email.append("<td>");
+	    email.append(bfsUser.getQuantity());
+	    email.append("</td>");
+
+	    email.append("<td>");
+	    email.append(bfsUser.getAskPrice());
+	    email.append("</td>");
+
+	    email.append("</tr>");
+	    email.append("</table><br>");
+
+	    email.append("The transaction is now initiated.<br><br>");
+
+	    email.append("<b>Transaction Unique Passcode: </b>");
+	    email.append(uniqueId);
+	    email.append("<br><br>");
+
+	    email.append("Kindly share this code while coordinating with your designated Procucev associate ");
+	    email.append("to proceed with the next steps. Our team will assist you in completing the ");
+	    email.append("transaction smoothly and efficiently.<br><br>");
+
+	    email.append("We look forward to facilitating a successful deal closure.<br><br>");
+
+	    email.append("Regards,<br>");
+	    email.append("<b>Team QUA AI</b>");
+
+	    email.append("</body>");
+	    email.append("</html>");
+
+	    String message = email.toString();
+
+	    emailNotifierGenericBySender(subject, userName, add, javaMailSender, message, type);
+	}
 
 	public static void sendClientEmailForCM2(String type, String toAddress, Organization organization,
 			JavaMailSender javaMailSender, InternetAddress add, String host) {
@@ -1322,55 +1474,71 @@ public class MailUtility {
 	}
 
 	public static void mailingVerificationLinkWithSelfUserLogin(JavaMailSender javaMailSender, String from,
-			InternetAddress add, String pswd, String hostName, User user) {
+	        InternetAddress add, String pswd, String hostName, User user) {
 
-		String verificationTemplate = "<!DOCTYPE html>" + "<html>"
-				+ "<body style='font-family: Arial, sans-serif; color: #333; line-height: 1.6;'>"
-				+ "<p>Dear Partner,</p>" +
+	    String verificationTemplate = "<!DOCTYPE html>"
+	            + "<html>"
+	            + "<body style='font-family: Arial, sans-serif; color: #333; line-height: 1.6;'>"
 
-				"<p>Thank you for registering with <b>Get My quoTe (GMT)</b>. "
-				+ "We are delighted to have you onboard for our new <b>GMT/BFS Portal QUA by Procucev!!</b></p>" +
+	            + "<p>Dear Partner,</p>"
 
-				"<p><i>\"QUA will be your AI partner in Procurement\"</i></p>" +
+	            + "<p>Greetings from Procucev!</p>"
 
-				"<p><b>Please find your login credentials below:</b></p>" + "<p><b>Username:</b> " + user.getUsername()
-				+ "<br>" + "<b>Password:</b> " + user.getPassword() + "</p>" +
+	            + "<p>Welcome to the Procucev QUA AI portal! Your buyer account is ready. "
+	            + "Click below to set up your profile and start circulating RFQs to trusted vendors:</p>"
 
-				"<p><a href='" + hostName + "/login' "
-				+ "style='background-color:#007bff; color:#fff; padding:10px 15px; text-decoration:none; border-radius:5px;'>"
-				+ "Click here to Login and raise your RFQs</a></p>" +
+	            + "<p><a href='" + hostName + "/login' "
+	            + "style='background-color:#007bff; color:#fff; padding:10px 15px; "
+	            + "text-decoration:none; border-radius:5px;'>"
+	            + "Create Your Account</a></p>"
 
-				"<p>Start connecting with verified vendors and experience "
-				+ "<b>Fast, Smart, and Better Sourcing with GMT.</b></p>" +
+	            + "<p><b>Login Details:</b><br><br>"
+	            + "Username: <b>" + user.getUsername() + "</b><br>"
+	            + "Mobile: <b>" + user.getPhone() + "</b><br>"
+	            + "Password: <b>" + user.getPassword() + "</b><br>"
+	            + "(Use this password to log in for the first time and create your new password.)</p>"
 
-				"<p>Your GMT registration also gives you access to our <b>Buy From Stock (BFS)</b> platform.</p>" +
+	            + "<p>Procucev GMT & BFS powered by QUA AI simplifies your vendor sourcing — "
+	            + "publish RFQs, get quotes directly to your inbox, and make immediate purchases through BFS. "
+	            + "Say “Hi” on WhatsApp at 70901 70801 or visit "
+	            + "<a href='https://www.qua.procucev.com'>www.qua.procucev.com</a> anytime to get started.</p>"
 
-				"<ul>" + "<li>Discover ready products at discounted prices instantly.</li>"
-				+ "<li>Sell your excess inventory easily and get the best market value.</li>" + "</ul>" +
+	            + "<p>Facing difficulties? Let us connect with our dedicated support team - "
+	            + "<a href='mailto:support@procucev.com'>support@procucev.com</a></p>"
 
-				"<p>We are excited to have you with us and look forward to supporting your sourcing journey.</p>"
-				+ "<p>Warm regards,<br><b>QUA by Procucev</b></p>" + "</body></html>";
+	            + "<p>Thanks,<br><b>Team QUA AI</b></p>"
 
-		try {
-			JavaMailSender mailSender = getJavaMailSender(from, pswd);
-			MimeMessage mimeMessage = mailSender.createMimeMessage();
-			MimeMessageHelper helper = new MimeMessageHelper(mimeMessage, true);
+	            + "<hr>"
+	            + "<p><b>About Procucev:</b><br>"
+	            + "<i>“Procucev leverages decades of expertise to deliver unified enterprise procurement solutions "
+	            + "with AI-enabled vendor platforms, consulting, and digital technology, helping buyers streamline "
+	            + "sourcing, circulate RFQs, and make faster purchases through QUA AI. Visit "
+	            + "<a href='https://www.procucev.com'>www.procucev.com</a> to know more.”</i></p>"
 
-			helper.setTo(user.getUsername());
-			helper.setFrom(add);
-			helper.setSubject("Welcome to QUA by Procucev - Your GMT/BFS Portal Access");
-			helper.setText(verificationTemplate, true);
+	            + "</body></html>";
 
-			mailSender.send(mimeMessage);
-			LOGGER.info("Sent verification mail successfully to {}", user.getUsername());
+	    try {
+	        JavaMailSender mailSender = getJavaMailSender(from, pswd);
+	        MimeMessage mimeMessage = mailSender.createMimeMessage();
+	        MimeMessageHelper helper = new MimeMessageHelper(mimeMessage, true);
 
-		} catch (Exception e) {
-			LOGGER.error("Error in sending creation mail --> {}", e.getMessage(), e);
-			throw new AppException(StatusCodes.MAIL_SEND_ERROR, ApplicationConstants.MAIL_SENDING_FAILURE,
-					ApplicationConstants.BUSSINESS_EXCEPTION, ApplicationConstants.FAILURE);
-		}
+	        helper.setTo(user.getUsername());
+	        helper.setFrom(add);
+	        helper.setSubject("Procucev QUA AI Portal – Your Buyer Account is Ready!");
+	        helper.setText(verificationTemplate, true);
+
+	        mailSender.send(mimeMessage);
+	        LOGGER.info("Buyer account ready mail sent successfully to {}", user.getUsername());
+
+	    } catch (Exception e) {
+	        LOGGER.error("Error in sending buyer account creation mail --> {}", e.getMessage(), e);
+	        throw new AppException(StatusCodes.MAIL_SEND_ERROR,
+	                ApplicationConstants.MAIL_SENDING_FAILURE,
+	                ApplicationConstants.BUSSINESS_EXCEPTION,
+	                ApplicationConstants.FAILURE);
+	    }
 	}
-
+	
 	public static void emailForBidRequest(String type, String toAddress, JavaMailSender javaMailSender,
 			InternetAddress add, String host, BFSUsers savedUser, User user, String desc) {
 		// TODO Auto-generated method stub
@@ -1477,39 +1645,104 @@ public class MailUtility {
 //		
 //	}
 
+//	public static void mailingVerificationLinkWithUser(JavaMailSender javaMailSender, InternetAddress add,
+//			String hostName, User user) {
+//		System.out.println("pswdd mail---" + user.getPassword());
+//		String verificationTemplate = "<!DOCTYPE html>\n" + "<html>\n" + "<body>\n" + "\n" + "Dear " + "Partner"
+//				+ ", <br><br>\n" + "\n" + "Greetings from Procucev!!" + "<br><br>\n" + "\n"
+//				+ "<b>Please click on the below link to start creating your Seller profile with Procucev Solutions</b>\n"
+//				+ "\n" + "<p><a href=\"" + hostName + "/login?regId=" + user.getOrg().getId()
+//				+ "\">Create your account !!</a></p>\n" + "<b>Use the login details mentioned below to proceed:</b>\n"
+//				+ ",<br><br>\n" + "<b>UserName " + user.getUsername() + ",<br><br></b>\n" + "\n" + "<b>Password "
+//				+ user.getPassword() + "<br><br></b>\n" + "\n"
+//
+//				+ "<b>Thanks, <br></b>\n" + "\n" + "<b>Procucev Solutions</b>\n" + "\n" + "\n" + "</body>\n"
+//				+ "</html>";
+//
+//		System.out.println(verificationTemplate);
+//		// http://localhost:4201/vendorRegistration?regId=r123
+//
+//		MimeMessage mimeMessage = javaMailSender.createMimeMessage();
+//		MimeMessageHelper mimeMessageHelper = new MimeMessageHelper(mimeMessage);
+//		try {
+//			mimeMessageHelper.setTo(user.getUsername());
+//			mimeMessageHelper.setFrom(add); // from Address
+//			mimeMessageHelper.setSubject("Procucev Portal Account Creation !!");
+//			mimeMessageHelper.setText(verificationTemplate, true);
+//			javaMailSender.send(mimeMessage);
+//		} catch (Exception e) {
+//			LOGGER.error("Error in sending creation mail -- " + e.getMessage());
+//			throw new AppException(StatusCodes.MAIL_SEND_ERROR, ApplicationConstants.MAIL_SENDING_FAILURE,
+//					ApplicationConstants.BUSSINESS_EXCEPTION, ApplicationConstants.FAILURE);
+//		}
+//		LOGGER.info("Sent verifiation mail successfully");
+//	}
+
+
 	public static void mailingVerificationLinkWithUser(JavaMailSender javaMailSender, InternetAddress add,
-			String hostName, User user) {
-		System.out.println("pswdd mail---" + user.getPassword());
-		String verificationTemplate = "<!DOCTYPE html>\n" + "<html>\n" + "<body>\n" + "\n" + "Dear " + "Partner"
-				+ ", <br><br>\n" + "\n" + "Greetings from Procucev!!" + "<br><br>\n" + "\n"
-				+ "<b>Please click on the below link to start creating your Seller profile with Procucev Solutions</b>\n"
-				+ "\n" + "<p><a href=\"" + hostName + "/login?regId=" + user.getOrg().getId()
-				+ "\">Create your account !!</a></p>\n" + "<b>Use the login details mentioned below to proceed:</b>\n"
-				+ ",<br><br>\n" + "<b>UserName " + user.getUsername() + ",<br><br></b>\n" + "\n" + "<b>Password "
-				+ user.getPassword() + "<br><br></b>\n" + "\n"
+	        String hostName, User user) {
 
-				+ "<b>Thanks, <br></b>\n" + "\n" + "<b>Procucev Solutions</b>\n" + "\n" + "\n" + "</body>\n"
-				+ "</html>";
+	    String verificationTemplate = "<!DOCTYPE html>"
+	            + "<html>"
+	            + "<body>"
+	            + "Dear Partner,<br><br>"
 
-		System.out.println(verificationTemplate);
-		// http://localhost:4201/vendorRegistration?regId=r123
+	            + "Welcome to the Procucev QUA AI portal! Your account is ready. "
+	            + "Click below to set up your profile and update your categories to unlock new business opportunities:<br><br>"
 
-		MimeMessage mimeMessage = javaMailSender.createMimeMessage();
-		MimeMessageHelper mimeMessageHelper = new MimeMessageHelper(mimeMessage);
-		try {
-			mimeMessageHelper.setTo(user.getUsername());
-			mimeMessageHelper.setFrom(add); // from Address
-			mimeMessageHelper.setSubject("Procucev Portal Account Creation !!");
-			mimeMessageHelper.setText(verificationTemplate, true);
-			javaMailSender.send(mimeMessage);
-		} catch (Exception e) {
-			LOGGER.error("Error in sending creation mail -- " + e.getMessage());
-			throw new AppException(StatusCodes.MAIL_SEND_ERROR, ApplicationConstants.MAIL_SENDING_FAILURE,
-					ApplicationConstants.BUSSINESS_EXCEPTION, ApplicationConstants.FAILURE);
-		}
-		LOGGER.info("Sent verifiation mail successfully");
+	            + "<p><a href=\"" + hostName + "/login?regId=" + user.getOrg().getId()
+	            + "\" style='background-color:#007bff;color:#ffffff;padding:10px 20px;"
+	            + "text-decoration:none;border-radius:5px;'>Click Here To Create Your Account</a></p><br>"
+
+	            + "<b>Your login details:</b><br><br>"
+	            + "Username: <b>" + user.getUsername() + "</b><br>"
+	            + "Mobile: <b>" + user.getPhone() + "</b><br>"
+	            + "Password: <b>" + user.getPassword() + "</b><br>"
+	            + "(Use this password to log in for the first time to create your new password.)<br><br>"
+
+	            + "Procucev GMT & BFS powered by QUA AI acts as your extended sales team, "
+	            + "helping you get more business sales qualified leads and new business opportunities. "
+	            + "Say “Hi” on WhatsApp at 70901 70801 or visit "
+	            + "<a href='https://www.qua.procucev.com'>www.qua.procucev.com</a> anytime to get started.<br><br>"
+
+	            + "Facing difficulties? Let us connect with our dedicated support team - "
+	            + "<a href='mailto:support@procucev.com'>support@procucev.com</a><br><br>"
+
+	            + "Thanks,<br>"
+	            + "<b>Team QUA AI</b><br><br>"
+
+	            + "<hr>"
+	            + "<b>About Procucev:</b><br>"
+	            + "<i>“Procucev leverages decades of expertise to deliver unified enterprise procurement solutions "
+	            + "with AI-enabled vendor platforms, consulting, and digital technology, helping sellers expand "
+	            + "their reach and connect with qualified buyers through QUA AI. Visit "
+	            + "<a href='https://www.procucev.com'>www.procucev.com</a> to know more.”</i>"
+
+	            + "</body>"
+	            + "</html>";
+
+	    MimeMessage mimeMessage = javaMailSender.createMimeMessage();
+
+	    try {
+	        MimeMessageHelper mimeMessageHelper = new MimeMessageHelper(mimeMessage, true);
+
+	        mimeMessageHelper.setTo(user.getUsername());
+	        mimeMessageHelper.setFrom(add);
+	        mimeMessageHelper.setSubject("Procucev QUA AI Portal – Your Seller Account is Ready!");
+	        mimeMessageHelper.setText(verificationTemplate, true);
+
+	        javaMailSender.send(mimeMessage);
+
+	    } catch (Exception e) {
+	        LOGGER.error("Error in sending account creation mail -- " + e.getMessage());
+	        throw new AppException(StatusCodes.MAIL_SEND_ERROR,
+	                ApplicationConstants.MAIL_SENDING_FAILURE,
+	                ApplicationConstants.BUSSINESS_EXCEPTION,
+	                ApplicationConstants.FAILURE);
+	    }
+
+	    LOGGER.info("Seller account ready mail sent successfully");
 	}
-
 	public static void emailForBuyerBidRequest(String type, String username, JavaMailSender javaMailSender,
 			InternetAddress add, String host, BFSUsers savedUser, User user, String desc) {
 		// TODO Auto-generated method stub

@@ -661,8 +661,15 @@ public class GMTServiceImpl implements GMTService {
 	@Override
 	public List<GMTRfqVendorDto> getAllGMTRfq(Organization org) {
 		logger.info("Entered to get all Gmt Rfq's");
-		MasterStatus status = masterStatusDao.findByStatus(StatusConstants.CM_RFQ_ACCEPTED);// add queried// add ignored//add 
-		List<Rfq> rfqList = rfqDao.findAllRfqNoPr(status);
+		//MasterStatus status = masterStatusDao.findByStatus(StatusConstants.CM_RFQ_ACCEPTED);// add queried// add ignored//add 
+		List<MasterStatus> statuses = new ArrayList<>();
+
+	    statuses.add(masterStatusDao.findByStatus(StatusConstants.CM_RFQ_ACCEPTED));
+	    statuses.add(masterStatusDao.findByStatus(StatusConstants.VENDOR_QUOTE_SUBMITTED));
+	    statuses.add(masterStatusDao.findByStatus(StatusConstants.VENDOR_RFQ_QUERIED));
+
+	    List<Rfq> rfqList = rfqDao.findAllRfqNoPrInStatuses(statuses);
+		//List<Rfq> rfqList = rfqDao.findAllRfqNoPr(status);
 		// TODO Auto-generated method stub
 		List<GMTRfqVendorDto> gmtRfqList = new ArrayList<>();
 		if (!CollectionUtils.isEmpty(rfqList)) {
@@ -953,37 +960,69 @@ public class GMTServiceImpl implements GMTService {
 
 	@Override
 	public boolean raiseQueryByVendor(GmtRfqVendors rfq) {
-		// TODO Auto-generated method stub
-		logger.info("Entered To Raise Query By Vendor For Rfq");
-		MasterStatus resultStatus = masterStatusDao.findByStatus(StatusConstants.VENDOR_RFQ_QUERIED);
-		try {
-			if (rfq != null)
 
-			{
-				GmtRfqVendors gmtRfq = gmtRfqVendorDao.findByVendorAndRfq(rfq.getVendor(), rfq.getRfq());
-				if (gmtRfq != null) {
-					logger.info("Updating Query As Record Already Exists");
-					gmtRfqVendorDao.updateQuery(rfq.getRfq().getId(), rfq.getVendor().getId(), rfq.getQuery(),
-							resultStatus);
-				} else {
+	    logger.info("Entered To Raise Query By Vendor For Rfq");
 
-					logger.info("Saving Query Record For First Time With New Status");
+	    try {
 
-					rfq.setStatus(resultStatus);
-					gmtRfqVendorDao.save(rfq);
-				}
-				rfqDao.updateRfqStatus(rfq.getRfq(),resultStatus);
-				return true;
-			} else {
-				logger.warn("No Data Found");
-				throw new AppException(HttpStatus.NO_CONTENT.value(), ApplicationConstants.NO_DATA_FOUND,
-						ApplicationConstants.BUSINESS_EXCEPTION, ApplicationConstants.FAILURE);
-			}
-		} catch (Exception e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		}
-		return false;
+	        if (rfq == null) {
+	            logger.warn("No Data Found");
+	            throw new AppException(HttpStatus.NO_CONTENT.value(),
+	                    ApplicationConstants.NO_DATA_FOUND,
+	                    ApplicationConstants.BUSINESS_EXCEPTION,
+	                    ApplicationConstants.FAILURE);
+	        }
+
+	        MasterStatus queryStatus = masterStatusDao
+	                .findByStatus(StatusConstants.VENDOR_RFQ_QUERIED);
+
+	        MasterStatus quoteSubmittedStatus = masterStatusDao
+	                .findByStatus(StatusConstants.VENDOR_QUOTE_SUBMITTED);
+
+	        GmtRfqVendors gmtRfq = gmtRfqVendorDao
+	                .findByVendorAndRfq(rfq.getVendor(), rfq.getRfq());
+
+	        if (gmtRfq != null) {
+
+	            logger.info("Updating Query As Record Already Exists");
+
+	            gmtRfqVendorDao.updateQuery(
+	                    rfq.getRfq().getId(),
+	                    rfq.getVendor().getId(),
+	                    rfq.getQuery(),
+	                    queryStatus
+	            );
+
+	        } else {
+
+	            logger.info("Saving Query Record For First Time With New Status");
+
+	            rfq.setStatus(queryStatus);
+	            gmtRfqVendorDao.save(rfq);
+	        }
+
+	        // 🔹 Update RFQ status only if current status is NOT QUOTE_SUBMITTED
+	        Rfq existingRfq = rfqDao.findById(rfq.getRfq().getId()).orElse(null);
+
+	        if (existingRfq != null
+	                && existingRfq.getStatus() != null
+	                && quoteSubmittedStatus != null
+	                && !quoteSubmittedStatus.getId()
+	                        .equals(existingRfq.getStatus().getId())) {
+
+	            logger.info("Updating RFQ status to VENDOR_RFQ_QUERIED");
+	            rfqDao.updateRfqStatus(rfq.getRfq(), queryStatus);
+
+	        } else {
+	            logger.info("RFQ status not updated (either null or already QUOTE_SUBMITTED)");
+	        }
+
+	        return true;
+
+	    } catch (Exception e) {
+	        logger.error("Error while raising query by vendor", e);
+	        return false;
+	    }
 	}
 
 	/**
@@ -1038,7 +1077,7 @@ public class GMTServiceImpl implements GMTService {
 
 	@Override
 	public List<RfqVendor> getVendorsbyRFQ(Rfq rfq) {
-		logger.info("Entered To Get Vendors By RFQ");
+		logger.info("Entered To Get Vefq.setndors By RFQ");
 		Optional<Rfq> rfqList = rfqDao.findById(rfq.getId());
 		List<RfqVendor> rfqvendor = rfqList.get().getRfqVendor();
 		List<RfqVendor> rfqvendorresult = new ArrayList<RfqVendor>();
