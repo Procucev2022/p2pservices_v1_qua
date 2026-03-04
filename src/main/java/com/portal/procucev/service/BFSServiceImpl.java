@@ -705,7 +705,7 @@ public class BFSServiceImpl implements BFSService {
 				try {
 					InternetAddress add = new InternetAddress(mailFom, "Procucev Notifications");
 					// To send to Buyer
-					MailUtility.emailBFSAccepted(
+					MailUtility.buyerEmailBFSAccepted(
 							"Item is Accepted from Buy From Stock(BFS) ! Next Steps for Transaction...", userName,
 							javaMailSender, add, bfsUsers, host, uniqueId);
 					log.info("Mail Sent To Buyer");
@@ -715,7 +715,7 @@ public class BFSServiceImpl implements BFSService {
 							javaMailSender, add, bfsUsers, host, uniqueId);
 					log.info("Mail Sent To Category Manager");
 					// To Send Email To Seller
-					MailUtility.emailBFSAccepted(
+					MailUtility.sellerEmailBFSAccepted(
 							"Item is Accepted from Buy From Stock(BFS) ! Next Steps for Transaction...", clientName,
 							javaMailSender, add, bfsUsers, host, uniqueId);
 				} catch (UnsupportedEncodingException e) {
