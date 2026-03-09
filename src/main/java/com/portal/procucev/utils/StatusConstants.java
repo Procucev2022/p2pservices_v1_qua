@@ -304,6 +304,8 @@ public interface StatusConstants {
 	public static final String Gold = "30";
 	
 	public static final String Opt_Out = "40";
+
+	public static final String CM_RFQ_PUBLISHED = "CM_RFQ_PUBLISHED";
 	
 
 }

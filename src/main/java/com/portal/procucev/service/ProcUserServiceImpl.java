@@ -38,6 +38,7 @@ import com.portal.procucev.customexception.AppException;
 import com.portal.procucev.dao.EmailUserRepo;
 import com.portal.procucev.dao.OrgDao;
 import com.portal.procucev.dao.OrgTypeDao;
+import com.portal.procucev.dao.RfqDao;
 import com.portal.procucev.dao.RoleDao;
 import com.portal.procucev.dao.UserDao;
 import com.portal.procucev.model.EmailUser;
@@ -68,6 +69,9 @@ public class ProcUserServiceImpl implements UserService {
 
 	@Autowired
 	private OrgDao orgDao;
+	
+	@Autowired
+	private RfqDao rfqDao;
 
 	@Autowired
 	private OrgTypeDao orgTypeDao;
@@ -129,6 +133,8 @@ public class ProcUserServiceImpl implements UserService {
 		// User userObject = userDao.findByUsernameAndActive(user.getUsername(), true);
 		User userObject = userDao.findByUsernameAndPhoneAndActive(user.getUsername(), normalizedPhone, true);
 		if (userObject != null) {
+			int rfqRaisedCount=rfqDao.findRfqCountByUser(userObject.getId());
+			userObject.setRfqRaised(rfqRaisedCount);
 
 			List<String> permissionDetails = new ArrayList<>();
 			if (userObject.getRole() != null && !CollectionUtils.isEmpty(userObject.getRole().getPermission())) {

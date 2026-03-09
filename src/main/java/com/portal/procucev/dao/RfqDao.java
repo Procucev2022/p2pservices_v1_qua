@@ -155,6 +155,12 @@ public interface RfqDao extends JpaRepository<Rfq, String>{
 	@Query("select r.org.id from Rfq r WHERE r.id = :id")
 	String findClientById(@Param("id") String id);
 
+	@Query("SELECT COUNT(r) FROM Rfq r WHERE r.user = :user")
+	int findRfqCountByUser(@Param("user") String user);
+
+	@Query("SELECT r FROM Rfq r WHERE  (r.noPrFlag = true and r.byClient = false)or (r.byClient = true and r.clientStatus IN :statusList)Order By r.createdTS DESC")
+	List<Rfq> findAllRfqNoPrByCM(@Param("statusList") List<MasterStatus> statusList);
+
 
 
 
