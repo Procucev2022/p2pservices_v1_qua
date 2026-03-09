@@ -905,10 +905,16 @@ public class GMTServiceImpl implements GMTService {
 	@Override
 	public List<RfqDTO> getAllRfqForCM() {
 		logger.info("Entered to Get RFQs For PR Flag True");
+		List<String> inputStatus = new ArrayList<>();
+	
+		inputStatus.add(StatusConstants.CM_RFQ_ACCEPTED);
+		inputStatus.add(StatusConstants.VENDOR_QUOTE_SUBMITTED);
 
-		MasterStatus status = masterStatusDao.findByStatus(StatusConstants.CM_RFQ_ACCEPTED);
+		List<MasterStatus> statusList = masterStatusDao.findByStatusIn(inputStatus);
+		
 
-		List<Rfq> rfqsList = rfqDao.findAllRfqNoPrByCM(status);
+		
+		List<Rfq> rfqsList = rfqDao.findAllRfqNoPrByCM(statusList);
 		if (rfqsList.isEmpty()) {
 			logger.warn("No RFQs found for PR Flag True");
 			throw new AppException(HttpStatus.NO_CONTENT.value(), ApplicationConstants.NO_DATA_FOUND,
@@ -1002,20 +1008,20 @@ public class GMTServiceImpl implements GMTService {
 	        }
 
 	        // 🔹 Update RFQ status only if current status is NOT QUOTE_SUBMITTED
-	        Rfq existingRfq = rfqDao.findById(rfq.getRfq().getId()).orElse(null);
+	     //   Rfq existingRfq = rfqDao.findById(rfq.getRfq().getId()).orElse(null);
 
-	        if (existingRfq != null
-	                && existingRfq.getStatus() != null
-	                && quoteSubmittedStatus != null
-	                && !quoteSubmittedStatus.getId()
-	                        .equals(existingRfq.getStatus().getId())) {
-
-	            logger.info("Updating RFQ status to VENDOR_RFQ_QUERIED");
-	            rfqDao.updateRfqStatus(rfq.getRfq(), queryStatus);
-
-	        } else {
-	            logger.info("RFQ status not updated (either null or already QUOTE_SUBMITTED)");
-	        }
+//	        if (existingRfq != null
+//	                && existingRfq.getStatus() != null
+//	                && quoteSubmittedStatus != null
+//	                && !quoteSubmittedStatus.getId()
+//	                        .equals(existingRfq.getStatus().getId())) {
+//
+//	            logger.info("Updating RFQ status to VENDOR_RFQ_QUERIED");
+//	            rfqDao.updateRfqStatus(rfq.getRfq(), queryStatus);
+//
+//	        } else {
+//	            logger.info("RFQ status not updated (either null or already QUOTE_SUBMITTED)");
+//	        }
 
 	        return true;
 

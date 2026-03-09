@@ -91,6 +91,9 @@ public class User extends Procucev {
 	@Transient
 	private String orgId;
 	
+	@Transient
+	private int rfqRaised;
+	
 	@Column(name="unique_id")
 	private String uniqueId;
 	
