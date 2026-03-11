@@ -2975,6 +2975,7 @@ public class GMTServiceImpl implements GMTService {
 		dto.setIndia(org.isIndia());
 		dto.setZipCode(org.getZipCode());
 		dto.setSourceType(org.getSourceType());
+		dto.setCity(org.getCity());
 		// Convert entities -> List<String>
 		dto.setCategories(
 				org.getDivisionCategories() != null
