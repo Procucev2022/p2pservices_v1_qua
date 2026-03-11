@@ -691,6 +691,20 @@ public class BFSServiceImpl implements BFSService {
 			Optional<BFSUsers> findById = bfsUserDao.findById(bfsUser.getId());
 			if (findById.isPresent()) {
 				BFSUsers bfsUsers = findById.get();
+				 // Check if already accepted
+			    if (bfsUsers.getStatus() != null &&
+			        StatusConstants.BID_ACCEPTED.equals(bfsUsers.getStatus().getStatus())) {
+			    	log.warn("Bid already accepted for BFSUser Id: {}", bfsUser.getId());
+			        throw new AppException(HttpStatus.BAD_REQUEST.value(), "Bid already accepted");
+			    }
+
+			    if (bfsUsers.getStatus() != null &&
+				        StatusConstants.BID_NOT_ACCEPTED.equals(bfsUsers.getStatus().getStatus())) {
+				    	log.warn("Bid already Rejected for BFSUser Id: {}", bfsUser.getId());
+				        throw new AppException(HttpStatus.BAD_REQUEST.value(), "Bid already Rejected");
+				        
+				    }
+
 				int quantity = bfsUsers.getQuantity();
 
 				double totalQuantity = bfsUsers.getItems().getAvailableQuantity();
@@ -729,15 +743,41 @@ public class BFSServiceImpl implements BFSService {
 
 	@Override
 	public boolean rejectBfsItemBySeller(BFSUsers bfsUser) {
-		// TODO Auto-generated method stub
-		if (bfsUser == null) {
-			log.warn("BFSUser is null. Exiting method.");
-			throw new AppException(HttpStatus.BAD_REQUEST.value(), "BFSUser is null.");
-		} else {
-			MasterStatus status = masterStatusDao.findByStatus(StatusConstants.BID_NOT_ACCEPTED);
-			bfsUserDao.updateSellerRejectStatus(bfsUser, status, bfsUser.getSellerRemarks());
-			return true;
-		}
+
+	    if (bfsUser == null) {
+	        log.warn("BFSUser is null. Exiting method.");
+	        throw new AppException(HttpStatus.BAD_REQUEST.value(), "BFSUser is null.");
+	    }
+
+	    Optional<BFSUsers> findById = bfsUserDao.findById(bfsUser.getId());
+
+	    if (!findById.isPresent()) {
+	        throw new AppException(HttpStatus.NOT_FOUND.value(), "BFSUser not found");
+	    }
+
+	    BFSUsers bfsUsers = findById.get();
+
+	    // ❗ Check if already accepted
+	    if (bfsUsers.getStatus() != null &&
+	        StatusConstants.BID_ACCEPTED.equals(bfsUsers.getStatus().getStatus())) {
+
+	        log.warn("Bid already accepted. Cannot reject BFSUser Id: {}", bfsUser.getId());
+	        throw new AppException(HttpStatus.BAD_REQUEST.value(), "Bid already accepted. Cannot reject.");
+	    }
+
+	    // ❗ Check if already rejected
+	    if (bfsUsers.getStatus() != null &&
+	        StatusConstants.BID_NOT_ACCEPTED.equals(bfsUsers.getStatus().getStatus())) {
+
+	        log.warn("Bid already rejected for BFSUser Id: {}", bfsUser.getId());
+	        throw new AppException(HttpStatus.BAD_REQUEST.value(), "Bid already rejected.");
+	    }
+
+	    MasterStatus status = masterStatusDao.findByStatus(StatusConstants.BID_NOT_ACCEPTED);
+
+	    bfsUserDao.updateSellerRejectStatus(bfsUsers, status, bfsUser.getSellerRemarks());
+
+	    return true;
 	}
 
 	@Override

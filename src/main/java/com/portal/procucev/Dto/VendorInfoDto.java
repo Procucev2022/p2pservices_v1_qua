@@ -15,5 +15,6 @@ public class VendorInfoDto {
     private String zipCode;
     private boolean isWebApp;
     private String sourceType;
+    private String city;
     private List<String> categories;
 }
