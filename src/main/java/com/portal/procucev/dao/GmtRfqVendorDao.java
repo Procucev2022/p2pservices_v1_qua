@@ -74,5 +74,8 @@ public interface GmtRfqVendorDao extends JpaRepository<GmtRfqVendors, String> {
 		        Pageable pageable
 		);
 
+	@Query("select count(r.vendor) from GmtRfqVendors r where r.rfq.id=:id")
+	long findByVendorsByRfq(@Param("id") String id);
+
 
 }

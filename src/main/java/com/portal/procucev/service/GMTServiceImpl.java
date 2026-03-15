@@ -769,25 +769,25 @@ public class GMTServiceImpl implements GMTService {
 		}
 
 		List<GmtRfqVendors> response = gmtRfqVendorDao.findByRfq(rfq);
-		List<RfqVendor> rfqVendors = getVendorsbyRFQ(rfq); // Call the method to get RfqVendor
+		//List<RfqVendor> rfqVendors = getVendorsbyRFQ(rfq); // Call the method to get RfqVendor
 															// list
-		MasterStatus forwardedStatus = masterStatusDao.findByStatus(StatusConstants.RFQ_FORWARDED);
-		logger.info("Size of rfqVendors==", rfqVendors.size());
-		if (!rfqVendors.isEmpty()) {
-			// Add RfqVendor objects to the response
-			for (RfqVendor rfqVendor : rfqVendors) {
-				GmtRfqVendors gmtRfqVendor = new GmtRfqVendors();
-				// gmtRfqVendor.setId(rfqVendor.getId());
-				gmtRfqVendor.setVendorName(rfqVendor.getCompanyName());
-				gmtRfqVendor.setVendorUuid(rfqVendor.getVendorId());
-				gmtRfqVendor.setVendorId(rfqVendor.getCompanyId());
-				gmtRfqVendor.setOtherEmails(rfqVendor.getOtherEmails());
-				gmtRfqVendor.setStatus(forwardedStatus);
-				// Set other fields according to GmtRfqVendors object
-				// You may need to adjust fields based on GmtRfqVendors properties
-				response.add(gmtRfqVendor);
-			}
-		}
+//		MasterStatus forwardedStatus = masterStatusDao.findByStatus(StatusConstants.RFQ_FORWARDED);
+//		logger.info("Size of rfqVendors==", rfqVendors.size());
+//		if (!rfqVendors.isEmpty()) {
+//			// Add RfqVendor objects to the response
+//			for (RfqVendor rfqVendor : rfqVendors) {
+//				GmtRfqVendors gmtRfqVendor = new GmtRfqVendors();
+//				// gmtRfqVendor.setId(rfqVendor.getId());
+//				gmtRfqVendor.setVendorName(rfqVendor.getCompanyName());
+//				gmtRfqVendor.setVendorUuid(rfqVendor.getVendorId());
+//				gmtRfqVendor.setVendorId(rfqVendor.getCompanyId());
+//				gmtRfqVendor.setOtherEmails(rfqVendor.getOtherEmails());
+//				gmtRfqVendor.setStatus(forwardedStatus);
+//				// Set other fields according to GmtRfqVendors object
+//				// You may need to adjust fields based on GmtRfqVendors properties
+//				response.add(gmtRfqVendor);
+//			}
+//		}
 		if (!response.isEmpty()) {
 			logger.info("Found {} vendors for RFQ {}", response.size(), rfq.getId());
 			return response;
@@ -945,7 +945,8 @@ public class GMTServiceImpl implements GMTService {
 		rfqDto.setCount(rfq.getCount());
 		rfqDto.setQuotationReceived(rfq.isQuotationReceived());
 		rfqDto.setNoOfQuotes(rfq.getQuoteCount());
-		rfqDto.setNoOfVendors(rfqVendorDao.findByVendorsByRfq(rfq.getId()));
+		//rfqDto.setNoOfVendors(rfqVendorDao.findByVendorsByRfq(rfq.getId()));
+		rfqDto.setNoOfVendors(gmtRfqVendorDao.findByVendorsByRfq(rfq.getId()));
 		rfqDto.setQuoteSubmittedDate(rfq.getQuoteSubmittedDate());
 		rfqDto.setClientStatus(rfq.getClientStatus());
 
@@ -1465,27 +1466,27 @@ public class GMTServiceImpl implements GMTService {
 				// Collect RfqVendor object
 				rfqVendors.add(rfqVendor);
 				// ✅ STEP 2: Get status
-				MasterStatus resultStatus = masterStatusDao.findByStatus(StatusConstants.vendorApproved);
+				MasterStatus resultStatus = masterStatusDao.findByStatus(StatusConstants.RFQ_FORWARDED);
 
-//				Organization org = orgDao.findById(savedVendor.getId()).get();
-				// ✅ STEP 3: Check if record exists
-//				GmtRfqVendors existing = gmtRfqVendorDao.findByVendorAndRfq(savedVendor,
-//						savedRfq);
-//				GmtRfqVendors gmtRfqVendors= new GmtRfqVendors();
-//				
-//
-//				// ✅ STEP 4: Insert or update
-//				if (existing != null) {
-//					logger.info("Updating status to Requested as record already exists");
-//					
-//				} else {
-//					logger.info("Saving status to requested for the first time");
-//					gmtRfqVendors.setStatus(resultStatus);
-//					gmtRfqVendors.setRfq(savedRfq);
-//					gmtRfqVendors.setVendor(savedVendor);
-//					gmtRfqVendors.setRequestedDate(new Date());
-//					gmtRfqVendorDao.save(gmtRfqVendors);
-//				}
+				Organization org = orgDao.findById(savedVendor.getId()).get();
+				 //✅ STEP 3: Check if record exists
+				GmtRfqVendors existing = gmtRfqVendorDao.findByVendorAndRfq(savedVendor,
+						savedRfq);
+				GmtRfqVendors gmtRfqVendors= new GmtRfqVendors();
+				
+
+				// ✅ STEP 4: Insert or update
+				if (existing != null) {
+					logger.info("Updating status to Requested as record already exists");
+					
+				} else {
+					logger.info("Saving status to requested for the first time");
+					gmtRfqVendors.setStatus(resultStatus);
+					gmtRfqVendors.setRfq(savedRfq);
+					gmtRfqVendors.setVendor(savedVendor);
+					gmtRfqVendors.setRequestedDate(new Date());
+					gmtRfqVendorDao.save(gmtRfqVendors);
+				}
 //
 //				// ✅ STEP 5: Update RFQ count
 //				rfqDao.updateCount(savedRfq);
@@ -1611,7 +1612,7 @@ public class GMTServiceImpl implements GMTService {
 				if (rfqData.isPresent()) {
 					Rfq rfqResponse = rfqData.get();
 					rfqResponse.setVendors(rfq.getVendors());
-					saveVendorsForRfq(rfq, rfqResponse);
+					saveVendorsForForwardRfq(rfq, rfqResponse);
 				} else {
 					logger.info("No RFQ's Found");
 				}
