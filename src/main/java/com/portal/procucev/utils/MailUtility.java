@@ -226,7 +226,7 @@ public class MailUtility {
 		try {
 			mimeMessageHelper.setTo(toAddress);
 			mimeMessageHelper.setFrom(add); // from Address
-			mimeMessageHelper.setSubject("New Password!!");
+			mimeMessageHelper.setSubject("Procucev QUA AI – Your New Password");
 			mimeMessageHelper.setText(message, true);
 			javaMailSender.send(mimeMessage);
 			LOGGER.info("Sent mail successfully to " + toAddress + "Message Called from " + type);
@@ -240,15 +240,37 @@ public class MailUtility {
 	}
 
 	public static void emailforgotpassword(String type, String username, JavaMailSender javaMailSender,
-			InternetAddress add, String password, String host, User user) {
-		String message = "<!DOCTYPE html>\n" + "<html>\n" + "<body>\n" + "\n" + "Dear " + "Partner" + ", <br><br>\n"
-				+ "\n" + "<b> Your login credentials with new password  is </b>" + "<br><br>\n" + "<b> UserName  </b>"
-				+ username + "<br><br>\n" + "<b> Password  </b>" + password + "<br><br>\n" + "\n" + "<p><a href=\""
-				+ host + "/login?regId=" + user.getOrg().getId() + "\">Click Here!!</a></p>\n"
-				+ "<b>to login into Procucev Portal </b>" + "\n" + "<b>Thanks, <br></b>\n" + "\n"
-				+ "<b>Procucev Soultions</b>\n" + "\n" + "\n" + "</body>\n" + "</html>";
-		emailforforgotpassword(username, add, javaMailSender, message, type);
+	        InternetAddress add, String password, String host, User user) {
 
+	    String message = "<!DOCTYPE html>"
+	            + "<html>"
+	            + "<body>"
+	            + "<p>Dear Partner,</p>"
+
+	            + "<p>Your login credentials have been updated. Use the following details to access your "
+	            + "<b>Procucev QUA AI seller account</b>:</p>"
+
+	            + "<p><b>Username:</b> " + username + "<br>"
+	            + "<b>Mobile:</b> " + user.getPhone() + "<br>"
+	            + "<b>One Time Password:</b> " + password + "</p>"
+
+	            + "<p>(Use this password to log in for the first time and create your new password.)</p>"
+
+	            + "<p><a href=\"" + host + "/login?regId=" + user.getOrg().getId() + "\">Click Here</a> "
+	            + "to log in and update your password.</p>"
+
+	            + "<p>All set for you. Just login now. "
+	            + "If you still face any problem please drop a mail to "
+	            + "<a href='mailto:support@procucev.com'>support@procucev.com</a>.</p>"
+
+	            + "<br>"
+	            + "<p>Thanks,<br>"
+	            + "Team QUA AI</p>"
+
+	            + "</body>"
+	            + "</html>";
+
+	    emailforforgotpassword(username, add, javaMailSender, message, type);
 	}
 
 	public static void mailingVerificationLinkWithUserLogin(JavaMailSender javaMailSender, String from,
@@ -702,7 +724,10 @@ public class MailUtility {
 			email.append("<body>\n\n");
 			email.append("Dear Partner,<br><br>\n\n");
 			email.append(
-					"<b>** Please find the below RFQ and Submit your Quotation in a reply mail ** Please do not change the Subject line.</b><br><br>\n\n");
+				    "<b>We have received a new RFQ (Enquiry) through GMT. "
+				    + "Please check the details below and send your quotation by replying to this email. "
+				    + "Please do not change the subject line while replying.</b><br><br>\n\n"
+				);
 			email.append("Rfq Due Date: " + rfqDueDate + "</b><br><br>\n\n");
 			email.append("<b>Project Description/Reference: " + rfqData.getProjectDesc() + "</b><br><br>\n\n");
 			email.append("<b>Please find the below RFQ details: </b><br><br>\n\n");
@@ -769,15 +794,19 @@ public class MailUtility {
 			email.append("Pincode : " + pincode + "<br>");
 			email.append("<b>Delivery Date:" + rfqData.getDeliveryDate() + "</b><br><br>\n\n");
 			email.append("<b>About Procucev:</b><br>");
-			email.append(
-					"We're a leading Enterprise Procurement company with a proven track record of connecting clients with vendors facilitating efficient and transparent procurement for all. Through our cutting-edge technology and expert services, we help companies streamline their procurement process, saving time and money. Boost your reach & visibility with Procucev. Join our network of trusted vendors and connect with established companies.<br>");
-			email.append(
-					"Visit our website at <a href=\"https://procucev.com\">procucev.com</a> to learn more about our services and the benefits of partnering with Procucev.<br><br>");
+			email.append("Please submit your offer on time to increase your chances of getting the order and connecting directly with the B2B client.<br><br>");
+
+			email.append("To receive more RFQs, please update your relevant product categories in the QUA portal. "
+			        + "Correct categories help you get more business opportunities.<br><br>");
+
+			email.append("You can also check RFQs regularly on "
+			        + "<a href=\"https://www.procucev.com\">www.procucev.com</a> "
+			        + "- Request New RFQ, Check Status and more…<br><br>");
+
 			email.append("<b>Thanks,</b><br>");
 			email.append(fullName);
 			email.append("<br><br>");
-			email.append("Team GMT");
-			email.append("<br>");
+			email.append("Team GMT<br>");
 			email.append("Procucev");
 //			if (phonenumber != null) {
 //				email.append("T: +91" + phonenumber);
@@ -871,7 +900,7 @@ public class MailUtility {
 
 			email.append("In order to submit quotations for the same and receive future enquiries,<br>");
 			email.append(
-					"Visit <a href=\"https://qua.procucev.com/login\">qua.procucev.com/login</a> or WhatsApp “Hi” to <b>+91 70901 70801</b> to view or download your Request For Quote (RFQ).<br><br>");
+					"Visit <a href=\"https://qua.procucev.com/login\">qua.procucev.com/login</a> download your Request For Quote (RFQ).<br><br>");
 			email.append("<b>Best Regards,</b><br>");
 			email.append("<b>QUA by Procucev</b><br>");
 			email.append("Your partner in growth<br>");
@@ -1500,7 +1529,7 @@ public class MailUtility {
 
 	            + "<p>Procucev GMT & BFS powered by QUA AI simplifies your vendor sourcing — "
 	            + "publish RFQs, get quotes directly to your inbox, and make immediate purchases through BFS. "
-	            + "Say “Hi” on WhatsApp at 70901 70801 or visit "
+	            + "visit "
 	            + "<a href='https://www.qua.procucev.com'>www.qua.procucev.com</a> anytime to get started.</p>"
 
 	            + "<p>Facing difficulties? Let us connect with our dedicated support team - "
@@ -1510,10 +1539,10 @@ public class MailUtility {
 
 	            + "<hr>"
 	            + "<p><b>About Procucev:</b><br>"
-	            + "<i>“Procucev leverages decades of expertise to deliver unified enterprise procurement solutions "
+	            + "<i>Procucev leverages decades of expertise to deliver unified enterprise procurement solutions "
 	            + "with AI-enabled vendor platforms, consulting, and digital technology, helping buyers streamline "
 	            + "sourcing, circulate RFQs, and make faster purchases through QUA AI. Visit "
-	            + "<a href='https://www.procucev.com'>www.procucev.com</a> to know more.”</i></p>"
+	            + "<a href='https://www.procucev.com'>www.procucev.com</a> to know more.</i></p>"
 
 	            + "</body></html>";
 
@@ -1702,7 +1731,7 @@ public class MailUtility {
 
 	            + "Procucev GMT & BFS powered by QUA AI acts as your extended sales team, "
 	            + "helping you get more business sales qualified leads and new business opportunities. "
-	            + "Say “Hi” on WhatsApp at 70901 70801 or visit "
+	            + "visit "
 	            + "<a href='https://www.qua.procucev.com'>www.qua.procucev.com</a> anytime to get started.<br><br>"
 
 	            + "Facing difficulties? Let us connect with our dedicated support team - "
@@ -1713,10 +1742,10 @@ public class MailUtility {
 
 	            + "<hr>"
 	            + "<b>About Procucev:</b><br>"
-	            + "<i>“Procucev leverages decades of expertise to deliver unified enterprise procurement solutions "
+	            + "<i>Procucev leverages decades of expertise to deliver unified enterprise procurement solutions "
 	            + "with AI-enabled vendor platforms, consulting, and digital technology, helping sellers expand "
 	            + "their reach and connect with qualified buyers through QUA AI. Visit "
-	            + "<a href='https://www.procucev.com'>www.procucev.com</a> to know more.”</i>"
+	            + "<a href='https://www.procucev.com'>www.procucev.com</a> to know more.</i>"
 
 	            + "</body>"
 	            + "</html>";
@@ -1746,14 +1775,37 @@ public class MailUtility {
 	public static void emailForBuyerBidRequest(String type, String username, JavaMailSender javaMailSender,
 			InternetAddress add, String host, BFSUsers savedUser, User user, String desc) {
 		// TODO Auto-generated method stub
-		String subject = "Confirmation: Your Bid Request for " 
-		        + desc 
-		        + " Has Been Submitted";
-		String message = "<!DOCTYPE html>\n" + "<html>\n" + "<body>\n" + "\n" + "Dear Partner,<br><br>\n" + "\n"
-				+ "This is to inform you that you have requested a bid for the following item:<br><br>\n" + "\n" + "<b>Item Description: </b>"
-				+ desc + "<br>\n" + "<b>Bid Price: </b>" + savedUser.getAskPrice()
-				+ "<br><br>\n" + "\n" + "<br><br>\n" + "Best regards,<br>\n"
-				+ "<b>Procucev Solutions</b>\n" + "\n" + "</body>\n" + "</html>";
+		String subject = " Bid Submitted Successfully – Awaiting Seller Confirmation " ;
+		String message = "<!DOCTYPE html>"
+		        + "<html>"
+		        + "<body>"
+
+		        + "Dear Partner,<br><br>"
+
+		        + "Your bid for the below listed item(s) has been successfully submitted on <b>BFS</b>.<br><br>"
+
+		        + "<b>Item & Bid Details</b><br>"
+		        + "<table border='1' cellpadding='5' cellspacing='0' style='border-collapse:collapse;'>"
+		        + "<tr>"
+		        + "<th>Item Description</th>"
+		        + "<th>Bid Price</th>"
+		        + "</tr>"
+		        + "<tr>"
+		        + "<td>" + desc + "</td>"
+		        + "<td>" + savedUser.getAskPrice() + "</td>"
+		        + "</tr>"
+		        + "</table><br><br>"
+
+		        + "The seller has been notified and your bid is currently awaiting acceptance. "
+		        + "You will receive a confirmation once the seller approves the bid.<br><br>"
+
+		        + "In the meantime, you may explore additional stock and place more bids via the "
+		        + "<b>QUA AI portal</b> "
+		        + "(<a href='https://qua.procucev.com'>www.qua.procucev.com</a>) <br><br>"
+		        + "Regards,<br>"
+		        + "<b>Team QUA AI</b>"
+		        + "</body>"
+		        + "</html>";
 		emailNotifierGenericBySender(subject, username, add, javaMailSender, message, type);
 		
 	}
@@ -1761,12 +1813,40 @@ public class MailUtility {
 	public static void emailForsellerBidRequest(String type, String sellerEmail, JavaMailSender javaMailSender,
 			InternetAddress add, String host, BFSUsers savedUser, User user, String desc) {
 		// TODO Auto-generated method stub
-		String subject = "New Bid Request from " + user.getCompanyName() +" for Item: " + savedUser.getItems().getDescription();
-		String message = "<!DOCTYPE html>\n" + "<html>\n" + "<body>\n" + "\n" + "Dear Partner,<br><br>\n" + "\n"
-				+ "This is to inform you that <b>Buyer  has requested a bid for the following item:<br><br>\n" + "\n" + "<b>Item Description: </b>"
-				+ desc + "<br>\n" + "<b>Bid Price: </b>" + savedUser.getAskPrice()
-				+ "<br><br>\n" + "\n" +  "\n" + "<br><br>\n" + "Best regards,<br>\n"
-				+ "<b>Procucev Solutions</b>\n" + "\n" + "</body>\n" + "</html>";
+		String subject = "New Bid Received on Your Listed Stock – Action Required";
+		String message = "<!DOCTYPE html>"
+		        + "<html>"
+		        + "<body>"
+
+		        + "Dear Partner,<br><br>"
+
+		        + "You have received a new bid for the stock listed by you on <b>QUA AI</b>.<br><br>"
+
+		        + "<b>Item & Bid Details</b><br>"
+		        + "<table border='1' cellpadding='6' cellspacing='0' style='border-collapse:collapse;'>"
+		        + "<tr>"
+		        + "<th>Item Description</th>"
+		        + "<th>Bid Price</th>"
+		        + "</tr>"
+		        + "<tr>"
+		        + "<td>" + desc + "</td>"
+		        + "<td>" + savedUser.getAskPrice() + "</td>"
+		        + "</tr>"
+		        + "</table><br><br>"
+
+		        + "You may review and accept the bid instantly via:<br>"
+		        + "&#8226; <b>QUA AI Portal:</b> "
+		        + "<a href='https://qua.procucev.com'>www.qua.procucev.com</a><br><br>"
+
+		        + "Accept the bid to connect directly with the buyer and proceed with the transaction.<br><br>"
+
+		        + "<i>Sell hassle-free through BFS… List More Sell More.</i><br><br>"
+
+		        + "Regards,<br>"
+		        + "<b>Team QUA AI</b>"
+
+		        + "</body>"
+		        + "</html>";
 		emailNotifierGenericBySender(subject, sellerEmail, add, javaMailSender, message, type);
 	
 		
