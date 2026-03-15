@@ -686,7 +686,6 @@ public class BFSServiceImpl implements BFSService {
 			throw new AppException(HttpStatus.BAD_REQUEST.value(), "BFSUser is null");
 		} else {
 			MasterStatus status = masterStatusDao.findByStatus(StatusConstants.BID_ACCEPTED);
-			bfsUserDao.updateStatus(bfsUser, status);
 			// Adding Logic to minus buyer quantiy from item quantity
 			Optional<BFSUsers> findById = bfsUserDao.findById(bfsUser.getId());
 			if (findById.isPresent()) {
@@ -706,7 +705,7 @@ public class BFSServiceImpl implements BFSService {
 				    }
 
 				int quantity = bfsUsers.getQuantity();
-
+				bfsUserDao.updateStatus(bfsUser, status);
 				double totalQuantity = bfsUsers.getItems().getAvailableQuantity();
 				double availableQuantity = totalQuantity - quantity;
 				log.info("Buyer Quantity" + quantity + " Item Total Quantity" + totalQuantity);
