@@ -1048,7 +1048,7 @@ public class GMTServiceImpl implements GMTService {
 		rfqDto.setClientStatus(rfq.getClientStatus());
 		rfqDto.setRfqId(rfq.getRfqId());
 		rfqDto.setNoOfQuotes(rfq.getQuoteCount());
-		rfqDto.setNoOfVendors(rfqVendorDao.findByVendorsByRfq(rfq.getId()));
+		rfqDto.setNoOfVendors(gmtRfqVendorDao.findByVendorsByRfq(rfq.getId()));
 		String phone = userDao.findPhoneByUser(rfq.getUser());
 		if (phone != null) {
 			rfqDto.setPhoneNumber(phone);
@@ -1210,8 +1210,8 @@ public class GMTServiceImpl implements GMTService {
 				rfqDto.setCategory(rfq.getCategory());
 				rfqDto.setRfqId(rfq.getRfqId());
 				logger.info("RfqID--", rfq.getRfqId());
-				long vendorsCount = rfqVendorDao.findByVendorsByRfq(rfq.getId());
-				rfqDto.setNoOfVendors(vendorsCount);
+				//long vendorsCount = rfqVendorDao.findByVendorsByRfq(rfq.getId());
+				rfqDto.setNoOfVendors(gmtRfqVendorDao.findByVendorsByRfq(rfq.getId()));
 				// int countReplyEmails = replyCounts.getOrDefault(rfq.getRfqId(), 0); //
 				// Retrieve reply count from the map
 				// log.info("Count of replies", countReplyEmails);
