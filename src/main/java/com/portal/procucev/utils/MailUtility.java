@@ -793,7 +793,6 @@ public class MailUtility {
 			email.append("Delivery Address: " + address + "<br>");
 			email.append("Pincode : " + pincode + "<br>");
 			email.append("<b>Delivery Date:" + rfqData.getDeliveryDate() + "</b><br><br>\n\n");
-			email.append("<b>About Procucev:</b><br>");
 			email.append("Please submit your offer on time to increase your chances of getting the order and connecting directly with the B2B client.<br><br>");
 
 			email.append("To receive more RFQs, please update your relevant product categories in the QUA portal. "

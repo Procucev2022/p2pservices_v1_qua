@@ -1384,8 +1384,8 @@ public class BFSServiceImpl implements BFSService {
 		}
 
 		// Step 2: fetch BFSUsers using itemIds
-		List<BFSUsers> usersList = bfsUserDao.findByItemIdIn(itemIds);
-
+		//List<BFSUsers> usersList = bfsUserDao.findByItemIdIn(itemIds);
+		List<BFSUsers> usersList =  bfsUserDao.findLatestBidsByItemIds(itemIds);
 		if (!CollectionUtils.isEmpty(usersList)) {
 			for (BFSUsers bfsUser : usersList) {
 				BfsDTO bfsDto = bfsDetails(bfsUser);

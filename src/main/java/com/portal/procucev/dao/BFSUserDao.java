@@ -147,9 +147,12 @@ List<BFSItems> findItemsOrderedByLatestBid();
 	    );
 
 		List<BFSUsers> findByOrg(Organization org);
-
-		@Query("SELECT u FROM BFSUsers u WHERE u.items.id IN  :itemIds")
-		List<BFSUsers> findByItemIdIn(@Param("itemIds") List<String> itemIds);
+//
+//		@Query("SELECT u FROM BFSUsers u WHERE u.items.id IN  :itemIds")
+//		List<BFSUsers> findByItemIdIn(@Param("itemIds") List<String> itemIds);
+		
+@Query("SELECT u FROM BFSUsers u WHERE u.items.id IN :itemIds AND u.createdTS = (SELECT MAX(u2.createdTS) FROM BFSUsers u2 WHERE u2.items.id = u.items.id)")
+ List<BFSUsers> findLatestBidsByItemIds(@Param("itemIds") List<String> itemIds);
 	
 
 	
