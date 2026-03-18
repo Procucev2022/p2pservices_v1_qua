@@ -1067,7 +1067,7 @@ public class GMTServiceImpl implements GMTService {
 
 	@Override
 	public List<RfqDTO> fetchAllClientGMTRfqsForCM() {
-		logger.info("Entered to fetch all client GMT RFQ for CM");
+		logger.info("Entered to fetch all client GMT RFQ for  CM");
 
 		List<Rfq> rfqsList = rfqDao.findAllClientRfqNoPr();
 		if (rfqsList.isEmpty()) {
