@@ -11,11 +11,6 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.util.ContentCachingRequestWrapper;
-import org.springframework.web.util.WebUtils;
-
-import java.nio.charset.StandardCharsets;
-import java.util.Collections;
 
 @RestController
 @RequestMapping("/api/zoho")
@@ -40,7 +35,7 @@ public class ZohoWebhookController {
         log.info("RAW BODY: {}", rawBody);
         log.info("HEADER SIG: {}", signatureHeader);
 
-        if (!verifier.verifyZohoSignature(rawBody, signatureHeader)) {
+        if (!verifier.verifyZohoSignature(signatureHeader, rawBody)) {
             log.error("Invalid Zoho webhook signature");
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Invalid signature");
         }
