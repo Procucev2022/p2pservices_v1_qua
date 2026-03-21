@@ -15,28 +15,30 @@ public class ZohoWebhookSignatureUtil {
     @Value("${zoho.webhook.signing-key}")
     private String signingKeyHex;
 
-    public boolean verify(String rawBody, String header) {
+    private boolean verifyZohoSignature(String header, String rawBody) throws Exception {
 
-        if (header == null || !header.contains("t=") || !header.contains("v=")) {
-            return false;
-        }
-
+        // Example: t=1734340423138,v=48f9cb56...
         String[] parts = header.split(",");
-        String timestamp = null;
-        String receivedSigHex = null;
 
-        for (String p : parts) {
-            if (p.startsWith("t=")) timestamp = p.substring(2);
-            if (p.startsWith("v=")) receivedSigHex = p.substring(2);
+        String timestamp = null;
+        String zohoSignature = null;
+
+        for (String part : parts) {
+            String[] kv = part.split("=", 2);
+            if ("t".equals(kv[0])) timestamp = kv[1];
+            if ("v".equals(kv[0])) zohoSignature = kv[1];
         }
 
-        if (timestamp == null || receivedSigHex == null) return false;
+        if (timestamp == null || zohoSignature == null) return false;
 
-        String payload = timestamp + "." + rawBody;
+        String data = timestamp + "." + rawBody;
 
-        String computedHex = hmacSha256Hex(hexToBytes(signingKeyHex), payload);
+        String computed = hmacSha256Hex(data.getBytes(), signingKeyHex);
 
-        return MessageDigest.isEqual(computedHex.getBytes(StandardCharsets.UTF_8), receivedSigHex.getBytes(StandardCharsets.UTF_8));
+        return MessageDigest.isEqual(
+                computed.getBytes(StandardCharsets.UTF_8),
+                zohoSignature.getBytes(StandardCharsets.UTF_8)
+        );
     }
 
     // ---------------- helpers ----------------
