@@ -25,5 +25,7 @@ public class ZohoPaymentWebhookEntity {
     private String rawPayload;
 
     private Instant receivedAt = Instant.now();
+    private boolean processed = false;
+    private Instant processedAt;
 }
 
