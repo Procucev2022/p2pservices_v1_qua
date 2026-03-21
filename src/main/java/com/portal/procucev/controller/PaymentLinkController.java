@@ -52,6 +52,6 @@ public class PaymentLinkController {
             throw new AppException("Invalid email address: " + invalidEmails.get(0));
         }
 
-        return paymentLinkService.createPaymentLink(request.getPlanId(), PhoneNumberUtils.normalize(request.getUserPhone()), request.getUserEmail(), redirectUrl+"/categorymgr/vendor-profile-subscriptions/payment-success");
+        return paymentLinkService.createPaymentLink(request.getPlanId(), PhoneNumberUtils.normalize(request.getUserPhone()), request.getUserEmail(), redirectUrl+"/categorymgr/payment-success");
     }
 }
