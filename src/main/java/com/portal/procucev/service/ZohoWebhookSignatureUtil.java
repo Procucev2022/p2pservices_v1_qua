@@ -15,7 +15,7 @@ public class ZohoWebhookSignatureUtil {
     @Value("${zoho.webhook.signing-key}")
     private String signingKeyHex;
 
-    private boolean verifyZohoSignature(String header, String rawBody) throws Exception {
+    public boolean verifyZohoSignature(String header, String rawBody) throws Exception {
 
         // Example: t=1734340423138,v=48f9cb56...
         String[] parts = header.split(",");
