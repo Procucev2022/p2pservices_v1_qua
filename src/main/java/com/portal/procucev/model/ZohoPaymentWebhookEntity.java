@@ -24,8 +24,19 @@ public class ZohoPaymentWebhookEntity {
     @Column(columnDefinition = "LONGTEXT")
     private String rawPayload;
 
-    private Instant receivedAt = Instant.now();
-    private boolean processed = false;
+    @Column(name = "received_at", nullable = false)
+    private Instant receivedAt;
+
+    @Column(name = "processed", nullable = false, columnDefinition = "TINYINT(1) DEFAULT 0")
+    private boolean processed;
+
+    @Column(name = "processed_at")
     private Instant processedAt;
+
+    @PrePersist
+    public void prePersist() {
+        if (receivedAt == null) this.receivedAt = Instant.now();
+        this.processed = false;
+    }
 }
 
