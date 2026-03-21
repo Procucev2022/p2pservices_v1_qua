@@ -57,39 +57,84 @@ public class ZohoWebhookSignatureUtil {
             }
         }
 
-        byte[] keyBytes = decodeSigningKey(signingKeyHex);
-        byte[] hmacRaw = hmacSha256(keyBytes, data);
-        String computedHex = bytesToHex(hmacRaw);
-        String computedBase64 = Base64.getEncoder().encodeToString(hmacRaw);
+        // Try explicit interpretations of the signing key for debugging and robustness
+        String s = signingKeyHex == null ? "" : signingKeyHex.trim();
+        String sNoPrefix = s.startsWith("0x") || s.startsWith("0X") ? s.substring(2) : s;
 
-        // Normalize to avoid case/whitespace mismatches
-        String computedHexNormalized = computedHex.trim().toLowerCase();
-        String computedBase64Normalized = computedBase64.trim();
+        byte[] keyHexBytes = null;
+        if (sNoPrefix.matches("[0-9a-fA-F]+") && (sNoPrefix.length() % 2 == 0)) {
+            try { keyHexBytes = hexToBytes(sNoPrefix); } catch (Exception ignored) { keyHexBytes = null; }
+        }
+
+        byte[] keyBase64Bytes = null;
+        try { keyBase64Bytes = Base64.getDecoder().decode(s); } catch (IllegalArgumentException ignored) { keyBase64Bytes = null; }
+
+        byte[] keyRawBytes = s.getBytes(StandardCharsets.UTF_8);
+
+        byte[] hmacWithHexKey = keyHexBytes == null ? new byte[0] : hmacSha256(keyHexBytes, data);
+        byte[] hmacWithBase64Key = keyBase64Bytes == null ? new byte[0] : hmacSha256(keyBase64Bytes, data);
+        byte[] hmacWithRawKey = hmacSha256(keyRawBytes, data);
+
+        String computedHexFromHexKey = hmacWithHexKey.length == 0 ? "" : bytesToHex(hmacWithHexKey);
+        String computedHexFromBase64Key = hmacWithBase64Key.length == 0 ? "" : bytesToHex(hmacWithBase64Key);
+        String computedHexFromRawKey = bytesToHex(hmacWithRawKey);
+
+        String computedBase64FromHexKey = hmacWithHexKey.length == 0 ? "" : Base64.getEncoder().encodeToString(hmacWithHexKey);
+        String computedBase64FromBase64Key = hmacWithBase64Key.length == 0 ? "" : Base64.getEncoder().encodeToString(hmacWithBase64Key);
+        String computedBase64FromRawKey = Base64.getEncoder().encodeToString(hmacWithRawKey);
+
+        // Normalize
         String headerNormalized = zohoSignature.trim();
+        String computedHexFromHexKeyNorm = computedHexFromHexKey.trim().toLowerCase();
+        String computedHexFromBase64KeyNorm = computedHexFromBase64Key.trim().toLowerCase();
+        String computedHexFromRawKeyNorm = computedHexFromRawKey.trim().toLowerCase();
+        String computedBase64FromHexKeyNorm = computedBase64FromHexKey.trim();
+        String computedBase64FromBase64KeyNorm = computedBase64FromBase64Key.trim();
+        String computedBase64FromRawKeyNorm = computedBase64FromRawKey.trim();
 
         // Debug info - enable DEBUG logging for this class in dev to see values (do not enable in prod)
-     //   if (log.isDebugEnabled()) {
-            // Compute raw body diagnostics: Base64 and SHA-256 hex so you can compare exact bytes received
-            String rawBodyBase64 = Base64.getEncoder().encodeToString(rawBody.getBytes(StandardCharsets.UTF_8));
-            String rawBodySha256Hex;
-            try {
-                java.security.MessageDigest md = java.security.MessageDigest.getInstance("SHA-256");
-                byte[] digest = md.digest(rawBody.getBytes(StandardCharsets.UTF_8));
-                rawBodySha256Hex = bytesToHex(digest);
-            } catch (Exception e) {
-                rawBodySha256Hex = "<error>";
-            }
+        // Compute raw body diagnostics: Base64 and SHA-256 hex so you can compare exact bytes received
+        String rawBodyBase64 = Base64.getEncoder().encodeToString(rawBody.getBytes(StandardCharsets.UTF_8));
+        String rawBodySha256Hex;
+        try {
+            java.security.MessageDigest md = java.security.MessageDigest.getInstance("SHA-256");
+            byte[] digest = md.digest(rawBody.getBytes(StandardCharsets.UTF_8));
+            rawBodySha256Hex = bytesToHex(digest);
+        } catch (Exception e) {
+            rawBodySha256Hex = "<error>";
+        }
 
-            log.info("Zoho webhook signature verification details: timestamp={}, headerSig={}, computedHex={}, computedBase64={}, keyFormat={}, keyLen={}, rawBodySha256={}, rawBodyBase64={}",
-                    timestamp, zohoSignature, computedHexNormalized, computedBase64Normalized, keyFormat, keyBytes == null ? 0 : keyBytes.length,
-                    rawBodySha256Hex, rawBodyBase64);
-      //  }
+        // Masked key preview for debugging (do not reveal full key)
+        String maskedKeyPreview;
+        if (s.length() <= 12) maskedKeyPreview = s;
+        else maskedKeyPreview = s.substring(0,6) + "..." + s.substring(s.length()-6);
+
+        // Log all attempts
+        log.info("Zoho webhook signature verification details: timestamp={}, headerSig={}, keyPreview={}, keyFormat={}, keyLen={}, rawBodySha256={}, rawBodyBase64={}",
+                timestamp, zohoSignature, maskedKeyPreview, keyFormat, (keyHexBytes!=null?keyHexBytes.length:(keyBase64Bytes!=null?keyBase64Bytes.length:keyRawBytes.length)),
+                rawBodySha256Hex, rawBodyBase64);
+
+        log.info("Computed signatures (hex) -> fromHexKey={}, fromBase64Key={}, fromRawKey={}", computedHexFromHexKeyNorm, computedHexFromBase64KeyNorm, computedHexFromRawKeyNorm);
+        log.info("Computed signatures (base64) -> fromHexKey={}, fromBase64Key={}, fromRawKey={}", computedBase64FromHexKeyNorm, computedBase64FromBase64KeyNorm, computedBase64FromRawKeyNorm);
 
         // Accept if header equals hex (case-insensitive) or base64 encoding of raw HMAC
-        boolean matchesHex = MessageDigest.isEqual(computedHexNormalized.getBytes(StandardCharsets.UTF_8), headerNormalized.toLowerCase().getBytes(StandardCharsets.UTF_8));
-        boolean matchesBase64 = MessageDigest.isEqual(computedBase64Normalized.getBytes(StandardCharsets.UTF_8), headerNormalized.getBytes(StandardCharsets.UTF_8));
+        boolean matchesHexFromHex = !computedHexFromHexKeyNorm.isEmpty() && MessageDigest.isEqual(computedHexFromHexKeyNorm.getBytes(StandardCharsets.UTF_8), headerNormalized.toLowerCase().getBytes(StandardCharsets.UTF_8));
+        boolean matchesHexFromBase64 = !computedHexFromBase64KeyNorm.isEmpty() && MessageDigest.isEqual(computedHexFromBase64KeyNorm.getBytes(StandardCharsets.UTF_8), headerNormalized.toLowerCase().getBytes(StandardCharsets.UTF_8));
+        boolean matchesHexFromRaw = MessageDigest.isEqual(computedHexFromRawKeyNorm.getBytes(StandardCharsets.UTF_8), headerNormalized.toLowerCase().getBytes(StandardCharsets.UTF_8));
 
-        return matchesHex || matchesBase64;
+        boolean matchesBase64FromHex = !computedBase64FromHexKeyNorm.isEmpty() && MessageDigest.isEqual(computedBase64FromHexKeyNorm.getBytes(StandardCharsets.UTF_8), headerNormalized.getBytes(StandardCharsets.UTF_8));
+        boolean matchesBase64FromBase64 = !computedBase64FromBase64KeyNorm.isEmpty() && MessageDigest.isEqual(computedBase64FromBase64KeyNorm.getBytes(StandardCharsets.UTF_8), headerNormalized.getBytes(StandardCharsets.UTF_8));
+        boolean matchesBase64FromRaw = MessageDigest.isEqual(computedBase64FromRawKeyNorm.getBytes(StandardCharsets.UTF_8), headerNormalized.getBytes(StandardCharsets.UTF_8));
+
+        boolean anyMatch = matchesHexFromHex || matchesHexFromBase64 || matchesHexFromRaw || matchesBase64FromHex || matchesBase64FromBase64 || matchesBase64FromRaw;
+
+        if (!anyMatch) {
+            log.warn("Zoho webhook signature verification failed: no computed signature matched the header");
+        } else {
+            log.info("Zoho webhook signature verification succeeded using one of the key interpretations");
+        }
+
+        return anyMatch;
     }
 
     // ---------------- helpers ----------------
