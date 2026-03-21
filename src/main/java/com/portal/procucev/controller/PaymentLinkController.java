@@ -19,6 +19,7 @@ import java.util.Objects;
 @RequestMapping("/rest/api/payments")
 @RequiredArgsConstructor
 @Slf4j
+@CrossOrigin
 public class PaymentLinkController {
 
     private final PaymentLinkService paymentLinkService;
