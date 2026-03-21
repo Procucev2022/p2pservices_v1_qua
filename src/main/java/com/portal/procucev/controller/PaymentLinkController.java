@@ -9,6 +9,7 @@ import com.portal.procucev.utils.PhoneNumberUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.ArrayList;
@@ -22,12 +23,16 @@ import java.util.Objects;
 @CrossOrigin
 public class PaymentLinkController {
 
+    @Value("${zoho.payments.redirect.url}")
+    private String redirectUrl;
+
     private final PaymentLinkService paymentLinkService;
 
     @PostMapping("/link/generate")
     public PaymentLink generatePaymentLink(@RequestBody PaymentLinkGenerateRequest request) {
 
-        String redirectUrl = "https://procucev.com/payment-success";
+       // String redirectUrl = "https://procucev.com/payment-success";
+
 
         if (Objects.isNull(request.getPlanId())) {
             throw new AppException("Plan ID is required");
@@ -47,6 +52,6 @@ public class PaymentLinkController {
             throw new AppException("Invalid email address: " + invalidEmails.get(0));
         }
 
-        return paymentLinkService.createPaymentLink(request.getPlanId(), PhoneNumberUtils.normalize(request.getUserPhone()), request.getUserEmail(), redirectUrl);
+        return paymentLinkService.createPaymentLink(request.getPlanId(), PhoneNumberUtils.normalize(request.getUserPhone()), request.getUserEmail(), redirectUrl+"/categorymgr/vendor-profile-subscriptions/payment-success");
     }
 }
