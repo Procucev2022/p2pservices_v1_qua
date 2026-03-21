@@ -16,7 +16,7 @@ import java.util.List;
 import java.util.Objects;
 
 @RestController
-@RequestMapping("/rest/api/payments")
+@RequestMapping("/rest/payments")
 @RequiredArgsConstructor
 @Slf4j
 public class PaymentLinkController {

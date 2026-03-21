@@ -27,7 +27,7 @@ public class JwtRequestFilter extends OncePerRequestFilter {
     @Autowired
     private CustomUserDetailsService customUserDetailsService;
 
-    private static final String ZOHO_WEBHOOK_PATH = "/api/zoho/webhook";
+    private static final String ZOHO_WEBHOOK_PATH = "/rest/zoho/webhook";
 
     @Override
     protected void doFilterInternal(HttpServletRequest request,
