@@ -35,7 +35,7 @@ public class SecurityConfig {
     	 http.cors(cors -> cors.configurationSource(corsConfigurationSource))
         .csrf(csrf -> csrf.disable())
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/", "/error", "/authenticate", "/mobile/**", "/partialvendor/**","/api/zoho/webhook/**").permitAll()
+                        .requestMatchers("/", "/error", "/authenticate", "/mobile/**", "/partialvendor/**","/rest/zoho/webhook/**").permitAll()
                         .requestMatchers("/rest/**").authenticated()
                 )
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS));
