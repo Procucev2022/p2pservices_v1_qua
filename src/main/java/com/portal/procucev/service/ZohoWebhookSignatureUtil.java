@@ -8,9 +8,13 @@ import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.Base64;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @Component
 public class ZohoWebhookSignatureUtil {
+
+    private static final Logger log = LoggerFactory.getLogger(ZohoWebhookSignatureUtil.class);
 
     @Value("${zoho.webhook.signing-key}")
     private String signingKeyHex;
@@ -38,27 +42,63 @@ public class ZohoWebhookSignatureUtil {
 
         String data = timestamp + "." + rawBody;
 
+        // detect key format for debugging (without printing the actual key)
+        String keyFormat;
+        String sKey = signingKeyHex == null ? "" : signingKeyHex.trim();
+        String sKeyNoPrefix = sKey.startsWith("0x") || sKey.startsWith("0X") ? sKey.substring(2) : sKey;
+        if (sKeyNoPrefix.matches("[0-9a-fA-F]+") && (sKeyNoPrefix.length() % 2 == 0)) {
+            keyFormat = "hex";
+        } else {
+            try {
+                Base64.getDecoder().decode(sKey);
+                keyFormat = "base64";
+            } catch (IllegalArgumentException ignore) {
+                keyFormat = "raw";
+            }
+        }
+
         byte[] keyBytes = decodeSigningKey(signingKeyHex);
-        String computedHex = hmacSha256Hex(keyBytes, data);
+        byte[] hmacRaw = hmacSha256(keyBytes, data);
+        String computedHex = bytesToHex(hmacRaw);
+        String computedBase64 = Base64.getEncoder().encodeToString(hmacRaw);
 
-        // Normalize to lower-case and trim to avoid case/whitespace mismatches
-        String computedNormalized = computedHex.trim().toLowerCase();
-        String headerNormalized = zohoSignature.trim().toLowerCase();
+        // Normalize to avoid case/whitespace mismatches
+        String computedHexNormalized = computedHex.trim().toLowerCase();
+        String computedBase64Normalized = computedBase64.trim();
+        String headerNormalized = zohoSignature.trim();
 
-        return MessageDigest.isEqual(
-                computedNormalized.getBytes(StandardCharsets.UTF_8),
-                headerNormalized.getBytes(StandardCharsets.UTF_8)
-        );
+        // Debug info - enable DEBUG logging for this class in dev to see values (do not enable in prod)
+     //   if (log.isDebugEnabled()) {
+            // Compute raw body diagnostics: Base64 and SHA-256 hex so you can compare exact bytes received
+            String rawBodyBase64 = Base64.getEncoder().encodeToString(rawBody.getBytes(StandardCharsets.UTF_8));
+            String rawBodySha256Hex;
+            try {
+                java.security.MessageDigest md = java.security.MessageDigest.getInstance("SHA-256");
+                byte[] digest = md.digest(rawBody.getBytes(StandardCharsets.UTF_8));
+                rawBodySha256Hex = bytesToHex(digest);
+            } catch (Exception e) {
+                rawBodySha256Hex = "<error>";
+            }
+
+            log.info("Zoho webhook signature verification details: timestamp={}, headerSig={}, computedHex={}, computedBase64={}, keyFormat={}, keyLen={}, rawBodySha256={}, rawBodyBase64={}",
+                    timestamp, zohoSignature, computedHexNormalized, computedBase64Normalized, keyFormat, keyBytes == null ? 0 : keyBytes.length,
+                    rawBodySha256Hex, rawBodyBase64);
+      //  }
+
+        // Accept if header equals hex (case-insensitive) or base64 encoding of raw HMAC
+        boolean matchesHex = MessageDigest.isEqual(computedHexNormalized.getBytes(StandardCharsets.UTF_8), headerNormalized.toLowerCase().getBytes(StandardCharsets.UTF_8));
+        boolean matchesBase64 = MessageDigest.isEqual(computedBase64Normalized.getBytes(StandardCharsets.UTF_8), headerNormalized.getBytes(StandardCharsets.UTF_8));
+
+        return matchesHex || matchesBase64;
     }
 
     // ---------------- helpers ----------------
 
-    private static String hmacSha256Hex(byte[] key, String data) {
+    private static byte[] hmacSha256(byte[] key, String data) {
         try {
             Mac mac = Mac.getInstance("HmacSHA256");
             mac.init(new SecretKeySpec(key, "HmacSHA256"));
-            byte[] raw = mac.doFinal(data.getBytes(StandardCharsets.UTF_8));
-            return bytesToHex(raw);
+            return mac.doFinal(data.getBytes(StandardCharsets.UTF_8));
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
