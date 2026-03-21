@@ -40,7 +40,7 @@ public class ZohoWebhookController {
         log.info("RAW BODY: {}", rawBody);
         log.info("HEADER SIG: {}", signatureHeader);
 
-        if (!verifier.verify(rawBody, signatureHeader)) {
+        if (!verifier.verifyZohoSignature(rawBody, signatureHeader)) {
             log.error("Invalid Zoho webhook signature");
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Invalid signature");
         }
