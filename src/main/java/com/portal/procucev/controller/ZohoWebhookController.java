@@ -21,7 +21,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 
 @RestController
-@RequestMapping("/rest/zoho")
+@RequestMapping("/api/zoho")
 @RequiredArgsConstructor
 @Slf4j
 public class ZohoWebhookController {
