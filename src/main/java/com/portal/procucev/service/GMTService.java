@@ -153,4 +153,6 @@ public interface GMTService {
 
 	User getBuyerByRFQ(Rfq rfq);
 
+	void markVendorCommentAsRead(Rfq rfq);
+
 }

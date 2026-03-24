@@ -949,6 +949,7 @@ public class GMTServiceImpl implements GMTService {
 		rfqDto.setNoOfVendors(gmtRfqVendorDao.findByVendorsByRfq(rfq.getId()));
 		rfqDto.setQuoteSubmittedDate(rfq.getQuoteSubmittedDate());
 		rfqDto.setClientStatus(rfq.getClientStatus());
+		rfqDto.setNewCommentAvailableVendor(rfq.isNewCommentAvailableVendor());
 
 		String companyName = userDao.findByUser(rfq.getUser());
 		if (companyName != null) {
@@ -1003,10 +1004,9 @@ public class GMTServiceImpl implements GMTService {
 	        } else {
 
 	            logger.info("Saving Query Record For First Time With New Status");
-
-	            rfq.setStatus(queryStatus);
 	            gmtRfqVendorDao.save(rfq);
 	        }
+	        rfqDao.updateRfqCommentFlag(rfq.getRfq().getId());
 
 	        // 🔹 Update RFQ status only if current status is NOT QUOTE_SUBMITTED
 	     //   Rfq existingRfq = rfqDao.findById(rfq.getRfq().getId()).orElse(null);
@@ -1049,6 +1049,7 @@ public class GMTServiceImpl implements GMTService {
 		rfqDto.setRfqId(rfq.getRfqId());
 		rfqDto.setNoOfQuotes(rfq.getQuoteCount());
 		rfqDto.setNoOfVendors(gmtRfqVendorDao.findByVendorsByRfq(rfq.getId()));
+		rfqDto.setNewCommentAvailableVendor(rfq.isNewCommentAvailableVendor());
 		String phone = userDao.findPhoneByUser(rfq.getUser());
 		if (phone != null) {
 			rfqDto.setPhoneNumber(phone);
@@ -3483,4 +3484,8 @@ public class GMTServiceImpl implements GMTService {
 	    return null;
 	}
 
+	@Override
+	public void markVendorCommentAsRead(Rfq rfq) {
+        rfqDao.updateNewCommentAvailableVendor(rfq.getId());
+    }
 }
