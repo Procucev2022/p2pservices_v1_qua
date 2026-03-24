@@ -161,6 +161,16 @@ public interface RfqDao extends JpaRepository<Rfq, String>{
 	@Query("SELECT r FROM Rfq r WHERE  (r.noPrFlag = true and r.byClient = false)or (r.byClient = true and r.clientStatus IN :statusList)Order By r.createdTS DESC")
 	List<Rfq> findAllRfqNoPrByCM(@Param("statusList") List<MasterStatus> statusList);
 
+	@Modifying
+	@Transactional
+	@Query("UPDATE  Rfq r SET r.newCommentAvailableVendor = true  WHERE  r.id=:id")
+	void updateRfqCommentFlag(@Param("id")  String id);
+
+	@Modifying
+	@Transactional
+	@Query("UPDATE  Rfq r SET r.newCommentAvailableVendor = false  WHERE  r.id=:id")
+	void updateNewCommentAvailableVendor(@Param("id")  String id);
+
 
 
 
