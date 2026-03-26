@@ -20,10 +20,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
@@ -62,7 +62,12 @@ public class PaymentLinkService {
         SubscriptionPlan plan = planRepo.findById(String.valueOf(planId)).orElseThrow(() -> new AppException("Subscription Plan not found"));
 
         ZohoPaymentLinkRequest request = new ZohoPaymentLinkRequest();
-        request.setAmount(BigDecimal.valueOf(plan.getLaunchOfferPrice() > 0 ? plan.getLaunchOfferPrice() : plan.getSubscriptionPrice()));
+        // Calculate base price (launch offer if present, otherwise subscription price)
+        BigDecimal basePrice = BigDecimal.valueOf(plan.getLaunchOfferPrice() > 0 ? plan.getLaunchOfferPrice() : plan.getSubscriptionPrice());
+        // Apply 18% GST on the total
+        BigDecimal gstMultiplier = new BigDecimal("1.18");
+        BigDecimal amountWithGst = basePrice.multiply(gstMultiplier).setScale(2, RoundingMode.HALF_UP);
+        request.setAmount(amountWithGst);
         request.setCurrency("INR");
         request.setEmail(userEmail);
         request.setPhone(userPhone);
@@ -84,7 +89,7 @@ public class PaymentLinkService {
 
         PaymentLink link = new PaymentLink();
         link.setPlan(plan);
-        link.setAmount(BigDecimal.valueOf(plan.getLaunchOfferPrice()));
+        link.setAmount(request.getAmount());
         link.setZohoPaymentLinkId((String) links.get("payment_link_id"));
         link.setPaymentUrl((String) links.get("url"));
         link.setStatus((String) links.get("status"));
