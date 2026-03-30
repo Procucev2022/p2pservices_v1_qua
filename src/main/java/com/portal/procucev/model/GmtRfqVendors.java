@@ -56,7 +56,7 @@ public class GmtRfqVendors extends Procucev {
 	
 	private String query;
 	
-	public GmtRfqVendors(String id,String vendorUuid, String vendorName, String vendorId, MasterStatus status,String query,String otherEmails) {
+	public GmtRfqVendors(String id,String vendorUuid, String vendorName, String vendorId, MasterStatus status,String query,String otherEmails,Date quoteSubmittedDate) {
 		super();
 		this.id=id;
 		this.vendorUuid = vendorUuid;
@@ -65,6 +65,7 @@ public class GmtRfqVendors extends Procucev {
 		this.status = status;
 		this.query=query;
 		this.otherEmails=otherEmails;
+		this.quoteSubmittedDate=quoteSubmittedDate;
 	}
 	
 	
