@@ -728,8 +728,12 @@ public class GMTController {
 	}
 
 	@PostMapping("/updateQueryFlag")
-	public ResponseEntity<String> updateVendorCommentStatus(@RequestBody Rfq rfq) {
-		gmtService.markVendorCommentAsRead(rfq);
-		return new ResponseEntity<>("Updated Successfully", HttpStatus.OK);
+	public ResponseEntity<Map<String, String>> updateVendorCommentStatus(@RequestBody Rfq rfq) {
+	    gmtService.markVendorCommentAsRead(rfq);
+
+	    Map<String, String> response = new HashMap<>();
+	    response.put("status", "Success");
+	    response.put("statusCode", "200");
+	    return new ResponseEntity<>(response, HttpStatus.OK);
 	}
 }
