@@ -6,12 +6,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
 import java.time.Instant;
-import java.util.HashMap;
-import java.util.Map;
+
 import com.portal.procucev.model.TokenResponse;
 
 @Service
-public class ZohoAuthService {
+public class ZohoAuthServiceOld {
 
     @Value("${zoho.client.id}")
     private String clientId;

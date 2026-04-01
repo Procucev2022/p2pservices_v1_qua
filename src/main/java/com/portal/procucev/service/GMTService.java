@@ -151,4 +151,8 @@ public interface GMTService {
 
 	List<RfqStatusResponse> getSellerRfqStatusData(RfqStatusRequest request);
 
+	User getBuyerByRFQ(Rfq rfq);
+
+	void markVendorCommentAsRead(Rfq rfq);
+
 }

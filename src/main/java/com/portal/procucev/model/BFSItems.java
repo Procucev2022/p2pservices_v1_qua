@@ -88,6 +88,9 @@ public class BFSItems extends Procucev {
 	
 	private String remarks;
 	
+	@Transient
+	private String orgId;
+	
 	@Column(name="requested_flag")
 	private boolean requestedFlag;
 	
@@ -104,13 +107,16 @@ public class BFSItems extends Procucev {
 	@OneToMany(cascade = CascadeType.ALL, orphanRemoval = true)
 	@JoinColumn(name = "bfs_uuid")
 	private List<BFSImages> bfsImages = new ArrayList<BFSImages>();
+	
+	@Column(name="latest_bid_date")
+	private Date latestBidDate;
 
 	
 
 	public BFSItems(String id,Date createdTS,String description, String specification, double totalQuantity, double availableQuantity,
 			String category, String itemNumber, String location, String ageOfAsset, double sellPrice, double discount,
 			double askPrice, String bfsGroup,String proxyId,String unitofMeasures,String remarks,MasterStatus status,boolean commentsFlag
-			,boolean buyPriceDisclosure,String disclosedBuypriceValue) {
+			,boolean buyPriceDisclosure,String disclosedBuypriceValue,Date latestBidDate) {
 		super();
 		this.id = id;
 		this.createdTS = createdTS;
@@ -133,5 +139,12 @@ public class BFSItems extends Procucev {
 		this.commentsFlag=commentsFlag;
 		this.buyPriceDisclosure=buyPriceDisclosure;
 		this.disclosedBuypriceValue=disclosedBuypriceValue;
+		this.latestBidDate=latestBidDate;
+	}
+	
+
+	public BFSItems(String description,String orgId) {
+		this.description=description;
+		this.orgId=orgId;
 	}
 }

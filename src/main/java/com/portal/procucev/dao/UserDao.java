@@ -116,7 +116,7 @@ public interface UserDao extends JpaRepository<User, String> {
 	void updateBfsGroupForUsers(@Param("bfsGroup") String bfsGroup, @Param("userId") String userId);
 
 
-	@Query("SELECT  new User(u.username,u.phone,u.org.companyName,u.fullName) from User u where u.id=:id")
+	@Query("SELECT  new User(u.username,u.phone,u.org.companyName,u.fullName) from User u where u.id=:id and u.active = true")
 	User findOrgByID(@Param("id") String id);
 
 	@Query("select u.username from User u where u.id=:clientInitiator")
@@ -129,4 +129,6 @@ public interface UserDao extends JpaRepository<User, String> {
 	@Query("select u from User u where u.username=:email and u.phone=:normalizedPhone and u.active = true and u.role =:role")
 	User findByUsernameAndPhoneAndActiveAndRole(@Param("email") String email,@Param("normalizedPhone") String normalizedPhone,@Param("role") Role role);
 
+	@Query("SELECT  new User(u.username,u.phone,u.org.companyName,u.fullName) from User u where u.org.id=:id and u.active = true")
+	User findUserByOrgId(@Param("id") String id);
 }

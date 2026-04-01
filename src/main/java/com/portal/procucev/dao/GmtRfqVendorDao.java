@@ -20,7 +20,7 @@ public interface GmtRfqVendorDao extends JpaRepository<GmtRfqVendors, String> {
 
 	GmtRfqVendors findByVendorAndRfq(Organization org, Rfq rfq);
 
-	@Query("SELECT  new GmtRfqVendors(g.id,g.vendor.id,g.vendor.companyName,g.vendor.companyId,g.status,g.query,g.vendor.otherEmails) from GmtRfqVendors g where g.rfq =:rfq Order By g.createdTS DESC")
+	@Query("SELECT  new GmtRfqVendors(g.id,g.vendor.id,g.vendor.companyName,g.vendor.companyId,g.status,g.query,g.vendor.otherEmails,g.quoteSubmittedDate) from GmtRfqVendors g where g.rfq =:rfq Order By g.createdTS DESC")
 	List<GmtRfqVendors> findByRfq(@Param("rfq") Rfq rfq);
 
 
@@ -73,6 +73,9 @@ public interface GmtRfqVendorDao extends JpaRepository<GmtRfqVendors, String> {
 		        @Param("vendorUuid") String vendorUuid,
 		        Pageable pageable
 		);
+
+	@Query("select count(r.vendor) from GmtRfqVendors r where r.rfq.id=:id")
+	long findByVendorsByRfq(@Param("id") String id);
 
 
 }

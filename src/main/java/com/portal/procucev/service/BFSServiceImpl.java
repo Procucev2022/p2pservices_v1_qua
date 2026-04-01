@@ -103,13 +103,13 @@ public class BFSServiceImpl implements BFSService {
 
 	@Value("${spring.mail.username}")
 	String mailFom;
-	
+
 	@Value("${toAddress}")
 	String toAddress;
 
 	@Autowired
 	private BFSDocumentsDao bFSDocumentsDao;
-	
+
 	@Autowired
 	private SearchRepository searchRepository;
 
@@ -194,7 +194,7 @@ public class BFSServiceImpl implements BFSService {
 		List<BFSItems> bfsList = bfsDao.findByOrgAndUser(user.getOrg().getId(), user.getId());
 
 		if (bfsList == null || bfsList.isEmpty()) {
-			log.warn("No BFS items found for the given organization and User (Org ID: {}, User ID: {}).",
+			log.warn("No BFS items found for the given organization and  User (Org ID: {}, User ID: {}).",
 					user.getOrg().getId(), user.getId());
 			throw new AppException(HttpStatus.NO_CONTENT.value(), ApplicationConstants.NO_DATA_FOUND,
 					ApplicationConstants.BUSSINESS_EXCEPTION, ApplicationConstants.FAILURE);
@@ -501,15 +501,26 @@ public class BFSServiceImpl implements BFSService {
 //			throw new AppException(HttpStatus.CONFLICT.value(), "Item has already been requested.");
 //		}
 		// Set status and save bfsUser
-		MasterStatus status = masterStatusDao.findByStatus(StatusConstants.BID_REQUESTED);
+		MasterStatus status = masterStatusDao.findByStatus(StatusConstants.BID_APPROVED);
 		bfsUser.setStatus(status);
+		bfsDao.updateLatestBidDate(bfsUser.getItems());
 		BFSUsers savedUser = bfsUserDao.save(bfsUser);
+		BFSItems itemDetails = bfsDao.findSellerById(bfsUser.getItems().getId());
+		List<User> sellerDetails = userDao.findByOrganization(itemDetails.getOrgId());
 		InternetAddress add;
 		User user = userDao.findOrgByID(savedUser.getUser().getId());
 		try {
-			add = new InternetAddress(mailFom,"Procucev Notifications");
-			MailUtility.emailForBidRequest("Request For Bid", toAddress, javaMailSender, add, host,
-					savedUser,user);
+			add = new InternetAddress(mailFom, "Procucev Notifications");
+			MailUtility.emailForBidRequest("Request For Bid", toAddress, javaMailSender, add, host, savedUser, user,
+					itemDetails.getDescription());
+			MailUtility.emailForBuyerBidRequest("Bid Request For Bid", user.getUsername(), javaMailSender, add, host,
+					savedUser, user, itemDetails.getDescription());
+			if (!CollectionUtils.isEmpty(sellerDetails)) {
+				String sellerEmail = sellerDetails.get(0).getUsername();
+				MailUtility.emailForsellerBidRequest("Bid Request For Bid", sellerEmail, javaMailSender, add, host,
+						savedUser, user, itemDetails.getDescription());
+			}
+
 		} catch (UnsupportedEncodingException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
@@ -580,13 +591,19 @@ public class BFSServiceImpl implements BFSService {
 		bfsDto.setSpecification(user.getItems().getSpecification());
 		bfsDto.setBuyPrice(user.getBuyPrice());
 		bfsDto.setBuyerDiscount(user.getDiscount());
-		bfsDto.setBuyerFinalPrice(user.getAskPrice());
+		bfsDto.setBuyerFinalPrice(user.getBuyPrice());
 		bfsDto.setSellPrice(user.getItems().getSellPrice());
 		bfsDto.setSellFinalPrice(user.getItems().getAskPrice());
 		bfsDto.setDiscount(user.getItems().getDiscount());
 		bfsDto.setUnitofMeasures(user.getItems().getUnitofMeasures());
-		bfsDto.setSellerCompanyName(user.getOrg().getCompanyName());
-		bfsDto.setSellerEmail(userDao.findEmailById(user.getItems().getUserId()));
+		bfsDto.setAskPrice(user.getAskPrice());
+		User userData = userDao.findById(user.getItems().getUserId()).get();
+		if (userData != null) {
+			bfsDto.setSellerCompanyName(userData.getOrg().getCompanyName());
+			bfsDto.setSellerEmail(userData.getUsername());
+			bfsDto.setSellerName(userData.getFullName());
+		}
+
 		bfsDto.setSellerId(user.getItems().getUserId());
 		bfsDto.setQuantity(user.getQuantity());
 		bfsDto.setAvailableQuantity(user.getItems().getAvailableQuantity());
@@ -669,14 +686,27 @@ public class BFSServiceImpl implements BFSService {
 			throw new AppException(HttpStatus.BAD_REQUEST.value(), "BFSUser is null");
 		} else {
 			MasterStatus status = masterStatusDao.findByStatus(StatusConstants.BID_ACCEPTED);
-			bfsUserDao.updateStatus(bfsUser, status);
 			// Adding Logic to minus buyer quantiy from item quantity
 			Optional<BFSUsers> findById = bfsUserDao.findById(bfsUser.getId());
 			if (findById.isPresent()) {
 				BFSUsers bfsUsers = findById.get();
-				int quantity = bfsUsers.getQuantity();
+				 // Check if already accepted
+			    if (bfsUsers.getStatus() != null &&
+			        StatusConstants.BID_ACCEPTED.equals(bfsUsers.getStatus().getStatus())) {
+			    	log.warn("Bid already accepted for BFSUser Id: {}", bfsUser.getId());
+			        throw new AppException(HttpStatus.BAD_REQUEST.value(), "Bid already accepted");
+			    }
 
-				double totalQuantity = bfsUsers.getItems().getTotalQuantity();
+			    if (bfsUsers.getStatus() != null &&
+				        StatusConstants.BID_NOT_ACCEPTED.equals(bfsUsers.getStatus().getStatus())) {
+				    	log.warn("Bid already Rejected for BFSUser Id: {}", bfsUser.getId());
+				        throw new AppException(HttpStatus.BAD_REQUEST.value(), "Bid already Rejected");
+				        
+				    }
+
+				int quantity = bfsUsers.getQuantity();
+				bfsUserDao.updateStatus(bfsUser, status);
+				double totalQuantity = bfsUsers.getItems().getAvailableQuantity();
 				double availableQuantity = totalQuantity - quantity;
 				log.info("Buyer Quantity" + quantity + " Item Total Quantity" + totalQuantity);
 				bfsDao.updateAvailableQuantity(availableQuantity, bfsUsers.getItems().getId());
@@ -688,7 +718,7 @@ public class BFSServiceImpl implements BFSService {
 				try {
 					InternetAddress add = new InternetAddress(mailFom, "Procucev Notifications");
 					// To send to Buyer
-					MailUtility.emailBFSAccepted(
+					MailUtility.buyerEmailBFSAccepted(
 							"Item is Accepted from Buy From Stock(BFS) ! Next Steps for Transaction...", userName,
 							javaMailSender, add, bfsUsers, host, uniqueId);
 					log.info("Mail Sent To Buyer");
@@ -698,7 +728,7 @@ public class BFSServiceImpl implements BFSService {
 							javaMailSender, add, bfsUsers, host, uniqueId);
 					log.info("Mail Sent To Category Manager");
 					// To Send Email To Seller
-					MailUtility.emailBFSAccepted(
+					MailUtility.sellerEmailBFSAccepted(
 							"Item is Accepted from Buy From Stock(BFS) ! Next Steps for Transaction...", clientName,
 							javaMailSender, add, bfsUsers, host, uniqueId);
 				} catch (UnsupportedEncodingException e) {
@@ -712,15 +742,41 @@ public class BFSServiceImpl implements BFSService {
 
 	@Override
 	public boolean rejectBfsItemBySeller(BFSUsers bfsUser) {
-		// TODO Auto-generated method stub
-		if (bfsUser == null) {
-			log.warn("BFSUser is null. Exiting method.");
-			throw new AppException(HttpStatus.BAD_REQUEST.value(), "BFSUser is null.");
-		} else {
-			MasterStatus status = masterStatusDao.findByStatus(StatusConstants.BID_NOT_ACCEPTED);
-			bfsUserDao.updateSellerRejectStatus(bfsUser, status, bfsUser.getSellerRemarks());
-			return true;
-		}
+
+	    if (bfsUser == null) {
+	        log.warn("BFSUser is null. Exiting method.");
+	        throw new AppException(HttpStatus.BAD_REQUEST.value(), "BFSUser is null.");
+	    }
+
+	    Optional<BFSUsers> findById = bfsUserDao.findById(bfsUser.getId());
+
+	    if (!findById.isPresent()) {
+	        throw new AppException(HttpStatus.NOT_FOUND.value(), "BFSUser not found");
+	    }
+
+	    BFSUsers bfsUsers = findById.get();
+
+	    // ❗ Check if already accepted
+	    if (bfsUsers.getStatus() != null &&
+	        StatusConstants.BID_ACCEPTED.equals(bfsUsers.getStatus().getStatus())) {
+
+	        log.warn("Bid already accepted. Cannot reject BFSUser Id: {}", bfsUser.getId());
+	        throw new AppException(HttpStatus.BAD_REQUEST.value(), "Bid already accepted. Cannot reject.");
+	    }
+
+	    // ❗ Check if already rejected
+	    if (bfsUsers.getStatus() != null &&
+	        StatusConstants.BID_NOT_ACCEPTED.equals(bfsUsers.getStatus().getStatus())) {
+
+	        log.warn("Bid already rejected for BFSUser Id: {}", bfsUser.getId());
+	        throw new AppException(HttpStatus.BAD_REQUEST.value(), "Bid already rejected.");
+	    }
+
+	    MasterStatus status = masterStatusDao.findByStatus(StatusConstants.BID_NOT_ACCEPTED);
+
+	    bfsUserDao.updateSellerRejectStatus(bfsUsers, status, bfsUser.getSellerRemarks());
+
+	    return true;
 	}
 
 	@Override
@@ -1004,33 +1060,93 @@ public class BFSServiceImpl implements BFSService {
 		}
 	}
 
+//	@Override
+//	public List<BFSItems> getRequestedItemsByCM() {
+//		// TODO Auto-generated method stub
+//		log.info("Entered To Get Requested Items By User");
+//
+//		List<String> itemIds = bfsUserDao.findItems();
+//		if (CollectionUtils.isEmpty(itemIds)) {
+//			log.info("No item IDs found");
+//			return new ArrayList<>();
+//		}
+//
+//		List<BFSItems> bfsItems = bfsDao.findByIdIn(itemIds);
+//		if (CollectionUtils.isEmpty(bfsItems)) {
+//			log.info("No BFS items found for item IDs {}", itemIds);
+//			return new ArrayList<>();
+//		}
+//		for (BFSItems item : bfsItems) {
+//			MasterStatus status = masterStatusDao.findByStatus(StatusConstants.BID_REQUESTED);
+//			long value = bfsUserDao.getCountByStatusAndItem(status, item.getId());
+//			log.info("Item status count for user {}: {}", value);
+//			long bfsCount = bfsImagesDao.findCountByBfs(item);
+//			if (bfsCount > 0) {
+//				item.setImagesFlag(true);
+//			}
+//			if (value > 0) {
+//				item.setRequestedFlag(true);
+//			}
+//		}
+//
+//		return bfsItems;
+//	}
+
+//	@Override
+//	public List<BFSItems> getRequestedItemsByCM() {
+//
+//	    log.info("Entered To Get Requested Items By User");
+//
+//	    List<BFSItems> bfsItems = bfsUserDao.findItemsOrderedByLatestBid();
+//
+//	    if (CollectionUtils.isEmpty(bfsItems)) {
+//	        log.info("No bid items found");
+//	        return new ArrayList<>();
+//	    }
+//
+//	    MasterStatus status = masterStatusDao.findByStatus(StatusConstants.BID_REQUESTED);
+//
+//	    for (BFSItems item : bfsItems) {
+//
+//	        long value = bfsUserDao.getCountByStatusAndItem(status, item.getId());
+//	        long bfsCount = bfsImagesDao.findCountByBfs(item);
+//
+//	        item.setRequestedFlag(value > 0);
+//	        item.setImagesFlag(bfsCount > 0);
+//	    }
+//
+//	    return bfsItems;
+//	}
+
 	@Override
 	public List<BFSItems> getRequestedItemsByCM() {
-		// TODO Auto-generated method stub
+
 		log.info("Entered To Get Requested Items By User");
 
-		List<String> itemIds = bfsUserDao.findItems();
-		if (CollectionUtils.isEmpty(itemIds)) {
-			log.info("No item IDs found");
+		// 1️⃣ Get lightweight items ordered by latest bid
+		List<BFSItems> bfsItems = bfsUserDao.findItemsOrderedByLatestBidProjected();
+
+		if (CollectionUtils.isEmpty(bfsItems)) {
+			log.info("No bid items found");
 			return new ArrayList<>();
 		}
 
-		List<BFSItems> bfsItems = bfsDao.findByIdIn(itemIds);
-		if (CollectionUtils.isEmpty(bfsItems)) {
-			log.info("No BFS items found for item IDs {}", itemIds);
-			return new ArrayList<>();
-		}
+		List<String> itemIds = bfsItems.stream().map(BFSItems::getId).toList();
+
+		MasterStatus status = masterStatusDao.findByStatus(StatusConstants.BID_REQUESTED);
+
+		// 2️⃣ Bulk requested counts
+		Map<String, Long> requestedCountMap = bfsUserDao.countRequestedByItemIds(status, itemIds).stream()
+				.collect(Collectors.toMap(r -> (String) r[0], r -> (Long) r[1]));
+
+		// 3️⃣ Bulk image counts
+		Map<String, Long> imageCountMap = bfsImagesDao.countImagesByItemIds(itemIds).stream()
+				.collect(Collectors.toMap(r -> (String) r[0], r -> (Long) r[1]));
+
+		// 4️⃣ Set flags (NO extra DB calls)
 		for (BFSItems item : bfsItems) {
-			MasterStatus status = masterStatusDao.findByStatus(StatusConstants.BID_REQUESTED);
-			long value = bfsUserDao.getCountByStatusAndItem(status, item.getId());
-			log.info("Item status count for user {}: {}", value);
-			long bfsCount = bfsImagesDao.findCountByBfs(item);
-			if (bfsCount > 0) {
-				item.setImagesFlag(true);
-			}
-			if (value > 0) {
-				item.setRequestedFlag(true);
-			}
+			item.setRequestedFlag(requestedCountMap.getOrDefault(item.getId(), 0L) > 0);
+			item.setImagesFlag(imageCountMap.getOrDefault(item.getId(), 0L) > 0);
 		}
 
 		return bfsItems;
@@ -1086,14 +1202,15 @@ public class BFSServiceImpl implements BFSService {
 				User userRes = userData.get();
 
 				vendorInfoBean.setSubCategory(userRes.getOrg().getSubCategory());
-				vendorInfoBean.setCategory(userRes.getOrg().getVendorcategory());
+				vendorInfoBean.setCategory(userRes.getOrg().getDetails());
 				vendorInfoBean.setEmail(userRes.getUsername());
 				vendorInfoBean.setOrganizationPhonenumber(userRes.getPhone());
-				vendorInfoBean.setPan(userRes.getOrg().getPan());
+				vendorInfoBean.setPan(userRes.getOrg().getGstin());
 				vendorInfoBean.setCompanyName(userRes.getOrg().getCompanyName());
 				vendorInfoBean.setFullName(userRes.getFullName());
 				vendorInfoBean.setCity(userRes.getOrg().getCity());
 				vendorInfoBean.setAddress(userRes.getOrg().getAddress1());
+				vendorInfoBean.setVendorClass(userRes.getOrg().getVendorClass());
 
 			}
 
@@ -1127,110 +1244,158 @@ public class BFSServiceImpl implements BFSService {
 	@Override
 	public List<BFSItemMainDetailsDTO> getBfsItemsByCategory(List<BFSItemDto> items) {
 
-	    // Collect distinct keyword list
-	    Set<String> keywords = new HashSet<>();
+		Set<String> categoryKeywords = new HashSet<>();
+		Set<String> descriptionKeywords = new HashSet<>();
 
-	    for (BFSItemDto dto : items) {
-	        if (dto.getDescription() != null) {
-	            dto.getDescription().forEach(k ->
-	                    keywords.add(k.toLowerCase())
-	            );
-	        }
-	    }
+		for (BFSItemDto dto : items) {
+			if (dto.getCategory() != null) {
+				dto.getCategory().forEach(k -> categoryKeywords.add(k.toLowerCase()));
+			}
+			if (dto.getDescription() != null) {
+				dto.getDescription().forEach(k -> descriptionKeywords.add(k.toLowerCase()));
+			}
+		}
 
-	    log.info("Keywords => {}", keywords);
+		log.info("Category Keywords => {}", categoryKeywords);
+		log.info("Description Keywords => {}", descriptionKeywords);
 
-	    // Convert to list
-	    List<String> keywordList = new ArrayList<>(keywords);
-
-	    return searchRepository.searchItems(keywordList, 5);
+		// Call optimized search with separate keyword lists
+		return searchRepository.searchItems(categoryKeywords, descriptionKeywords, 5);
 	}
 
 	@Transactional
 	public void processExcel(MultipartFile file) {
 
-	    List<BFSItems> items = new ArrayList<>();
+		List<BFSItems> items = new ArrayList<>();
 
-	    try (Workbook workbook = WorkbookFactory.create(file.getInputStream())) {
+		try (Workbook workbook = WorkbookFactory.create(file.getInputStream())) {
 
-	        Sheet sheet = workbook.getSheetAt(0);
-	        MasterStatus status = masterStatusDao.findByStatus(StatusConstants.BFS_NEW);
+			Sheet sheet = workbook.getSheetAt(0);
+			MasterStatus status = masterStatusDao.findByStatus(StatusConstants.BFS_NEW);
 
-	        for (int i = 1; i <= sheet.getLastRowNum(); i++) { // skip header
+			for (int i = 1; i <= sheet.getLastRowNum(); i++) { // skip header
 
-	            final int rowNum = i + 1;
+				final int rowNum = i + 1;
 
-	            Row row = sheet.getRow(i);
-	            if (row == null) continue;
+				Row row = sheet.getRow(i);
+				if (row == null)
+					continue;
 
-	            String orgUuid = getString(row.getCell(12));
-	            String userId = getString(row.getCell(13));
+				String orgUuid = getString(row.getCell(12));
+				String userId = getString(row.getCell(13));
 
 //	            if (orgUuid == null || userId == null) {
 //	                throw new RuntimeException("Missing orgId or userId at row " + rowNum);
 //	            }
 //
-	            if(orgUuid!=null)
-	            {
-	            Organization org = orgDao.findById(orgUuid)
-	                    .orElseThrow(() -> new RuntimeException("Invalid orgId at row " + rowNum));
+				if (orgUuid != null) {
+					Organization org = orgDao.findById(orgUuid)
+							.orElseThrow(() -> new RuntimeException("Invalid orgId at row " + rowNum));
 
-	            BFSItems item = new BFSItems();
-	            item.setId(UUID.randomUUID().toString());
-	            item.setCreatedTS(new Date());
+					BFSItems item = new BFSItems();
+					item.setId(UUID.randomUUID().toString());
+					item.setCreatedTS(new Date());
 
-	            // --- Correct mappings ---
-	            item.setDescription(getString(row.getCell(1)));        // ItemDescription
-	            item.setSpecification(getString(row.getCell(2)));      // Specification
-	            item.setUnitofMeasures(getString(row.getCell(3)));     // Uom
-	            item.setCategory(getString(row.getCell(4)));           // Category
+					// --- Correct mappings ---
+					item.setDescription(getString(row.getCell(1))); // ItemDescription
+					item.setSpecification(getString(row.getCell(2))); // Specification
+					item.setUnitofMeasures(getString(row.getCell(3))); // Uom
+					item.setCategory(getString(row.getCell(4))); // Category
 
-	            double qty = getNumeric(row.getCell(5));               // Quantity
-	            item.setTotalQuantity(qty);
-	            item.setAvailableQuantity(qty);
+					double qty = getNumeric(row.getCell(5)); // Quantity
+					item.setTotalQuantity(qty);
+					item.setAvailableQuantity(qty);
 
-	            item.setLocation(getString(row.getCell(6)));           // Location
-	            item.setAgeOfAsset(getString(row.getCell(7)));         // AgeOfAsset
+					item.setLocation(getString(row.getCell(6))); // Location
+					item.setAgeOfAsset(getString(row.getCell(7))); // AgeOfAsset
 
-	            double buyPrice = getNumeric(row.getCell(8));          // BuyPrice
-	            item.setSellPrice(buyPrice);
-	            item.setAskPrice(buyPrice);
+					double buyPrice = getNumeric(row.getCell(8)); // BuyPrice
+					item.setSellPrice(buyPrice);
+					item.setAskPrice(buyPrice);
 
-	            item.setDiscount(getNumeric(row.getCell(9)));          // Discount
-	            item.setRemarks(getString(row.getCell(10)));           // Remarks
-	            item.setBfsGroup(getString(row.getCell(11)));          // BFSGroup
+					item.setDiscount(getNumeric(row.getCell(9))); // Discount
+					item.setRemarks(getString(row.getCell(10))); // Remarks
+					item.setBfsGroup(getString(row.getCell(11))); // BFSGroup
 
-	            item.setOrg(org);
-	            item.setUserId(userId);
-	            item.setStatus(status);
+					item.setOrg(org);
+					item.setUserId(userId);
+					item.setStatus(status);
 
-	            item.setRequestedFlag(false);
-	            item.setCommentsFlag(false);
-	            item.setImagesFlag(false);
-	            item.setBuyPriceDisclosure(false);
+					item.setRequestedFlag(false);
+					item.setCommentsFlag(false);
+					item.setImagesFlag(false);
+					item.setBuyPriceDisclosure(false);
 
-	            items.add(item);
-	        }
-	        }
-	        bfsDao.saveAll(items);
+					items.add(item);
+				}
+			}
+			bfsDao.saveAll(items);
 
-	    } catch (Exception e) {
-	        throw new RuntimeException("Excel processing failed", e);
-	    }
+		} catch (Exception e) {
+			throw new RuntimeException("Excel processing failed", e);
+		}
 	}
 
+	private String getString(Cell cell) {
+		if (cell == null)
+			return null;
+		cell.setCellType(CellType.STRING);
+		return cell.getStringCellValue().trim();
+	}
 
-	    private String getString(Cell cell) {
-	        if (cell == null) return null;
-	        cell.setCellType(CellType.STRING);
-	        return cell.getStringCellValue().trim();
-	    }
+	private double getNumeric(Cell cell) {
+		if (cell == null)
+			return 0;
+		return cell.getNumericCellValue();
+	}
 
-	    private double getNumeric(Cell cell) {
-	        if (cell == null) return 0;
-	        return cell.getNumericCellValue();
-	    }
-	
+//	@Override
+//	public List<BfsDTO> getBidsBySeller(BFSUsers user) {
+//		// TODO Auto-generated method stub
+//		log.info("Entered To Get Bids Buyer And Item");
+//		List<BfsDTO> bfsList = new ArrayList<>();
+//		List<BFSUsers> usersList = bfsUserDao.findByUser(user.getId());
+//		if (!CollectionUtils.isEmpty(usersList)) {
+//			for (BFSUsers bfsUser : usersList) {
+//				BfsDTO bfsDto = bfsDetails(bfsUser);
+//				bfsList.add(bfsDto);
+//			}
+//			return bfsList;
+//		} else {
+//			log.warn("No BFS Users found with the requested status {}", StatusConstants.BID_REQUESTED);
+//			throw new AppException(HttpStatus.NO_CONTENT.value(), ApplicationConstants.NO_DATA_FOUND,
+//					ApplicationConstants.BUSSINESS_EXCEPTION, ApplicationConstants.FAILURE);
+//		}
+//	}
+
+	@Override
+	public List<BfsDTO> getBidsBySeller(BFSUsers user) {
+
+		log.info("Entered To Get Bids By Seller");
+
+		List<BfsDTO> bfsList = new ArrayList<>();
+
+		// Step 1: get distinct itemIds from BFSItems using sellerId
+		List<String> itemIds = bfsDao.findDistinctItemIdsBySellerId(user.getId());
+
+		if (CollectionUtils.isEmpty(itemIds)) {
+			throw new AppException(HttpStatus.NO_CONTENT.value(), ApplicationConstants.NO_DATA_FOUND,
+					ApplicationConstants.BUSSINESS_EXCEPTION, ApplicationConstants.FAILURE);
+		}
+
+		// Step 2: fetch BFSUsers using itemIds
+		//List<BFSUsers> usersList = bfsUserDao.findByItemIdIn(itemIds);
+		List<BFSUsers> usersList =  bfsUserDao.findLatestBidsByItemIds(itemIds);
+		if (!CollectionUtils.isEmpty(usersList)) {
+			for (BFSUsers bfsUser : usersList) {
+				BfsDTO bfsDto = bfsDetails(bfsUser);
+				bfsList.add(bfsDto);
+			}
+			return bfsList;
+		} else {
+			throw new AppException(HttpStatus.NO_CONTENT.value(), ApplicationConstants.NO_DATA_FOUND,
+					ApplicationConstants.BUSSINESS_EXCEPTION, ApplicationConstants.FAILURE);
+		}
+	}
 
 }
-

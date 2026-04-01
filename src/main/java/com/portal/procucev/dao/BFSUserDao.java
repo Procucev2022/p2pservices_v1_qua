@@ -6,10 +6,12 @@ import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import com.portal.procucev.model.BFSItems;
 import com.portal.procucev.model.BFSUsers;
 import com.portal.procucev.model.MasterStatus;
+import com.portal.procucev.model.Organization;
 
 import jakarta.transaction.Transactional;
 
@@ -91,5 +93,68 @@ public interface BFSUserDao extends JpaRepository<BFSUsers, String>{
 
 	@Query("select b.items.id from BFSUsers b where b.id=:id")
 	String findItemByBfsUser(String id);
+
+	@Query("""
+			select  distinct b.items
+			from BFSUsers b
+			where b.items.id is not null
+			group by b.items
+			order by max(b.createdTS) desc
+			""")
+List<BFSItems> findItemsOrderedByLatestBid();
+
+
+	    @Query("""
+	    select new com.portal.procucev.model.BFSItems(
+	        i.id, i.createdTS,
+	        i.description, i.specification,
+	        i.totalQuantity, i.availableQuantity,
+	        i.category, i.itemNumber, i.location,
+	        i.ageOfAsset, i.sellPrice, i.discount,
+	        i.askPrice, i.bfsGroup, i.proxyId,
+	        i.unitofMeasures, i.remarks,
+	        i.status, i.commentsFlag,
+	        i.buyPriceDisclosure, i.disclosedBuypriceValue, i.latestBidDate
+	    )
+	    from BFSUsers u
+	    join u.items i
+	    group by
+	        i.id, i.createdTS,
+	        i.description, i.specification,
+	        i.totalQuantity, i.availableQuantity,
+	        i.category, i.itemNumber, i.location,
+	        i.ageOfAsset, i.sellPrice, i.discount,
+	        i.askPrice, i.bfsGroup, i.proxyId,
+	        i.unitofMeasures, i.remarks,
+	        i.status, i.commentsFlag,
+	        i.buyPriceDisclosure, i.disclosedBuypriceValue, i.latestBidDate
+	    order by max(u.createdTS) desc
+	    """)
+	    List<BFSItems> findItemsOrderedByLatestBidProjected();
+
+
+	    // 🔹 Bulk requested count
+	    @Query("""
+	    select u.items.id, count(u)
+	    from BFSUsers u
+	    where u.status = :status
+	      and u.items.id in :itemIds
+	    group by u.items.id
+	    """)
+	    List<Object[]> countRequestedByItemIds(
+	            @Param("status") MasterStatus status,
+	            @Param("itemIds") List<String> itemIds
+	    );
+
+		List<BFSUsers> findByOrg(Organization org);
+//
+//		@Query("SELECT u FROM BFSUsers u WHERE u.items.id IN  :itemIds")
+//		List<BFSUsers> findByItemIdIn(@Param("itemIds") List<String> itemIds);
+		
+@Query("SELECT u FROM BFSUsers u WHERE u.items.id IN :itemIds AND u.createdTS = (SELECT MAX(u2.createdTS) FROM BFSUsers u2 WHERE u2.items.id = u.items.id)")
+ List<BFSUsers> findLatestBidsByItemIds(@Param("itemIds") List<String> itemIds);
+	
+
+	
 
 }

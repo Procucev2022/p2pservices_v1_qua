@@ -43,6 +43,8 @@ public class RfqDTO {
 	
 	private Date quoteSubmittedDate;
 
+	private boolean newCommentAvailableVendor;
+	
 	public String getId() {
 		return id;
 	}
@@ -185,6 +187,14 @@ public class RfqDTO {
 
 	public void setQuoteSubmittedDate(Date quoteSubmittedDate) {
 		this.quoteSubmittedDate = quoteSubmittedDate;
+	}
+
+	public boolean isNewCommentAvailableVendor() {
+		return newCommentAvailableVendor;
+	}
+
+	public void setNewCommentAvailableVendor(boolean newCommentAvailableVendor) {
+		this.newCommentAvailableVendor = newCommentAvailableVendor;
 	}
 	
 	

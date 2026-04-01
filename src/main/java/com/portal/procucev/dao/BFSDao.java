@@ -28,16 +28,16 @@ public interface BFSDao extends JpaRepository<BFSItems, String>{
 //		       "    AND b2.proxyId = :user" +
 //		       ") " +
 //		       "ORDER BY b.createdTS DESC")
-	@Query("SELECT new BFSItems(b.id, b.createdTS, b.description, b.specification, b.totalQuantity, b.availableQuantity, b.category, b.itemNumber, b.location, b.ageOfAsset, b.sellPrice, b.discount, b.askPrice, b.bfsGroup, b.proxyId,b.unitofMeasures,b.remarks,b.status,b.commentsFlag,b.buyPriceDisclosure,b.disclosedBuypriceValue) " +
+	@Query("SELECT new BFSItems(b.id, b.createdTS, b.description, b.specification, b.totalQuantity, b.availableQuantity, b.category, b.itemNumber, b.location, b.ageOfAsset, b.sellPrice, b.discount, b.askPrice, b.bfsGroup, b.proxyId,b.unitofMeasures,b.remarks,b.status,b.commentsFlag,b.buyPriceDisclosure,b.disclosedBuypriceValue,b.latestBidDate) " +
 		       "FROM BFSItems b " +
 		       "WHERE b.userId != :user " +
 		       "ORDER BY b.createdTS DESC")
 	List<BFSItems> findAllItems(@Param("user") String user);
 
-	@Query("select new BFSItems(b.id,b.createdTS,b.description,b.specification,b.totalQuantity,b.availableQuantity,b.category,b.itemNumber,b.location,b.ageOfAsset,b.sellPrice,b.discount,b.askPrice,b.bfsGroup,b.proxyId,b.unitofMeasures,b.remarks,b.status,b.commentsFlag,b.buyPriceDisclosure,b.disclosedBuypriceValue)from BFSItems b where b.org.id =:id and b.userId=:user or b.proxyId=:user Order By b.createdTS DESC")
+	@Query("select new BFSItems(b.id,b.createdTS,b.description,b.specification,b.totalQuantity,b.availableQuantity,b.category,b.itemNumber,b.location,b.ageOfAsset,b.sellPrice,b.discount,b.askPrice,b.bfsGroup,b.proxyId,b.unitofMeasures,b.remarks,b.status,b.commentsFlag,b.buyPriceDisclosure,b.disclosedBuypriceValue,b.latestBidDate)from BFSItems b where b.org.id =:id and b.userId=:user or b.proxyId=:user Order By b.createdTS DESC")
 	List<BFSItems> findByOrgAndUser(@Param("id") String id,@Param("user")  String user);
 
-	@Query("select new BFSItems(b.id,b.createdTS,b.description,b.specification,b.totalQuantity,b.availableQuantity,b.category,b.itemNumber,b.location,b.ageOfAsset,b.sellPrice,b.discount,b.askPrice,b.bfsGroup,b.proxyId,b.unitofMeasures,b.remarks,b.status,b.commentsFlag,b.buyPriceDisclosure,b.disclosedBuypriceValue)from BFSItems b where b.id IN (:itemIds) Order By b.createdTS DESC")
+	@Query("select new BFSItems(b.id,b.createdTS,b.description,b.specification,b.totalQuantity,b.availableQuantity,b.category,b.itemNumber,b.location,b.ageOfAsset,b.sellPrice,b.discount,b.askPrice,b.bfsGroup,b.proxyId,b.unitofMeasures,b.remarks,b.status,b.commentsFlag,b.buyPriceDisclosure,b.disclosedBuypriceValue,b.latestBidDate)from BFSItems b where b.id IN (:itemIds) Order By b.createdTS DESC")
 	List<BFSItems> findByIdIn(List<String> itemIds);
 	
 	@Modifying
@@ -59,5 +59,19 @@ public interface BFSDao extends JpaRepository<BFSItems, String>{
 	@Transactional
 	@Query("UPDATE  BFSItems b SET b.status =:status WHERE  b.id=:id")
 	void updateStatus(@Param("id") String id,@Param("status") MasterStatus status);
+	
+
+
+	    @Modifying
+	    @Transactional
+	    @Query("UPDATE  BFSItems b SET b.latestBidDate = CURRENT_TIMESTAMP where b = :itemId")
+	    void updateLatestBidDate(@Param("itemId") BFSItems itemId);
+
+
+	    @Query("select new BFSItems(b.description,b.org.id) from BFSItems b where b.id=:id")
+		BFSItems findSellerById(String id);
+	    
+	    @Query("SELECT DISTINCT b.id FROM BFSItems b WHERE b.userId = :id")
+	    List<String> findDistinctItemIdsBySellerId(@Param("id") String id);
 
 }

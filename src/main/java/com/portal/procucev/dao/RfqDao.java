@@ -45,6 +45,12 @@ public interface RfqDao extends JpaRepository<Rfq, String>{
 
 	@Query("SELECT r FROM Rfq r WHERE  (r.noPrFlag = true and r.byClient = false)or (r.byClient = true and r.clientStatus =:status )Order By r.createdTS DESC")
 	List<Rfq> findAllRfqNoPr(MasterStatus status);
+	
+	@Query("SELECT r FROM Rfq r " +
+		       "WHERE (r.noPrFlag = true AND r.byClient = false) " +
+		       "   OR (r.byClient = true AND r.clientStatus IN :statuses) " +
+		       "ORDER BY r.createdTS DESC")
+		List<Rfq> findAllRfqNoPrInStatuses(@Param("statuses") List<MasterStatus> statuses);
 
 	@Query("SELECT r FROM Rfq r WHERE r.createdBy= :fullName  and r.noPrFlag = true Order By r.createdTS DESC ")
 	List<Rfq> getRfqsByNoPrFlagIsTrue(@Param("fullName") String fullName);
@@ -144,6 +150,26 @@ public interface RfqDao extends JpaRepository<Rfq, String>{
 			        @Param("sellerId") String sellerId,
 			        Pageable pageable
 			);
+	
+	
+	@Query("select r.org.id from Rfq r WHERE r.id = :id")
+	String findClientById(@Param("id") String id);
+
+	@Query("SELECT COUNT(r) FROM Rfq r WHERE r.user = :user")
+	int findRfqCountByUser(@Param("user") String user);
+
+	@Query("SELECT r FROM Rfq r WHERE  (r.noPrFlag = true and r.byClient = false)or (r.byClient = true and r.clientStatus IN :statusList)Order By r.createdTS DESC")
+	List<Rfq> findAllRfqNoPrByCM(@Param("statusList") List<MasterStatus> statusList);
+
+	@Modifying
+	@Transactional
+	@Query("UPDATE  Rfq r SET r.newCommentAvailableVendor = true  WHERE  r.id=:id")
+	void updateRfqCommentFlag(@Param("id")  String id);
+
+	@Modifying
+	@Transactional
+	@Query("UPDATE  Rfq r SET r.newCommentAvailableVendor = false  WHERE  r.id=:id")
+	void updateNewCommentAvailableVendor(@Param("id")  String id);
 
 
 
