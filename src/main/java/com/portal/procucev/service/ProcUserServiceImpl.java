@@ -38,6 +38,7 @@ import com.portal.procucev.customexception.AppException;
 import com.portal.procucev.dao.EmailUserRepo;
 import com.portal.procucev.dao.OrgDao;
 import com.portal.procucev.dao.OrgTypeDao;
+import com.portal.procucev.dao.OtpStoreDao;
 import com.portal.procucev.dao.RfqDao;
 import com.portal.procucev.dao.RoleDao;
 import com.portal.procucev.dao.UserDao;
@@ -47,6 +48,7 @@ import com.portal.procucev.model.OrgDivisionCategory;
 import com.portal.procucev.model.OrgType;
 import com.portal.procucev.model.Organization;
 import com.portal.procucev.model.OtpDetails;
+import com.portal.procucev.model.OtpStore;
 import com.portal.procucev.model.Permission;
 import com.portal.procucev.model.ResetPassword;
 import com.portal.procucev.model.Role;
@@ -78,6 +80,9 @@ public class ProcUserServiceImpl implements UserService {
 	
 	@Value("${mailid}")
 	String mailid;
+	
+	@Autowired
+	OtpStoreDao otpStoreDao;
 	
 	@Autowired
 	private EmailUserRepo emailUserRepo;
@@ -350,53 +355,109 @@ public class ProcUserServiceImpl implements UserService {
 
 	}
 
+//	public boolean generateOtp(Organization organization, HttpServletRequest request) {
+//		log.info("Entered to generate OTP");
+//
+//		try {
+//			if (organization != null) {
+//				String email = organization.getEmail();
+//				String phone = organization.getOrganizationPhonenumber();
+//
+//				// Check if user exists
+//				String normalizedPhone = normalizePhone(phone);
+//				User user = userDao.findByUsernameAndPhoneAndActive(email, normalizedPhone, true);
+//				if (user == null) {
+//					log.error("User not found for email: {} and phone: {}", email, normalizedPhone);
+//					return false;
+//				}
+//
+//				// Generate OTP
+//				String otp = generateOTPForEmail();
+//				LocalDateTime expirationTime = LocalDateTime.now().plusMinutes(15);
+//
+//				// Store OTP
+//				// Store using unique key (email + phone)
+//				String otpKey = email + "|" + normalizedPhone;
+//				otpsMap.put(otpKey, new OtpDetails(otp, expirationTime));
+//				// otpsMap.put(email, new OtpDetails(otp, expirationTime));
+//
+//				// Send OTP
+//				InternetAddress fromAddress = new InternetAddress(mailFom, "Procucev Notifications");
+//				MailUtility.sendOtpForEmail("OTP", email, javaMailSender, fromAddress, host, otp);
+//
+//				log.info("OTP sent successfully to {}", email);
+//				return true;
+//
+//			} else {
+//				log.error("Organization object is null");
+//				throw new AppException(HttpStatus.NO_CONTENT.value(), ApplicationConstants.NO_DATA_FOUND,
+//						ApplicationConstants.BUSINESS_EXCEPTION, ApplicationConstants.FAILURE);
+//			}
+//		} catch (UnsupportedEncodingException e) {
+//			log.error("Encoding error while sending OTP", e);
+//		} catch (Exception ex) {
+//			log.error("Unexpected error while sending OTP", ex);
+//		}
+//
+//		return false;
+//	}
+
+	@Override
 	public boolean generateOtp(Organization organization, HttpServletRequest request) {
-		log.info("Entered to generate OTP");
+	    log.info("Entered to generate OTP");
 
-		try {
-			if (organization != null) {
-				String email = organization.getEmail();
-				String phone = organization.getOrganizationPhonenumber();
+	    try {
+	        if (organization != null) {
 
-				// Check if user exists
-				String normalizedPhone = normalizePhone(phone);
-				User user = userDao.findByUsernameAndPhoneAndActive(email, normalizedPhone, true);
-				if (user == null) {
-					log.error("User not found for email: {} and phone: {}", email, normalizedPhone);
-					return false;
-				}
+	            // Resolve email (tempEmail takes priority)
+	          
+	            String email = organization.getEmail().trim().toLowerCase();
+	            String phone = organization.getOrganizationPhonenumber();
+	            String normalizedPhone = normalizePhone(phone);
 
-				// Generate OTP
-				String otp = generateOTPForEmail();
-				LocalDateTime expirationTime = LocalDateTime.now().plusMinutes(15);
+	            // ✅ USER VALIDATION (added back)
+	            User user = userDao.findByUsernameAndPhoneAndActive(email, normalizedPhone, true);
+	            if (user == null) {
+	                log.error("User not found for email: {} and phone: {}", email, normalizedPhone);
+	                return false;
+	            }
 
-				// Store OTP
-				// Store using unique key (email + phone)
-				String otpKey = email + "|" + normalizedPhone;
-				otpsMap.put(otpKey, new OtpDetails(otp, expirationTime));
-				// otpsMap.put(email, new OtpDetails(otp, expirationTime));
+	            // Generate OTP
+	            String otp = generateOTPForEmail();
+	            LocalDateTime expirationTime = LocalDateTime.now().plusMinutes(15);
 
-				// Send OTP
-				InternetAddress fromAddress = new InternetAddress(mailFom, "Procucev Notifications");
-				MailUtility.sendOtpForEmail("OTP", email, javaMailSender, fromAddress, host, otp);
+	            String key = normalizedPhone + "_EMAIL_" + email;
 
-				log.info("OTP sent successfully to {}", email);
-				return true;
+	            // Save or update OTP in DB
+	            otpStoreDao.findByOtpKey(key).ifPresentOrElse(existing -> {
+	                existing.setOtp(otp);
+	                existing.setExpirationTime(expirationTime);
+	                otpStoreDao.save(existing);
+	            }, () -> otpStoreDao.save(new OtpStore(key, otp, expirationTime)));
 
-			} else {
-				log.error("Organization object is null");
-				throw new AppException(HttpStatus.NO_CONTENT.value(), ApplicationConstants.NO_DATA_FOUND,
-						ApplicationConstants.BUSINESS_EXCEPTION, ApplicationConstants.FAILURE);
-			}
-		} catch (UnsupportedEncodingException e) {
-			log.error("Encoding error while sending OTP", e);
-		} catch (Exception ex) {
-			log.error("Unexpected error while sending OTP", ex);
-		}
+	            log.info("Stored OTP [{}] in DB for key [{}] expiring at [{}]", otp, key, expirationTime);
 
-		return false;
+	            // Send OTP AFTER storing
+	            InternetAddress add = new InternetAddress(mailFom, "Procucev Notifications");
+	            MailUtility.sendOtpForEmail("OTP", email, javaMailSender, add, host, otp);
+
+	            log.info("OTP sent successfully to {}", email);
+	            return true;
+
+	        } else {
+	            log.error("Organization is null, cannot generate OTP");
+	            throw new AppException(HttpStatus.NO_CONTENT.value(), ApplicationConstants.NO_DATA_FOUND,
+	                    ApplicationConstants.BUSINESS_EXCEPTION, ApplicationConstants.FAILURE);
+	        }
+
+	    } catch (UnsupportedEncodingException e) {
+	        log.error("Error generating OTP: {}", e.getMessage(), e);
+	    } catch (Exception ex) {
+	        log.error("Unexpected error while generating OTP", ex);
+	    }
+
+	    return false;
 	}
-
 	private static String generateOTPForEmail() {
 		Random random = new Random();
 		int otpLength = 6;
@@ -448,58 +509,128 @@ public class ProcUserServiceImpl implements UserService {
 		return false;
 	}
 
+//	@Transactional
+//	@Override
+//	public boolean validateEmailOtp(Organization organization) throws UnsupportedEncodingException {
+//		if (organization == null) {
+//			log.error("Organization object is null in validateOtp()");
+//			return false;
+//		}
+//
+//		String email = organization.getEmail();
+//		String phone = organization.getOrganizationPhonenumber();
+//
+//		if (email == null || phone == null || organization.getEmailOtp() == null) {
+//			log.warn("Missing email, phone, or OTP in request");
+//			return false;
+//		}
+//		String normalizedPhone = normalizePhone(phone);
+//		String key = email + "|" + normalizedPhone;
+//		OtpDetails otpDetails = otpsMap.get(key);
+//
+//		// Validate OTP
+//		if (otpDetails != null) {
+//			LocalDateTime expirationTime = otpDetails.getExpirationTime();
+//			LocalDateTime now = LocalDateTime.now();
+//
+//			// Check if OTP is still valid (not expired) and matches
+//			if (now.isBefore(expirationTime) && otpDetails.getOtp().equals(organization.getEmailOtp())) {
+//				// Remove OTP from the map after successful validation
+//			
+//				User user = userDao.findByUsernameAndPhoneAndActive(email, normalizedPhone, true);
+//				if (user != null 
+//				        && !StatusConstants.EMAIL_VERIFIED.equals(user.getVerificationStatus()) 
+//				        && !user.isSelfClient()) {
+//					InternetAddress add = new InternetAddress(mailid, "Procucev Notifications");
+//					MailUtility.mailingVerificationLinkWithUser(javaMailSender, add, host, user);
+//				}
+//				int updated = userDao.updateActivityTs(email, phone, StatusConstants.EMAIL_VERIFIED);
+//				if (updated > 0) {
+//					otpsMap.remove(key);
+//					log.info("OTP validated and status updated successfully for key: {}", key);
+//					return true;
+//				}
+//			} else {
+//				log.warn("OTP expired or mismatch for key: {}", key);
+//			}
+//		} else {
+//			log.warn("No OTP entry found for key: {}", key);
+//			userDao.updateVerificationStatus(email, phone, StatusConstants.EMAIL_VERIFICATION_FAILED);
+//		}
+//
+//		return false;
+//	}
+
 	@Transactional
 	@Override
 	public boolean validateEmailOtp(Organization organization) throws UnsupportedEncodingException {
-		if (organization == null) {
-			log.error("Organization object is null in validateOtp()");
-			return false;
-		}
 
-		String email = organization.getEmail();
-		String phone = organization.getOrganizationPhonenumber();
+	    if (organization == null) {
+	        log.error("Organization object is null in validateEmailOtp()");
+	        return false;
+	    }
+	    String email = organization.getEmail().trim().toLowerCase();
+	    String phone = organization.getOrganizationPhonenumber();
 
-		if (email == null || phone == null || organization.getEmailOtp() == null) {
-			log.warn("Missing email, phone, or OTP in request");
-			return false;
-		}
-		String normalizedPhone = normalizePhone(phone);
-		String key = email + "|" + normalizedPhone;
-		OtpDetails otpDetails = otpsMap.get(key);
+	    if (email == null || phone == null || organization.getEmailOtp() == null) {
+	        log.warn("Missing email, phone, or OTP in request");
+	        return false;
+	    }
 
-		// Validate OTP
-		if (otpDetails != null) {
-			LocalDateTime expirationTime = otpDetails.getExpirationTime();
-			LocalDateTime now = LocalDateTime.now();
+	    String normalizedPhone = normalizePhone(phone);
+	    String key = normalizedPhone + "_EMAIL_" + email;
 
-			// Check if OTP is still valid (not expired) and matches
-			if (now.isBefore(expirationTime) && otpDetails.getOtp().equals(organization.getEmailOtp())) {
-				// Remove OTP from the map after successful validation
-			
-				User user = userDao.findByUsernameAndPhoneAndActive(email, normalizedPhone, true);
-				if (user != null 
-				        && !StatusConstants.EMAIL_VERIFIED.equals(user.getVerificationStatus()) 
-				        && !user.isSelfClient()) {
-					InternetAddress add = new InternetAddress(mailid, "Procucev Notifications");
-					MailUtility.mailingVerificationLinkWithUser(javaMailSender, add, host, user);
-				}
-				int updated = userDao.updateActivityTs(email, phone, StatusConstants.EMAIL_VERIFIED);
-				if (updated > 0) {
-					otpsMap.remove(key);
-					log.info("OTP validated and status updated successfully for key: {}", key);
-					return true;
-				}
-			} else {
-				log.warn("OTP expired or mismatch for key: {}", key);
-			}
-		} else {
-			log.warn("No OTP entry found for key: {}", key);
-			userDao.updateVerificationStatus(email, phone, StatusConstants.EMAIL_VERIFICATION_FAILED);
-		}
+	    log.info("Validating email OTP for key: {}", key);
 
-		return false;
+	    Optional<OtpStore> recordOpt = otpStoreDao.findByOtpKey(key);
+
+	    if (recordOpt.isEmpty()) {
+	        log.warn("No OTP entry found for key: {}", key);
+	        userDao.updateVerificationStatus(email, normalizedPhone, StatusConstants.EMAIL_VERIFICATION_FAILED);
+	        return false;
+	    }
+
+	    OtpStore record = recordOpt.get();
+
+	    // ✅ Expiry check + removal
+	    if (LocalDateTime.now().isAfter(record.getExpirationTime())) {
+	        log.warn("Email OTP expired for key: {}", key);
+	        otpStoreDao.deleteByOtpKey(key); // removal logic
+	        return false;
+	    }
+
+	    // ✅ OTP match check
+	    if (!record.getOtp().equals(organization.getEmailOtp())) {
+	        log.warn("Invalid OTP for key: {}", key);
+	        return false;
+	    }
+
+	    // ✅ USER VALIDATION
+	    User user = userDao.findByUsernameAndPhoneAndActive(email, normalizedPhone, true);
+	    if (user == null) {
+	        log.error("User not found for email: {} and phone: {}", email, normalizedPhone);
+	        return false;
+	    }
+
+	    // ✅ Send verification mail if needed
+	    if (!StatusConstants.EMAIL_VERIFIED.equals(user.getVerificationStatus()) && !user.isSelfClient()) {
+	        InternetAddress add = new InternetAddress(mailid, "Procucev Notifications");
+	        MailUtility.mailingVerificationLinkWithUser(javaMailSender, add, host, user);
+	    }
+
+	    // ✅ Update user status
+	    int updated = userDao.updateActivityTs(email, normalizedPhone, StatusConstants.EMAIL_VERIFIED);
+
+	    if (updated > 0) {
+	        // ✅ REMOVE OTP AFTER SUCCESS
+	        otpStoreDao.deleteByOtpKey(key);
+
+	        log.info("OTP validated, removed, and status updated successfully for key: {}", key);
+	        return true;
+	    }
+
+	    return false;
 	}
-
 //	    public String processBuyerExcel(MultipartFile file) throws Exception {
 //	        Workbook workbook = WorkbookFactory.create(file.getInputStream());
 //	        Sheet sheet = workbook.getSheetAt(0);

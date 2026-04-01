@@ -1049,6 +1049,7 @@ public class GMTServiceImpl implements GMTService {
 		rfqDto.setRfqId(rfq.getRfqId());
 		rfqDto.setNoOfQuotes(rfq.getQuoteCount());
 		rfqDto.setNoOfVendors(gmtRfqVendorDao.findByVendorsByRfq(rfq.getId()));
+		rfqDto.setQuoteSubmittedDate(rfq.getQuoteSubmittedDate());
 		rfqDto.setNewCommentAvailableVendor(rfq.isNewCommentAvailableVendor());
 		String phone = userDao.findPhoneByUser(rfq.getUser());
 		if (phone != null) {
