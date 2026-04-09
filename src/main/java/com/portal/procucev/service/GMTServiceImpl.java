@@ -1002,7 +1002,7 @@ public class GMTServiceImpl implements GMTService {
 	            );
 
 	        } else {
-
+	        	rfq.setStatus(queryStatus);
 	            logger.info("Saving Query Record For First Time With New Status");
 	            gmtRfqVendorDao.save(rfq);
 	        }
