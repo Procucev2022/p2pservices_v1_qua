@@ -100,4 +100,6 @@ public interface OrgDao  extends JpaRepository<Organization, String> {
 	@Query("select o.city from Organization o where o=:org")
 	String getCityByOrg(@Param("org") Organization org);
 
+	List<Organization> findByOrgType(OrgType orgTypeObject, Sort by);
+
 }
