@@ -30,4 +30,5 @@ public class VendorSummaryResponse {
     private String details;
     private String phoneNumber;
     private String sourceType;
+    private Date createdTS;
 }
