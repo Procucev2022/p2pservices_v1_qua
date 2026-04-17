@@ -771,7 +771,7 @@ public class GMTServiceImpl implements GMTService {
 
 		List<GmtRfqVendors> response = gmtRfqVendorDao.findByRfq(rfq);
 		//List<RfqVendor> rfqVendors = getVendorsbyRFQ(rfq); // Call the method to get RfqVendor
-															// list
+													// list
 //		MasterStatus forwardedStatus = masterStatusDao.findByStatus(StatusConstants.RFQ_FORWARDED);
 //		logger.info("Size of rfqVendors==", rfqVendors.size());
 //		if (!rfqVendors.isEmpty()) {
