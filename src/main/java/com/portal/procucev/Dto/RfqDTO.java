@@ -45,6 +45,8 @@ public class RfqDTO {
 
 	private boolean newCommentAvailableVendor;
 	
+	private String sourceType;
+	
 	public String getId() {
 		return id;
 	}
@@ -195,6 +197,14 @@ public class RfqDTO {
 
 	public void setNewCommentAvailableVendor(boolean newCommentAvailableVendor) {
 		this.newCommentAvailableVendor = newCommentAvailableVendor;
+	}
+
+	public String getSourceType() {
+		return sourceType;
+	}
+
+	public void setSourceType(String sourceType) {
+		this.sourceType = sourceType;
 	}
 	
 	
