@@ -207,5 +207,4 @@ public class RfqDTO {
 		this.sourceType = sourceType;
 	}
 	
-
 }
