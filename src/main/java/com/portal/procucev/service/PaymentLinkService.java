@@ -61,6 +61,10 @@ public class PaymentLinkService {
 
         SubscriptionPlan plan = planRepo.findById(String.valueOf(planId)).orElseThrow(() -> new AppException("Subscription Plan not found"));
 
+        if (plan.getLaunchedStatus().equalsIgnoreCase("NO"))
+            throw new AppException("Subscription plan is launching soon. Please try again later.");
+
+
         ZohoPaymentLinkRequest request = new ZohoPaymentLinkRequest();
         // Calculate base price (launch offer if present, otherwise subscription price)
         BigDecimal basePrice = BigDecimal.valueOf(plan.getLaunchOfferPrice() > 0 ? plan.getLaunchOfferPrice() : plan.getSubscriptionPrice());
