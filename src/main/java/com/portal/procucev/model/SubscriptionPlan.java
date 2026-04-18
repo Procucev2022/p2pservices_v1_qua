@@ -62,4 +62,11 @@ public class SubscriptionPlan extends Procucev {
 
 	@Column(name = "launch_offer_price")
 	private double launchOfferPrice;
+
+	@Column(name="plan_status")
+	private String planStatus;
+
+	@Column(name = "launched_status")
+	private String launchedStatus; // YES / NO
+
 }

@@ -859,15 +859,17 @@ public class MailUtility {
 			StringBuilder email = new StringBuilder();
 
 			email.append("<html><body>");
-			email.append("Dear Partner,<br><br>");
-			email.append("Greetings from <b>Procucev!</b><br>");
-			email.append(
-					"Welcome to <b>QUA by Procucev</b> – a trusted AI B2B Procurement platform connecting genuine buyers and quality sellers across India.<br><br>");
-			email.append(
-					"QUA is an AI Agent for <b>Get My quoTe (GMT)</b> and <b>Buy From Stock (BFS)</b> helping you grow your business with enquiries (RFQs) and immediate requirements from genuine buyers.<br><br>");
-			email.append(
-					"One of our corporate buyers has the below requirement that matches your offerings. Please find the enquiry details below:<br><br>");
 
+			email.append("Dear Partner,<br><br>");
+
+			email.append("Greetings from <b>Procucev!</b><br><br>");
+
+			email.append("QUA by <b>Procucev</b> is a trusted AI B2B marketplace connecting genuine buyers and quality sellers across India.<br><br>");
+
+			email.append("We have a new enquiry from a corporate buyer that matches your category. ");
+			email.append("This is a verified business opportunity, please check the details below.<br><br>");
+
+			email.append("<b>Enquiry Details:</b><br><br>"); 
 // Build RFQ items table
 			email.append("<table style='border:1px solid black;border-collapse:collapse;'>");
 			email.append(
@@ -897,13 +899,16 @@ public class MailUtility {
 			}
 			email.append("</table><br><br>");
 
-			email.append("In order to submit quotations for the same and receive future enquiries,<br>");
-			email.append(
-					"Visit <a href=\"https://qua.procucev.com/login\">qua.procucev.com/login</a> download your Request For Quote (RFQ).<br><br>");
+			email.append("<br>");
+
+			email.append("Please login now to your QUA seller account at ");
+			email.append("<a href=\"https://qua.procucev.com/login\">https://qua.procucev.com/login</a> ");
+			email.append("to view and download the RFQ instantly. This is a live enquiry, do not miss it.<br><br>");
+
+			email.append("You can also get real-time enquiry alerts on WhatsApp. ");
+			email.append("Just say Hi to <b>70901 70801</b> now to receive new enquiries matching your categories as soon as they come in.<br><br>");
 			email.append("<b>Best Regards,</b><br>");
-			email.append("<b>QUA by Procucev</b><br>");
-			email.append("Your partner in growth<br>");
-			email.append("Visit: <a href=\"https://www.procucev.com\">www.procucev.com</a><br>");
+			email.append("<b>Team Procucev</b><br>");
 			email.append("</body></html>");
 
 			MimeBodyPart messageBodyPart = new MimeBodyPart();

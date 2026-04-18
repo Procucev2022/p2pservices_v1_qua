@@ -27,6 +27,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.stereotype.Service;
@@ -824,7 +825,7 @@ public class ProcUserServiceImpl implements UserService {
 		Logger logger = LoggerFactory.getLogger(getClass());
 
 		OrgType orgTypeObject = orgTypeDao.findByTypeName(ApplicationConstants.VENDOR);
-		List<Organization> vendors = orgDao.findByOrgType(orgTypeObject);
+		List<Organization> vendors = orgDao.findByOrgType(orgTypeObject, Sort.by(Sort.Direction.DESC, "createdTS"));
 
 		if (vendors == null || vendors.isEmpty()) {
 			logger.warn("No vendors found for orgType={}", ApplicationConstants.VENDOR);
@@ -849,7 +850,7 @@ public class ProcUserServiceImpl implements UserService {
 				summary.setPhoneNumber(vendor.getOrganizationPhonenumber());
 				summary.setDetails(vendor.getDetails());
 				summary.setSourceType(vendor.getSourceType());
-
+				summary.setCreatedTS(vendor.getCreatedTS());
 				summary.setSubscribed(vendor.getSubscriptionPlan() != null ? "Yes" : "No");
 
 				// Rfqs created (safe null handling)

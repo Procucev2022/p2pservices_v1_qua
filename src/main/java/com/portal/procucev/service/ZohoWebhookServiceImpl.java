@@ -115,6 +115,7 @@ public class ZohoWebhookServiceImpl implements ZohoWebhookService {
             Instant endInstant = zdt.toInstant();
 
             org.setSubscriptionPlan(plan);
+            org.setRfqCredits(org.getRfqCredits()+plan.getRfqBundleSize());
             org.setSubscriptionStart(java.util.Date.from(startInstant));
             org.setSubscriptionExpiry(java.util.Date.from(endInstant));
 
