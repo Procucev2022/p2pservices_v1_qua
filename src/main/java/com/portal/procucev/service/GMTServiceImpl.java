@@ -763,7 +763,6 @@ public class GMTServiceImpl implements GMTService {
 	@Override
 	public List<GmtRfqVendors> getVendorsByGmtRfq(Rfq rfq) {
 		logger.info("Entered to get GMT Vendors By RFQ {}", rfq.getId());
-
 		if (rfq == null) {
 			logger.error("RFQ object is null.");
 			throw new IllegalArgumentException("RFQ object cannot be null.");

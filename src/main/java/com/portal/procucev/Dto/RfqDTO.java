@@ -197,5 +197,4 @@ public class RfqDTO {
 		this.newCommentAvailableVendor = newCommentAvailableVendor;
 	}
 	
-
 }
