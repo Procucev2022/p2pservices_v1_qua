@@ -515,7 +515,7 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 				}
 			}
 
-			organization.setRfqCredits(1);
+			organization.setRfqCredits(2);
 			organization.setSubCategory(organization.getDetails());
 			organization.setSourceType(ApplicationConstants.TOOL);
 
@@ -991,7 +991,7 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 			organization.setCompanyId(generateId(organization.getCompanyName()));
 			String companyId = generateId(organization.getCompanyName());
 			organization.setCompanyId(companyId);
-			organization.setRfqCredits(1);
+			organization.setRfqCredits(2);
 
 			// organization.setSourceType(ApplicationConstants.TOOL);
 			logger.info("Company Id: {}", companyId);
@@ -1390,7 +1390,7 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 					org.setGmtName(StatusConstants.GMT_Basic);
 					org.setBfsName(StatusConstants.BFS_PRO);
 					org.setVendorClass(StatusConstants.Marketing);
-					org.setRfqCredits(1);
+					org.setRfqCredits(2);
 
 					// save org
 					Organization savedOrg = orgDao.save(org);
