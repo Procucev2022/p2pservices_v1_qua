@@ -44,6 +44,8 @@ public class RfqDTO {
 	private Date quoteSubmittedDate;
 
 	private boolean newCommentAvailableVendor;
+	//Added Soucrce Type
+	private String sourceType;
 	
 	public String getId() {
 		return id;
@@ -196,5 +198,14 @@ public class RfqDTO {
 	public void setNewCommentAvailableVendor(boolean newCommentAvailableVendor) {
 		this.newCommentAvailableVendor = newCommentAvailableVendor;
 	}
+
+	public String getSourceType() {
+		return sourceType;
+	}
+
+	public void setSourceType(String sourceType) {
+		this.sourceType = sourceType;
+	}
+
 	
 }
