@@ -44,6 +44,7 @@ public class RfqDTO {
 	private Date quoteSubmittedDate;
 
 	private boolean newCommentAvailableVendor;
+	
 	//Added Soucrce Type
 	private String sourceType;
 	

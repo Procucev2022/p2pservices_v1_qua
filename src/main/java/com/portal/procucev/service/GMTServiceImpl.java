@@ -1531,6 +1531,7 @@ public class GMTServiceImpl implements GMTService {
 		return status;
 	}
 
+	
 	public boolean sendRfqToVendors(List<RfqVendor> rfq, Rfq rfqData) throws MessagingException {
 		logger.info("Entered to sendRfqToVendors()");
 		UserDetails userDetails = (UserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
