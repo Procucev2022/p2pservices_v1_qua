@@ -959,6 +959,7 @@ public class GMTServiceImpl implements GMTService {
 		rfqDto.setCount(rfq.getCount());
 		rfqDto.setQuotationReceived(rfq.isQuotationReceived());
 		rfqDto.setNoOfQuotes(rfq.getQuoteCount());
+		//Updateing Source Type
 		rfqDto.setSourceType(rfq.getSourceType());
 		//rfqDto.setNoOfVendors(rfqVendorDao.findByVendorsByRfq(rfq.getId()));
 		rfqDto.setNoOfVendors(gmtRfqVendorDao.findByVendorsByRfq(rfq.getId()));
@@ -1537,6 +1538,7 @@ public class GMTServiceImpl implements GMTService {
 		//phone=userDetails.get check to get phone number 
 		String[] mailIdWrapper = new String[1]; // Using an array to wrap mailId
 		String[] passwordWrapper = new String[1];
+		//Updated Delivery Date
 		String rfqDueDate = buildingRfqDueDate(rfqData.getDeliveryDate());
 		logger.info("username-->", username);
 		EmailUser res = emailUserRepo.findByEmail(username);
