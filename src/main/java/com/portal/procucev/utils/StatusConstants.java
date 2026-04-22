@@ -262,6 +262,10 @@ public interface StatusConstants {
 	public static final String USER_IGNORED = "USER_IGNORED";
 
 	public static final String RFQ_FORWARDED = "RFQ_FORWARDED";
+	
+	public static final String RFQ_NOTIFIED = "RFQ_NOTIFIED";
+	
+	public static final String RFQ_INVITED = "RFQ_INVITED";
 
 	public static final String CLIENT_USER_APPROVED = "CLIENT_USER_APPROVED";
 

@@ -727,7 +727,9 @@ public interface ApplicationConstants {
 
 	public String VALIDATION_EXCEPTION = "VALIDATION_EXCEPTION";
 
-	public String Vendor = "Vendor";;
+	public String Vendor = "Vendor";
+
+	public String Invite = "Invite";;
 	
 	
 		

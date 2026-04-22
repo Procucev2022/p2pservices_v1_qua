@@ -20,8 +20,16 @@ public interface GmtRfqVendorDao extends JpaRepository<GmtRfqVendors, String> {
 
 	GmtRfqVendors findByVendorAndRfq(Organization org, Rfq rfq);
 
-	@Query("SELECT  new GmtRfqVendors(g.id,g.vendor.id,g.vendor.companyName,g.vendor.companyId,g.status,g.query,g.vendor.otherEmails,g.quoteSubmittedDate) from GmtRfqVendors g where g.rfq =:rfq Order By g.createdTS DESC")
-	List<GmtRfqVendors> findByRfq(@Param("rfq") Rfq rfq);
+//	@Query("SELECT  new GmtRfqVendors(g.id,g.vendor.id,g.vendor.companyName,g.vendor.companyId,g.status,g.query,g.vendor.otherEmails,g.quoteSubmittedDate) from GmtRfqVendors g where g.rfq =:rfq Order By g.createdTS DESC")
+//	List<GmtRfqVendors> findByRfq(@Param("rfq") Rfq rfq);
+	@Query("""
+			SELECT g
+			FROM GmtRfqVendors g
+			WHERE g.rfq = :rfq
+			ORDER BY g.createdTS DESC
+			""")
+			List<GmtRfqVendors> findByRfq(@Param("rfq") Rfq rfq);
+	
 
 	@Modifying
 	@Transactional

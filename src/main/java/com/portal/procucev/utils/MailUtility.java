@@ -855,7 +855,7 @@ public class MailUtility {
 			throws MessagingException {
 		LOGGER.info("Entered to send Invite RFQ Email to Vendor");
 		try {
-			String subject = "Partner, We have an enquiry for you!!";
+			String subject = "You have an enquiry- Please login to your QUA seller account!!";
 			StringBuilder email = new StringBuilder();
 
 			email.append("<html><body>");
@@ -869,6 +869,11 @@ public class MailUtility {
 			email.append("We have a new enquiry from a corporate buyer that matches your category. ");
 			email.append("This is a verified business opportunity, please check the details below.<br><br>");
 
+			email.append("Please login now to your QUA seller account at ");
+			email.append("<a href=\"https://qua.procucev.com/login\">https://qua.procucev.com/login</a> ");
+			email.append("to view full details and download the RFQ instantly. ");
+			email.append("This is a live enquiry, do not miss it.<br><br>");
+			
 			email.append("<b>Enquiry Details:</b><br><br>"); 
 // Build RFQ items table
 			email.append("<table style='border:1px solid black;border-collapse:collapse;'>");
@@ -901,14 +906,21 @@ public class MailUtility {
 
 			email.append("<br>");
 
-			email.append("Please login now to your QUA seller account at ");
-			email.append("<a href=\"https://qua.procucev.com/login\">https://qua.procucev.com/login</a> ");
-			email.append("to view and download the RFQ instantly. This is a live enquiry, do not miss it.<br><br>");
-
+		
 			email.append("You can also get real-time enquiry alerts on WhatsApp. ");
 			email.append("Just say Hi to <b>70901 70801</b> now to receive new enquiries matching your categories as soon as they come in.<br><br>");
+			email.append("Please submit your offer on time to increase your chances of getting the order and connecting directly with the B2B client.<br><br>");
+
+			email.append("To receive more RFQs, please update your relevant product categories in the QUA portal. ");
+			email.append("Correct categories help you get more business opportunities.<br><br>");
+
+			email.append("You can also check RFQs regularly on ");
+			email.append("<a href=\"https://www.procucev.com\">www.procucev.com</a> - Request New RFQ, Check Status and more…<br><br>");
+
+			email.append("<i>This is system generated RFQ invitation and don’t reply to this email.</i><br><br>");
+
 			email.append("<b>Best Regards,</b><br>");
-			email.append("<b>Team Procucev</b><br>");
+			email.append("<b>Team Procucev</b>");
 			email.append("</body></html>");
 
 			MimeBodyPart messageBodyPart = new MimeBodyPart();
