@@ -30,6 +30,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.portal.procucev.Dto.ClientRFQDto;
 import com.portal.procucev.Dto.ForwardRfqVendorRequest;
 import com.portal.procucev.Dto.GMTRfqVendorDto;
+import com.portal.procucev.Dto.GmtRfqSellerDto;
 import com.portal.procucev.Dto.RfqDTO;
 import com.portal.procucev.Dto.VendorInfoDto;
 import com.portal.procucev.Dto.VendorRFQDto;
@@ -166,7 +167,7 @@ public class GMTController {
 	@PostMapping(value = "/getVendorsByGmtRFQ")
 	public ResponseEntity<?> getVendorsByGmtRFQ(@RequestBody Rfq rfq) {
 		logger.info("entered to get an request to multiple Vendors by Rfq");
-		List<GmtRfqVendors> response = gmtService.getVendorsByGmtRfq(rfq);
+		List<GmtRfqSellerDto> response = gmtService.getVendorsByGmtRfq(rfq);
 		return new ResponseEntity<>(response, HttpStatus.OK);
 
 	}

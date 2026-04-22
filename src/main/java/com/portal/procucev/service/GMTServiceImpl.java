@@ -66,6 +66,7 @@ import org.springframework.util.CollectionUtils;
 import com.portal.procucev.Dto.ClientRFQDto;
 import com.portal.procucev.Dto.ForwardRfqVendorRequest;
 import com.portal.procucev.Dto.GMTRfqVendorDto;
+import com.portal.procucev.Dto.GmtRfqSellerDto;
 import com.portal.procucev.Dto.RfqDTO;
 import com.portal.procucev.Dto.VendorInfoDto;
 import com.portal.procucev.Dto.VendorRFQDto;
@@ -760,42 +761,88 @@ public class GMTServiceImpl implements GMTService {
 	 * @return List of GMT RFQ vendors.
 	 * @throws AppException if no vendors are found for the RFQ.
 	 */
+	
 	@Override
-	public List<GmtRfqVendors> getVendorsByGmtRfq(Rfq rfq) {
-		logger.info("Entered to get GMT Vendors By RFQ {}", rfq.getId());
-		if (rfq == null) {
-			logger.error("RFQ object is null.");
-			throw new IllegalArgumentException("RFQ object cannot be null.");
-		}
+	public List<GmtRfqSellerDto> getVendorsByGmtRfq(Rfq rfq) {
 
-		List<GmtRfqVendors> response = gmtRfqVendorDao.findByRfq(rfq);
-		//List<RfqVendor> rfqVendors = getVendorsbyRFQ(rfq); // Call the method to get RfqVendor													// list
-//		MasterStatus forwardedStatus = masterStatusDao.findByStatus(StatusConstants.RFQ_FORWARDED);
-//		logger.info("Size of rfqVendors==", rfqVendors.size());
-//		if (!rfqVendors.isEmpty()) {
-//			// Add RfqVendor objects to the response
-//			for (RfqVendor rfqVendor : rfqVendors) {
-//				GmtRfqVendors gmtRfqVendor = new GmtRfqVendors();
-//				// gmtRfqVendor.setId(rfqVendor.getId());
-//				gmtRfqVendor.setVendorName(rfqVendor.getCompanyName());
-//				gmtRfqVendor.setVendorUuid(rfqVendor.getVendorId());
-//				gmtRfqVendor.setVendorId(rfqVendor.getCompanyId());
-//				gmtRfqVendor.setOtherEmails(rfqVendor.getOtherEmails());
-//				gmtRfqVendor.setStatus(forwardedStatus);
-//				// Set other fields according to GmtRfqVendors object
-//				// You may need to adjust fields based on GmtRfqVendors properties
-//				response.add(gmtRfqVendor);
-//			}
-//		}
-		if (!response.isEmpty()) {
-			logger.info("Found {} vendors for RFQ {}", response.size(), rfq.getId());
-			return response;
-		} else {
-			logger.error("No vendors available in the database for RFQ {}", rfq.getId());
-			throw new AppException(HttpStatus.NO_CONTENT.value(), ApplicationConstants.NO_DATA_FOUND,
-					ApplicationConstants.BUSINESS_EXCEPTION, ApplicationConstants.FAILURE);
-		}
+	    logger.info("Entered to get GMT Vendors By RFQ {}", rfq.getId());
+
+	    if (rfq == null) {
+	        throw new IllegalArgumentException("RFQ object cannot be null.");
+	    }
+
+	    List<GmtRfqVendors> entities = gmtRfqVendorDao.findByRfq(rfq);
+
+	    if (entities == null || entities.isEmpty()) {
+	        throw new AppException(HttpStatus.NO_CONTENT.value(),
+	                ApplicationConstants.NO_DATA_FOUND,
+	                ApplicationConstants.BUSINESS_EXCEPTION,
+	                ApplicationConstants.FAILURE);
+	    }
+
+	    List<GmtRfqSellerDto> response = new ArrayList<>();
+
+	    for (GmtRfqVendors g : entities) {
+
+	    	GmtRfqSellerDto dto = new GmtRfqSellerDto();
+
+	        dto.setId(g.getId());
+	        dto.setVendorUuid(g.getVendor() != null ? g.getVendor().getId() : null);
+	        dto.setVendorName(g.getVendor() != null ? g.getVendor().getCompanyName() : null);
+	        dto.setVendorId(g.getVendor() != null ? g.getVendor().getCompanyId() : null);
+	        dto.setOtherEmails(g.getVendor() != null ? g.getVendor().getOtherEmails() : null);
+	        dto.setQuery(g.getQuery());
+	        dto.setQuoteSubmittedDate(g.getQuoteSubmittedDate());
+
+	        // ✅ STATUS HANDLING (your requirement)
+	        if (g.getStatus() != null) {
+	            dto.setStatus(g.getStatus());
+	        } else {
+	        	MasterStatus resultStatus = masterStatusDao.findByStatus(StatusConstants.RFQ_NOTIFIED);
+	            dto.setStatus(resultStatus);
+	        }
+
+	        response.add(dto);
+	    }
+
+	    return response;
 	}
+//	@Override
+//	public List<GmtRfqVendors> getVendorsByGmtRfq(Rfq rfq) {
+//		logger.info("Entered to get GMT Vendors By RFQ {}", rfq.getId());
+//		if (rfq == null) {
+//			logger.error("RFQ object is null.");
+//			throw new IllegalArgumentException("RFQ object cannot be null.");
+//		}
+//
+//		List<GmtRfqVendors> response = gmtRfqVendorDao.findByRfq(rfq);
+//		//List<RfqVendor> rfqVendors = getVendorsbyRFQ(rfq); // Call the method to get RfqVendor													// list
+////		MasterStatus forwardedStatus = masterStatusDao.findByStatus(StatusConstants.RFQ_FORWARDED);
+////		logger.info("Size of rfqVendors==", rfqVendors.size());
+////		if (!rfqVendors.isEmpty()) {
+////			// Add RfqVendor objects to the response
+////			for (RfqVendor rfqVendor : rfqVendors) {
+////				GmtRfqVendors gmtRfqVendor = new GmtRfqVendors();
+////				// gmtRfqVendor.setId(rfqVendor.getId());
+////				gmtRfqVendor.setVendorName(rfqVendor.getCompanyName());
+////				gmtRfqVendor.setVendorUuid(rfqVendor.getVendorId());
+////				gmtRfqVendor.setVendorId(rfqVendor.getCompanyId());
+////				gmtRfqVendor.setOtherEmails(rfqVendor.getOtherEmails());
+////				gmtRfqVendor.setStatus(forwardedStatus);
+////				// Set other fields according to GmtRfqVendors object
+////				// You may need to adjust fields based on GmtRfqVendors properties
+////				response.add(gmtRfqVendor);
+////			}
+////		}
+//		if (!response.isEmpty()) {
+//			logger.info("Found {} vendors for RFQ {}", response.size(), rfq.getId());
+//			return response;
+//		} else {
+//			logger.error("No vendors available in the database for RFQ {}", rfq.getId());
+//			throw new AppException(HttpStatus.NO_CONTENT.value(), ApplicationConstants.NO_DATA_FOUND,
+//					ApplicationConstants.BUSINESS_EXCEPTION, ApplicationConstants.FAILURE);
+//		}
+//	}
 
 	@Override
 	public boolean approveVendor(GmtRfqVendors gmtRfq) throws MessagingException {
@@ -1488,6 +1535,8 @@ public class GMTServiceImpl implements GMTService {
 				// ✅ STEP 2: Get status
 				MasterStatus resultStatus = masterStatusDao.findByStatus(StatusConstants.RFQ_FORWARDED);
 
+				MasterStatus inviteStatus = masterStatusDao.findByStatus(StatusConstants.RFQ_INVITED);
+
 				Organization org = orgDao.findById(savedVendor.getId()).get();
 				 //✅ STEP 3: Check if record exists
 				GmtRfqVendors existing = gmtRfqVendorDao.findByVendorAndRfq(savedVendor,
@@ -1501,7 +1550,14 @@ public class GMTServiceImpl implements GMTService {
 					
 				} else {
 					logger.info("Saving status to requested for the first time");
-					gmtRfqVendors.setStatus(resultStatus);
+					if(vendor.getRequestType().equalsIgnoreCase(ApplicationConstants.Invite))
+					{
+						gmtRfqVendors.setStatus(inviteStatus);
+					}
+					else {
+						gmtRfqVendors.setStatus(resultStatus);
+					}
+					
 					gmtRfqVendors.setRfq(savedRfq);
 					gmtRfqVendors.setVendor(savedVendor);
 					gmtRfqVendors.setRequestedDate(new Date());
@@ -1876,7 +1932,7 @@ public class GMTServiceImpl implements GMTService {
 			// Save the updated RFQ
 			rfqDao.save(updatedRfq);
 			logger.info("Getting Vendors By RFQ Id");
-			List<GmtRfqVendors> vendors = getVendorsByGmtRfq(updatedRfq);
+			List<GmtRfqSellerDto> vendors = getVendorsByGmtRfq(updatedRfq);
 			if (vendors != null && !CollectionUtils.isEmpty(vendors)) {
 				logger.info("Vendors List Size to Resend Emails::", vendors.size());
 				resendRfqToVendors(vendors, updatedRfq);
@@ -1894,7 +1950,7 @@ public class GMTServiceImpl implements GMTService {
 		}
 	}
 
-	public boolean resendRfqToVendors(List<GmtRfqVendors> gmtVendors, Rfq rfqData) throws MessagingException {
+	public boolean resendRfqToVendors(List<GmtRfqSellerDto> vendors, Rfq rfqData) throws MessagingException {
 		logger.info("Entered to sendRfqToVendors()");
 		try {
 			UserDetails userDetails = (UserDetails) SecurityContextHolder.getContext().getAuthentication()
@@ -1928,7 +1984,7 @@ public class GMTServiceImpl implements GMTService {
 				phoneNumber = null; // Initialize phoneNumber
 				fullName = null;
 			}
-			for (GmtRfqVendors gmtVendor : gmtVendors) {
+			for (GmtRfqSellerDto gmtVendor : vendors) {
 				String vendorId = gmtVendor.getVendorUuid();
 				logger.info("Getting Users List");
 				List<String> usersList = userDao.findByOrg(vendorId);
