@@ -876,39 +876,49 @@ public class MailUtility {
 			
 			email.append("<b>Enquiry Details:</b><br><br>"); 
 // Build RFQ items table
+			email.append("<b>Enquiry Details:</b><br><br>");
+
+			// Simplified table with only Sl No, Item Description, Pin code
 			email.append("<table style='border:1px solid black;border-collapse:collapse;'>");
 			email.append(
-					"<tr><th>Sl No</th><th>Item Description</th><th>Item Specification</th><th>UOM</th><th>Quantity</th><th>Location</th><th>Pincode</th></tr>");
-			int i = 1;
-			if (!CollectionUtils.isEmpty(rfqData.getRfqItem())) {
-				for (RfqItem item : rfqData.getRfqItem()) {
-					String city = null, pincode = null;
-					if (!CollectionUtils.isEmpty(rfqData.getClientdeliverylocationrfq())) {
-						city = rfqData.getClientdeliverylocationrfq().get(0).getCity();
-						pincode = rfqData.getClientdeliverylocationrfq().get(0).getPincode();
-					}
+			        "<tr>"
+			        + "<th style='border:1px solid black;'>Sl No</th>"
+			        + "<th style='border:1px solid black;'>Item Description</th>"
+			        + "<th style='border:1px solid black;'>Pin code</th>"
+			        + "</tr>");
 
-					email.append("<tr>");
-					email.append("<td style='border:1px solid black;'>").append(i++).append("</td>");
-					email.append("<td style='border:1px solid black;'>").append(item.getDescription()).append("</td>");
-					email.append("<td style='border:1px solid black;'>").append(item.getBrand()).append("</td>");
-					email.append("<td style='border:1px solid black;'>").append(item.getUnitofMeasures())
-							.append("</td>");
-					email.append("<td style='border:1px solid black;'>").append(item.getQuantity()).append("</td>");
-					email.append("<td style='border:1px solid black;'>").append(city != null ? city : "")
-							.append("</td>");
-					email.append("<td style='border:1px solid black;'>").append(pincode != null ? pincode : "")
-							.append("</td>");
-					email.append("</tr>");
-				}
+			int i = 1;
+			String pincode = "";
+
+			if (!CollectionUtils.isEmpty(rfqData.getClientdeliverylocationrfq())) {
+			    pincode = rfqData.getClientdeliverylocationrfq().get(0).getPincode();
 			}
+
+			if (!CollectionUtils.isEmpty(rfqData.getRfqItem())) {
+			    for (RfqItem item : rfqData.getRfqItem()) {
+
+			        email.append("<tr>");
+			        email.append("<td style='border:1px solid black;'>")
+			                .append(i++)
+			                .append("</td>");
+
+			        email.append("<td style='border:1px solid black;'>")
+			                .append(item.getDescription() != null ? item.getDescription() : "")
+			                .append("</td>");
+
+			        email.append("<td style='border:1px solid black;'>")
+			                .append(pincode != null ? pincode : "")
+			                .append("</td>");
+
+			        email.append("</tr>");
+			    }
+			}
+
 			email.append("</table><br><br>");
 
-			email.append("<br>");
-
-		
 			email.append("You can also get real-time enquiry alerts on WhatsApp. ");
-			email.append("Just say Hi to <b>70901 70801</b> now to receive new enquiries matching your categories as soon as they come in.<br><br>");
+			email.append("Just say Hi to <b>7090170801</b> now to receive new enquiries matching your categories as soon as they come in.<br><br>");
+
 			email.append("Please submit your offer on time to increase your chances of getting the order and connecting directly with the B2B client.<br><br>");
 
 			email.append("To receive more RFQs, please update your relevant product categories in the QUA portal. ");
@@ -921,8 +931,8 @@ public class MailUtility {
 
 			email.append("<b>Best Regards,</b><br>");
 			email.append("<b>Team Procucev</b>");
-			email.append("</body></html>");
 
+			email.append("</body></html>");
 			MimeBodyPart messageBodyPart = new MimeBodyPart();
 			messageBodyPart.setContent(email.toString(), "text/html");
 

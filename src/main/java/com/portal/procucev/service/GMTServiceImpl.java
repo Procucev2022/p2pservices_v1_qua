@@ -14,6 +14,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
+import java.util.Calendar;
 import java.util.Collections;
 import java.util.Date;
 import java.time.Duration;
@@ -2582,29 +2583,39 @@ public class GMTServiceImpl implements GMTService {
 
 	@Override
 	public Map<String, Object> getRfqByItemCategory(Organization org) {
-		Map<String, Object> result = new HashMap<>();
+	    Map<String, Object> result = new HashMap<>();
 
-		if (org == null || org.getId() == null) {
-			logger.error("Invalid organization input");
-			result.put("rfqs", Collections.emptyList());
-			result.put("count", 0L);
-			result.put("categories", Collections.emptyList());
-			return result;
-		}
+	    if (org == null || org.getId() == null) {
+	        logger.error("Invalid organization input");
+	        result.put("rfqs", Collections.emptyList());
+	        result.put("count", 0L);
+	        return result;
+	    }
 
-		List<String> categoryList = orgCategoryDivisionDao.findCategoryByOrg(org.getId());
-		logger.info("Fetching RFQs by categories: {} for orgId: {}", categoryList, org.getId());
+	    List<String> categoryList = orgCategoryDivisionDao.findCategoryByOrg(org.getId());
+	    logger.info("Fetching RFQs by categories: {} for orgId: {}", categoryList, org.getId());
 
-		Pageable topFive = PageRequest.of(0, 5); // only fetch 5 results
-	    List<Rfq> rfqs = rfqDao.findTopRfqsByCategory(categoryList, org.getId(),topFive);
-		long totalCount = rfqDao.countByRfqItemCategory(categoryList,org.getId());
+	    // Last 7 days filter
+	    Calendar calendar = Calendar.getInstance();
+	    calendar.add(Calendar.DAY_OF_MONTH, -7);
+	    Date fromDate = calendar.getTime();
 
-		result.put("rfqs", rfqs);
-		result.put("count", totalCount);
+	    Pageable topFive = PageRequest.of(0, 5);
 
-		return result;
+	    List<Rfq> rfqs = rfqDao.findTopRfqsByCategory(
+	            categoryList,
+	            org.getId(),
+	            fromDate,
+	            topFive
+	    );
+
+	    long totalCount = rfqDao.countByRfqItemCategory(categoryList, org.getId());
+
+	    result.put("rfqs", rfqs);
+	    result.put("count", totalCount);
+
+	    return result;
 	}
-
 //	@Override
 //	public Map<String, Object> forwardRfqsToVendor(ForwardRfqVendorRequest request) {
 //	    logger.info("Entered to forwardRfqForNoPr");
