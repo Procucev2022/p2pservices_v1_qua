@@ -9,6 +9,7 @@ import org.springframework.http.ResponseEntity;
 import com.portal.procucev.Dto.ClientRFQDto;
 import com.portal.procucev.Dto.ForwardRfqVendorRequest;
 import com.portal.procucev.Dto.GMTRfqVendorDto;
+import com.portal.procucev.Dto.GmtRfqSellerDto;
 import com.portal.procucev.Dto.RfqDTO;
 import com.portal.procucev.Dto.VendorInfoDto;
 import com.portal.procucev.Dto.VendorRFQDto;
@@ -58,7 +59,7 @@ public interface GMTService {
 	 * @return List of GMT RFQ vendors.
 	 * @throws AppException if no vendors are found for the RFQ.
 	 */
-	List<GmtRfqVendors> getVendorsByGmtRfq(Rfq rfq);
+	List<GmtRfqSellerDto> getVendorsByGmtRfq(Rfq rfq);
 
 	boolean approveVendor(GmtRfqVendors gmtRfq) throws MessagingException;
 

@@ -855,7 +855,7 @@ public class MailUtility {
 			throws MessagingException {
 		LOGGER.info("Entered to send Invite RFQ Email to Vendor");
 		try {
-			String subject = "Partner, We have an enquiry for you!!";
+			String subject = "You have an enquiry- Please login to your QUA seller account!!";
 			StringBuilder email = new StringBuilder();
 
 			email.append("<html><body>");
@@ -869,48 +869,70 @@ public class MailUtility {
 			email.append("We have a new enquiry from a corporate buyer that matches your category. ");
 			email.append("This is a verified business opportunity, please check the details below.<br><br>");
 
-			email.append("<b>Enquiry Details:</b><br><br>"); 
-// Build RFQ items table
-			email.append("<table style='border:1px solid black;border-collapse:collapse;'>");
-			email.append(
-					"<tr><th>Sl No</th><th>Item Description</th><th>Item Specification</th><th>UOM</th><th>Quantity</th><th>Location</th><th>Pincode</th></tr>");
-			int i = 1;
-			if (!CollectionUtils.isEmpty(rfqData.getRfqItem())) {
-				for (RfqItem item : rfqData.getRfqItem()) {
-					String city = null, pincode = null;
-					if (!CollectionUtils.isEmpty(rfqData.getClientdeliverylocationrfq())) {
-						city = rfqData.getClientdeliverylocationrfq().get(0).getCity();
-						pincode = rfqData.getClientdeliverylocationrfq().get(0).getPincode();
-					}
-
-					email.append("<tr>");
-					email.append("<td style='border:1px solid black;'>").append(i++).append("</td>");
-					email.append("<td style='border:1px solid black;'>").append(item.getDescription()).append("</td>");
-					email.append("<td style='border:1px solid black;'>").append(item.getBrand()).append("</td>");
-					email.append("<td style='border:1px solid black;'>").append(item.getUnitofMeasures())
-							.append("</td>");
-					email.append("<td style='border:1px solid black;'>").append(item.getQuantity()).append("</td>");
-					email.append("<td style='border:1px solid black;'>").append(city != null ? city : "")
-							.append("</td>");
-					email.append("<td style='border:1px solid black;'>").append(pincode != null ? pincode : "")
-							.append("</td>");
-					email.append("</tr>");
-				}
-			}
-			email.append("</table><br><br>");
-
-			email.append("<br>");
-
 			email.append("Please login now to your QUA seller account at ");
 			email.append("<a href=\"https://qua.procucev.com/login\">https://qua.procucev.com/login</a> ");
-			email.append("to view and download the RFQ instantly. This is a live enquiry, do not miss it.<br><br>");
+			email.append("to view full details and download the RFQ instantly. ");
+			email.append("This is a live enquiry, do not miss it.<br><br>");
+			
+			email.append("<b>Enquiry Details:</b><br><br>"); 
+// Build RFQ items table
+			email.append("<b>Enquiry Details:</b><br><br>");
+
+			// Simplified table with only Sl No, Item Description, Pin code
+			email.append("<table style='border:1px solid black;border-collapse:collapse;'>");
+			email.append(
+			        "<tr>"
+			        + "<th style='border:1px solid black;'>Sl No</th>"
+			        + "<th style='border:1px solid black;'>Item Description</th>"
+			        + "<th style='border:1px solid black;'>Pin code</th>"
+			        + "</tr>");
+
+			int i = 1;
+			String pincode = "";
+
+			if (!CollectionUtils.isEmpty(rfqData.getClientdeliverylocationrfq())) {
+			    pincode = rfqData.getClientdeliverylocationrfq().get(0).getPincode();
+			}
+
+			if (!CollectionUtils.isEmpty(rfqData.getRfqItem())) {
+			    for (RfqItem item : rfqData.getRfqItem()) {
+
+			        email.append("<tr>");
+			        email.append("<td style='border:1px solid black;'>")
+			                .append(i++)
+			                .append("</td>");
+
+			        email.append("<td style='border:1px solid black;'>")
+			                .append(item.getDescription() != null ? item.getDescription() : "")
+			                .append("</td>");
+
+			        email.append("<td style='border:1px solid black;'>")
+			                .append(pincode != null ? pincode : "")
+			                .append("</td>");
+
+			        email.append("</tr>");
+			    }
+			}
+
+			email.append("</table><br><br>");
 
 			email.append("You can also get real-time enquiry alerts on WhatsApp. ");
-			email.append("Just say Hi to <b>70901 70801</b> now to receive new enquiries matching your categories as soon as they come in.<br><br>");
-			email.append("<b>Best Regards,</b><br>");
-			email.append("<b>Team Procucev</b><br>");
-			email.append("</body></html>");
+			email.append("Just say Hi to <b>7090170801</b> now to receive new enquiries matching your categories as soon as they come in.<br><br>");
 
+			email.append("Please submit your offer on time to increase your chances of getting the order and connecting directly with the B2B client.<br><br>");
+
+			email.append("To receive more RFQs, please update your relevant product categories in the QUA portal. ");
+			email.append("Correct categories help you get more business opportunities.<br><br>");
+
+			email.append("You can also check RFQs regularly on ");
+			email.append("<a href=\"https://www.procucev.com\">www.procucev.com</a> - Request New RFQ, Check Status and more…<br><br>");
+
+			email.append("<i>This is system generated RFQ invitation and don’t reply to this email.</i><br><br>");
+
+			email.append("<b>Best Regards,</b><br>");
+			email.append("<b>Team Procucev</b>");
+
+			email.append("</body></html>");
 			MimeBodyPart messageBodyPart = new MimeBodyPart();
 			messageBodyPart.setContent(email.toString(), "text/html");
 
