@@ -1,5 +1,6 @@
 package com.portal.procucev.dao;
 
+import java.util.Date;
 import java.util.List;
 
 import jakarta.transaction.Transactional;
@@ -88,7 +89,7 @@ public interface RfqDao extends JpaRepository<Rfq, String>{
 			List<Rfq> findTopRfqsByCategory(
 			        @Param("category") List<String> categoryList,
 			        @Param("sellerId") String sellerId,
-			        Pageable pageable
+			        Date fromDate, Pageable pageable
 			);
 
 	  
