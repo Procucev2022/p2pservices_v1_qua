@@ -688,7 +688,7 @@ public class GMTServiceImpl implements GMTService {
 				gmtRfqVendorDto.setDeliveryDate(rfq.getDeliveryDate());
 				gmtRfqVendorDto.setCategory(rfq.getCategory());
 				gmtRfqVendorDto.setUserId(rfq.getUser());
-				gmtRfqVendorDto.setQuoteSubmittedDate(rfq.getQuoteSubmittedDate());
+				//gmtRfqVendorDto.setQuoteSubmittedDate(rfq.getQuoteSubmittedDate());
 				if (!(rfq.getClientdeliverylocationrfq()).isEmpty()) {
 					gmtRfqVendorDto.setDeliveryLocation(rfq.getClientdeliverylocationrfq().get(0).getCity());
 				}
