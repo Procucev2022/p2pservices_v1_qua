@@ -131,4 +131,20 @@ public interface UserDao extends JpaRepository<User, String> {
 
 	@Query("SELECT  new User(u.username,u.phone,u.org.companyName,u.fullName) from User u where u.org.id=:id and u.active = true")
 	User findUserByOrgId(@Param("id") String id);
+
+	  @Query("""
+		        SELECT u.org.id, MAX(u.activityTs)
+		        FROM User u
+		        WHERE u.org.id IN :orgIds
+		        GROUP BY u.org.id
+		    """)
+		    List<Object[]> findLastLoginByOrgIds(
+		            @Param("orgIds") List<String> orgIds
+		    );
+
+//	List<?> getSellerReport(String startDate, String endDate);
+//
+//	List<?> getSellerSummary(String startDate, String endDate);
+//
+//	List<?> getSellerCategoryReport(String startDate, String endDate);
 }
