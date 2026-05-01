@@ -17,6 +17,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.portal.procucev.Dto.VendorSummaryResponse;
@@ -249,30 +250,84 @@ public class UserController {
 	}
 
 
-	    @GetMapping("/vendorSummary")
-	    public ResponseEntity<Map<String, Object>> getVendorSummary() {
-	        Map<String, Object> response = new HashMap<>();
-	        try {
-	            List<VendorSummaryResponse> vendors = userServices.getVendorSummary();
-	            if (vendors.isEmpty()) {
-	            	response.put("statusCode", StatusCodes.OK_VENDOR_CODE);
-	                response.put("satus", "Success");
-	                response.put("message", "No vendors found with role 'vendor'");
-	                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(response);
-	            }
-                response.put("statusCode", StatusCodes.OK_VENDOR_CODE);
-	            response.put("satus", "Success");
-	            response.put("data", vendors);
-	            return ResponseEntity.ok(response);
+//	    @GetMapping("/vendorSummary")
+//	    public ResponseEntity<Map<String, Object>> getVendorSummary() {
+//	        Map<String, Object> response = new HashMap<>();
+//	        try {
+//	            List<VendorSummaryResponse> vendors = userServices.getVendorSummary();
+//	            if (vendors.isEmpty()) {
+//	            	response.put("statusCode", StatusCodes.OK_VENDOR_CODE);
+//	                response.put("satus", "Success");
+//	                response.put("message", "No vendors found with role 'vendor'");
+//	                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(response);
+//	            }
+//                response.put("statusCode", StatusCodes.OK_VENDOR_CODE);
+//	            response.put("satus", "Success");
+//	            response.put("data", vendors);
+//	            return ResponseEntity.ok(response);
+//
+//	        } catch (Exception e) {
+//	        	response.put("statusCode", StatusCodes.OK_VENDOR_CODE);
+//	            response.put("satus", "Failure");
+//	            response.put("message", "Failed to fetch vendor summary");
+//	            response.put("error", e.getMessage());
+//	            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
+//	        }
+//	    }
+	
+	// =========================
+	// Controller
+	// =========================
 
-	        } catch (Exception e) {
-	        	response.put("statusCode", StatusCodes.OK_VENDOR_CODE);
-	            response.put("satus", "Failure");
-	            response.put("message", "Failed to fetch vendor summary");
-	            response.put("error", e.getMessage());
-	            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
+	@GetMapping("/vendorSummary")
+	public ResponseEntity<Map<String, Object>> getVendorSummary(
+
+	        @RequestParam(defaultValue = "0")
+	        int page,
+
+	        @RequestParam(defaultValue = "100")
+	        int size,
+
+	        @RequestParam(required = false)
+	        String search,
+
+	        @RequestParam(required = false)
+	        String sourceType
+	) {
+
+	    Map<String, Object> response = new HashMap<>();
+
+	    try {
+	        List<VendorSummaryResponse> vendors =
+	                userServices.getVendorSummary(page, size, search, sourceType);
+
+	        if (vendors.isEmpty()) {
+
+	            response.put("statusCode", StatusCodes.OK_VENDOR_CODE);
+	            response.put("status", "Success");
+	            response.put("message", "No vendors found");
+
+	            return ResponseEntity.status(HttpStatus.OK).body(response);
 	        }
+
+	        response.put("statusCode", StatusCodes.OK_VENDOR_CODE);
+	        response.put("status", "Success");
+	        response.put("data", vendors);
+
+	        return ResponseEntity.ok(response);
+
+	    } catch (Exception e) {
+
+	        response.put("statusCode", StatusCodes.SERVER_ERROR);
+	        response.put("status", "Failure");
+	        response.put("message", "Failed to fetch vendor summary");
+	        response.put("error", e.getMessage());
+
+	        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+	                .body(response);
 	    }
+	}
+	
 	    
 	    @PostMapping(value = "/deactivateOrgUser")
 		public ResponseEntity<?> deactivateOrgUser(@RequestBody User user) {

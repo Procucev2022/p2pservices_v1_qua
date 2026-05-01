@@ -1419,7 +1419,7 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 					if (Boolean.TRUE.equals(result.get("confirmationFlag"))) {
 						successRows.add("Row " + (i + 1));
 					} else {
-						errorRows.add("Row " + (i + 1) + ": Failed");
+ 						errorRows.add("Row " + (i + 1) + ": Failed");
 					}
 
 				} catch (Exception e) {

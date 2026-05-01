@@ -47,11 +47,11 @@ public interface RfqDao extends JpaRepository<Rfq, String>{
 	@Query("SELECT r FROM Rfq r WHERE  (r.noPrFlag = true and r.byClient = false)or (r.byClient = true and r.clientStatus =:status )Order By r.createdTS DESC")
 	List<Rfq> findAllRfqNoPr(MasterStatus status);
 	
-	@Query("SELECT r FROM Rfq r " +
-		       "WHERE (r.noPrFlag = true AND r.byClient = false) " +
-		       "   OR (r.byClient = true AND r.clientStatus IN :statuses) " +
-		       "ORDER BY r.createdTS DESC")
-		List<Rfq> findAllRfqNoPrInStatuses(@Param("statuses") List<MasterStatus> statuses);
+//	@Query("SELECT r FROM Rfq r " +
+//		       "WHERE (r.noPrFlag = true AND r.byClient = false) " +
+//		       "   OR (r.byClient = true AND r.clientStatus IN :statuses) " +
+//		       "ORDER BY r.createdTS DESC")
+//		List<Rfq> findAllRfqNoPrInStatuses(@Param("statuses") List<MasterStatus> statuses);
 
 	@Query("SELECT r FROM Rfq r WHERE r.createdBy= :fullName  and r.noPrFlag = true Order By r.createdTS DESC ")
 	List<Rfq> getRfqsByNoPrFlagIsTrue(@Param("fullName") String fullName);
@@ -73,11 +73,13 @@ public interface RfqDao extends JpaRepository<Rfq, String>{
 //	 @Query("SELECT COUNT(DISTINCT r) FROM Rfq r JOIN r.rfqItem i WHERE i.category IN :category")
 //	 long countByRfqItemCategory(@Param("category") List<String> categoryList);
 	  
+	  
 	  @Query("""
 			    SELECT DISTINCT r
 			    FROM Rfq r
 			    JOIN r.rfqItem i
 			    WHERE i.category IN :category
+			      AND r.createdTS >= :fromDate
 			      AND NOT EXISTS (
 			          SELECT 1
 			          FROM GmtRfqVendors v
@@ -89,7 +91,8 @@ public interface RfqDao extends JpaRepository<Rfq, String>{
 			List<Rfq> findTopRfqsByCategory(
 			        @Param("category") List<String> categoryList,
 			        @Param("sellerId") String sellerId,
-			        Date fromDate, Pageable pageable
+			        @Param("fromDate") Date fromDate,
+			        Pageable pageable
 			);
 
 	  
@@ -172,6 +175,14 @@ public interface RfqDao extends JpaRepository<Rfq, String>{
 	@Query("UPDATE  Rfq r SET r.newCommentAvailableVendor = false  WHERE  r.id=:id")
 	void updateNewCommentAvailableVendor(@Param("id")  String id);
 
+	@Query("""
+			SELECT DISTINCT r FROM Rfq r
+			LEFT JOIN FETCH r.clientdeliverylocationrfq
+			WHERE (r.noPrFlag = true AND r.byClient = false)
+			   OR (r.byClient = true AND r.clientStatus IN :statuses)
+			ORDER BY r.createdTS DESC
+			""")
+			List<Rfq> findAllRfqNoPrInStatuses(@Param("statuses") List<MasterStatus> statuses);
 
 
 

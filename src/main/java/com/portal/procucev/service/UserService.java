@@ -57,10 +57,10 @@ public interface UserService {
 
 	boolean updateBuyer(Organization org);
 
-	List<VendorSummaryResponse> getVendorSummary();
-
 	boolean deactivateOrgUser(User user);
 
 	Organization getSellerByEmail(User user);
+
+	List<VendorSummaryResponse> getVendorSummary(int page, int size, String search, String sourceType);
 
 }

@@ -12,6 +12,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Random;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
 
 import jakarta.mail.internet.InternetAddress;
 import jakarta.servlet.http.HttpServletRequest;
@@ -27,6 +28,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.mail.javamail.JavaMailSender;
@@ -820,84 +824,203 @@ public class ProcUserServiceImpl implements UserService {
 			return true;
 		}
 	}
+	// =========================
+	// Service Method
+	// =========================
 
-	public List<VendorSummaryResponse> getVendorSummary() {
-		Logger logger = LoggerFactory.getLogger(getClass());
+	@Override
+	public List<VendorSummaryResponse> getVendorSummary(
+	        int page,
+	        int size,
+	        String search,
+	        String sourceType
+	) {
 
-		OrgType orgTypeObject = orgTypeDao.findByTypeName(ApplicationConstants.VENDOR);
-		List<Organization> vendors = orgDao.findByOrgType(orgTypeObject, Sort.by(Sort.Direction.DESC, "createdTS"));
+	    Logger logger = LoggerFactory.getLogger(getClass());
+	    logger.info("Entered getVendorSummary API");
 
-		if (vendors == null || vendors.isEmpty()) {
-			logger.warn("No vendors found for orgType={}", ApplicationConstants.VENDOR);
-			return Collections.emptyList();
-		}
+	    // Step 1: Vendor Org Type
+	    OrgType orgTypeObject =
+	            orgTypeDao.findByTypeName(ApplicationConstants.VENDOR);
 
-		List<VendorSummaryResponse> response = new ArrayList<>();
+	    if (orgTypeObject == null) {
+	        logger.warn("Vendor org type not found");
+	        return Collections.emptyList();
+	    }
 
-		for (Organization vendor : vendors) {
-			VendorSummaryResponse summary = new VendorSummaryResponse();
-			try {
-				logger.info("Processing vendor with ID={} and Name={}", vendor.getId(), vendor.getName());
+	    // Step 2: Pagination
+	    Pageable pageable = PageRequest.of(
+	            page,
+	            size,
+	            Sort.by(Sort.Direction.DESC, "createdTS")
+	    );
 
-				// Set values into DTO
-				summary.setId(vendor.getId());
-				summary.setCompanyId(vendor.getCompanyId());
-				summary.setCompanyName(vendor.getCompanyName());
-				summary.setName(vendor.getName());
-				summary.setEmail(vendor.getEmail());
-				summary.setGst(vendor.getGstin());
-				summary.setPincode(vendor.getZipCode());
-				summary.setPhoneNumber(vendor.getOrganizationPhonenumber());
-				summary.setDetails(vendor.getDetails());
-				summary.setSourceType(vendor.getSourceType());
-				summary.setCreatedTS(vendor.getCreatedTS());
-				summary.setSubscribed(vendor.getSubscriptionPlan() != null ? "Yes" : "No");
+	    // Step 3: Fetch vendors using JPQL query (FILTERED)
+	    Page<Organization> vendorPage =
+	            orgDao.findVendors(orgTypeObject, sourceType, search, pageable);
 
-				// Rfqs created (safe null handling)
-				// summary.setRfqsCreated(vendor.getRfqsCreated() != null ?
-				// vendor.getRfqsCreated() : 0L);
+	    List<Organization> vendors = vendorPage.getContent();
 
-				// Rfqs consumed
-				summary.setRfqsConsumed(vendor.getRfqUsedCount() != null ? vendor.getRfqUsedCount() : 0L);
+	    if (vendors.isEmpty()) {
+	        logger.warn("No vendors found");
+	        return Collections.emptyList();
+	    }
 
-				// Subscription expiry
-				if (vendor.getSubscriptionExpiry() != null) {
-					summary.setSubscriptionExpiry(vendor.getSubscriptionExpiry());
-				}
+	    logger.info("Fetched {} vendors for page {}", vendors.size(), page);
 
-				// Vendor class
-				summary.setVendorClass(vendor.getVendorClass());
+	    // Step 4: Collect vendor IDs
+	    List<String> vendorIds = vendors.stream()
+	            .map(Organization::getId)
+	            .collect(Collectors.toList());
 
-				// Last login from user activity
-				List<Date> activityTimestamps = userDao.findActivityTsByOrg(vendor.getId());
-				if (!CollectionUtils.isEmpty(activityTimestamps)) {
-					summary.setLastLogin(activityTimestamps.get(0));
-				}
+	    // Step 5: Last login (single query)
+	    List<Object[]> lastLoginData =
+	            userDao.findLastLoginByOrgIds(vendorIds);
 
-				// Quotes submitted
-				summary.setQuotesSubmitted(vendor.getQuoteSubmitted() != null ? vendor.getQuoteSubmitted() : 0L);
+	    Map<String, Date> lastLoginMap = new HashMap<>();
 
-				// No errors
-				summary.setError(null);
+	    for (Object[] row : lastLoginData) {
+	        lastLoginMap.put((String) row[0], (Date) row[1]);
+	    }
 
-			} catch (Exception ex) {
-				logger.error("Error processing vendor ID={}: {}", vendor.getId(), ex.getMessage(), ex);
+	    // Step 6: Build response
+	    List<VendorSummaryResponse> response = new ArrayList<>();
 
-				// Populate minimal vendor details with error message
-				summary.setId(vendor.getId());
-				summary.setCompanyId(vendor.getCompanyId());
-				summary.setCompanyName(vendor.getCompanyName());
-				summary.setName(vendor.getName());
-				summary.setSubscribed("Unknown");
-				summary.setError("Error fetching data: " + ex.getMessage());
-			}
+	    for (Organization vendor : vendors) {
 
-			response.add(summary);
-		}
+	        VendorSummaryResponse summary = new VendorSummaryResponse();
 
-		logger.info("Vendor summary generated for {} vendors", response.size());
-		return response;
+	        try {
+	            summary.setId(vendor.getId());
+	            summary.setCompanyId(vendor.getCompanyId());
+	            summary.setCompanyName(vendor.getCompanyName());
+	            summary.setName(vendor.getName());
+	            summary.setEmail(vendor.getEmail());
+	            summary.setGst(vendor.getGstin());
+	            summary.setPincode(vendor.getZipCode());
+	            summary.setPhoneNumber(vendor.getOrganizationPhonenumber());
+	            summary.setDetails(vendor.getDetails());
+	            summary.setSourceType(vendor.getSourceType());
+	            summary.setCreatedTS(vendor.getCreatedTS());
+
+	            summary.setSubscribed(
+	                    vendor.getSubscriptionPlan() != null ? "Yes" : "No"
+	            );
+
+	            summary.setRfqsConsumed(
+	                    vendor.getRfqUsedCount() != null ? vendor.getRfqUsedCount() : 0L
+	            );
+
+	            summary.setQuotesSubmitted(
+	                    vendor.getQuoteSubmitted() != null ? vendor.getQuoteSubmitted() : 0L
+	            );
+
+	            summary.setVendorClass(vendor.getVendorClass());
+
+	            summary.setSubscriptionExpiry(vendor.getSubscriptionExpiry());
+
+	            // last login from map (no DB call in loop)
+	            summary.setLastLogin(lastLoginMap.get(vendor.getId()));
+
+	            summary.setError(null);
+
+	        } catch (Exception ex) {
+
+	            logger.error("Error processing vendor ID={}: {}", vendor.getId(), ex.getMessage(), ex);
+
+	            summary.setId(vendor.getId());
+	            summary.setCompanyId(vendor.getCompanyId());
+	            summary.setCompanyName(vendor.getCompanyName());
+	            summary.setName(vendor.getName());
+	            summary.setSubscribed("Unknown");
+	            summary.setError("Error fetching data: " + ex.getMessage());
+	        }
+
+	        response.add(summary);
+	    }
+
+	    logger.info("Vendor summary generated successfully for {} vendors", response.size());
+
+	    return response;
 	}
+
+//	public List<VendorSummaryResponse> getVendorSummary() {
+//		Logger logger = LoggerFactory.getLogger(getClass());
+//
+//		OrgType orgTypeObject = orgTypeDao.findByTypeName(ApplicationConstants.VENDOR);
+//		List<Organization> vendors = orgDao.findByOrgType(orgTypeObject, Sort.by(Sort.Direction.DESC, "createdTS"));
+//
+//		if (vendors == null || vendors.isEmpty()) {
+//			logger.warn("No vendors found for orgType={}", ApplicationConstants.VENDOR);
+//			return Collections.emptyList();
+//		}
+//
+//		List<VendorSummaryResponse> response = new ArrayList<>();
+//
+//		for (Organization vendor : vendors) {
+//			VendorSummaryResponse summary = new VendorSummaryResponse();
+//			try {
+//				logger.info("Processing vendor with ID={} and Name={}", vendor.getId(), vendor.getName());
+//
+//				// Set values into DTO
+//				summary.setId(vendor.getId());
+//				summary.setCompanyId(vendor.getCompanyId());
+//				summary.setCompanyName(vendor.getCompanyName());
+//				summary.setName(vendor.getName());
+//				summary.setEmail(vendor.getEmail());
+//				summary.setGst(vendor.getGstin());
+//				summary.setPincode(vendor.getZipCode());
+//				summary.setPhoneNumber(vendor.getOrganizationPhonenumber());
+//				summary.setDetails(vendor.getDetails());
+//				summary.setSourceType(vendor.getSourceType());
+//				summary.setCreatedTS(vendor.getCreatedTS());
+//				summary.setSubscribed(vendor.getSubscriptionPlan() != null ? "Yes" : "No");
+//
+//				// Rfqs created (safe null handling)
+//				// summary.setRfqsCreated(vendor.getRfqsCreated() != null ?
+//				// vendor.getRfqsCreated() : 0L);
+//
+//				// Rfqs consumed
+//				summary.setRfqsConsumed(vendor.getRfqUsedCount() != null ? vendor.getRfqUsedCount() : 0L);
+//
+//				// Subscription expiry
+//				if (vendor.getSubscriptionExpiry() != null) {
+//					summary.setSubscriptionExpiry(vendor.getSubscriptionExpiry());
+//				}
+//
+//				// Vendor class
+//				summary.setVendorClass(vendor.getVendorClass());
+//
+//				// Last login from user activity
+//				List<Date> activityTimestamps = userDao.findActivityTsByOrg(vendor.getId());
+//				if (!CollectionUtils.isEmpty(activityTimestamps)) {
+//					summary.setLastLogin(activityTimestamps.get(0));
+//				}
+//
+//				// Quotes submitted
+//				summary.setQuotesSubmitted(vendor.getQuoteSubmitted() != null ? vendor.getQuoteSubmitted() : 0L);
+//
+//				// No errors
+//				summary.setError(null);
+//
+//			} catch (Exception ex) {
+//				logger.error("Error processing vendor ID={}: {}", vendor.getId(), ex.getMessage(), ex);
+//
+//				// Populate minimal vendor details with error message
+//				summary.setId(vendor.getId());
+//				summary.setCompanyId(vendor.getCompanyId());
+//				summary.setCompanyName(vendor.getCompanyName());
+//				summary.setName(vendor.getName());
+//				summary.setSubscribed("Unknown");
+//				summary.setError("Error fetching data: " + ex.getMessage());
+//			}
+//
+//			response.add(summary);
+//		}
+//
+//		logger.info("Vendor summary generated for {} vendors", response.size());
+//		return response;
+//	}
 
 	@Override
 	public boolean deactivateOrgUser(User user) {

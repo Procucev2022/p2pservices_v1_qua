@@ -4,6 +4,8 @@ import java.util.List;
 
 import jakarta.transaction.Transactional;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
@@ -100,6 +102,20 @@ public interface OrgDao  extends JpaRepository<Organization, String> {
 	@Query("select o.city from Organization o where o=:org")
 	String getCityByOrg(@Param("org") Organization org);
 
-	List<Organization> findByOrgType(OrgType orgTypeObject, Sort by);
+	Page<Organization> findByOrgType(OrgType orgTypeObject, Pageable pageable);
+
+
+	    @Query("""
+	        SELECT o
+	        FROM Organization o
+	        WHERE o.orgType = :orgType
+	          AND (:sourceType IS NULL OR o.sourceType = :sourceType)
+	          AND (
+	                :search IS NULL OR :search = '' OR
+	                LOWER(o.companyName) LIKE LOWER(CONCAT('%', :search, '%')) OR
+	                LOWER(o.email) LIKE LOWER(CONCAT('%', :search, '%')) 
+	                )
+	    """)
+	Page<Organization> findVendors(@Param("orgType") OrgType orgType, @Param("sourceType") String sourceType,  @Param("search") String search, Pageable pageable);
 
 }

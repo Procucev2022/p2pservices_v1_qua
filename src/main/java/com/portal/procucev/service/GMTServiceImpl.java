@@ -21,6 +21,7 @@ import java.time.Duration;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -28,6 +29,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Properties;
 import java.util.Random;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 import java.util.regex.Matcher;
@@ -138,6 +140,9 @@ public class GMTServiceImpl implements GMTService {
 
 	@Autowired
 	private RfqDao rfqDao;
+	
+	@Autowired
+	private RFQItemsDao rfqItemsDao;
 
 	@Autowired
 	private RoleDao roleDao;
@@ -178,9 +183,7 @@ public class GMTServiceImpl implements GMTService {
 	@Autowired
 	private OrgTypeDao orgTypeDao;
 
-	@Autowired
-	private RFQItemsDao rfqItemsDao;
-
+	
 	@Autowired
 	private OrgCategoryDivisionDao orgCategoryDivisionDao;
 
@@ -663,63 +666,147 @@ public class GMTServiceImpl implements GMTService {
 
 	@Override
 	public List<GMTRfqVendorDto> getAllGMTRfq(Organization org) {
-		logger.info("Entered to get all Gmt Rfq's");
-		//MasterStatus status = masterStatusDao.findByStatus(StatusConstants.CM_RFQ_ACCEPTED);// add queried// add ignored//add 
-		List<MasterStatus> statuses = new ArrayList<>();
 
-	    statuses.add(masterStatusDao.findByStatus(StatusConstants.CM_RFQ_ACCEPTED));
-	    statuses.add(masterStatusDao.findByStatus(StatusConstants.VENDOR_QUOTE_SUBMITTED));
-	    statuses.add(masterStatusDao.findByStatus(StatusConstants.VENDOR_RFQ_QUERIED));
+	    logger.info("Entered to get all Gmt Rfq's");
 
+	    // Step 1: statuses
+	    List<MasterStatus> statuses = Arrays.asList(
+	            masterStatusDao.findByStatus(StatusConstants.CM_RFQ_ACCEPTED),
+	            masterStatusDao.findByStatus(StatusConstants.VENDOR_QUOTE_SUBMITTED),
+	            masterStatusDao.findByStatus(StatusConstants.VENDOR_RFQ_QUERIED)
+	    );
+
+	    MasterStatus defaultStatus =
+	            masterStatusDao.findByStatus(StatusConstants.vendorRfqNew);
+
+	    // Step 2: RFQs (IMPORTANT: should NOT load items lazily)
 	    List<Rfq> rfqList = rfqDao.findAllRfqNoPrInStatuses(statuses);
-		//List<Rfq> rfqList = rfqDao.findAllRfqNoPr(status);
-		// TODO Auto-generated method stub
-		List<GMTRfqVendorDto> gmtRfqList = new ArrayList<>();
-		if (!CollectionUtils.isEmpty(rfqList)) {
-			for (Rfq rfq : rfqList) {
-				GMTRfqVendorDto gmtRfqVendorDto = new GMTRfqVendorDto();
-				gmtRfqVendorDto.setId(rfq.getId());
-				gmtRfqVendorDto.setRfqId(rfq.getRfqId());
-				gmtRfqVendorDto.setDesc(rfq.getProjectDesc());
-				gmtRfqVendorDto.setClosureDate(rfq.getRfqClosingDate());
-				gmtRfqVendorDto.setCreatedTS(rfq.getCreatedTS());
-				gmtRfqVendorDto.setDivision(rfq.getDivision());
-				gmtRfqVendorDto.setCategory(rfq.getCategory());
-				gmtRfqVendorDto.setDeliveryDate(rfq.getDeliveryDate());
-				gmtRfqVendorDto.setCategory(rfq.getCategory());
-				gmtRfqVendorDto.setUserId(rfq.getUser());
-				//gmtRfqVendorDto.setQuoteSubmittedDate(rfq.getQuoteSubmittedDate());
-				if (!(rfq.getClientdeliverylocationrfq()).isEmpty()) {
-					gmtRfqVendorDto.setDeliveryLocation(rfq.getClientdeliverylocationrfq().get(0).getCity());
-				}
-				GmtRfqVendors existsByOrgAndRfq = gmtRfqVendorDao.findByVendorAndRfq(org, rfq);
-				if (existsByOrgAndRfq != null) {
-					logger.info("Checking whether rfq exists in vendor list vendor::", org.getId());
-					gmtRfqVendorDto.setStatus(existsByOrgAndRfq.getStatus());
-					gmtRfqVendorDto.setRequestedDate(existsByOrgAndRfq.getRequestedDate());
-					gmtRfqVendorDto.setAcceptedDate(existsByOrgAndRfq.getAcceptedDate());
-					gmtRfqVendorDto.setQuoteSubmittedDate(existsByOrgAndRfq.getQuoteSubmittedDate());
-					if (existsByOrgAndRfq.getQuery() != null) {
-						gmtRfqVendorDto.setQuery(existsByOrgAndRfq.getQuery());
-					}
-				} else {
-					logger.info("No rfq exists in vendor");
-					MasterStatus resultStatus = masterStatusDao.findByStatus(StatusConstants.vendorRfqNew);
-					gmtRfqVendorDto.setStatus(resultStatus);
 
-				}
-				logger.info("Completed and Returning Respone");
-				gmtRfqList.add(gmtRfqVendorDto);
-			}
-			return gmtRfqList;
-		} else {
-			logger.error("No Rfqs available in the database");
-			throw new AppException(HttpStatus.NO_CONTENT.value(), ApplicationConstants.NO_DATA_FOUND,
-					ApplicationConstants.BUSSINESS_EXCEPTION, ApplicationConstants.FAILURE);
-		}
+	    if (rfqList == null || rfqList.isEmpty()) {
+	        throw new AppException(
+	                HttpStatus.NO_CONTENT.value(),
+	                ApplicationConstants.NO_DATA_FOUND,
+	                ApplicationConstants.BUSSINESS_EXCEPTION,
+	                ApplicationConstants.FAILURE
+	        );
+	    }
 
+	    logger.info("Total RFQs fetched: {}", rfqList.size());
+
+	    // Step 3: RFQ IDs
+	    List<String> rfqIds = rfqList.stream()
+	            .map(Rfq::getId)
+	            .collect(Collectors.toList());
+
+	    // Step 4: Vendor mapping (1 query)
+	    List<GmtRfqVendors> vendorMappings =
+	            gmtRfqVendorDao.findByVendorAndRfqIn(org, rfqIds);
+
+	    Map<String, GmtRfqVendors> vendorMap = vendorMappings.stream()
+	            .collect(Collectors.toMap(
+	                    v -> v.getRfq().getId(),
+	                    v -> v,
+	                    (a, b) -> a
+	            ));
+
+	    // Step 5: CATEGORY mapping (batched, safe)
+	    Map<String, Set<String>> categoryMap = new HashMap<>();
+
+	    int batchSize = 500;
+
+	    for (int i = 0; i < rfqIds.size(); i += batchSize) {
+
+	        List<String> batch = rfqIds.subList(i, Math.min(i + batchSize, rfqIds.size()));
+
+	        List<Object[]> categoryData =
+	                rfqItemsDao.findTopCategoriesByRfqIds(batch);
+
+	        for (Object[] row : categoryData) {
+	            String rfqId = (String) row[0];
+	            String category = (String) row[1];
+
+	            if (category == null) continue;
+
+	            categoryMap
+	                    .computeIfAbsent(rfqId, k -> new LinkedHashSet<>())
+	                    .add(category);
+	        }
+	    }
+
+	    // ⭐ STEP 6 (CRITICAL FIX): FETCH ALL RFQ ITEMS IN ONE QUERY
+	    List<RfqItem> allItems = rfqItemsDao.findAllByRfqIds(rfqIds);
+
+	    Map<String, List<RfqItem>> itemMap = allItems.stream()
+	            .collect(Collectors.groupingBy(i -> i.getRfq().getId()));
+
+	    // Step 7: build response
+	    List<GMTRfqVendorDto> response = new ArrayList<>();
+
+	    for (Rfq rfq : rfqList) {
+
+	        GMTRfqVendorDto dto = new GMTRfqVendorDto();
+
+	        dto.setId(rfq.getId());
+	        dto.setRfqId(rfq.getRfqId());
+	        dto.setDesc(rfq.getProjectDesc());
+	        dto.setClosureDate(rfq.getRfqClosingDate());
+	        dto.setCreatedTS(rfq.getCreatedTS());
+	        dto.setDivision(rfq.getDivision());
+	        dto.setDeliveryDate(rfq.getDeliveryDate());
+	        dto.setUserId(rfq.getUser());
+
+	        // Categories
+	        Set<String> cats = categoryMap.get(rfq.getId());
+	        if (cats != null && !cats.isEmpty()) {
+	            dto.setCategory(String.join(", ", cats));
+	        }
+
+	        // Delivery location (no lazy N+1)
+	        if (rfq.getClientdeliverylocationrfq() != null
+	                && !rfq.getClientdeliverylocationrfq().isEmpty()) {
+	            dto.setDeliveryLocation(
+	                    rfq.getClientdeliverylocationrfq().get(0).getCity()
+	            );
+	        }
+
+	        // Vendor data
+	        GmtRfqVendors vendorData = vendorMap.get(rfq.getId());
+
+	        if (vendorData != null) {
+
+	            dto.setStatus(
+	                    vendorData.getStatus() != null
+	                            ? vendorData.getStatus()
+	                            : defaultStatus
+	            );
+
+	            dto.setRequestedDate(vendorData.getRequestedDate());
+	            dto.setAcceptedDate(vendorData.getAcceptedDate());
+	            dto.setQuoteSubmittedDate(vendorData.getQuoteSubmittedDate());
+	            dto.setQuery(vendorData.getQuery());
+
+	        } else {
+	            dto.setStatus(defaultStatus);
+	        }
+
+	        // ⭐ RFQ ITEMS (NO MORE LAZY LOADING)
+	        List<RfqItem> items = itemMap.get(rfq.getId());
+
+//	        if (items != null) {
+//	            // you can map items if needed OR skip if not required in DTO
+//	            dto.setItemCount(items.size());
+//	        } else {
+//	            dto.setItemCount(0);
+//	        }
+
+	        response.add(dto);
+	    }
+
+	    logger.info("Returning {} GMT RFQ records", response.size());
+
+	    return response;
 	}
-
+	
 	@Override
 	public boolean requestRfqByVendors(List<GmtRfqVendors> rfq) {
 		// TODO Auto-generated method stub
