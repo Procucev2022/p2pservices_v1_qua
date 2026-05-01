@@ -84,5 +84,15 @@ public interface GmtRfqVendorDao extends JpaRepository<GmtRfqVendors, String> {
 	@Query("select count(r.vendor) from GmtRfqVendors r where r.rfq.id=:id")
 	long findByVendorsByRfq(@Param("id") String id);
 
-
+	@Query("""
+			SELECT g
+			FROM GmtRfqVendors g
+			WHERE g.vendor = :org
+			AND g.rfq.id IN :rfqList
+			""")
+			List<GmtRfqVendors> findByVendorAndRfqIn(
+			        @Param("org") Organization org,
+			        @Param("rfqList") List<String> rfqIds
+			);
+	
 }

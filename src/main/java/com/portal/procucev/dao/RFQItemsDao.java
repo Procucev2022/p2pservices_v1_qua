@@ -4,6 +4,7 @@ import java.util.List;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import com.portal.procucev.model.Rfq;
@@ -18,4 +19,20 @@ public interface RFQItemsDao extends JpaRepository<RfqItem, String> {
 	@Query("SELECT r.description from RfqItem r WHERE r.id= :string")
 	String findByitemId(String string);
 
+	@Query("""
+		    SELECT r.rfq.id, r.category
+		    FROM RfqItem r
+		    WHERE r.rfq.id IN :rfqIds
+		    ORDER BY r.serialNo ASC
+		""")
+		List<Object[]> findTopCategoriesByRfqIds(
+		        @Param("rfqIds") List<String> rfqIds
+		);
+
+		@Query("""
+				SELECT ri FROM RfqItem ri
+				WHERE ri.rfq.id IN :rfqIds
+				ORDER BY ri.rfq.id, ri.serialNo
+				""")
+				List<RfqItem> findAllByRfqIds(@Param("rfqIds") List<String> rfqIds);
 }
