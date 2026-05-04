@@ -12,6 +12,7 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import com.portal.procucev.Dto.SellerSummaryDto;
 import com.portal.procucev.model.MasterStatus;
 import com.portal.procucev.model.OrgType;
 import com.portal.procucev.model.Organization;
@@ -117,5 +118,39 @@ public interface OrgDao  extends JpaRepository<Organization, String> {
 	                )
 	    """)
 	Page<Organization> findVendors(@Param("orgType") OrgType orgType, @Param("sourceType") String sourceType,  @Param("search") String search, Pageable pageable);
+
+	    
+	    @Query("""
+	    		SELECT new com.portal.procucev.Dto.SellerSummaryDto(
+	    		    o.companyName,
+	    		    o.organizationPhonenumber,
+	    		    o.email,
+	    		    o.city,
+	    		    o.vendorClass,
+	    		    CASE WHEN o.subscriptionPlan IS NOT NULL THEN 'Yes' ELSE 'No' END,
+	    		    o.subscriptionStart,
+	    		    sp.planName,
+	    		    o.subscriptionExpiry,
+	    		    o.rfqCredits,
+	    		    u.activityTs,
+	    		    o.rfqUsedCount,
+	    		    o.quoteSubmitted,
+	    		    (o.rfqCredits - o.rfqUsedCount),
+	    		    SIZE(o.divisionCategories),
+	    		    o.sourceType
+	    		)
+	    		FROM Organization o
+	    		LEFT JOIN o.subscriptionPlan sp
+	    		LEFT JOIN User u ON u.org = o
+	    		WHERE o.orgType = :orgType
+	    		  AND o.createdTS BETWEEN :fromDate AND :toDate
+	    		ORDER BY o.createdTS DESC
+	    		""")
+	    		List<SellerSummaryDto> getSellerSummary(
+	    		        @Param("orgType") OrgType orgType,
+	    		        @Param("fromDate") Date fromDate,
+	    		        @Param("toDate") Date toDate
+	    		);
+
 
 }
