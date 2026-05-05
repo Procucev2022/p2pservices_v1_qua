@@ -20,6 +20,7 @@ import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.portal.procucev.Dto.SimplePageResponse;
 import com.portal.procucev.Dto.VendorSummaryResponse;
 import com.portal.procucev.customexception.AppException;
 import com.portal.procucev.customexception.MessageResponse;
@@ -282,37 +283,35 @@ public class UserController {
 	@GetMapping("/vendorSummary")
 	public ResponseEntity<Map<String, Object>> getVendorSummary(
 
-	        @RequestParam(defaultValue = "0")
-	        int page,
-
-	        @RequestParam(defaultValue = "100")
-	        int size,
-
-	        @RequestParam(required = false)
-	        String search,
-
-	        @RequestParam(required = false)
-	        String sourceType
+	        @RequestParam(defaultValue = "0") int page,
+	        @RequestParam(defaultValue = "100") int size,
+	        @RequestParam(required = false) String search,
+	        @RequestParam(required = false) String sourceType
 	) {
 
 	    Map<String, Object> response = new HashMap<>();
 
 	    try {
-	        List<VendorSummaryResponse> vendors =
+	        SimplePageResponse<VendorSummaryResponse> vendors =
 	                userServices.getVendorSummary(page, size, search, sourceType);
 
-	        if (vendors.isEmpty()) {
+	        // ✅ Correct empty check
+	        if (vendors.getData() == null || vendors.getData().isEmpty()) {
 
 	            response.put("statusCode", StatusCodes.OK_VENDOR_CODE);
 	            response.put("status", "Success");
 	            response.put("message", "No vendors found");
+	            response.put("totalRecords", 0);
+	            response.put("data", Collections.emptyList());
 
-	            return ResponseEntity.status(HttpStatus.OK).body(response);
+	            return ResponseEntity.ok(response);
 	        }
 
+	        // ✅ Success response
 	        response.put("statusCode", StatusCodes.OK_VENDOR_CODE);
 	        response.put("status", "Success");
-	        response.put("data", vendors);
+	        response.put("totalRecords", vendors.getTotalRecords());
+	        response.put("data", vendors.getData());
 
 	        return ResponseEntity.ok(response);
 
@@ -327,7 +326,6 @@ public class UserController {
 	                .body(response);
 	    }
 	}
-	
 	    
 	    @PostMapping(value = "/deactivateOrgUser")
 		public ResponseEntity<?> deactivateOrgUser(@RequestBody User user) {
