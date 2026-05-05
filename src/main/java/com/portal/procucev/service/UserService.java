@@ -2,6 +2,7 @@ package com.portal.procucev.service;
 import java.io.UnsupportedEncodingException;
 import java.util.List;
 
+import com.portal.procucev.Dto.SimplePageResponse;
 import com.portal.procucev.Dto.VendorSummaryResponse;
 import com.portal.procucev.model.EmailUser;
 import com.portal.procucev.model.Organization;
@@ -61,6 +62,6 @@ public interface UserService {
 
 	Organization getSellerByEmail(User user);
 
-	List<VendorSummaryResponse> getVendorSummary(int page, int size, String search, String sourceType);
+	SimplePageResponse<VendorSummaryResponse> getVendorSummary(int page, int size, String search, String sourceType);
 
 }
