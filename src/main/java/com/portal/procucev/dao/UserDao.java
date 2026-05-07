@@ -115,32 +115,45 @@ public interface UserDao extends JpaRepository<User, String> {
 	@Query("UPDATE User u SET u.bfsGroup = :bfsGroup WHERE u.id = :userId")
 	void updateBfsGroupForUsers(@Param("bfsGroup") String bfsGroup, @Param("userId") String userId);
 
-
 	@Query("SELECT  new User(u.username,u.phone,u.org.companyName,u.fullName) from User u where u.id=:id and u.active = true")
 	User findOrgByID(@Param("id") String id);
 
 	@Query("select u.username from User u where u.id=:clientInitiator")
 	String findByUserID(@Param("clientInitiator") String clientInitiator);
 
-
 	@Query("SELECT  new User(u.username,u.phone,u.org.companyName,u.fullName) from User u where u.id=:id")
 	User findUserById(@Param("id") String id);
 
 	@Query("select u from User u where u.username=:email and u.phone=:normalizedPhone and u.active = true and u.role =:role")
-	User findByUsernameAndPhoneAndActiveAndRole(@Param("email") String email,@Param("normalizedPhone") String normalizedPhone,@Param("role") Role role);
+	User findByUsernameAndPhoneAndActiveAndRole(@Param("email") String email,
+			@Param("normalizedPhone") String normalizedPhone, @Param("role") Role role);
 
 	@Query("SELECT  new User(u.username,u.phone,u.org.companyName,u.fullName) from User u where u.org.id=:id and u.active = true")
 	User findUserByOrgId(@Param("id") String id);
 
-	  @Query("""
-		        SELECT u.org.id, MAX(u.activityTs)
-		        FROM User u
-		        WHERE u.org.id IN :orgIds
-		        GROUP BY u.org.id
-		    """)
-		    List<Object[]> findLastLoginByOrgIds(
-		            @Param("orgIds") List<String> orgIds
-		    );
+	@Query("""
+			    SELECT u.org.id, MAX(u.activityTs)
+			    FROM User u
+			    WHERE u.org.id IN :orgIds
+			    GROUP BY u.org.id
+			""")
+	List<Object[]> findLastLoginByOrgIds(@Param("orgIds") List<String> orgIds);
+
+	@Query("""
+					    	    SELECT
+					    	        o.id,
+					    	        o.companyName,
+					    	        o.email,
+					    	        o.organizationPhonenumber,
+					    	        u.fullName,
+					    	        u.activityTs,
+					    	        c.category
+					    	    FROM Organization o
+					    	    LEFT JOIN User u ON u.org = o
+					    	    LEFT JOIN OrgDivisionCategory c ON c.organization = o
+					    	    WHERE o.createdTS BETWEEN :fromDate AND :toDate
+			""")
+	List<Object[]> getSellerCategoryRawData(Date fromDate, Date toDate);
 
 //	List<?> getSellerReport(String startDate, String endDate);
 //
