@@ -38,6 +38,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
 import org.springframework.web.multipart.MultipartFile;
 
+import com.portal.procucev.Dto.SimplePageResponse;
 import com.portal.procucev.Dto.VendorSummaryResponse;
 import com.portal.procucev.customexception.AppException;
 import com.portal.procucev.dao.EmailUserRepo;
@@ -829,7 +830,7 @@ public class ProcUserServiceImpl implements UserService {
 	// =========================
 
 	@Override
-	public List<VendorSummaryResponse> getVendorSummary(
+	public SimplePageResponse<VendorSummaryResponse> getVendorSummary(
 	        int page,
 	        int size,
 	        String search,
@@ -845,7 +846,7 @@ public class ProcUserServiceImpl implements UserService {
 
 	    if (orgTypeObject == null) {
 	        logger.warn("Vendor org type not found");
-	        return Collections.emptyList();
+	        return new SimplePageResponse<>(0, Collections.emptyList());
 	    }
 
 	    // Step 2: Pagination
@@ -855,7 +856,7 @@ public class ProcUserServiceImpl implements UserService {
 	            Sort.by(Sort.Direction.DESC, "createdTS")
 	    );
 
-	    // Step 3: Fetch vendors using JPQL query (FILTERED)
+	    // Step 3: Fetch vendors
 	    Page<Organization> vendorPage =
 	            orgDao.findVendors(orgTypeObject, sourceType, search, pageable);
 
@@ -863,7 +864,7 @@ public class ProcUserServiceImpl implements UserService {
 
 	    if (vendors.isEmpty()) {
 	        logger.warn("No vendors found");
-	        return Collections.emptyList();
+	        return new SimplePageResponse<>(0, Collections.emptyList());
 	    }
 
 	    logger.info("Fetched {} vendors for page {}", vendors.size(), page);
@@ -871,7 +872,7 @@ public class ProcUserServiceImpl implements UserService {
 	    // Step 4: Collect vendor IDs
 	    List<String> vendorIds = vendors.stream()
 	            .map(Organization::getId)
-	            .collect(Collectors.toList());
+	            .toList();
 
 	    // Step 5: Last login (single query)
 	    List<Object[]> lastLoginData =
@@ -916,10 +917,9 @@ public class ProcUserServiceImpl implements UserService {
 	            );
 
 	            summary.setVendorClass(vendor.getVendorClass());
-
 	            summary.setSubscriptionExpiry(vendor.getSubscriptionExpiry());
 
-	            // last login from map (no DB call in loop)
+	            // Last login
 	            summary.setLastLogin(lastLoginMap.get(vendor.getId()));
 
 	            summary.setError(null);
@@ -941,7 +941,11 @@ public class ProcUserServiceImpl implements UserService {
 
 	    logger.info("Vendor summary generated successfully for {} vendors", response.size());
 
-	    return response;
+	    // ✅ FINAL RETURN (IMPORTANT)
+	    return new SimplePageResponse<>(
+	            vendorPage.getTotalElements(),
+	            response
+	    );
 	}
 
 //	public List<VendorSummaryResponse> getVendorSummary() {
