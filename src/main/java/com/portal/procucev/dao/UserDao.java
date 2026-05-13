@@ -160,4 +160,26 @@ public interface UserDao extends JpaRepository<User, String> {
 //	List<?> getSellerSummary(String startDate, String endDate);
 //
 //	List<?> getSellerCategoryReport(String startDate, String endDate);
+	
+	@Query("""
+		    SELECT
+		        o.id,
+		        u.fullName,
+		        u.username,
+		        u.phone,
+		        o.companyName,
+		        o.city,
+		        u.activityTs,
+		        oc.category
+		    FROM User u
+		    JOIN u.org o
+		    LEFT JOIN OrgDivisionCategory oc ON oc.organization = o
+		    WHERE u.selfClient = true
+		    AND u.activityTs BETWEEN :startDate AND :endDate
+		    ORDER BY o.id, oc.category
+		""")
+		List<Object[]> getBuyerCategoryRawData(
+		        @Param("startDate") Date startDate,
+		        @Param("endDate") Date endDate
+		);
 }

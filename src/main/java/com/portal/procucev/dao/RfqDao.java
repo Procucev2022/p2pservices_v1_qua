@@ -3,7 +3,6 @@ package com.portal.procucev.dao;
 import java.util.Date;
 import java.util.List;
 
-import jakarta.transaction.Transactional;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -11,9 +10,11 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
-import com.portal.procucev.model.GmtRfqVendors;
+import com.portal.procucev.Dto.BuyerReportDto;
 import com.portal.procucev.model.MasterStatus;
 import com.portal.procucev.model.Rfq;
+
+import jakarta.transaction.Transactional;
 
 public interface RfqDao extends JpaRepository<Rfq, String>{
 
@@ -190,7 +191,45 @@ public interface RfqDao extends JpaRepository<Rfq, String>{
 //	@Transactional
 //	@Query("UPDATE  Rfq r SET r.quoteSubmittedDate = true, r.quoteCount = r.quoteCount + 1 WHERE  r.rfqId=:rfqId")
 //	void updateQuoteSubmissionDate(String rfqId);
-
+	
+	@Query("""
+		    SELECT new com.portal.procucev.Dto.BuyerReportDto(
+		        r.createdTS,
+		        r.rfqId,
+		        u.fullName,
+		        u.username,
+		        u.phone,
+		        o.companyName,
+		        o.address1,
+		        COALESCE(r.description, r.projectDesc),
+		        i.category,
+		        CASE WHEN d.city IS NOT NULL
+		             THEN CONCAT(
+		                 COALESCE(d.address, ''),
+		                 CASE WHEN d.address IS NOT NULL THEN ', ' ELSE '' END,
+		                 d.city, ', ',
+		                 COALESCE(d.state, ''), ' - ',
+		                 COALESCE(d.pincode, '')
+		             )
+		             ELSE NULL
+		        END,
+		        u.activityTs,
+		        r.sourceType,
+		        0L
+		    )
+		    FROM Rfq r
+		    JOIN r.org o
+		    LEFT JOIN User u ON u.org.id = o.id
+		        AND u.selfClient = true
+		    LEFT JOIN r.clientdeliverylocationrfq d
+		    LEFT JOIN r.rfqItem i
+		    WHERE r.createdTS BETWEEN :startDate AND :endDate
+		    ORDER BY r.createdTS DESC
+		""")
+		List<BuyerReportDto> getBuyerReport(
+		        @Param("startDate") Date startDate,
+		        @Param("endDate") Date endDate
+		);
 
 
 
