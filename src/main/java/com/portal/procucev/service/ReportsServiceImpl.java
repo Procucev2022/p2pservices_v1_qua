@@ -200,4 +200,22 @@ public class ReportsServiceImpl  implements ReportsService {
 
 	    return new ArrayList<>(map.values());
 	}
+
+	@Override
+	public List<?> getRfqReports(String startDate, String endDate, 
+	                              String requestType) throws ParseException {
+
+	    Date fromDate = new SimpleDateFormat("yyyy-MM-dd").parse(startDate);
+	    Date toDate   = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").parse(endDate + " 23:59:59");
+
+	    if ("rfqReport".equalsIgnoreCase(requestType)) {
+	        return rfqDao.getRfqReport(fromDate, toDate);
+	    }
+
+	    if ("rfqSummaryReport".equalsIgnoreCase(requestType)) {
+	        return rfqDao.getRfqSummaryReport(fromDate, toDate);
+	    }
+
+	    throw new RuntimeException("Invalid requestType");
+	}
 }

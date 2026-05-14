@@ -9,4 +9,6 @@ public interface ReportsService {
 
 	public List<?> getBuyerReports(String startDate, String endDate, String requestType)  throws ParseException;
 
+	public List<?> getRfqReports(String startDate, String endDate, String requestType) throws ParseException;
+
 }
