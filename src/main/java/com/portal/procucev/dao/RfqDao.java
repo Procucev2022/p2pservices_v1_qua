@@ -11,6 +11,8 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import com.portal.procucev.Dto.BuyerReportDto;
+import com.portal.procucev.Dto.RfqReportDto;
+import com.portal.procucev.Dto.RfqSummaryReportDto;
 import com.portal.procucev.model.MasterStatus;
 import com.portal.procucev.model.Rfq;
 
@@ -200,7 +202,7 @@ public interface RfqDao extends JpaRepository<Rfq, String>{
 		        u.username,
 		        u.phone,
 		        o.companyName,
-		        o.address1,
+		        o.city,
 		        COALESCE(r.description, r.projectDesc),
 		        i.category,
 		        CASE WHEN d.city IS NOT NULL
@@ -227,6 +229,96 @@ public interface RfqDao extends JpaRepository<Rfq, String>{
 		    ORDER BY r.createdTS DESC
 		""")
 		List<BuyerReportDto> getBuyerReport(
+		        @Param("startDate") Date startDate,
+		        @Param("endDate") Date endDate
+		);
+	
+	@Query("""
+		    SELECT new com.portal.procucev.Dto.RfqReportDto(
+		        r.createdTS,
+		        r.rfqId,
+		        u.fullName,
+		        u.username,
+		        u.phone,
+		        o.companyName,
+		        o.city,
+		        COALESCE(r.description, r.projectDesc),
+		        i.category,
+		        CASE WHEN d.city IS NOT NULL
+		             THEN CONCAT(
+		                 COALESCE(d.address, ''),
+		                 CASE WHEN d.address IS NOT NULL THEN ', ' ELSE '' END,
+		                 d.city, ', ',
+		                 COALESCE(d.state, ''), ' - ',
+		                 COALESCE(d.pincode, '')
+		             )
+		             ELSE NULL
+		        END,
+		        COUNT(DISTINCT v.id),
+		        COUNT(DISTINCT CASE WHEN v.quoteSubmittedDate IS NOT NULL
+		                            THEN v.id ELSE NULL END),
+		        MIN(v.quoteSubmittedDate)
+		    )
+		    FROM Rfq r
+		    JOIN r.org o
+		    LEFT JOIN User u ON u.org = o
+		        AND u.selfClient = true
+		    LEFT JOIN r.clientdeliverylocationrfq d
+		    LEFT JOIN r.rfqItem i
+		    LEFT JOIN GmtRfqVendors v ON v.rfq = r
+		    WHERE r.createdTS BETWEEN :startDate AND :endDate
+		    GROUP BY
+		        r.createdTS, r.rfqId, u.fullName, u.username,
+		        u.phone, o.companyName, o.address1,
+		        r.description, r.projectDesc,
+		        i.category,
+		        d.address, d.city, d.state, d.pincode
+		    ORDER BY r.createdTS DESC
+		""")
+		List<RfqReportDto> getRfqReport(
+		        @Param("startDate") Date startDate,
+		        @Param("endDate") Date endDate
+		);
+	
+	@Query("""
+		    SELECT new com.portal.procucev.Dto.RfqSummaryReportDto(
+		        r.createdTS,
+		        r.rfqId,
+		        u.fullName,
+		        u.username,
+		        u.phone,
+		        o.companyName,
+		        CASE WHEN d.city IS NOT NULL
+		             THEN CONCAT(
+		                 COALESCE(d.address, ''),
+		                 CASE WHEN d.address IS NOT NULL THEN ', ' ELSE '' END,
+		                 d.city, ', ',
+		                 COALESCE(d.state, ''), ' - ',
+		                 COALESCE(d.pincode, '')
+		             )
+		             ELSE NULL
+		        END,
+		        vo.companyName,
+		        vo.organizationPhonenumber,
+		        vo.email,
+		        vo.city,
+		        vo.vendorcategory,
+		        v.acceptedDate,
+		        v.requestedDate,
+		        v.quoteSubmittedDate,
+		        v.query
+		    )
+		    FROM Rfq r
+		    JOIN r.org o
+		    LEFT JOIN User u ON u.org = o
+		        AND u.selfClient = true
+		    LEFT JOIN r.clientdeliverylocationrfq d
+		    LEFT JOIN GmtRfqVendors v ON v.rfq = r
+		    LEFT JOIN v.vendor vo
+		    WHERE r.createdTS BETWEEN :startDate AND :endDate
+		    ORDER BY r.createdTS DESC
+		""")
+		List<RfqSummaryReportDto> getRfqSummaryReport(
 		        @Param("startDate") Date startDate,
 		        @Param("endDate") Date endDate
 		);

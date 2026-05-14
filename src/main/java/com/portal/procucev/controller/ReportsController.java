@@ -42,6 +42,19 @@ public class ReportsController {
 	            reportsService.getBuyerReports(startDate, endDate, requestType)
 	    );
 	}
+	
+	@GetMapping("/rfq-report")
+	public ResponseEntity<?> getRfqReports(
+	        @RequestParam String startDate,
+	        @RequestParam String endDate,
+	        @RequestParam String requestType) throws ParseException {
+
+	    return ResponseEntity.ok(
+	            reportsService.getRfqReports(startDate, endDate, requestType)
+	    );
+	}
+	
+	
 
 }
 
