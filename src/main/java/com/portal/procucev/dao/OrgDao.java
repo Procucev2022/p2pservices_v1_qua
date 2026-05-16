@@ -2,8 +2,6 @@ package com.portal.procucev.dao;
 import java.util.Date;
 import java.util.List;
 
-import jakarta.transaction.Transactional;
-
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -12,11 +10,14 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import com.portal.procucev.Dto.BuyerSummaryDto;
 import com.portal.procucev.Dto.SellerSummaryDto;
 import com.portal.procucev.model.MasterStatus;
 import com.portal.procucev.model.OrgType;
 import com.portal.procucev.model.Organization;
 import com.portal.procucev.model.SubscriptionPlan;
+
+import jakarta.transaction.Transactional;
 
 public interface OrgDao  extends JpaRepository<Organization, String> {
 	
@@ -151,6 +152,45 @@ public interface OrgDao  extends JpaRepository<Organization, String> {
 	    		        @Param("fromDate") Date fromDate,
 	    		        @Param("toDate") Date toDate
 	    		);
+	    
+	    
+	    @Query("""
+	    	    SELECT new com.portal.procucev.Dto.BuyerSummaryDto(
+	    	        u.fullName,
+	    	        u.phone,
+	    	        o.companyName,
+	    	        u.username,
+	    	        o.city,
+	    	        COUNT(DISTINCT r.id),
+	    	        CAST(DATEDIFF(CURRENT_DATE, MAX(r.createdTS)) AS long),
+	    	        o.clientCategory,
+	    	        o.clientCategory,
+	    	        u.activityTs,
+	    	        CAST(DATEDIFF(CURRENT_DATE, u.activityTs) AS long),
+	    	        o.sourceType,
+	    	        COUNT(DISTINCT CASE WHEN v.quoteSubmittedDate IS NOT NULL
+	    	                            THEN v.id ELSE NULL END),
+	    	        COUNT(DISTINCT v.id)
+	    	    )
+	    	    FROM Organization o
+	    	    JOIN User u ON u.org.id = o.id
+	    	        AND u.selfClient = true
+	    	    LEFT JOIN Rfq r ON r.org.id = o.id
+	    	        AND r.createdTS BETWEEN :startDate AND :endDate
+	    	    LEFT JOIN GmtRfqVendors v ON v.rfq.id = r.id
+	    	    WHERE o.orgType = :orgType
+	    	    AND o.createdTS BETWEEN :startDate AND :endDate
+	    	    GROUP BY
+	    	        u.fullName, u.phone, o.companyName,
+	    	        u.username, o.city, o.clientCategory,
+	    	        u.activityTs, o.sourceType
+	    	    ORDER BY MAX(o.createdTS) DESC
+	    	""")
+	    	List<BuyerSummaryDto> getBuyerSummary(
+	    	        @Param("orgType") OrgType orgType,
+	    	        @Param("startDate") Date startDate,
+	    	        @Param("endDate") Date endDate
+	    	);
 
 
 }

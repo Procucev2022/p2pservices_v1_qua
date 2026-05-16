@@ -48,6 +48,8 @@ public interface ApplicationConstants {
 	public String USER_ALREADY_ASSOCIATED_TO_ACCOUNT = "User already exist and associated to an Account. Please try with different User";
 
 	public String VENDOR = "VENDOR";
+	
+	public String BUYER = "CLIENT";
 
 	public String VENDOR_DETAILS_DOESNT_EXIST = "Vendor Details Doesn't Exist";
 

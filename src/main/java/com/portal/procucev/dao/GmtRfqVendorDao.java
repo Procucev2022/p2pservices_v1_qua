@@ -90,12 +90,12 @@ public interface GmtRfqVendorDao extends JpaRepository<GmtRfqVendors, String> {
 	@Query("""
 		    SELECT new com.portal.procucev.Dto.SellerReportDto(
 		        r.createdTS,
-		        r.id,
+		        r.rfqId,
 		        o.companyName,
 		        o.email,
 		        o.organizationPhonenumber,
 		        o.city,
-		        CONCAT(d.address, ', ', d.city, ', ', d.state, ' - ', d.pincode),
+		        CONCAT(d.city, ', ', d.state, ' - ', d.pincode), 
 		        u.activityTs,
 		        r.sourceType,
 		        v.requestedDate,
@@ -105,7 +105,7 @@ public interface GmtRfqVendorDao extends JpaRepository<GmtRfqVendors, String> {
 		    FROM GmtRfqVendors v
 		    JOIN v.rfq r
 		    JOIN v.vendor o
-		    LEFT JOIN r.clientdeliverylocationrfq d
+		    LEFT JOIN r.clientdeliverylocationrfq d ON d.rfq.id = r.id
 		    LEFT JOIN User u ON u.org.id = o.id
 		    WHERE r.createdTS BETWEEN :startDate AND :endDate
 		""")
