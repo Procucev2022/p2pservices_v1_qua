@@ -9,6 +9,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
@@ -66,11 +67,13 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
 
+import com.portal.procucev.Dto.BuyerSellerReportDto;
 import com.portal.procucev.Dto.ClientRFQDto;
 import com.portal.procucev.Dto.ForwardRfqVendorRequest;
 import com.portal.procucev.Dto.GMTRfqVendorDto;
 import com.portal.procucev.Dto.GmtRfqSellerDto;
 import com.portal.procucev.Dto.RfqDTO;
+import com.portal.procucev.Dto.SellerSubscriptionReportDto;
 import com.portal.procucev.Dto.VendorInfoDto;
 import com.portal.procucev.Dto.VendorRFQDto;
 import com.portal.procucev.customexception.AppException;
@@ -210,6 +213,12 @@ public class GMTServiceImpl implements GMTService {
 
 	@Autowired
 	private EmailUserRepo emailUserRepo;
+	
+	 @Value("${report.from.email}")
+	 private String fromEmail;
+
+	 @Value("${report.to.email}")
+	 private String toEmail;
 
 	private final Map<String, String> otpMap = new ConcurrentHashMap<>();
 	@Override
@@ -3661,4 +3670,235 @@ public class GMTServiceImpl implements GMTService {
 	public void markVendorCommentAsRead(Rfq rfq) {
         rfqDao.updateNewCommentAvailableVendor(rfq.getId());
     }
+
+	@Override
+	public void dailyReportEmailForwarder() {
+
+	    logger.info("Daily Report Scheduler Started");
+
+	    try {
+	        LocalDate todayIST = LocalDate.now(ZoneId.of("Asia/Kolkata"));
+
+	     // Last 7 days
+	        Date startDate = Date.from(
+	            todayIST.minusDays(7)
+	                    .atTime(0, 0, 0)
+	                    .toInstant(ZoneOffset.ofHoursMinutes(5, 30))
+	        );
+
+	        Date endDate = Date.from(
+	            todayIST.atTime(0, 0, 0)
+	                    .toInstant(ZoneOffset.ofHoursMinutes(5, 30))
+	        );
+	        
+	        logger.info("StartDate: {}", startDate.toInstant());
+	        logger.info("EndDate: {}", endDate.toInstant());
+	        
+	        logger.info("Fetching last 7 days IST: {} to {}", 
+	                todayIST.minusDays(7), todayIST);
+
+	        // Fetch BuyerSeller Report
+	        List<Object[]> rawBuyerSeller =
+	                userDao.getDailyBuyerSellerReport(startDate, endDate);
+
+	        List<BuyerSellerReportDto> buyerSellerReport = rawBuyerSeller.stream()
+	                .map(row -> new BuyerSellerReportDto(
+	                        (Date)   row[0],
+	                        (String) row[1],
+	                        (String) row[2],
+	                        (String) row[3],
+	                        (String) row[4],
+	                        (String) row[5],
+	                        (String) row[6],
+	                        (String) row[7],
+	                        (String) row[8],
+	                        (String) row[9]
+	                ))
+	                .collect(java.util.stream.Collectors.toList());
+
+	        logger.info("BuyerSeller Report Records: {}", 
+	                buyerSellerReport.size());
+
+	        // Fetch Seller Subscription Report
+	        List<Object[]> rawSeller =
+	                userDao.getDailySellerSubscriptionReport(startDate, endDate);
+
+	        List<SellerSubscriptionReportDto> sellerSubscriptionReport = rawSeller.stream()
+	                .map(row -> new SellerSubscriptionReportDto(
+	                        (Date)   row[0],
+	                        (String) row[1],
+	                        (String) row[2],
+	                        (String) row[3],
+	                        (String) row[4],
+	                        (String) row[5],
+	                        (String) row[6],
+	                        row[7] != null ? ((Number) row[7]).longValue() : 0L,
+	                        (String) row[8]
+	                ))
+	                .collect(java.util.stream.Collectors.toList());
+
+	        logger.info("Seller Subscription Report Records: {}",
+	                sellerSubscriptionReport.size());
+
+	        // Generate CSV files
+	        byte[] buyerSellerCsv = generateBuyerSellerCsv(buyerSellerReport);
+	        byte[] sellerSubscriptionCsv = generateSellerSubscriptionCsv(
+	                sellerSubscriptionReport);
+
+	        // Send email with CSV attachments
+	        InternetAddress fromAddress = new InternetAddress(fromEmail);
+	        sendReportEmailWithCsv(
+	                toEmail,
+	                fromAddress,
+	                buyerSellerCsv,
+	                sellerSubscriptionCsv,
+	                buyerSellerReport.size(),
+	                sellerSubscriptionReport.size(),
+	                todayIST
+	        );
+
+	        logger.info("Daily Report Email Sent Successfully!");
+
+	    } catch (Exception e) {
+	        logger.error("Error in Daily Report Scheduler: {}",
+	                e.getMessage());
+	    }
+	}
+	
+	// ── Generate BuyerSeller CSV ──
+	private byte[] generateBuyerSellerCsv(
+	        List<BuyerSellerReportDto> list) {
+
+	    StringBuilder csv = new StringBuilder();
+
+	    // Header
+	    csv.append("S.No,Login Date & Time,Buyer/Seller,Name,")
+	       .append("Mobile No,Company Name,Email ID,")
+	       .append("Company Location,GMT/BFS,RFQ ID,Item Search\n");
+
+	    // Data
+	    int sno = 1;
+	    for (BuyerSellerReportDto dto : list) {
+	        csv.append(sno++).append(",");
+	        csv.append(escapeCsv(dto.getLoginDateTime() != null
+	                ? dto.getLoginDateTime().toString() : "")).append(",");
+	        csv.append(escapeCsv(dto.getBuyerSeller())).append(",");
+	        csv.append(escapeCsv(dto.getName())).append(",");
+	        csv.append(escapeCsv(dto.getMobileNo())).append(",");
+	        csv.append(escapeCsv(dto.getCompanyName())).append(",");
+	        csv.append(escapeCsv(dto.getEmailId())).append(",");
+	        csv.append(escapeCsv(dto.getCompanyLocation())).append(",");
+	        csv.append(escapeCsv(dto.getGmtBfs())).append(",");
+	        csv.append(escapeCsv(dto.getRfqId())).append(",");
+	        csv.append(escapeCsv(dto.getItemSearch())).append("\n");
+	    }
+
+	    return csv.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8);
+	}
+
+	// ── Generate SellerSubscription CSV ──
+	private byte[] generateSellerSubscriptionCsv(
+	        List<SellerSubscriptionReportDto> list) {
+
+	    StringBuilder csv = new StringBuilder();
+
+	    // Header
+	    csv.append("S.No,Login Date & Time,Name,Mobile No,")
+	       .append("Company Name,Email ID,Company Location,")
+	       .append("Subscribed,RFQs Downloaded,RFQ ID\n");
+
+	    // Data
+	    int sno = 1;
+	    for (SellerSubscriptionReportDto dto : list) {
+	        csv.append(sno++).append(",");
+	        csv.append(escapeCsv(dto.getLoginDateTime() != null
+	                ? dto.getLoginDateTime().toString() : "")).append(",");
+	        csv.append(escapeCsv(dto.getName())).append(",");
+	        csv.append(escapeCsv(dto.getMobileNo())).append(",");
+	        csv.append(escapeCsv(dto.getCompanyName())).append(",");
+	        csv.append(escapeCsv(dto.getEmailId())).append(",");
+	        csv.append(escapeCsv(dto.getCompanyLocation())).append(",");
+	        csv.append(escapeCsv(dto.getSubscribed())).append(",");
+	        csv.append(dto.getRfqsDownloaded() != null
+	                ? dto.getRfqsDownloaded() : 0).append(",");
+	        csv.append(escapeCsv(dto.getRfqId())).append("\n");
+	    }
+
+	    return csv.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8);
+	}
+
+	// ── Escape CSV Special Characters ──
+	private String escapeCsv(String value) {
+	    if (value == null) return "";
+	    if (value.contains(",") || value.contains("\"") 
+	            || value.contains("\n")) {
+	        value = value.replace("\"", "\"\"");
+	        return "\"" + value + "\"";
+	    }
+	    return value;
+	}
+
+	// ── Send Email with CSV Attachments ──
+	private void sendReportEmailWithCsv(
+	        String toAddress,
+	        InternetAddress fromAddress,
+	        byte[] buyerSellerCsv,
+	        byte[] sellerSubscriptionCsv,
+	        int buyerSellerCount,
+	        int sellerSubscriptionCount,
+	        LocalDate todayIST) {
+
+	    try {
+	        String dateRange = todayIST.minusDays(7) + " to " + todayIST;
+
+	        // Email body
+	        StringBuilder html = new StringBuilder();
+	        html.append("<html><body>");
+	        html.append("<p>Dear Team,</p>");
+	        html.append("<p>Please find attached the <b>Weekly Daily Reports</b> ")
+	            .append("for <b>").append(dateRange).append("</b>.</p>");
+	        html.append("<p>Attachments:</p><ul>");
+	        html.append("<li><b>BuyerSeller_Report_").append(todayIST)
+	            .append(".csv</b> — ")
+	            .append(buyerSellerCount).append(" records</li>");
+	        html.append("<li><b>SellerSubscription_Report_").append(todayIST)
+	            .append(".csv</b> — ")
+	            .append(sellerSubscriptionCount).append(" records</li>");
+	        html.append("</ul>");
+	        html.append("<br><p>Thanks,<br><b>Procucev System</b></p>");
+	        html.append("</body></html>");
+
+	        // Create MIME message
+	        jakarta.mail.internet.MimeMessage mimeMessage =
+	                javaMailSender.createMimeMessage();
+
+	        org.springframework.mail.javamail.MimeMessageHelper helper =
+	                new org.springframework.mail.javamail.MimeMessageHelper(
+	                        mimeMessage, true);
+
+	        helper.setTo(toAddress);
+	        helper.setFrom(fromAddress);
+	        helper.setSubject("Weekly Daily Report - " + dateRange);
+	        helper.setText(html.toString(), true);
+
+	        // Attach CSV 1
+	        helper.addAttachment(
+	                "BuyerSeller_Report_" + todayIST + ".csv",
+	                new org.springframework.core.io.ByteArrayResource(buyerSellerCsv)
+	        );
+
+	        // Attach CSV 2
+	        helper.addAttachment(
+	                "SellerSubscription_Report_" + todayIST + ".csv",
+	                new org.springframework.core.io.ByteArrayResource(
+	                        sellerSubscriptionCsv)
+	        );
+
+	        javaMailSender.send(mimeMessage);
+	        logger.info("Report email with CSVs sent to {}", toAddress);
+
+	    } catch (Exception e) {
+	        logger.error("Failed to send report email: {}", e.getMessage());
+	    }
+	}
 }

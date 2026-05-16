@@ -31,5 +31,12 @@ public class EmailConfig {
 			log.info("Scheduled Service to Send Reminder Email to vendors  Ended");
 		}
 	}
+	
+    // Runs every day at 3:00 AM
+	    @Scheduled(cron = "0 0 3 * * *")
+	    public void sendDailyReports() {
+	    	gmtService.dailyReportEmailForwarder();
+	    	
+	    }
 
 }
