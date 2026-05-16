@@ -2,7 +2,6 @@ package com.portal.procucev.dao;
 
 import java.util.Date;
 import java.util.List;
-import java.util.Optional;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
@@ -10,9 +9,10 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import com.portal.procucev.Dto.BuyerSellerReportDto;
+import com.portal.procucev.Dto.SellerSubscriptionReportDto;
 import com.portal.procucev.model.MasterStatus;
 import com.portal.procucev.model.Organization;
-import com.portal.procucev.model.Rfq;
 import com.portal.procucev.model.Role;
 import com.portal.procucev.model.User;
 
@@ -182,4 +182,61 @@ public interface UserDao extends JpaRepository<User, String> {
 		        @Param("startDate") Date startDate,
 		        @Param("endDate") Date endDate
 		);
+		
+		@Query(value = """
+			    SELECT 
+			        u.activity_ts,
+			       CASE WHEN ot.type_name = 'CLIENT' THEN 'Buyer' 
+             WHEN ot.type_name = 'VENDOR' THEN 'Seller'
+             WHEN ot.type_name = 'PROCUCEV' THEN 'Procucev'
+             ELSE 'Unknown' END,
+			        u.full_name,
+			        u.phone,
+			        o.organization_name,
+			        u.username,
+			        o.city,
+			        CASE WHEN u.is_web_app = 1 THEN 'GMT'
+			             WHEN u.is_whats_app = 1 THEN 'BFS'
+			             ELSE 'GMT' END,
+			        r.rfq_id,
+			        ri.category
+			    FROM user u
+			    JOIN organization o ON o.uuid = u.org_uuid
+			    JOIN org_types ot ON ot.uuid = o.org_type_uuid
+			    LEFT JOIN rfq_header r ON r.org_uuid = o.uuid
+			    LEFT JOIN rfq_items ri ON ri.rfq_uuid = r.uuid
+			    WHERE u.activity_ts >= :startDate
+			    AND u.activity_ts < :endDate
+			    ORDER BY u.activity_ts DESC
+			""", nativeQuery = true)
+			List<Object[]> getDailyBuyerSellerReport(
+			        @Param("startDate") Date startDate,
+			        @Param("endDate") Date endDate
+			);
+		
+			@Query(value = """
+				    SELECT
+				        u.activity_ts,
+				        u.full_name,
+				        u.phone,
+				        o.organization_name,
+				        u.username,
+				        o.city,
+				        CASE WHEN o.subscription_plan_uuid IS NOT NULL 
+				             THEN 'Yes' ELSE 'No' END,
+				        o.rfq_used_count,
+				        r.rfq_id
+				    FROM user u
+				    JOIN organization o ON o.uuid = u.org_uuid
+				    JOIN org_types ot ON ot.uuid = o.org_type_uuid
+				    LEFT JOIN rfq_header r ON r.org_uuid = o.uuid
+				    WHERE ot.type_name = 'VENDOR'
+				    AND u.activity_ts >= :startDate
+				    AND u.activity_ts < :endDate
+				    ORDER BY u.activity_ts DESC
+				""", nativeQuery = true)
+				List<Object[]> getDailySellerSubscriptionReport(
+				        @Param("startDate") Date startDate,
+				        @Param("endDate") Date endDate
+				);
 }

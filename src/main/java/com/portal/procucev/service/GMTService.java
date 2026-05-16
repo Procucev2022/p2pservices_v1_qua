@@ -156,4 +156,6 @@ public interface GMTService {
 
 	void markVendorCommentAsRead(Rfq rfq);
 
+	void dailyReportEmailForwarder();
+
 }
