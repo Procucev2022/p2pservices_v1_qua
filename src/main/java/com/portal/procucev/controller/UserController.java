@@ -367,5 +367,46 @@ public class UserController {
 	        // If found, return actual organization
 	        return ResponseEntity.ok(org);
 	    }
+	    
+	    @GetMapping("/vendorSummarySearch")
+		public ResponseEntity<Map<String, Object>> getVendorSummarySearchResults(String searchType,String searchValue){
+	    	
+	    	 Map<String, Object> response = new HashMap<>();
+
+	 	    try {
+	 	    	List<VendorSummaryResponse> vendors = userServices.getVendorSummarySearchResults(searchType,searchValue);
+	 	        // ✅ Correct empty check
+	 	        if (vendors == null || vendors.isEmpty()) {
+
+	 	            response.put("statusCode", StatusCodes.OK_VENDOR_CODE);
+	 	            response.put("status", "Success");
+	 	            response.put("message", "No vendors found");
+	 	            response.put("totalRecords", 0);
+	 	            response.put("data", Collections.emptyList());
+
+	 	            return ResponseEntity.ok(response);
+	 	        }
+
+	 	        // ✅ Success response
+	 	        response.put("statusCode", StatusCodes.OK_VENDOR_CODE);
+	 	        response.put("status", "Success");
+	 	        response.put("totalRecords", vendors.size());
+	 	        response.put("data", vendors);
+
+	 	        return ResponseEntity.ok(response);
+
+	 	    } catch (Exception e) {
+
+	 	        response.put("statusCode", StatusCodes.SERVER_ERROR);
+	 	        response.put("status", "Failure");
+	 	        response.put("message", "Failed to fetch vendor summary");
+	 	        response.put("error", e.getMessage());
+
+	 	        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+	 	                .body(response);
+	 	    }
+	    }
+	    
+	    
 
 }

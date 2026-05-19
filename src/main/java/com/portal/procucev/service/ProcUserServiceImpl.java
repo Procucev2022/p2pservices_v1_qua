@@ -1103,4 +1103,98 @@ public class ProcUserServiceImpl implements UserService {
 	    return userData.getOrg();
 	}
 
+	@Override
+	public List<VendorSummaryResponse> getVendorSummarySearchResults(String searchType, String searchValue) {
+		
+		 // Step 1: Vendor Org Type
+	    OrgType orgTypeObject = orgTypeDao.findByTypeName(ApplicationConstants.VENDOR);
+	    if (orgTypeObject == null) {
+	        log.warn("Vendor org type not found");
+	        return Collections.emptyList();
+	    }
+	    
+	    // Step 3: Fetch vendors
+	    List<Organization> vendors =
+	            orgDao.findVendorsBySearchType("VENDOR",searchType,searchValue);
+
+	    if (vendors.isEmpty()) {
+	        log.warn("No vendors found");
+	        return Collections.emptyList();
+	    }
+
+	    // Step 4: Collect vendor IDs
+	    List<String> vendorIds = vendors.stream()
+	            .map(Organization::getId)
+	            .toList();
+
+	    // Step 5: Last login (single query)
+	    List<Object[]> lastLoginData =
+	            userDao.findLastLoginByOrgIds(vendorIds);
+
+	    Map<String, Date> lastLoginMap = new HashMap<>();
+
+	    for (Object[] row : lastLoginData) {
+	        lastLoginMap.put((String) row[0], (Date) row[1]);
+	    }
+
+	    // Step 6: Build response
+	    List<VendorSummaryResponse> response = new ArrayList<>();
+
+	    for (Organization vendor : vendors) {
+
+	        VendorSummaryResponse summary = new VendorSummaryResponse();
+
+	        try {
+	            summary.setId(vendor.getId());
+	            summary.setCompanyId(vendor.getCompanyId());
+	            summary.setCompanyName(vendor.getCompanyName());
+	            summary.setName(vendor.getName());
+	            summary.setEmail(vendor.getEmail());
+	            summary.setGst(vendor.getGstin());
+	            summary.setPincode(vendor.getZipCode());
+	            summary.setPhoneNumber(vendor.getOrganizationPhonenumber());
+	            summary.setDetails(vendor.getDetails());
+	            summary.setSourceType(vendor.getSourceType());
+	            summary.setCreatedTS(vendor.getCreatedTS());
+
+	            summary.setSubscribed(
+	                    vendor.getSubscriptionPlan() != null ? "Yes" : "No"
+	            );
+
+	            summary.setRfqsConsumed(
+	                    vendor.getRfqUsedCount() != null ? vendor.getRfqUsedCount() : 0L
+	            );
+
+	            summary.setQuotesSubmitted(
+	                    vendor.getQuoteSubmitted() != null ? vendor.getQuoteSubmitted() : 0L
+	            );
+
+	            summary.setVendorClass(vendor.getVendorClass());
+	            summary.setSubscriptionExpiry(vendor.getSubscriptionExpiry());
+
+	            // Last login
+	            summary.setLastLogin(lastLoginMap.get(vendor.getId()));
+
+	            summary.setError(null);
+
+	        } catch (Exception ex) {
+
+	            log.error("Error processing vendor ID={}: {}", vendor.getId(), ex.getMessage(), ex);
+
+	            summary.setId(vendor.getId());
+	            summary.setCompanyId(vendor.getCompanyId());
+	            summary.setCompanyName(vendor.getCompanyName());
+	            summary.setName(vendor.getName());
+	            summary.setSubscribed("Unknown");
+	            summary.setError("Error fetching data: " + ex.getMessage());
+	        }
+
+	        response.add(summary);
+	    }
+	    
+	    
+		
+		return response;
+	}
+
 }
