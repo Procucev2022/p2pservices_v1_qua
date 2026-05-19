@@ -64,4 +64,6 @@ public interface UserService {
 
 	SimplePageResponse<VendorSummaryResponse> getVendorSummary(int page, int size, String search, String sourceType);
 
+	List<VendorSummaryResponse> getVendorSummarySearchResults(String searchType, String searchValue);
+
 }
