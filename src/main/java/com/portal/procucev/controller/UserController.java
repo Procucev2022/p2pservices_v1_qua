@@ -369,7 +369,7 @@ public class UserController {
 	    }
 	    
 	    @GetMapping("/vendorSummarySearch")
-		public ResponseEntity<Map<String, Object>> getVendorSummarySearchResults(String searchType,String searchValue){
+		public ResponseEntity<Map<String, Object>> getVendorSummarySearchResults(@RequestParam String searchType,@RequestParam String searchValue){
 	    	
 	    	 Map<String, Object> response = new HashMap<>();
 
