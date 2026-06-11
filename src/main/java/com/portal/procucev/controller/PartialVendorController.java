@@ -1,17 +1,14 @@
 package com.portal.procucev.controller;
 
-import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.*;
-import org.springframework.core.io.ClassPathResource;
-import jakarta.servlet.http.HttpServletRequest;
-import org.springframework.web.client.RestTemplate;
-import org.springframework.web.multipart.MultipartFile;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -25,12 +22,12 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
+
 import com.portal.procucev.customexception.AppException;
 import com.portal.procucev.customexception.MessageResponse;
-import com.portal.procucev.model.ApiResponse;
 import com.portal.procucev.model.Organization;
 import com.portal.procucev.model.PincodeData;
-import com.portal.procucev.model.PostOffice;
 import com.portal.procucev.model.User;
 import com.portal.procucev.service.ExcelReader;
 import com.portal.procucev.service.GMTService;
@@ -41,6 +38,8 @@ import com.portal.procucev.utils.ApplicationConstants;
 import com.portal.procucev.utils.ClientRegistrationStatus;
 import com.portal.procucev.utils.PhoneNumberUtils;
 import com.portal.procucev.utils.StatusCodes;
+
+import jakarta.servlet.http.HttpServletRequest;
 
 @CrossOrigin
 @RestController
@@ -308,28 +307,34 @@ public class PartialVendorController {
 	    return ResponseEntity.ok(response);
 	}
 
-	@GetMapping("/{pincode}")
-	public ResponseEntity<?> getCityAndState(@PathVariable("pincode") String pincode) {
-		try {
-			RestTemplate restTemplate = new RestTemplate();
-			String url = "https://api.postalpincode.in/pincode/" + pincode;
-			ResponseEntity<ApiResponse[]> response = restTemplate.getForEntity(url, ApiResponse[].class);
-			ApiResponse[] body = response.getBody();
-
-			if (body != null && body.length > 0 && body[0].getPostOffice() != null
-					&& !body[0].getPostOffice().isEmpty()) {
-				PostOffice po = body[0].getPostOffice().get(0);
-				Map<String, String> result = new HashMap<>();
-				result.put("city", po.getName());
-				result.put("state", po.getState());
-				return ResponseEntity.ok(result);
-			} else {
-				return ResponseEntity.status(404).body(Map.of("error", "No data found for the given pincode"));
-			}
-		} catch (Exception e) {
-			return ResponseEntity.status(500).body(Map.of("error", "Error fetching data", "details", e.getMessage()));
-		}
-	}
+//	@GetMapping("/{pincode}")
+//	public ResponseEntity<?> getCityAndState(@PathVariable("pincode") String pincode) {
+//		try {
+//			RestTemplate restTemplate = new RestTemplate();
+//			String url = "https://api.postalpincode.in/pincode/" + pincode;
+//			ResponseEntity<ApiResponse[]> response = restTemplate.getForEntity(url, ApiResponse[].class);
+//			ApiResponse[] body = response.getBody();
+//
+//			if (body != null && body.length > 0 && body[0].getPostOffice() != null
+//					&& !body[0].getPostOffice().isEmpty()) {
+//				PostOffice po = body[0].getPostOffice().get(0);
+//				Map<String, String> result = new HashMap<>();
+//				result.put("city", po.getName());
+//				result.put("state", po.getState());
+//				return ResponseEntity.ok(result);
+//			} else {
+//				return ResponseEntity.status(404).body(Map.of("error", "No data found for the given pincode"));
+//			}
+//		} catch (Exception e) {
+//			return ResponseEntity.status(500).body(Map.of("error", "Error fetching data", "details", e.getMessage()));
+//		}
+//	}
+	
+	@GetMapping("/pincode/{pincode}")
+    public ResponseEntity<List<Map<String, Object>>> getPincodeDetails(
+            @PathVariable String pincode) {
+        return ResponseEntity.ok(regService.getPincodeDetails(pincode));
+    }
 
 	@PostMapping("/upload")
 	public ResponseEntity<String> uploadCsv(@RequestParam("file") MultipartFile file) {

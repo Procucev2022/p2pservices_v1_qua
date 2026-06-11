@@ -1,6 +1,5 @@
 package com.portal.procucev.service;
 
-import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
@@ -13,11 +12,13 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Random;
 import java.util.concurrent.ConcurrentHashMap;
+
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVRecord;
 import org.apache.commons.lang3.StringUtils;
@@ -30,6 +31,7 @@ import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.ss.usermodel.Workbook;
 import org.apache.poi.ss.usermodel.WorkbookFactory;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -52,6 +54,7 @@ import com.portal.procucev.dao.OtpStoreDao;
 import com.portal.procucev.dao.PincodeDao;
 import com.portal.procucev.dao.RoleDao;
 import com.portal.procucev.dao.UserDao;
+import com.portal.procucev.model.CategoryDivision;
 import com.portal.procucev.model.MasterStatus;
 import com.portal.procucev.model.OrgDivisionCategory;
 import com.portal.procucev.model.OrgType;
@@ -59,7 +62,6 @@ import com.portal.procucev.model.Organization;
 import com.portal.procucev.model.OtpDetails;
 import com.portal.procucev.model.OtpStore;
 import com.portal.procucev.model.PincodeData;
-import com.portal.procucev.model.CategoryDivision;
 import com.portal.procucev.model.Role;
 import com.portal.procucev.model.User;
 import com.portal.procucev.utils.ApplicationConstants;
@@ -1487,6 +1489,7 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 
 	    // If no user found → fail
 	    if (user == null) {
+	    	logger.info("User Not Found...");
 	        return false;
 	    }
 
@@ -1498,6 +1501,50 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 	    // If selfClient = true → must be approved
 	    return user.isApproved();
 	}
+
+	@Override
+	public List<Map<String, Object>> getPincodeDetails(String pincode) {
+		        List<Map<String, Object>> response = new ArrayList<>();
+		        Map<String, Object> responseMap = new LinkedHashMap<>();
+
+		        if (!pinCodeDao.existsByPincode(pincode)) {
+		            responseMap.put("Message", "Pincode not found");
+		            responseMap.put("Status", "Error");
+		            responseMap.put("PostOffice", null);
+		            response.add(responseMap);
+		            return response;
+		        }
+
+		        PincodeData pincodeData = pinCodeDao.findByPincode(pincode);
+
+		        // Build PostOffice object
+		        Map<String, Object> postOffice = new LinkedHashMap<>();
+		        postOffice.put("Name", pincodeData.getCity());
+		        postOffice.put("Description", null);
+		        postOffice.put("BranchType", null);
+		        postOffice.put("DeliveryStatus", null);
+		        postOffice.put("Circle", null);
+		        postOffice.put("District", null);
+		        postOffice.put("Division", null);
+		        postOffice.put("Region", null);
+		        postOffice.put("Block", null);
+		        postOffice.put("State", pincodeData.getState()); 
+		        postOffice.put("Country", "INDIA");
+		        postOffice.put("Pincode", pincodeData.getPincode());
+
+		        List<Map<String, Object>> postOfficeList = new ArrayList<>();
+		        postOfficeList.add(postOffice);
+
+		        responseMap.put("Message", "Number of pincode(s) found: 1");
+		        responseMap.put("Status", "Success");
+		        responseMap.put("PostOffice", postOfficeList);
+
+		        response.add(responseMap);
+		        return response;
+		    
+	}
+	
+	
 
 
 }

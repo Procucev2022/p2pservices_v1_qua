@@ -53,6 +53,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.dao.DataAccessException;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -118,6 +120,8 @@ import com.portal.procucev.model.User;
 import com.portal.procucev.utils.ApplicationConstants;
 import com.portal.procucev.utils.EmailValidatorUtil;
 import com.portal.procucev.utils.MailUtility;
+import com.portal.procucev.utils.PhoneNumberUtils;
+import com.portal.procucev.utils.ProcucevUtils;
 import com.portal.procucev.utils.StatusConstants;
 
 import jakarta.mail.Flags;
@@ -223,7 +227,6 @@ public class GMTServiceImpl implements GMTService {
 	private final Map<String, String> otpMap = new ConcurrentHashMap<>();
 	@Override
 	public List<String> getClientRfqIds(User user) {
-		// TODO Auto-generated method stub
 		logger.info("API to get Client Ids By User");
 		if (user != null) {
 			List<String> rfqList = rfqDao.findRFQIdsNoPrRfqByClient(user.getId());
@@ -245,7 +248,6 @@ public class GMTServiceImpl implements GMTService {
 	@Override
 	public List<ClientRFQDto> getNoPrRfqByClient(User user) {
 		logger.info("Entered To get no pr rfq by client");
-		// TODO Auto-generated method stub
 		if (user != null) {
 			List<Rfq> rfqList = rfqDao.findNoPrRfqByClient(user.getId());
 			if (rfqList.isEmpty()) {
@@ -284,7 +286,6 @@ public class GMTServiceImpl implements GMTService {
 
 	@Override
 	public List<String> getAllDivision() {
-		// TODO Auto-generated method stub
 		logger.info("Entered To Get All Division");
 		List<String> divisionList = categoryDivisionDao.getAllDivision();
 		if (divisionList != null && !CollectionUtils.isEmpty(divisionList)) {
@@ -493,7 +494,6 @@ public class GMTServiceImpl implements GMTService {
 			try {
 				myExcelBook.close();
 			} catch (IOException e) {
-				// TODO Auto-generated catch block
 				e.printStackTrace();
 			}
 
@@ -641,7 +641,6 @@ public class GMTServiceImpl implements GMTService {
 
 	@Override
 	public boolean queryMail(User user) throws UnsupportedEncodingException {
-		// TODO Auto-generated method stub
 		logger.info("Entered To Send mail To");
 		String email = null;
 		String OrgName = null;
@@ -818,7 +817,6 @@ public class GMTServiceImpl implements GMTService {
 	
 	@Override
 	public boolean requestRfqByVendors(List<GmtRfqVendors> rfq) {
-		// TODO Auto-generated method stub
 
 		logger.info("Entered to request Rfqs By Vendors:: ");
 		try {
@@ -1008,7 +1006,6 @@ public class GMTServiceImpl implements GMTService {
 	}
 	@Override
 	public boolean ignoreRfqByVendor(List<GmtRfqVendors> rfq) {
-		// TODO Auto-generated method stub
 		logger.info("Entered to Ignore Rfqs By Vendors:: ");
 		try {
 			MasterStatus resultStatus = masterStatusDao.findByStatus(StatusConstants.VENDOR_RFQ_IGNORED);
@@ -1037,7 +1034,6 @@ public class GMTServiceImpl implements GMTService {
 
 	@Override
 	public boolean rejectRfqForVendor(GmtRfqVendors rfq) {
-		// TODO Auto-generated method stub
 		logger.info("Entered to Reject Rfqs By Vendors:: ");
 		MasterStatus resultStatus = masterStatusDao.findByStatus(StatusConstants.VENDORREJECTRFQ);
 		try {
@@ -1108,7 +1104,7 @@ public class GMTServiceImpl implements GMTService {
 		//rfqDto.setNoOfVendors(rfqVendorDao.findByVendorsByRfq(rfq.getId()));
 		rfqDto.setNoOfVendors(gmtRfqVendorDao.findByVendorsByRfq(rfq.getId()));
 		rfqDto.setQuoteSubmittedDate(rfq.getQuoteSubmittedDate());
-		rfqDto.setClientStatus(rfq.getClientStatus());
+		rfqDto.setClientStatusName(rfq.getClientStatus().getStatus());
 		rfqDto.setNewCommentAvailableVendor(rfq.isNewCommentAvailableVendor());
 
 		String companyName = userDao.findByUser(rfq.getUser());
@@ -1205,7 +1201,7 @@ public class GMTServiceImpl implements GMTService {
 		rfqDto.setCreatedTs(rfq.getCreatedTS());
 		rfqDto.setProjectDesc(rfq.getProjectDesc());
 		rfqDto.setDivision(rfq.getDivision());
-		rfqDto.setClientStatus(rfq.getClientStatus());
+		rfqDto.setClientStatusName(rfq.getClientStatus().getStatus());
 		rfqDto.setRfqId(rfq.getRfqId());
 		rfqDto.setNoOfQuotes(rfq.getQuoteCount());
 		rfqDto.setNoOfVendors(gmtRfqVendorDao.findByVendorsByRfq(rfq.getId()));
@@ -1227,6 +1223,70 @@ public class GMTServiceImpl implements GMTService {
 		}
 		return rfqDto;
 	}
+	
+	private RfqDTO mapToClientDto(
+	        Rfq rfq,
+	        Map<String, User> userMap,
+	        Map<String, Long> vendorCountMap) {
+
+	    RfqDTO dto = new RfqDTO();
+
+	    dto.setId(rfq.getId());
+	    dto.setCreatedBy(rfq.getCreatedBy());
+	    dto.setCreatedTs(rfq.getCreatedTS());
+
+	    dto.setProjectDesc(rfq.getProjectDesc());
+
+	    dto.setDivision(rfq.getDivision());
+
+	    dto.setRfqId(rfq.getRfqId());
+
+	    dto.setNoOfQuotes(rfq.getQuoteCount());
+
+	    dto.setQuoteSubmittedDate(
+	            rfq.getQuoteSubmittedDate());
+
+	    dto.setNewCommentAvailableVendor(
+	            rfq.isNewCommentAvailableVendor());
+
+	    dto.setSourceType(rfq.getSourceType());
+
+	    // client status
+	    if (rfq.getClientStatus() != null) {
+
+	        dto.setClientStatusId(
+	                rfq.getClientStatus().getId());
+
+	        dto.setClientStatusName(
+	                rfq.getClientStatus().getStatus());
+	    }
+
+	    // user details from hashmap
+	    User user = userMap.get(rfq.getUser());
+
+	    if (user != null) {
+
+	        dto.setPhoneNumber(user.getPhone());
+
+	        if (user.getOrg() != null) {
+
+	            dto.setCompanyName(
+	                    user.getOrg().getCompanyName());
+
+	            dto.setCompanyId(
+	                    user.getOrg().getId());
+	        }
+	    }
+
+	    // vendor count from hashmap
+	    dto.setNoOfVendors(
+	            vendorCountMap.getOrDefault(
+	                    rfq.getId(),
+	                    0L
+	            ));
+
+	    return dto;
+	}
 
 	@Override
 	public List<RfqDTO> fetchAllClientGMTRfqsForCM() {
@@ -1244,7 +1304,163 @@ public class GMTServiceImpl implements GMTService {
 		return rfqsList.stream().map(this::mapToClientDto).collect(Collectors.toList());
 
 	}
+	
 
+	@Override
+	public List<RfqDTO> fetchAllClientGMTRfqsForCM(Pageable pageable) {
+
+	    Page<Rfq> rfqPage =
+	            rfqDao.findAllClientRfqNoPr(pageable);
+
+	    List<Rfq> rfqs = rfqPage.getContent();
+
+	    if (rfqs.isEmpty()) {
+	        throw new AppException(
+	                HttpStatus.NO_CONTENT.value(),
+	                ApplicationConstants.NO_DATA_FOUND,
+	                ApplicationConstants.BUSINESS_EXCEPTION,
+	                ApplicationConstants.FAILURE
+	        );
+	    }
+
+	    // STEP 1 -> collect user ids
+	    List<String> userIds = rfqs.stream()
+	            .map(Rfq::getUser)
+	            .filter(Objects::nonNull)
+	            .distinct()
+	            .toList();
+
+	    // STEP 2 -> collect rfq ids
+	    List<String> rfqIds = rfqs.stream()
+	            .map(Rfq::getId)
+	            .toList();
+
+	    // STEP 3 -> batch fetch users
+	    List<User> users =
+	            userDao.findUsersByIds(userIds);
+
+	    Map<String, User> userMap =
+	            users.stream()
+	                    .collect(Collectors.toMap(
+	                            User::getId,
+	                            Function.identity()
+	                    ));
+
+	    // STEP 4 -> batch fetch vendor counts
+	    List<Object[]> vendorCounts =
+	            gmtRfqVendorDao.countVendorsByRfqIds(rfqIds);
+
+	    Map<String, Long> vendorCountMap =
+	            new HashMap<>();
+
+	    for (Object[] row : vendorCounts) {
+	        vendorCountMap.put(
+	                (String) row[0],
+	                (Long) row[1]
+	        );
+	    }
+
+	    // STEP 5 -> map WITHOUT db calls
+	    List<RfqDTO> dtoList = rfqs.stream()
+	            .map(rfq -> mapToClientDto(
+	                    rfq,
+	                    userMap,
+	                    vendorCountMap
+	            ))
+	            .toList();
+
+	    return dtoList;
+	}
+	
+	@Override
+	public List<RfqDTO> fetchAllClientGMTRfqsForCMSearch(String searchType, String searchValue) {
+
+	    logger.info("fetchAllClientGMTRfqsForCMSearch | searchType: {}, searchValue: {}", searchType, searchValue);
+
+	    List<Rfq> rfqList;
+	    List<User> matchedUsers = new ArrayList<>();
+
+	    switch (searchType.toLowerCase()) {
+
+	        case "rfqid":
+	        case "description":
+	            // Search directly on rfq_header
+	            rfqList = rfqDao.findAllClientRfqByRfqIdOrDescription(searchType, searchValue);
+	            break;
+
+	        case "companyname":
+	            // Find users whose org name matches, then fetch their RFQs
+	            matchedUsers = userDao.findUsersByOrgCompanyName(searchValue);
+	            if (matchedUsers.isEmpty()) {
+	                return Collections.emptyList();
+	            }
+	            List<String> userIdsByCompany = matchedUsers.stream()
+	                    .map(User::getId)
+	                    .distinct()
+	                    .toList();
+	            rfqList = rfqDao.findAllClientRfqByUserIds(userIdsByCompany);
+	            break;
+
+	        case "contactnumber":
+	            // Find users whose phone matches, then fetch their RFQs
+	            matchedUsers = userDao.findUsersByPhone(searchValue);
+	            if (matchedUsers.isEmpty()) {
+	                return Collections.emptyList();
+	            }
+	            List<String> userIdsByPhone = matchedUsers.stream()
+	                    .map(User::getId)
+	                    .distinct()
+	                    .toList();
+	            rfqList = rfqDao.findAllClientRfqByUserIds(userIdsByPhone);
+	            break;
+
+	        default:
+	            logger.warn("Unknown searchType: {}", searchType);
+	            return Collections.emptyList();
+	    }
+
+	    logger.info("RFQs found: {}", rfqList.size());
+
+	    if (rfqList.isEmpty()) {
+	        return Collections.emptyList();
+	    }
+
+	    // STEP 1 -> collect user ids from rfq list
+	    List<String> userIds = rfqList.stream()
+	            .map(Rfq::getUser)
+	            .filter(Objects::nonNull)
+	            .distinct()
+	            .toList();
+
+	    // STEP 2 -> collect rfq ids
+	    List<String> rfqIds = rfqList.stream()
+	            .map(Rfq::getId)
+	            .toList();
+
+	    // STEP 3 -> batch fetch users
+	    List<User> users = userDao.findUsersByIds(userIds);
+
+	    Map<String, User> userMap = users.stream()
+	            .collect(Collectors.toMap(
+	                    User::getId,
+	                    Function.identity()
+	            ));
+
+	    // STEP 4 -> batch fetch vendor counts
+	    List<Object[]> vendorCounts =
+	            gmtRfqVendorDao.countVendorsByRfqIds(rfqIds);
+
+	    Map<String, Long> vendorCountMap = new HashMap<>();
+	    for (Object[] row : vendorCounts) {
+	        vendorCountMap.put((String) row[0], (Long) row[1]);
+	    }
+
+	    // STEP 5 -> map WITHOUT db calls
+	    return rfqList.stream()
+	            .map(rfq -> mapToClientDto(rfq, userMap, vendorCountMap))
+	            .toList();
+	}
+	
 	@Override
 	public List<RfqVendor> getVendorsbyRFQ(Rfq rfq) {
 		logger.info("Entered To Get Vefq.setndors By RFQ");
@@ -1286,7 +1502,6 @@ public class GMTServiceImpl implements GMTService {
 
 	@Override
 	public List<String> getCategoryByDivision(CategoryDivision cat) {
-		// TODO Auto-generated method stub
 		logger.info("Entered To Get Category List By Division");
 		List<String> categoryList = categoryDivisionDao.getCategoryByDivision(cat.getDivision());
 		if (categoryList != null && !CollectionUtils.isEmpty(categoryList)) {
@@ -1302,7 +1517,6 @@ public class GMTServiceImpl implements GMTService {
 
 	@Override
 	public List<GmtItems> getAllGmtItems() {
-		// TODO Auto-generated method stub
 		logger.info("Entered to get all Gmt Items");
 		List<GmtItems> gmtItemsList = gmtItemsDao.findAll();
 		if (!CollectionUtils.isEmpty(gmtItemsList) && gmtItemsList != null) {
@@ -1332,8 +1546,6 @@ public class GMTServiceImpl implements GMTService {
 
 	@Override
 	public List<String> getAllCategory() {
-		// TODO Auto-generated method stub
-		// TODO Auto-generated method stub
 		logger.info("Entered To Get All Category");
 		List<String> categoryList = categoryDivisionDao.getAllCategory();
 		if (categoryList != null && !CollectionUtils.isEmpty(categoryList)) {
@@ -1393,7 +1605,6 @@ public class GMTServiceImpl implements GMTService {
 
 	@Override
 	public List<VendorRFQDto> getAllVendors() {
-		// TODO Auto-generated method stub
 		logger.info("Entered To Get All Vendor");
 		List<VendorRFQDto> responseList = new ArrayList<>();
 		OrgType orgTypeObject = orgTypeDao.findByTypeName(ApplicationConstants.VENDOR);
@@ -1419,33 +1630,102 @@ public class GMTServiceImpl implements GMTService {
 					ApplicationConstants.BUSSINESS_EXCEPTION, ApplicationConstants.FAILURE);
 		}
 	}
+	
+	
+	@Override
+	public List<VendorRFQDto> getAllVendors(Pageable pageable) {
 
+	    logger.info("Entered To Get All Vendor");
+	    
+	    OrgType orgTypeObject = orgTypeDao.findByTypeName(ApplicationConstants.VENDOR);
+
+	    Page<VendorRFQDto> responsePage =
+	            orgDao.getAllVendor(orgTypeObject,pageable);
+	    
+	    List<VendorRFQDto> vendorList = responsePage.getContent();
+	    
+	    
+
+	    if (CollectionUtils.isEmpty(vendorList)) {
+
+	        logger.error("No Vendors available in the Database");
+
+	        throw new AppException(
+	                HttpStatus.NO_CONTENT.value(),
+	                ApplicationConstants.NO_DATA_FOUND,
+	                ApplicationConstants.BUSSINESS_EXCEPTION,
+	                ApplicationConstants.FAILURE);
+	    }
+
+	    logger.info("Completed and Returning response");
+
+	    return vendorList;
+	}
+	
+	@Override
+	public List<VendorRFQDto> getAllVendorsSearch(String searchType, String searchValue) {
+		 OrgType orgTypeObject = orgTypeDao.findByTypeName(ApplicationConstants.VENDOR);
+		
+		List<VendorRFQDto> vendorList =
+	            orgDao.searchVendorByType(orgTypeObject,searchType,searchValue);
+	    
+	    if (CollectionUtils.isEmpty(vendorList)) {
+
+	        logger.error("No Vendors available in the Database");
+
+	        throw new AppException(
+	                HttpStatus.NO_CONTENT.value(),
+	                ApplicationConstants.NO_DATA_FOUND,
+	                ApplicationConstants.BUSSINESS_EXCEPTION,
+	                ApplicationConstants.FAILURE);
+	    }
+
+	    logger.info("Completed and Returning response");
+
+	    return vendorList;
+	}
+	
+	
+
+//	@Override
+//	public List<VendorRFQDto> getAllVendorsByCategory(Organization organization) {
+//		logger.info("Entered To Get All Vendor");
+//		List<VendorRFQDto> responseList = new ArrayList<>();
+//		List<Object[]> vendorsList = orgDao.getAllVendorByCategory(organization.getVendorcategory());
+//		if (!CollectionUtils.isEmpty(vendorsList) && vendorsList != null) {
+//			vendorsList.stream().forEach(org -> {
+//				VendorRFQDto vendorRFQDto = new VendorRFQDto();
+//				vendorRFQDto.setId(String.valueOf(org[0]));
+//				vendorRFQDto.setCompanyName(String.valueOf(org[1]));
+//				vendorRFQDto.setVendorId(String.valueOf(org[2]));
+//				vendorRFQDto.setMobileNo(String.valueOf(org[3]));
+//				vendorRFQDto.setCity(String.valueOf(org[4]));
+//				vendorRFQDto.setEmail(String.valueOf(org[5]));
+//
+//				responseList.add(vendorRFQDto);
+//
+//			});
+//			logger.info("Completed and Returning response");
+//			return responseList;
+//		} else {
+//			logger.error("No Vendors available in the Database");
+//			throw new AppException(HttpStatus.NO_CONTENT.value(), ApplicationConstants.NO_DATA_FOUND,
+//					ApplicationConstants.BUSSINESS_EXCEPTION, ApplicationConstants.FAILURE);
+//		}
+//	}
+	
 	@Override
 	public List<VendorRFQDto> getAllVendorsByCategory(Organization organization) {
-		// TODO Auto-generated method stub
 		logger.info("Entered To Get All Vendor");
-		List<VendorRFQDto> responseList = new ArrayList<>();
-		List<Object[]> vendorsList = orgDao.getAllVendorByCategory(organization.getVendorcategory());
-		if (!CollectionUtils.isEmpty(vendorsList) && vendorsList != null) {
-			vendorsList.stream().forEach(org -> {
-				VendorRFQDto vendorRFQDto = new VendorRFQDto();
-				vendorRFQDto.setId(String.valueOf(org[0]));
-				vendorRFQDto.setCompanyName(String.valueOf(org[1]));
-				vendorRFQDto.setVendorId(String.valueOf(org[2]));
-				vendorRFQDto.setMobileNo(String.valueOf(org[3]));
-				vendorRFQDto.setCity(String.valueOf(org[4]));
-				vendorRFQDto.setEmail(String.valueOf(org[5]));
-
-				responseList.add(vendorRFQDto);
-
-			});
-			logger.info("Completed and Returning response");
-			return responseList;
-		} else {
+		List<VendorRFQDto> responseList = orgDao.getAllVendorByCategory(organization.getVendorcategory());
+		if (CollectionUtils.isEmpty(responseList)) {
 			logger.error("No Vendors available in the Database");
 			throw new AppException(HttpStatus.NO_CONTENT.value(), ApplicationConstants.NO_DATA_FOUND,
 					ApplicationConstants.BUSSINESS_EXCEPTION, ApplicationConstants.FAILURE);
-		}
+		} 
+		
+		logger.info("Completed and Returning response");
+		return responseList;
 	}
 
 	@Override
@@ -1568,7 +1848,6 @@ public class GMTServiceImpl implements GMTService {
 		try {
 			sendRfqToVendors(rfqVendors, savedRfq);
 		} catch (MessagingException e) {
-			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
 
@@ -1581,16 +1860,128 @@ public class GMTServiceImpl implements GMTService {
 
 	
 
+//	private boolean saveVendorsForForwardRfq(Rfq rfq, Rfq savedRfq) {
+//		logger.info("Entered to save Vendors For RFQ");
+//		List<RfqVendor> rfqVendors = new ArrayList<>();
+//		List<Organization> vendorList = rfq.getVendors();
+//		User userDetails =null;
+//		
+//		boolean status = false;
+//
+//		if (!CollectionUtils.isEmpty(vendorList)) {
+//			vendorList.forEach(vendor -> {
+//				Organization savedVendor;
+//				User savedUserDetails;
+//				if (vendor.getId() == null) {
+//					// Save the new organization
+//					OrgType orgTypeObject = orgTypeDao.findByTypeName(ApplicationConstants.VENDOR);
+//					MasterStatus vendorStatus = masterStatusDao.findByStatus(StatusConstants.VENDOR_ADDED);
+//					MasterStatus evalStatus = masterStatusDao.findByStatus(StatusConstants.EVALUATION_NOT_STARTED);
+//
+//					if (selfRegistrationService.checkOrgexist(vendor.getCompanyName())) {
+//						// Exception occurs when User is already associated to an Account/registered
+//						throw new AppException(HttpStatus.INTERNAL_SERVER_ERROR.value(),
+//								"Vendor Already Registered with name " + vendor.getCompanyName(),
+//								ApplicationConstants.BUSSINESS_EXCEPTION, ApplicationConstants.FAILURE);
+//					}
+//
+//					vendor.setOrgType(orgTypeObject);
+//					vendor.setVendorStatus(vendorStatus);
+//					vendor.setStatus(evalStatus);
+//					vendor.setSourceType(ApplicationConstants.TOOL);
+//					vendor.setVendorcategory(savedRfq.getCategory());
+//					savedVendor = orgDao.save(vendor);
+//				} else {
+//					// Use the existing organization
+//					logger.info("Saving the existing vendor with other email");
+//					savedVendor = vendor;
+//					if (vendor.getOtherEmails() != null) {
+//						orgDao.updateOtherEmail(vendor.getOtherEmails(), vendor.getId());
+//					}
+//				}
+//				
+//				// Create user for the organization
+//				User user = new User();
+//				user.setOrg(savedVendor);
+//				savedUserDetails = setUserDetails(vendor, user); // throws AppException if duplicate or failure
+//				
+//				// Build and save the RfqVendor object
+//				// Build the RfqVendor object
+//				savedVendor = orgDao.findById(savedVendor.getId()).get();
+//				RfqVendor rfqVendor = new RfqVendor();
+//				logger.info("setting vendor id to rfqvendor{}", savedVendor.getId());
+//				rfqVendor.setOrganization(savedVendor);
+//				rfqVendor.setRfq(savedRfq);
+//				rfqVendor.setRequestType(vendor.getRequestType());
+//
+//				// Collect RfqVendor object
+//				rfqVendors.add(rfqVendor);
+//				// ✅ STEP 2: Get status
+//				MasterStatus resultStatus = masterStatusDao.findByStatus(StatusConstants.RFQ_FORWARDED);
+//
+//				MasterStatus inviteStatus = masterStatusDao.findByStatus(StatusConstants.RFQ_INVITED);
+//
+//				Organization org = orgDao.findById(savedVendor.getId()).get();
+//				 //✅ STEP 3: Check if record exists
+//				GmtRfqVendors existing = gmtRfqVendorDao.findByVendorAndRfq(savedVendor,
+//						savedRfq);
+//				GmtRfqVendors gmtRfqVendors= new GmtRfqVendors();
+//				
+//
+//				// ✅ STEP 4: Insert or update
+//				if (existing != null) {
+//					logger.info("Updating status to Requested as record already exists");
+//					
+//				} else {
+//					logger.info("Saving status to requested for the first time");
+//					if(vendor.getRequestType().equalsIgnoreCase(ApplicationConstants.Invite))
+//					{
+//						gmtRfqVendors.setStatus(inviteStatus);
+//					}
+//					else {
+//						gmtRfqVendors.setStatus(resultStatus);
+//					}
+//					
+//					gmtRfqVendors.setRfq(savedRfq);
+//					gmtRfqVendors.setVendor(savedVendor);
+//					gmtRfqVendors.setRequestedDate(new Date());
+//					gmtRfqVendorDao.save(gmtRfqVendors);
+//				}
+////
+////				// ✅ STEP 5: Update RFQ count
+////				rfqDao.updateCount(savedRfq);
+////
+////				// ✅ STEP 6: Deduct one RFQ credit
+////				orgDao.updateRfqCreditsAndUsage(savedVendor.getId());
+//		});
+//		}
+//
+//		// here need to set rfqvendors object
+//		try {
+//			sendRfqToVendors(rfqVendors, savedRfq);
+//		} catch (MessagingException e) {
+//			e.printStackTrace();
+//		}
+//
+//		// sendRfqToVendors(rfq.getRfqVendors());
+//		logger.info("RFQ Created Successfully" + rfq.toString());
+//		status = true;
+//
+//		return status;
+//	}
+	
 	private boolean saveVendorsForForwardRfq(Rfq rfq, Rfq savedRfq) {
 		logger.info("Entered to save Vendors For RFQ");
 		List<RfqVendor> rfqVendors = new ArrayList<>();
 		List<Organization> vendorList = rfq.getVendors();
+		User userDetails =null;
+		
 		boolean status = false;
 
 		if (!CollectionUtils.isEmpty(vendorList)) {
 			vendorList.forEach(vendor -> {
 				Organization savedVendor;
-
+				User savedUserDetails;
 				if (vendor.getId() == null) {
 					// Save the new organization
 					OrgType orgTypeObject = orgTypeDao.findByTypeName(ApplicationConstants.VENDOR);
@@ -1607,6 +1998,7 @@ public class GMTServiceImpl implements GMTService {
 					vendor.setOrgType(orgTypeObject);
 					vendor.setVendorStatus(vendorStatus);
 					vendor.setStatus(evalStatus);
+					vendor.setSourceType(ApplicationConstants.TOOL);
 					vendor.setVendorcategory(savedRfq.getCategory());
 					savedVendor = orgDao.save(vendor);
 				} else {
@@ -1617,7 +2009,12 @@ public class GMTServiceImpl implements GMTService {
 						orgDao.updateOtherEmail(vendor.getOtherEmails(), vendor.getId());
 					}
 				}
-
+				
+				// Create user for the organization
+				User user = new User();
+				user.setOrg(savedVendor);
+				savedUserDetails = setUserDetails(vendor, user); // throws AppException if duplicate or failure
+				
 				// Build and save the RfqVendor object
 				// Build the RfqVendor object
 				savedVendor = orgDao.findById(savedVendor.getId()).get();
@@ -1660,7 +2057,7 @@ public class GMTServiceImpl implements GMTService {
 					gmtRfqVendors.setRequestedDate(new Date());
 					gmtRfqVendorDao.save(gmtRfqVendors);
 				}
-//
+
 //				// ✅ STEP 5: Update RFQ count
 //				rfqDao.updateCount(savedRfq);
 //
@@ -1673,7 +2070,6 @@ public class GMTServiceImpl implements GMTService {
 		try {
 			sendRfqToVendors(rfqVendors, savedRfq);
 		} catch (MessagingException e) {
-			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
 
@@ -1682,6 +2078,84 @@ public class GMTServiceImpl implements GMTService {
 		status = true;
 
 		return status;
+	}
+
+	public User setUserDetails(Organization organization, User user) throws AppException {
+		logger.info("Setting user details for email: {} and phone: {}", organization.getEmail(),
+				organization.getOrganizationPhonenumber());
+		User savedUser;
+
+		// Check for duplicate user
+//	    User existingUsers = userDao.findByUsernameAndPhoneAndActive(
+//	            organization.getEmail(),
+//	            organization.getOrganizationPhonenumber(),true
+//	    );
+//
+//	    if (existingUsers!=null) {
+//	        throw new AppException(HttpStatus.CONFLICT.value(), "User with the same email and phone number already exists", null, null,LocalDateTime.now());
+//	    }
+
+		// Fetch client status
+		MasterStatus status = masterStatusDao.findByStatus(StatusConstants.CLIENT_NEW);
+		if (status == null) {
+			throw new AppException(HttpStatus.INTERNAL_SERVER_ERROR.value(),
+					"Default client status not configured. Contact admin.", null, null, LocalDateTime.now());
+		}
+
+		// Fetch role
+		Role initiatorRole = roleDao.findByRoleNameAndActive(StatusConstants.ClientInitiator, true);
+		if (initiatorRole == null) {
+			throw new AppException(HttpStatus.INTERNAL_SERVER_ERROR.value(),
+					"Client initiator role not configured. Contact admin.", null, null, LocalDateTime.now());
+		}
+
+		// Populate user
+		user.setUsername(organization.getEmail());
+		user.setFullName(organization.getName());
+		user.setPhone(PhoneNumberUtils.normalize(organization.getOrganizationPhonenumber()));
+		user.setResetPassword(true);
+		user.setActive(true);
+		user.setSelfClient(true);
+		user.setClientStatus(status);
+		user.setRole(initiatorRole);
+		user.setUniqueId(generateUserId(organization.getOrganizationPhonenumber()));
+		user.setSourceType(organization.getSourceType());
+		user.setPassword(new String("Welcome@123"));
+		user.setApproved(true);
+		user.setVerificationStatus(StatusConstants.EMAIL_VERIFIED);
+
+		// Save user
+		try {
+			savedUser = userDao.save(user);
+			logger.info("User saved successfully with ID: {}", user.getId());
+		} catch (Exception e) {
+			logger.error("Failed to save user", e);
+			throw new AppException(HttpStatus.INTERNAL_SERVER_ERROR.value(), "Failed to save user. Please try again.",
+					null, null, LocalDateTime.now());
+		}
+		
+		return savedUser;
+	}
+
+	public String generateUserId(String mobileNumber) {
+		// Validate mobile number length
+		if (mobileNumber == null || mobileNumber.length() < 4) {
+			throw new IllegalArgumentException("Invalid mobile number");
+		}
+
+		// Get last 4 digits
+		String last4Digits = mobileNumber.substring(mobileNumber.length() - 4);
+
+		// Get current timestamp
+		String timestamp = String.valueOf(System.currentTimeMillis());
+
+		// Generate 3-digit random number
+		int randomSuffix = new Random().nextInt(900) + 100; // Range: 100–999
+
+		// Concatenate to form user ID
+		String userId = "USR" + timestamp + last4Digits + randomSuffix;
+
+		return userId;
 	}
 
 	public boolean sendRfqToVendors(List<RfqVendor> rfq, Rfq rfqData) throws MessagingException {
@@ -1753,18 +2227,18 @@ public class GMTServiceImpl implements GMTService {
 
 				try {
 					String requestType = vendor.getRequestType(); // assuming you have this field in RFQ
+					logger.info("Request Type : {}",requestType);
 
 					if ("Forward".equalsIgnoreCase(requestType)) {
 						MailUtility.emailNewRfqForNoPR(subjectPrefix,"NewRfq", javaMailSender, rfqData, host, vendor.getEmail(),
 								username, vendor.getOtherEmails(), phoneNumber, rfqDueDate, fullName, mailIdWrapper[0],
-								passwordWrapper[0], vendor.getId());
+								passwordWrapper[0], vendor.getId(),vendor.getOrganizationPhonenumber());
 					} else {
 						// Send the new “invite” email
 						MailUtility.emailInviteRfq(javaMailSender, rfqData, host, vendor.getEmail(), username,
-								vendor.getOtherEmails(), phoneNumber, fullName, mailIdWrapper[0], passwordWrapper[0]);
+								vendor.getOtherEmails(), phoneNumber, fullName, mailIdWrapper[0], passwordWrapper[0],vendor.getOrganizationPhonenumber());
 					}
 				} catch (MessagingException e) {
-					// TODO Auto-generated catch block
 					e.printStackTrace();
 				}
 			});
@@ -1797,7 +2271,6 @@ public class GMTServiceImpl implements GMTService {
 					ApplicationConstants.BUSSINESS_EXCEPTION, ApplicationConstants.FAILURE);
 
 		}
-		// TODO Auto-generated method stub
 
 	}
 
@@ -1839,7 +2312,6 @@ public class GMTServiceImpl implements GMTService {
 
 	@Override
 	public boolean editUser(User user) {
-		// TODO Auto-generated method stub
 		logger.info("Entered To Edit User");
 		if (user != null) {
 			// User with new email we are changing status to new if it is accepted/ignored
@@ -1863,7 +2335,6 @@ public class GMTServiceImpl implements GMTService {
 
 	@Override
 	public boolean acceptSelfClient(User user) throws UnsupportedEncodingException {
-		// TODO Auto-generated method stub
 		logger.info("Entered To Accept Self Client");
 		if (user != null) {
 			Optional<User> userData = userDao.findById(user.getId());
@@ -1892,7 +2363,6 @@ public class GMTServiceImpl implements GMTService {
 
 	@Override
 	public boolean ignoreClient(User user) {
-		// TODO Auto-generated method stub
 		logger.info("Entered To Ignore Self Client");
 		if (user != null) {
 			Optional<User> userData = userDao.findById(user.getId());
@@ -1911,7 +2381,6 @@ public class GMTServiceImpl implements GMTService {
 
 	@Override
 	public boolean disableUser(User user) {
-		// TODO Auto-generated method stub
 		logger.info("Entered To Disable User");
 
 		Optional<User> userfound = userDao.findById(user.getId());
@@ -1949,7 +2418,6 @@ public class GMTServiceImpl implements GMTService {
 
 	@Override
 	public boolean editAndResendRfq(Rfq updatedRfq) throws MessagingException {
-		// TODO Auto-generated method stub
 		logger.info("Request received for editing RFQ {}", updatedRfq.getRfqId());
 
 		try {
@@ -2083,12 +2551,14 @@ public class GMTServiceImpl implements GMTService {
 			}
 			for (GmtRfqSellerDto gmtVendor : vendors) {
 				String vendorId = gmtVendor.getVendorUuid();
+				Organization orgData = orgDao.findById(vendorId).get();
+				String vendorPhoneNumber = orgData.getOrganizationPhonenumber();
 				logger.info("Getting Users List");
 				List<String> usersList = userDao.findByOrg(vendorId);
 				if (!CollectionUtils.isEmpty(usersList)) {
 					MailUtility.emailNewRfqForNoPR(subjectPrefix,"NewRfq", javaMailSender, rfqData, host, usersList.get(0), username,
 							gmtVendor.getOtherEmails(), phoneNumber, rfqDueDate, fullName, mailIdWrapper[0],
-							passwordWrapper[0], vendorId);
+							passwordWrapper[0], vendorId,vendorPhoneNumber);
 				}
 			}
 			return true;
@@ -2225,7 +2695,6 @@ public class GMTServiceImpl implements GMTService {
 
 //	@Override
 //	public boolean sendEmail(EmailRequest emailRequest) {
-//		// TODO Auto-generated method stub
 //		 try {
 //	            SimpleMailMessage message = new SimpleMailMessage();
 //	            
@@ -2446,7 +2915,6 @@ public class GMTServiceImpl implements GMTService {
 
 	@Override
 	public List<SubscriptionPlan> getSubscriptionPlans() {
-		// TODO Auto-generated method stub
 		return subscriptionPlanDao.findAll();
 	}
 
@@ -2653,7 +3121,6 @@ public class GMTServiceImpl implements GMTService {
 
 	@Override
 	public int getSellerRfqCredits(Organization org) {
-		// TODO Auto-generated method stub
 		int credits = 0;
 		logger.info("entered to get Seller Rfq Credits");
 		if (org != null) {
@@ -2946,6 +3413,8 @@ public class GMTServiceImpl implements GMTService {
 			vendor.setProcucevStatus(pcRfqSent);
 			vendor.setVendorStatus(vendorRfqNew);
 			vendor.setVendorResponseDate(vendor.getVendorResponseDate());
+			
+			String vendorPhoneNumber = vendor.getPhone();
 
 			// Save vendor
 			rfqVendorDao.save(vendor);
@@ -2963,7 +3432,7 @@ public class GMTServiceImpl implements GMTService {
 					rfqDueDate, null, // full name
 					mailFom, // mailId
 					emailPassword, // password
-					vendor.getVendorId());
+					vendor.getVendorId(),vendorPhoneNumber);
 
 			return status; // ✅ return actual send result
 
@@ -3520,7 +3989,6 @@ public class GMTServiceImpl implements GMTService {
 
 	@Override
 	public boolean submitUpgradeVendor(Organization organization) {
-		// TODO Auto-generated method stub
 		logger.info("Entered To Upgrade Vendor Details");
 		SubscriptionPlan subsPaln = subscriptionPlanDao.findById("2001").get();
 		try {
@@ -3546,7 +4014,6 @@ public class GMTServiceImpl implements GMTService {
 
 			}
 		} catch (Exception e) {
-			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
 		return false;
@@ -3901,4 +4368,8 @@ public class GMTServiceImpl implements GMTService {
 	        logger.error("Failed to send report email: {}", e.getMessage());
 	    }
 	}
+
+	
+
+	
 }

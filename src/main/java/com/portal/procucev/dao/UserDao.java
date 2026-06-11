@@ -239,4 +239,25 @@ public interface UserDao extends JpaRepository<User, String> {
 				        @Param("startDate") Date startDate,
 				        @Param("endDate") Date endDate
 				);
+				
+				@Query("""
+						SELECT u
+						FROM User u
+						WHERE u.id IN :userIds
+						""")
+						List<User> findUsersByIds(@Param("userIds") List<String> userIds);
+				
+				// Search users by phone (contactNumber)
+				@Query("""
+				    SELECT u FROM User u
+				    WHERE LOWER(u.phone) LIKE LOWER(CONCAT('%', :searchValue, '%'))
+				    """)
+				List<User> findUsersByPhone(@Param("searchValue") String searchValue);
+				
+				// Search users by their org's company name
+				@Query("""
+				    SELECT u FROM User u
+				    WHERE LOWER(u.org.companyName) LIKE LOWER(CONCAT('%', :searchValue, '%'))
+				    """)
+				List<User> findUsersByOrgCompanyName(@Param("searchValue") String searchValue);
 }

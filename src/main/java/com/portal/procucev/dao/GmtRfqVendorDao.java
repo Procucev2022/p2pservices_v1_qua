@@ -113,5 +113,14 @@ public interface GmtRfqVendorDao extends JpaRepository<GmtRfqVendors, String> {
 		        @Param("startDate") Date startDate,
 		        @Param("endDate") Date endDate
 		);
+	
+	@Query("""
+			SELECT g.rfq.id, COUNT(g.id)
+			FROM GmtRfqVendors g
+			WHERE g.rfq.id IN :rfqIds
+			GROUP BY g.rfq.id
+			""")
+			List<Object[]> countVendorsByRfqIds(
+			        @Param("rfqIds") List<String> rfqIds);
 
 }
