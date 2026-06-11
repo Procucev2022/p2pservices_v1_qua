@@ -1,10 +1,12 @@
 
 package com.portal.procucev.controller;
 
+import java.io.UnsupportedEncodingException;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.io.UnsupportedEncodingException;
-import java.util.*;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -32,7 +34,6 @@ import com.portal.procucev.model.User;
 import com.portal.procucev.service.UserService;
 import com.portal.procucev.utils.ApplicationConstants;
 import com.portal.procucev.utils.StatusCodes;
-import com.portal.procucev.utils.StatusConstants;
 
 import jakarta.servlet.http.HttpServletRequest;
 
@@ -406,6 +407,7 @@ public class UserController {
 	 	                .body(response);
 	 	    }
 	    }
+	    
 	    
 	    
 

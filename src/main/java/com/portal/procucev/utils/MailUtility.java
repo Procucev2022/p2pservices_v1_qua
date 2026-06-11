@@ -703,7 +703,7 @@ public class MailUtility {
 
 	public  static boolean emailNewRfqForNoPR(String subjectPrefix, String string, JavaMailSender javaMailSender, Rfq rfqData, String host,
 			String mailId, String fromAddress, String ccAdd, String phonenumber, String rfqDueDate, String fullName,
-			String mailId2, String password, String vendorId) throws MessagingException {
+			String mailId2, String password, String vendorId,String vendorMobileNumber) throws MessagingException {
 		LOGGER.info("Entered To Send Email To Vendor Regarding RFQ");
 		try {
 			String subject =  subjectPrefix + " You have an Enquiry RFQ No " + rfqData.getRfqId() + " - " + vendorId;
@@ -728,6 +728,19 @@ public class MailUtility {
 				    + "Please check the details below and send your quotation by replying to this email. "
 				    + "Please do not change the subject line while replying.</b><br><br>\n\n"
 				);
+			
+			
+			email.append("Please login now to your QUA seller account at ");
+			email.append("<a href=\"https://qua.procucev.com/login\">https://qua.procucev.com/login</a> ");
+			email.append("to view full details and download the RFQ instantly. ");
+			email.append("This is a live enquiry, do not miss it.<br><br>");
+			
+			email.append("<b>Your login details:</b><br>");
+			email.append("Username: <b>" + mailId + "</b><br>");
+			email.append("Mobile: <b>" + vendorMobileNumber + "</b><br>");
+			email.append("Password: <b>" + "Welcome@123" + "</b><br>");
+			email.append("(Use this password to log in for the first time to create your new password.)<br><br>");	
+			
 			email.append("Rfq Due Date: " + rfqDueDate + "</b><br><br>\n\n");
 			email.append("<b>Project Description/Reference: " + rfqData.getProjectDesc() + "</b><br><br>\n\n");
 			email.append("<b>Please find the below RFQ details: </b><br><br>\n\n");
@@ -851,7 +864,7 @@ public class MailUtility {
 	}
 
 	public static boolean emailInviteRfq(JavaMailSender javaMailSender, Rfq rfqData, String host, String mailId,
-			String fromAddress, String ccAdd, String phonenumber, String fullName, String mailId2, String password)
+			String fromAddress, String ccAdd, String phonenumber, String fullName, String mailId2, String password,String vendorMobileNumber)
 			throws MessagingException {
 		LOGGER.info("Entered to send Invite RFQ Email to Vendor");
 		try {
@@ -874,7 +887,12 @@ public class MailUtility {
 			email.append("to view full details and download the RFQ instantly. ");
 			email.append("This is a live enquiry, do not miss it.<br><br>");
 			
-			email.append("<b>Enquiry Details:</b><br><br>"); 
+			email.append("<b>Your login details:</b><br>");
+			email.append("Username: <b>" + mailId + "</b><br>");
+			email.append("Mobile: <b>" + vendorMobileNumber + "</b><br>");
+			email.append("Password: <b>" + "Welcome@123" + "</b><br>");
+			email.append("(Use this password to log in for the first time to create your new password.)<br><br>");		
+		//	email.append("<b>Enquiry Details:</b><br><br>"); 
 // Build RFQ items table
 			email.append("<b>Enquiry Details:</b><br><br>");
 

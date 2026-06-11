@@ -158,14 +158,14 @@ public class SmsServiceImpl implements SmsService {
 	        logger.warn("No Mobile OTP found for key: {}", key);
 	        return false;
 	    }
-
+        
 	    OtpStore record = recordOpt.get();
 	    if (LocalDateTime.now().isAfter(record.getExpirationTime())) {
 	        logger.warn("Mobile OTP expired for key: {}", key);
 	        otpStoreDao.deleteByOtpKey(key);
 	        return false;
 	    }
-
+        
 	    boolean valid = record.getOtp().equals(org.getMobileOtp());
 	    logger.info(valid ? "Mobile OTP valid for key: {}" : "Invalid Mobile OTP for key: {}", key);
 

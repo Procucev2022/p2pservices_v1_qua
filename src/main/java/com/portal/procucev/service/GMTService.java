@@ -1,9 +1,11 @@
 package com.portal.procucev.service;
 
+
 import java.io.UnsupportedEncodingException;
 import java.util.List;
 import java.util.Map;
 
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
 
 import com.portal.procucev.Dto.ClientRFQDto;
@@ -13,6 +15,7 @@ import com.portal.procucev.Dto.GmtRfqSellerDto;
 import com.portal.procucev.Dto.RfqDTO;
 import com.portal.procucev.Dto.VendorInfoDto;
 import com.portal.procucev.Dto.VendorRFQDto;
+import com.portal.procucev.customexception.AppException;
 import com.portal.procucev.customexception.MessageResponse;
 import com.portal.procucev.customexception.RfqStatusResponse;
 import com.portal.procucev.model.CategoryDivision;
@@ -49,6 +52,8 @@ public interface GMTService {
 	List<GMTRfqVendorDto> getAllGMTRfq(Organization org);
 
 	List<RfqDTO> fetchAllClientGMTRfqsForCM();
+	List<RfqDTO> fetchAllClientGMTRfqsForCM(Pageable pageable);
+	List<RfqDTO> fetchAllClientGMTRfqsForCMSearch(String searchType, String searchValue);
 
 	boolean requestRfqByVendors(List<GmtRfqVendors> rfq);
 
@@ -83,8 +88,8 @@ public interface GMTService {
 	List<String> getAllCategory();
 
 	List<RfqDTO> getRFQsForNoPR();
-
 	List<VendorRFQDto> getAllVendors();
+	List<VendorRFQDto> getAllVendors(Pageable pageable);
 
 	List<VendorRFQDto> getAllVendorsByCategory(Organization organization);
 
@@ -157,5 +162,12 @@ public interface GMTService {
 	void markVendorCommentAsRead(Rfq rfq);
 
 	void dailyReportEmailForwarder();
+
+	List<VendorRFQDto> getAllVendorsSearch(String searchType, String searchValue);
+
+	
+
+	
+	
 
 }

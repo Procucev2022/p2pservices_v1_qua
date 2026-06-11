@@ -52,6 +52,26 @@ public class VendorRFQDto {
 		this.otherEmails = otherEmails;
 	}
 	
+	public VendorRFQDto() {
+		
+	}
+	
+	public VendorRFQDto(
+	        String id,
+	        String companyName,
+	        String vendorId,
+	        String mobileNo,
+	        String city,
+	        String email) {
+
+	    this.id = id;
+	    this.companyName = companyName;
+	    this.vendorId = vendorId;
+	    this.mobileNo = mobileNo;
+	    this.city = city;
+	    this.email = email;
+	}
+	
 	
 	
 }
