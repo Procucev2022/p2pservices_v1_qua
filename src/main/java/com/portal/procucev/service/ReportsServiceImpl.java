@@ -94,7 +94,7 @@ public class ReportsServiceImpl  implements ReportsService {
 	                    (String) row[4], // seller person
 	                    (Date) row[5]    // last login
 	            );
-
+                      
 	            map.put(orgId, dto);
 	        }
 

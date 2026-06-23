@@ -3,12 +3,14 @@ import java.io.UnsupportedEncodingException;
 import java.util.List;
 
 import com.portal.procucev.Dto.SimplePageResponse;
+import com.portal.procucev.Dto.UserActivityDto;
 import com.portal.procucev.Dto.VendorSummaryResponse;
 import com.portal.procucev.model.EmailUser;
 import com.portal.procucev.model.Organization;
 import com.portal.procucev.model.ResetPassword;
 import com.portal.procucev.model.Role;
 import com.portal.procucev.model.User;
+import com.portal.procucev.model.UserActivity;
 
 import jakarta.servlet.http.HttpServletRequest;
 
@@ -65,5 +67,7 @@ public interface UserService {
 	SimplePageResponse<VendorSummaryResponse> getVendorSummary(int page, int size, String search, String sourceType);
 
 	List<VendorSummaryResponse> getVendorSummarySearchResults(String searchType, String searchValue);
+	
+	UserActivity saveUserActivity(UserActivityDto userActivity,String userName,String mobile);
 
 }

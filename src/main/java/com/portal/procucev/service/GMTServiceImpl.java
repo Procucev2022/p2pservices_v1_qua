@@ -3,8 +3,8 @@ package com.portal.procucev.service;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
-import java.nio.charset.StandardCharsets;
 import java.text.SimpleDateFormat;
+import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -18,7 +18,6 @@ import java.util.Base64;
 import java.util.Calendar;
 import java.util.Collections;
 import java.util.Date;
-import java.time.Duration;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
@@ -54,7 +53,6 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.dao.DataAccessException;
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -76,6 +74,7 @@ import com.portal.procucev.Dto.GMTRfqVendorDto;
 import com.portal.procucev.Dto.GmtRfqSellerDto;
 import com.portal.procucev.Dto.RfqDTO;
 import com.portal.procucev.Dto.SellerSubscriptionReportDto;
+import com.portal.procucev.Dto.SimplePageResponse;
 import com.portal.procucev.Dto.VendorInfoDto;
 import com.portal.procucev.Dto.VendorRFQDto;
 import com.portal.procucev.customexception.AppException;
@@ -108,7 +107,6 @@ import com.portal.procucev.model.MasterStatus;
 import com.portal.procucev.model.OrgDivisionCategory;
 import com.portal.procucev.model.OrgType;
 import com.portal.procucev.model.Organization;
-import com.portal.procucev.model.OtpDetails;
 import com.portal.procucev.model.RFQDocument;
 import com.portal.procucev.model.Rfq;
 import com.portal.procucev.model.RfqItem;
@@ -121,7 +119,6 @@ import com.portal.procucev.utils.ApplicationConstants;
 import com.portal.procucev.utils.EmailValidatorUtil;
 import com.portal.procucev.utils.MailUtility;
 import com.portal.procucev.utils.PhoneNumberUtils;
-import com.portal.procucev.utils.ProcucevUtils;
 import com.portal.procucev.utils.StatusConstants;
 
 import jakarta.mail.Flags;
@@ -1307,7 +1304,7 @@ public class GMTServiceImpl implements GMTService {
 	
 
 	@Override
-	public List<RfqDTO> fetchAllClientGMTRfqsForCM(Pageable pageable) {
+	public SimplePageResponse<RfqDTO> fetchAllClientGMTRfqsForCM(Pageable pageable) {
 
 	    Page<Rfq> rfqPage =
 	            rfqDao.findAllClientRfqNoPr(pageable);
@@ -1369,7 +1366,10 @@ public class GMTServiceImpl implements GMTService {
 	            ))
 	            .toList();
 
-	    return dtoList;
+	    return new SimplePageResponse<>(
+	    		rfqPage.getTotalElements(),
+	            dtoList
+	    );
 	}
 	
 	@Override
@@ -1633,7 +1633,7 @@ public class GMTServiceImpl implements GMTService {
 	
 	
 	@Override
-	public List<VendorRFQDto> getAllVendors(Pageable pageable) {
+	public SimplePageResponse<VendorRFQDto> getAllVendors(Pageable pageable) {
 
 	    logger.info("Entered To Get All Vendor");
 	    
@@ -1658,8 +1658,12 @@ public class GMTServiceImpl implements GMTService {
 	    }
 
 	    logger.info("Completed and Returning response");
+	    
 
-	    return vendorList;
+	    return new SimplePageResponse<>(
+	    		responsePage.getTotalElements(),
+	    		vendorList
+	    );
 	}
 	
 	@Override
@@ -3454,7 +3458,7 @@ public class GMTServiceImpl implements GMTService {
 			logger.error("User or ID is null");
 			throw new AppException(HttpStatus.BAD_REQUEST.value(), "User ID must not be null",
 					ApplicationConstants.BUSSINESS_EXCEPTION, ApplicationConstants.FAILURE);
-		}
+		} 
 
 		Optional<User> userDataOpt = userDao.findById(user.getId());
 
