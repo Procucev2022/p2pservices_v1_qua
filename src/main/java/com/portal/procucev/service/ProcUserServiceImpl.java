@@ -1,8 +1,8 @@
 package com.portal.procucev.service;
 
 import java.io.UnsupportedEncodingException;
-import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Date;
@@ -12,18 +12,8 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Random;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.stream.Collectors;
-
-import jakarta.mail.internet.InternetAddress;
-import jakarta.servlet.http.HttpServletRequest;
-import jakarta.transaction.Transactional;
 
 import org.apache.commons.lang3.StringUtils;
-import org.apache.poi.ss.usermodel.Cell;
-import org.apache.poi.ss.usermodel.CellType;
-import org.apache.poi.ss.usermodel.Row;
-import org.apache.poi.ss.usermodel.Workbook;
-import org.apache.poi.ss.usermodel.WorkbookFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -36,9 +26,9 @@ import org.springframework.http.HttpStatus;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
-import org.springframework.web.multipart.MultipartFile;
 
 import com.portal.procucev.Dto.SimplePageResponse;
+import com.portal.procucev.Dto.UserActivityDto;
 import com.portal.procucev.Dto.VendorSummaryResponse;
 import com.portal.procucev.customexception.AppException;
 import com.portal.procucev.dao.EmailUserRepo;
@@ -47,6 +37,7 @@ import com.portal.procucev.dao.OrgTypeDao;
 import com.portal.procucev.dao.OtpStoreDao;
 import com.portal.procucev.dao.RfqDao;
 import com.portal.procucev.dao.RoleDao;
+import com.portal.procucev.dao.UserActivityDao;
 import com.portal.procucev.dao.UserDao;
 import com.portal.procucev.model.EmailUser;
 import com.portal.procucev.model.OrgBranches;
@@ -57,12 +48,18 @@ import com.portal.procucev.model.OtpDetails;
 import com.portal.procucev.model.OtpStore;
 import com.portal.procucev.model.Permission;
 import com.portal.procucev.model.ResetPassword;
+import com.portal.procucev.model.Rfq;
 import com.portal.procucev.model.Role;
 import com.portal.procucev.model.User;
+import com.portal.procucev.model.UserActivity;
 import com.portal.procucev.utils.ApplicationConstants;
 import com.portal.procucev.utils.MailUtility;
 import com.portal.procucev.utils.ProcucevUtils;
 import com.portal.procucev.utils.StatusConstants;
+
+import jakarta.mail.internet.InternetAddress;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.transaction.Transactional;
 
 @Service
 public class ProcUserServiceImpl implements UserService {
@@ -101,6 +98,9 @@ public class ProcUserServiceImpl implements UserService {
 
 	@Value("${host}")
 	String host;
+	
+	@Autowired
+	UserActivityDao userActivityDao;
 
 	private Map<String, OtpDetails> otpsMap = new ConcurrentHashMap<>();
 
@@ -1196,5 +1196,42 @@ public class ProcUserServiceImpl implements UserService {
 		
 		return response;
 	}
+
+	@Override
+	public UserActivity saveUserActivity(UserActivityDto userActivityDto,String userName,String mobile) {
+		log.info("Entering into saveUserActivity Servce Implementation...");
+		
+		User user = userDao.findByUsernameAndPhoneAndActive(userName, mobile,true);
+		Role role = roleDao.findById(user.getRole().getId()).get();
+		
+		log.info("Role is : {}",role.getRoleName());
+		log.info("OperationType : {}",userActivityDto.getOperationType());
+		log.info("Operation Module : {}",userActivityDto.getGmtOrBfs());
+			
+		UserActivity userActivity =  new UserActivity();
+		userActivity.setUserName(userName);
+		userActivity.setMobileNum(mobile);
+		userActivity.setLoginTime(userActivityDto.getLoginTime());
+		userActivity.setGmtBfs(userActivityDto.getGmtOrBfs());
+		userActivity.setOperationType(userActivityDto.getOperationType());
+		userActivity.setOperationSubType(userActivityDto.getOperationSubType());
+		
+		if(userActivityDto.getGmtOrBfs().equalsIgnoreCase("GMT")) {
+			Rfq rfq = rfqDao.findByRfqId(userActivityDto.getOperationSubType());
+			userActivity.setRfqCreatedTime( rfq.getCreatedTS().toInstant()
+			        .atZone(ZoneId.systemDefault())
+			        .toLocalDateTime());	
+		}	
+		userActivity.setRole(role.getRoleName());
+		userActivity.setRegisteredSource(user.getSourceType());
+		userActivityDao.save(userActivity);
+		
+		UserActivity savedUserActivity  = userActivityDao.save(userActivity);
+		log.info("End of saveUserActivity ServiceImplementation....");
+		return savedUserActivity;
+		
+	}
+	
+	
 
 }

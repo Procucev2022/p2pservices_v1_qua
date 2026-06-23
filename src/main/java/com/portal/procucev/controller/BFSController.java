@@ -79,6 +79,7 @@ public class BFSController {
 		List<BFSItems> itemsList = bfsService.getItemsByOrgAndUser(user);
 		return new ResponseEntity<>(itemsList, HttpStatus.OK);
 	}
+	
 
 	@PostMapping("/getAllBfsItems")
 	public ResponseEntity<?> getAllItems(@RequestBody User user) {
@@ -151,13 +152,13 @@ public class BFSController {
 		List<BfsDTO> usersList = bfsService.getRequestedItems();
 		return new ResponseEntity<>(usersList, HttpStatus.OK);
 	}
-
+    
 	@PostMapping("/geApprovedItemsByUser")
 	public ResponseEntity<?> geApprovedItems(@RequestBody User user) throws AppException {
 		List<BfsDTO> usersList = bfsService.getApprovedItems(user);
 		return new ResponseEntity<>(usersList, HttpStatus.OK);
 	}
-
+	
 	@PostMapping("/getBidsByBuyerAndItems")
 	public ResponseEntity<?> getBidsByBuyerAndItem(@RequestBody BFSUsers user) throws AppException {
 		List<BfsDTO> usersList = bfsService.getBidsByBuyer(user);

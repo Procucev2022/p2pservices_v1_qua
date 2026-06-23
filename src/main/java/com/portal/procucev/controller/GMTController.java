@@ -31,6 +31,7 @@ import com.portal.procucev.Dto.ForwardRfqVendorRequest;
 import com.portal.procucev.Dto.GMTRfqVendorDto;
 import com.portal.procucev.Dto.GmtRfqSellerDto;
 import com.portal.procucev.Dto.RfqDTO;
+import com.portal.procucev.Dto.SimplePageResponse;
 import com.portal.procucev.Dto.VendorInfoDto;
 import com.portal.procucev.Dto.VendorRFQDto;
 import com.portal.procucev.customexception.AppException;
@@ -242,6 +243,11 @@ public class GMTController {
 	public ResponseEntity<?> fetchAllClientGMTRfqsForCM(@RequestParam(required = false) Integer page,
 	        @RequestParam(required = false)Integer size) throws AppException {
 		 // If both params are absent → return all records unpaginated
+		
+		  Map<String, Object> response = new HashMap<>();
+		
+		try {
+	
 	    if (page == null && size == null) {
 	    	logger.info("With No Pagination..");
 	        List<RfqDTO> allRfqs = gmtService.fetchAllClientGMTRfqsForCM();
@@ -253,8 +259,37 @@ public class GMTController {
 	            page != null ? page : 0,
 	            size != null ? size : 50
 	    );
-	    List<RfqDTO> rfqPage = gmtService.fetchAllClientGMTRfqsForCM(pageable);
-	    return ResponseEntity.ok(rfqPage);
+	//    List<RfqDTO> rfqPage = gmtService.fetchAllClientGMTRfqsForCM(pageable);
+	    SimplePageResponse<RfqDTO> rfqPage = gmtService.fetchAllClientGMTRfqsForCM(pageable);
+	    if (rfqPage.getData() == null || rfqPage.getData().isEmpty()) {
+
+            response.put("statusCode", StatusCodes.OK_VENDOR_CODE);
+            response.put("status", "Success");
+            response.put("message", "No RFQ's found");
+            response.put("totalRecords", 0);
+            response.put("data", Collections.emptyList());
+
+            return ResponseEntity.ok(response);
+        }
+
+        // ✅ Success response
+        response.put("statusCode", StatusCodes.OK_VENDOR_CODE);
+        response.put("status", "Success");
+        response.put("totalRecords", rfqPage.getTotalRecords());
+        response.put("data", rfqPage.getData());
+
+        return ResponseEntity.ok(response);
+	    
+	    
+		}catch(Exception e) {
+			 response.put("statusCode", StatusCodes.SERVER_ERROR);
+		        response.put("status", "Failure");
+		        response.put("message", "Failed to fetch RFQ's for CM");
+		        response.put("error", e.getMessage());
+
+		        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+		                .body(response);
+		}
 	}
 	//For CLientRFQ's Search in CategoryManager Dashboard
 	@GetMapping("/fetchAllClientGMTRfqsForCMSearch")
@@ -345,6 +380,10 @@ public class GMTController {
 	public ResponseEntity<?> getAllVendors(@RequestParam(required = false) Integer page,
 	        @RequestParam(required = false) Integer size) {
 		
+		 Map<String, Object> response = new HashMap<>();
+		
+		try {
+		
 		 // If both params are absent → return all records unpaginated
 	    if (page == null && size == null) {
 	    	logger.info("With No Pagination..");
@@ -357,15 +396,76 @@ public class GMTController {
 	            page != null ? page : 0,
 	            size != null ? size : 50
 	    );
-	    List<VendorRFQDto> responsePage = gmtService.getAllVendors(pageable);
-		
-		return ResponseEntity.ok(responsePage);
+	    
+	  //  List<VendorRFQDto> responsePage = gmtService.getAllVendors(pageable);
+	    SimplePageResponse<VendorRFQDto> responsePage = gmtService.getAllVendors(pageable);
+	    
+	    if (responsePage.getData() == null || responsePage.getData().isEmpty()) {
+
+            response.put("statusCode", StatusCodes.OK_VENDOR_CODE);
+            response.put("status", "Success");
+            response.put("message", "No Vendors found");
+            response.put("totalRecords", 0);
+            response.put("data", Collections.emptyList());
+
+            return ResponseEntity.ok(response);
+        }
+
+        // ✅ Success response
+        response.put("statusCode", StatusCodes.OK_VENDOR_CODE);
+        response.put("status", "Success");
+        response.put("totalRecords", responsePage.getTotalRecords());
+        response.put("data", responsePage.getData());
+
+        return ResponseEntity.ok(response);
+	    
+	    
+		}catch(Exception e) {
+			 response.put("statusCode", StatusCodes.SERVER_ERROR);
+		        response.put("status", "Failure");
+		        response.put("message", "Failed to fetch Vendor data");
+		        response.put("error", e.getMessage());
+
+		        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+		                .body(response);
+		}
 	}
 	
 	@GetMapping("/getAllVendorsSearch")
 	public ResponseEntity<?> getAllVendorsSearch(@RequestParam String searchType,@RequestParam String searchValue) {
-		List<VendorRFQDto> responsePage = gmtService.getAllVendorsSearch(searchType,searchValue);
-		return ResponseEntity.ok(responsePage);
+		 Map<String, Object> response = new HashMap<>();
+		 try {
+		List<VendorRFQDto> responseList = gmtService.getAllVendorsSearch(searchType,searchValue);
+		 // ✅ Correct empty check
+	        if (responseList == null || responseList.isEmpty()) {
+
+	            response.put("statusCode", StatusCodes.OK_VENDOR_CODE);
+	            response.put("status", "Success");
+	            response.put("message", "No vendors found");
+	            response.put("totalRecords", 0);
+	            response.put("data", Collections.emptyList());
+
+	            return ResponseEntity.ok(response);
+	        }
+
+	        // ✅ Success response
+	        response.put("statusCode", StatusCodes.OK_VENDOR_CODE);
+	        response.put("status", "Success");
+	        response.put("totalRecords", responseList.size());
+	        response.put("data", responseList);
+
+	        return ResponseEntity.ok(response);
+
+	    } catch (Exception e) {
+
+	        response.put("statusCode", StatusCodes.SERVER_ERROR);
+	        response.put("status", "Failure");
+	        response.put("message", "Failed to fetch vendor summary");
+	        response.put("error", e.getMessage());
+
+	        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+	                .body(response);
+	    }
 	}
 
 	@PostMapping("/getAllVendorsByCategory")

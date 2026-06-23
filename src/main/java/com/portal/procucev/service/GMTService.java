@@ -13,6 +13,7 @@ import com.portal.procucev.Dto.ForwardRfqVendorRequest;
 import com.portal.procucev.Dto.GMTRfqVendorDto;
 import com.portal.procucev.Dto.GmtRfqSellerDto;
 import com.portal.procucev.Dto.RfqDTO;
+import com.portal.procucev.Dto.SimplePageResponse;
 import com.portal.procucev.Dto.VendorInfoDto;
 import com.portal.procucev.Dto.VendorRFQDto;
 import com.portal.procucev.customexception.AppException;
@@ -52,7 +53,8 @@ public interface GMTService {
 	List<GMTRfqVendorDto> getAllGMTRfq(Organization org);
 
 	List<RfqDTO> fetchAllClientGMTRfqsForCM();
-	List<RfqDTO> fetchAllClientGMTRfqsForCM(Pageable pageable);
+//	List<RfqDTO> fetchAllClientGMTRfqsForCM(Pageable pageable);
+	SimplePageResponse<RfqDTO> fetchAllClientGMTRfqsForCM(Pageable pageable);
 	List<RfqDTO> fetchAllClientGMTRfqsForCMSearch(String searchType, String searchValue);
 
 	boolean requestRfqByVendors(List<GmtRfqVendors> rfq);
@@ -89,8 +91,8 @@ public interface GMTService {
 
 	List<RfqDTO> getRFQsForNoPR();
 	List<VendorRFQDto> getAllVendors();
-	List<VendorRFQDto> getAllVendors(Pageable pageable);
-
+//	List<VendorRFQDto> getAllVendors(Pageable pageable);
+	SimplePageResponse<VendorRFQDto> getAllVendors(Pageable pageable);
 	List<VendorRFQDto> getAllVendorsByCategory(Organization organization);
 
 	boolean createRFQWithNoPr(Rfq rfq);
@@ -165,9 +167,5 @@ public interface GMTService {
 
 	List<VendorRFQDto> getAllVendorsSearch(String searchType, String searchValue);
 
-	
-
-	
-	
 
 }

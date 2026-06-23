@@ -2,6 +2,7 @@
 package com.portal.procucev.controller;
 
 import java.io.UnsupportedEncodingException;
+import java.net.http.HttpRequest;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -12,6 +13,10 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -23,7 +28,9 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.portal.procucev.Dto.SimplePageResponse;
+import com.portal.procucev.Dto.UserActivityDto;
 import com.portal.procucev.Dto.VendorSummaryResponse;
+import com.portal.procucev.config.JwtUtil;
 import com.portal.procucev.customexception.AppException;
 import com.portal.procucev.customexception.MessageResponse;
 import com.portal.procucev.dao.EmailUserRepo;
@@ -31,6 +38,7 @@ import com.portal.procucev.model.EmailUser;
 import com.portal.procucev.model.Organization;
 import com.portal.procucev.model.ResetPassword;
 import com.portal.procucev.model.User;
+import com.portal.procucev.model.UserActivity;
 import com.portal.procucev.service.UserService;
 import com.portal.procucev.utils.ApplicationConstants;
 import com.portal.procucev.utils.StatusCodes;
@@ -47,6 +55,9 @@ public class UserController {
 
 	@Autowired
 	EmailUserRepo emailUserRepo;
+
+	@Autowired
+    JwtUtil jwtUtil;
 
 	@RequestMapping(value = "/user", method = RequestMethod.GET)
 	public List<User> listUser() {
@@ -409,6 +420,34 @@ public class UserController {
 	    }
 	    
 	    
-	    
+	    @PostMapping("/userActivity")
+	    public ResponseEntity<?> saveUserActivities(@RequestBody UserActivityDto userActivity,HttpServletRequest request){
+	    	logger.info("Entering into saveUserActivity controller.....");
+	    	try {
+	    		
+	    		 String authHeader = request.getHeader("Authorization");
+	    		    String token = authHeader.substring(7);
 
-}
+	    		    String userName = jwtUtil.extractUsername(token);
+	    		    logger.info("Extracted UserName from Token : {}",userName);	    		    
+	    		    String mobileNum = jwtUtil.extractPhone(token);
+	    		    logger.info("Extracted MobNum from Token : {}",mobileNum);	   
+	
+
+	    		UserActivity savedDto = userServices.saveUserActivity(userActivity,userName,mobileNum);
+	    		logger.info("End of saveUserActivity controller.....");
+	    		return ResponseEntity.status(HttpStatus.CREATED).body(savedDto);
+	    		
+	    	}catch(Exception e){
+	    		logger.info(e.getMessage());	
+	    		 return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+	                     .body("Failed to create user activity: " + e.getMessage());
+	    		
+	    	}
+	    		
+	    	}
+	    	
+	    	
+	    }
+	    
+	    
