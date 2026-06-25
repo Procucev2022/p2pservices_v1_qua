@@ -45,7 +45,7 @@ public interface RfqDao extends JpaRepository<Rfq, String>{
 	      AND (
 	        (:searchType = 'rfqId'       AND LOWER(r.rfqId)       LIKE LOWER(CONCAT('%', :searchValue, '%')))
 	        OR
-	        (:searchType = 'description' AND LOWER(r.description) LIKE LOWER(CONCAT('%', :searchValue, '%')))
+	        (:searchType = 'description' AND LOWER(r.projectDesc) LIKE LOWER(CONCAT('%', :searchValue, '%')))
 	      )
 	    ORDER BY r.createdTS DESC
 	    """)
