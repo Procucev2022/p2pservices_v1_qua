@@ -259,18 +259,46 @@ public interface OrgDao  extends JpaRepository<Organization, String> {
 	    	);
 	   
 	    
+//	    @Query(value = """
+//	    	    SELECT o.*
+//	    	    FROM organization o
+//	    	    INNER JOIN org_types ot ON o.org_type_uuid = ot.uuid
+//	    	    WHERE ot.type_name = :orgTypeName
+//	    	      AND (
+//	    	            :searchValue IS NULL OR :searchValue = '' OR
+//	    	            (:searchType = 'companyName' AND LOWER(o.organization_name) LIKE LOWER(CONCAT('%', :searchValue, '%'))) OR
+//	    	            (:searchType = 'city' AND LOWER(o.city) LIKE LOWER(CONCAT('%', :searchValue, '%'))) OR
+//	    	            (:searchType = 'email' AND LOWER(o.email) LIKE LOWER(CONCAT('%', :searchValue, '%'))) OR
+//	    	            (:searchType = 'vendorcategory' AND LOWER(o.vendorcategory) LIKE LOWER(CONCAT('%', :searchValue, '%'))) OR
+//	    	            (:searchType = 'organizationPhonenumber' AND LOWER(o.organization_phonenumber) LIKE LOWER(CONCAT('%', :searchValue, '%')))
+//	    	          )
+//	    	    """, nativeQuery = true)
+//	    	List<Organization> findVendorsBySearchType(
+//	    	    @Param("orgTypeName") String orgTypeName,
+//	    	    @Param("searchType") String searchType,
+//	    	    @Param("searchValue") String searchValue
+//	    	);
+	    
 	    @Query(value = """
-	    	    SELECT o.*
+	    	    SELECT DISTINCT o.*
 	    	    FROM organization o
-	    	    INNER JOIN org_types ot ON o.org_type_uuid = ot.uuid
+	    	    INNER JOIN org_types ot
+	    	        ON o.org_type_uuid = ot.uuid
+	    	    LEFT JOIN org_division_category odc
+	    	        ON odc.organization_id = o.uuid
 	    	    WHERE ot.type_name = :orgTypeName
 	    	      AND (
 	    	            :searchValue IS NULL OR :searchValue = '' OR
-	    	            (:searchType = 'companyName' AND LOWER(o.organization_name) LIKE LOWER(CONCAT('%', :searchValue, '%'))) OR
-	    	            (:searchType = 'city' AND LOWER(o.city) LIKE LOWER(CONCAT('%', :searchValue, '%'))) OR
-	    	            (:searchType = 'email' AND LOWER(o.email) LIKE LOWER(CONCAT('%', :searchValue, '%'))) OR
-	    	            (:searchType = 'vendorcategory' AND LOWER(o.vendorcategory) LIKE LOWER(CONCAT('%', :searchValue, '%'))) OR
-	    	            (:searchType = 'organizationPhonenumber' AND LOWER(o.organization_phonenumber) LIKE LOWER(CONCAT('%', :searchValue, '%')))
+	    	            (:searchType = 'companyName'
+	    	                AND LOWER(o.organization_name) LIKE LOWER(CONCAT('%', :searchValue, '%'))) OR
+	    	            (:searchType = 'city'
+	    	                AND LOWER(o.city) LIKE LOWER(CONCAT('%', :searchValue, '%'))) OR
+	    	            (:searchType = 'email'
+	    	                AND LOWER(o.email) LIKE LOWER(CONCAT('%', :searchValue, '%'))) OR
+	    	            (:searchType = 'vendorcategory'
+	    	                AND LOWER(odc.category) LIKE LOWER(CONCAT('%', :searchValue, '%'))) OR
+	    	            (:searchType = 'organizationPhonenumber'
+	    	                AND LOWER(o.organization_phonenumber) LIKE LOWER(CONCAT('%', :searchValue, '%')))
 	    	          )
 	    	    """, nativeQuery = true)
 	    	List<Organization> findVendorsBySearchType(
