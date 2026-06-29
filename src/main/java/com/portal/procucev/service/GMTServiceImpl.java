@@ -2014,6 +2014,7 @@ public class GMTServiceImpl implements GMTService {
 					// Use the existing organization
 					logger.info("Saving the existing vendor with other email");
 					savedVendor = vendor;
+					savedVendor.setOrganizationPhonenumber(savedRfq.getOrg().getOrganizationPhonenumber());
 					if (vendor.getOtherEmails() != null) {
 						orgDao.updateOtherEmail(vendor.getOtherEmails(), vendor.getId());
 					}
@@ -2095,14 +2096,15 @@ public class GMTServiceImpl implements GMTService {
 		User savedUser;
 
 		// Check for duplicate user
-//	    User existingUsers = userDao.findByUsernameAndPhoneAndActive(
-//	            organization.getEmail(),
-//	            organization.getOrganizationPhonenumber(),true
-//	    );
-//
-//	    if (existingUsers!=null) {
-//	        throw new AppException(HttpStatus.CONFLICT.value(), "User with the same email and phone number already exists", null, null,LocalDateTime.now());
-//	    }
+	    User existingUsers = userDao.findByUsernameAndPhoneAndActive(
+	            organization.getEmail(),
+	            organization.getOrganizationPhonenumber(),true
+	    );
+
+	    if (existingUsers!=null) {
+	        throw new AppException(HttpStatus.CONFLICT.value(), "User with the same email and phone number already exists", null, null,LocalDateTime.now());
+	    }
+	   
 
 		// Fetch client status
 		MasterStatus status = masterStatusDao.findByStatus(StatusConstants.CLIENT_NEW);
@@ -2113,6 +2115,7 @@ public class GMTServiceImpl implements GMTService {
 
 		// Fetch role
 		Role initiatorRole = roleDao.findByRoleNameAndActive(StatusConstants.ClientInitiator, true);
+		logger.info("6");
 		if (initiatorRole == null) {
 			throw new AppException(HttpStatus.INTERNAL_SERVER_ERROR.value(),
 					"Client initiator role not configured. Contact admin.", null, null, LocalDateTime.now());
@@ -2132,6 +2135,7 @@ public class GMTServiceImpl implements GMTService {
 		user.setPassword(new String("Welcome@123"));
 		user.setApproved(true);
 		user.setVerificationStatus(StatusConstants.EMAIL_VERIFIED);
+		
 
 		// Save user
 		try {
@@ -2142,7 +2146,7 @@ public class GMTServiceImpl implements GMTService {
 			throw new AppException(HttpStatus.INTERNAL_SERVER_ERROR.value(), "Failed to save user. Please try again.",
 					null, null, LocalDateTime.now());
 		}
-		
+		logger.info("End of Save User Details Method..");
 		return savedUser;
 	}
 
