@@ -1101,7 +1101,12 @@ public class GMTServiceImpl implements GMTService {
 		//rfqDto.setNoOfVendors(rfqVendorDao.findByVendorsByRfq(rfq.getId()));
 		rfqDto.setNoOfVendors(gmtRfqVendorDao.findByVendorsByRfq(rfq.getId()));
 		rfqDto.setQuoteSubmittedDate(rfq.getQuoteSubmittedDate());
-		rfqDto.setClientStatusName(rfq.getClientStatus().getStatus());
+	//	rfqDto.setClientStatusName(rfq.getClientStatus().getStatus());
+		rfqDto.setClientStatusName(
+			    rfq.getClientStatus() != null
+			        ? rfq.getClientStatus().getStatus()
+			        : null
+			);
 		rfqDto.setNewCommentAvailableVendor(rfq.isNewCommentAvailableVendor());
 
 		String companyName = userDao.findByUser(rfq.getUser());
