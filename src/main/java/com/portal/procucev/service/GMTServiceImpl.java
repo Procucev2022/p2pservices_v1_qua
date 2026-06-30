@@ -2083,7 +2083,7 @@ public class GMTServiceImpl implements GMTService {
 		// Check for duplicate user
 	    User existingUsers = userDao.findByUsernameAndPhoneAndActive(
 	            organization.getEmail(),
-	            organization.getOrganizationPhonenumber(),true
+	            "+91"+organization.getOrganizationPhonenumber(),true
 	    );
 	    logger.info("User from DB : {}",existingUsers);
 
@@ -2232,7 +2232,7 @@ public class GMTServiceImpl implements GMTService {
 					logger.info("email : {}  phone : {}", vendor.getEmail(),vendor.getOrganizationPhonenumber());
 					User user = userDao.findByUsernameAndPhoneAndActive(
 				            vendor.getEmail(),
-				            vendor.getOrganizationPhonenumber(),true
+				            "+91"+vendor.getOrganizationPhonenumber(),true
 				    );
 					logger.info("User: {}",user);
 					
