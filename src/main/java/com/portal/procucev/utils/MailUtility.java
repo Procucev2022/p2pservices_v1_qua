@@ -862,6 +862,168 @@ public class MailUtility {
 			return false;
 		}
 	}
+	
+	public  static boolean emailNewRfqForNoPRForExistingUsers(String subjectPrefix, String string, JavaMailSender javaMailSender, Rfq rfqData, String host,
+			String mailId, String fromAddress, String ccAdd, String phonenumber, String rfqDueDate, String fullName,
+			String mailId2, String password, String vendorId,String vendorMobileNumber) throws MessagingException {
+		LOGGER.info("Entered To Send Email To Vendor Regarding RFQ");
+		try {
+			String subject =  subjectPrefix + " You have an Enquiry RFQ No " + rfqData.getRfqId() + " - " + vendorId;
+			String message;
+			String pincode = null;
+			int i = 1;
+			String address = null;
+			StringBuilder email = new StringBuilder();
+			if (!CollectionUtils.isEmpty(rfqData.getClientdeliverylocationrfq())) {
+				address = rfqData.getClientdeliverylocationrfq().get(0).getCity();
+				pincode = rfqData.getClientdeliverylocationrfq().get(0).getPincode();
+			}
+			email.append("<html>");
+			email.append("<head>");
+			email.append("<style>" + "table {" + "   border: 2px solid black;" + "   border-collapse: collapse;" + "}"
+					+ "th, td {" + "   border: 1px solid black;" + "   padding: 8px;" + "}" + "</style>");
+			email.append("</head>");
+			email.append("<body>\n\n");
+			email.append("Dear Partner,<br><br>\n\n");
+			email.append(
+				    "<b>We have received a new RFQ (Enquiry) through GMT. "
+				    + "Please check the details below and send your quotation by replying to this email. "
+				    + "Please do not change the subject line while replying.</b><br><br>\n\n"
+				);
+			
+			
+//			email.append("Please login now to your QUA seller account at ");
+//			email.append("<a href=\"https://qua.procucev.com/login\">https://qua.procucev.com/login</a> ");
+//			email.append("to view full details and download the RFQ instantly. ");
+//			email.append("This is a live enquiry, do not miss it.<br><br>");
+//			
+//			email.append("<b>Your login details:</b><br>");
+//			email.append("Username: <b>" + mailId + "</b><br>");
+//			email.append("Mobile: <b>" + vendorMobileNumber + "</b><br>");
+//			email.append("Password: <b>" + "Welcome@123" + "</b><br>");
+//			email.append("(Use this password to log in for the first time to create your new password.)<br><br>");	
+			
+			email.append("Rfq Due Date: " + rfqDueDate + "</b><br><br>\n\n");
+			email.append("<b>Project Description/Reference: " + rfqData.getProjectDesc() + "</b><br><br>\n\n");
+			email.append("<b>Please find the below RFQ details: </b><br><br>\n\n");
+			email.append("<table>");
+			email.append("<tr>");
+			email.append("<th>");
+			email.append("S.NO");
+			email.append("</th>");
+			email.append("<th>");
+			email.append("RFQID");
+			email.append("</th>");
+			email.append("<th>");
+			email.append("Item Description");
+			email.append("</th>");
+			email.append("<th>");
+			email.append("Specification");
+			email.append("</th>");
+			email.append("<th>");
+			email.append("UOM");
+			email.append("</th>");
+			email.append("<th>");
+			email.append("Quantity");
+			email.append("</th>");
+			email.append("<th>");
+			email.append("Remarks");
+			email.append("</th>");
+			email.append("</tr>");
+
+			// Iterate through each RfqItem in the list
+			for (RfqItem item : rfqData.getRfqItem()) {
+				email.append("<tr>");
+				email.append("<td style='border: 1px solid black;'>");
+				email.append(i++);
+				email.append("</td>");
+				email.append("<td style='border: 1px solid black;'> ");
+				email.append(rfqData.getRfqId());
+				email.append("</td>");
+				email.append("<td style='border: 1px solid black;'> ");
+				if (!CollectionUtils.isEmpty(rfqData.getRfqItem())) {
+					email.append(item.getDescription());
+				}
+				email.append("</td>");
+
+				// Include additional fields from RfqItem
+				email.append("<td style='border: 1px solid black;'>");
+				email.append(item.getBrand());
+				email.append("</td>");
+				email.append("<td style='border: 1px solid black;'>");
+				email.append(item.getUnitofMeasures());
+				email.append("</td>");
+				email.append("<td style='border: 1px solid black;'>");
+				email.append(item.getQuantity());
+				email.append("</td>");
+				email.append("<td style='border: 1px solid black;'>");
+				email.append(item.getRemarks());
+				email.append("</td>");
+				email.append("</tr>");
+			}
+			email.append("</table>"); // Close the table
+			email.append("<br><br>");
+			email.append("<br><br>");
+			// Assuming email is a StringBuilder or similar
+			email.append("Delivery Address: " + address + "<br>");
+			email.append("Pincode : " + pincode + "<br>");
+			email.append("<b>Delivery Date:" + rfqData.getDeliveryDate() + "</b><br><br>\n\n");
+			email.append("Please submit your offer on time to increase your chances of getting the order and connecting directly with the B2B client.<br><br>");
+
+			email.append("To receive more RFQs, please update your relevant product categories in the QUA portal. "
+			        + "Correct categories help you get more business opportunities.<br><br>");
+
+			email.append("You can also check RFQs regularly on "
+			        + "<a href=\"https://www.procucev.com\">www.procucev.com</a> "
+			        + "- Request New RFQ, Check Status and more…<br><br>");
+
+			email.append("<b>Thanks,</b><br>");
+			email.append(fullName);
+			email.append("<br><br>");
+			email.append("Team GMT<br>");
+			email.append("Procucev");
+//			if (phonenumber != null) {
+//				email.append("T: +91" + phonenumber);
+//			}
+//			email.append("<br>");
+//			email.append("A: "
+//					+ "302,1st Floor,Sharda,<br>Above Axis Bank,<br>ACES Layout,Kundalahalli,<br>Bengaluru,Karnataka");
+			email.append("<br><br>");
+
+			List<RFQDocument> documentList = rfqData.getRfqDocument();
+			MimeMultipart multipart = new MimeMultipart();
+
+			// Add the text content of the email to a MimeBodyPart
+			MimeBodyPart messageBodyPart = new MimeBodyPart();
+			messageBodyPart.setContent(email.toString(), "text/html");
+			multipart.addBodyPart(messageBodyPart);
+
+			// Add attachments to the MimeMultipart
+			if (!CollectionUtils.isEmpty(rfqData.getRfqDocument())) {
+				email.append("<b>List of Documents:</b><br>");
+				for (RFQDocument document : rfqData.getRfqDocument()) {
+					byte[] file = document.getFile();
+					ByteArrayDataSource dataSource = new ByteArrayDataSource(file, "application/octet-stream");
+					MimeBodyPart attachmentPart = new MimeBodyPart();
+					attachmentPart.setDataHandler(new DataHandler(dataSource));
+					attachmentPart.setFileName(document.getFileName()); // Set the actual file name here
+					multipart.addBodyPart(attachmentPart);
+				}
+			}
+
+			JavaMailSender javaMailSender2 = getJavaMailSender(mailId2, password);
+			// Custom from address
+			LOGGER.info("Going to emailNotifierGenericNoPRBySenderList() to send email ");
+			emailNotifierGenericNoPRBySenderList(subject, mailId, javaMailSender2, fromAddress, ccAdd, multipart,
+					mailId2);
+
+			return true;
+		} catch (MessagingException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+			return false;
+		}
+	}
 
 	public static boolean emailInviteRfq(JavaMailSender javaMailSender, Rfq rfqData, String host, String mailId,
 			String fromAddress, String ccAdd, String phonenumber, String fullName, String mailId2, String password,String vendorMobileNumber)
@@ -892,6 +1054,111 @@ public class MailUtility {
 			email.append("Mobile: <b>" + vendorMobileNumber + "</b><br>");
 			email.append("Password: <b>" + "Welcome@123" + "</b><br>");
 			email.append("(Use this password to log in for the first time to create your new password.)<br><br>");		
+		//	email.append("<b>Enquiry Details:</b><br><br>"); 
+// Build RFQ items table
+			email.append("<b>Enquiry Details:</b><br><br>");
+
+			// Simplified table with only Sl No, Item Description, Pin code
+			email.append("<table style='border:1px solid black;border-collapse:collapse;'>");
+			email.append(
+			        "<tr>"
+			        + "<th style='border:1px solid black;'>Sl No</th>"
+			        + "<th style='border:1px solid black;'>Item Description</th>"
+			        + "<th style='border:1px solid black;'>Pin code</th>"
+			        + "</tr>");
+
+			int i = 1;
+			String pincode = "";
+
+			if (!CollectionUtils.isEmpty(rfqData.getClientdeliverylocationrfq())) {
+			    pincode = rfqData.getClientdeliverylocationrfq().get(0).getPincode();
+			}
+
+			if (!CollectionUtils.isEmpty(rfqData.getRfqItem())) {
+			    for (RfqItem item : rfqData.getRfqItem()) {
+
+			        email.append("<tr>");
+			        email.append("<td style='border:1px solid black;'>")
+			                .append(i++)
+			                .append("</td>");
+
+			        email.append("<td style='border:1px solid black;'>")
+			                .append(item.getDescription() != null ? item.getDescription() : "")
+			                .append("</td>");
+
+			        email.append("<td style='border:1px solid black;'>")
+			                .append(pincode != null ? pincode : "")
+			                .append("</td>");
+
+			        email.append("</tr>");
+			    }
+			}
+
+			email.append("</table><br><br>");
+
+			email.append("You can also get real-time enquiry alerts on WhatsApp. ");
+			email.append("Just say Hi to <b>7090170801</b> now to receive new enquiries matching your categories as soon as they come in.<br><br>");
+
+			email.append("Please submit your offer on time to increase your chances of getting the order and connecting directly with the B2B client.<br><br>");
+
+			email.append("To receive more RFQs, please update your relevant product categories in the QUA portal. ");
+			email.append("Correct categories help you get more business opportunities.<br><br>");
+
+			email.append("You can also check RFQs regularly on ");
+			email.append("<a href=\"https://www.procucev.com\">www.procucev.com</a> - Request New RFQ, Check Status and more…<br><br>");
+
+			email.append("<i>This is system generated RFQ invitation and don’t reply to this email.</i><br><br>");
+
+			email.append("<b>Best Regards,</b><br>");
+			email.append("<b>Team Procucev</b>");
+
+			email.append("</body></html>");
+			MimeBodyPart messageBodyPart = new MimeBodyPart();
+			messageBodyPart.setContent(email.toString(), "text/html");
+
+			MimeMultipart multipart = new MimeMultipart();
+			multipart.addBodyPart(messageBodyPart);
+
+			JavaMailSender javaMailSender2 = getJavaMailSender(mailId2, password);
+			emailNotifierGenericNoPRBySenderList(subject, mailId, javaMailSender2, fromAddress, ccAdd, multipart,
+					mailId2);
+
+			return true;
+		} catch (MessagingException e) {
+			e.printStackTrace();
+			return false;
+		}
+	}
+	
+	public static boolean emailInviteRfqForExistingUsers(JavaMailSender javaMailSender, Rfq rfqData, String host, String mailId,
+			String fromAddress, String ccAdd, String phonenumber, String fullName, String mailId2, String password,String vendorMobileNumber)
+			throws MessagingException {
+		LOGGER.info("Entered to send Invite RFQ Email to Vendor");
+		try {
+			String subject = "You have an enquiry- Please login to your QUA seller account!!";
+			StringBuilder email = new StringBuilder();
+
+			email.append("<html><body>");
+
+			email.append("Dear Partner,<br><br>");
+
+			email.append("Greetings from <b>Procucev!</b><br><br>");
+
+			email.append("QUA by <b>Procucev</b> is a trusted AI B2B marketplace connecting genuine buyers and quality sellers across India.<br><br>");
+
+			email.append("We have a new enquiry from a corporate buyer that matches your category. ");
+			email.append("This is a verified business opportunity, please check the details below.<br><br>");
+
+//			email.append("Please login now to your QUA seller account at ");
+//			email.append("<a href=\"https://qua.procucev.com/login\">https://qua.procucev.com/login</a> ");
+//			email.append("to view full details and download the RFQ instantly. ");
+//			email.append("This is a live enquiry, do not miss it.<br><br>");
+//			
+//			email.append("<b>Your login details:</b><br>");
+//			email.append("Username: <b>" + mailId + "</b><br>");
+//			email.append("Mobile: <b>" + vendorMobileNumber + "</b><br>");
+//			email.append("Password: <b>" + "Welcome@123" + "</b><br>");
+//			email.append("(Use this password to log in for the first time to create your new password.)<br><br>");		
 		//	email.append("<b>Enquiry Details:</b><br><br>"); 
 // Build RFQ items table
 			email.append("<b>Enquiry Details:</b><br><br>");
@@ -1014,7 +1281,7 @@ public class MailUtility {
 		props.put("mail.transport.protocol", "smtp");
 		props.put("mail.smtp.auth", "true");
 		props.put("mail.smtp.starttls.enable", "true");
-		props.put("mail.debug", "true");
+		props.put("mail.debug", "false");
 
 		return mailSender;
 	}
