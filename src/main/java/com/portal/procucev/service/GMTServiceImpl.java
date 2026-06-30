@@ -2078,12 +2078,19 @@ public class GMTServiceImpl implements GMTService {
 	public User setUserDetails(Organization organization, User user) throws AppException {
 		logger.info("Setting user details for email: {} and phone: {}", organization.getEmail(),
 				organization.getOrganizationPhonenumber());
+		
+		String mobile ="";
+		if(!organization.getOrganizationPhonenumber().startsWith("+91")) {
+			mobile= "+91"+organization.getOrganizationPhonenumber();
+		}else {
+			mobile=organization.getOrganizationPhonenumber();
+		}
 		User savedUser;
 
 		// Check for duplicate user
 	    User existingUsers = userDao.findByUsernameAndPhoneAndActive(
-	            organization.getEmail(),
-	            "+91"+organization.getOrganizationPhonenumber(),true
+	            organization.getEmail(),mobile
+	           ,true
 	    );
 	    logger.info("User from DB : {}",existingUsers);
 
@@ -2228,11 +2235,18 @@ public class GMTServiceImpl implements GMTService {
 				boolean isExistingUser=true;
 
 				try {
+					
+					String mobile ="";
+					if(!vendor.getOrganizationPhonenumber().startsWith("+91")) {
+						mobile= "+91"+vendor.getOrganizationPhonenumber();
+					}else {
+						mobile=vendor.getOrganizationPhonenumber();
+					}
 					logger.info("Inside RFQ Forwarding mail Block...");
 					logger.info("email : {}  phone : {}", vendor.getEmail(),vendor.getOrganizationPhonenumber());
 					User user = userDao.findByUsernameAndPhoneAndActive(
 				            vendor.getEmail(),
-				            "+91"+vendor.getOrganizationPhonenumber(),true
+				            mobile,true
 				    );
 					logger.info("User: {}",user);
 					
