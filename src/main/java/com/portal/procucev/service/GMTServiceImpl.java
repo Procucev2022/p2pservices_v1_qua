@@ -2102,14 +2102,14 @@ public class GMTServiceImpl implements GMTService {
 	   
 
 		// Fetch client status
-		MasterStatus status = masterStatusDao.findByStatus(StatusConstants.CLIENT_NEW);
+		MasterStatus status = masterStatusDao.findByStatus(StatusConstants.SELF_REGISTER_VC_ACCEPTED);
 		if (status == null) {
 			throw new AppException(HttpStatus.INTERNAL_SERVER_ERROR.value(),
 					"Default client status not configured. Contact admin.", null, null, LocalDateTime.now());
 		}
 
 		// Fetch role
-		Role initiatorRole = roleDao.findByRoleNameAndActive(StatusConstants.ClientInitiator, true);
+		Role initiatorRole = roleDao.findByRoleNameAndActive(StatusConstants.VENDOR, true);
 		if (initiatorRole == null) {
 			throw new AppException(HttpStatus.INTERNAL_SERVER_ERROR.value(),
 					"Client initiator role not configured. Contact admin.", null, null, LocalDateTime.now());
