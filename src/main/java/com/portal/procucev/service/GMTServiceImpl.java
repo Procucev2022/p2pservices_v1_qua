@@ -1983,97 +1983,82 @@ public class GMTServiceImpl implements GMTService {
 		logger.info("Entered to save Vendors For RFQ");
 		List<RfqVendor> rfqVendors = new ArrayList<>();
 		List<Organization> vendorList = rfq.getVendors();
-		User userDetails =null;
 		
 		boolean status = false;
 
 		if (!CollectionUtils.isEmpty(vendorList)) {
-			vendorList.forEach(vendor -> {
-				Organization savedVendor;
-				User savedUserDetails;
-				if (vendor.getId() == null) {
-					// Save the new organization
-					OrgType orgTypeObject = orgTypeDao.findByTypeName(ApplicationConstants.VENDOR);
-					MasterStatus vendorStatus = masterStatusDao.findByStatus(StatusConstants.VENDOR_ADDED);
-					MasterStatus evalStatus = masterStatusDao.findByStatus(StatusConstants.EVALUATION_NOT_STARTED);
+			for (Organization vendor : vendorList) {
+			    Organization savedVendor;
+			    User savedUserDetails;
 
-					if (selfRegistrationService.checkOrgexist(vendor.getCompanyName())) {
-						// Exception occurs when User is already associated to an Account/registered
-						throw new AppException(HttpStatus.INTERNAL_SERVER_ERROR.value(),
-								"Vendor Already Registered with name " + vendor.getCompanyName(),
-								ApplicationConstants.BUSSINESS_EXCEPTION, ApplicationConstants.FAILURE);
-					}
+			    if (vendor.getId() == null) {
+			        // Save the new organization
+			        OrgType orgTypeObject = orgTypeDao.findByTypeName(ApplicationConstants.VENDOR);
+			        MasterStatus vendorStatus = masterStatusDao.findByStatus(StatusConstants.VENDOR_ADDED);
+			        MasterStatus evalStatus = masterStatusDao.findByStatus(StatusConstants.EVALUATION_NOT_STARTED);
 
-					vendor.setOrgType(orgTypeObject);
-					vendor.setVendorStatus(vendorStatus);
-					vendor.setStatus(evalStatus);
-					vendor.setSourceType(ApplicationConstants.TOOL);
-					vendor.setVendorcategory(savedRfq.getCategory());
-					savedVendor = orgDao.save(vendor);
-				} else {
-					// Use the existing organization
-					logger.info("Saving the existing vendor with other email");
-					savedVendor = vendor;
-					savedVendor.setOrganizationPhonenumber(savedRfq.getOrg().getOrganizationPhonenumber());
-					if (vendor.getOtherEmails() != null) {
-						orgDao.updateOtherEmail(vendor.getOtherEmails(), vendor.getId());
-					}
-				}
-				
-				// Create user for the organization
-				User user = new User();
-				user.setOrg(savedVendor);
-				savedUserDetails = setUserDetails(vendor, user); // throws AppException if duplicate or failure
-				
-				// Build and save the RfqVendor object
-				// Build the RfqVendor object
-				savedVendor = orgDao.findById(savedVendor.getId()).get();
-				RfqVendor rfqVendor = new RfqVendor();
-				logger.info("setting vendor id to rfqvendor{}", savedVendor.getId());
-				rfqVendor.setOrganization(savedVendor);
-				rfqVendor.setRfq(savedRfq);
-				rfqVendor.setRequestType(vendor.getRequestType());
+			        if (selfRegistrationService.checkOrgexist(vendor.getCompanyName())) {
+			            throw new AppException(
+			                    HttpStatus.INTERNAL_SERVER_ERROR.value(),
+			                    "Vendor Already Registered with name " + vendor.getCompanyName(),
+			                    ApplicationConstants.BUSSINESS_EXCEPTION,
+			                    ApplicationConstants.FAILURE);
+			        }
 
-				// Collect RfqVendor object
-				rfqVendors.add(rfqVendor);
-				// ✅ STEP 2: Get status
-				MasterStatus resultStatus = masterStatusDao.findByStatus(StatusConstants.RFQ_FORWARDED);
+			        vendor.setOrgType(orgTypeObject);
+			        vendor.setVendorStatus(vendorStatus);
+			        vendor.setStatus(evalStatus);
+			        vendor.setSourceType(ApplicationConstants.TOOL);
+			        vendor.setVendorcategory(savedRfq.getCategory());
 
-				MasterStatus inviteStatus = masterStatusDao.findByStatus(StatusConstants.RFQ_INVITED);
+			        savedVendor = orgDao.save(vendor);
 
-				Organization org = orgDao.findById(savedVendor.getId()).get();
-				 //✅ STEP 3: Check if record exists
-				GmtRfqVendors existing = gmtRfqVendorDao.findByVendorAndRfq(savedVendor,
-						savedRfq);
-				GmtRfqVendors gmtRfqVendors= new GmtRfqVendors();
-				
+			    } else {
+			        logger.info("Saving the existing vendor with other email");
 
-				// ✅ STEP 4: Insert or update
-				if (existing != null) {
-					logger.info("Updating status to Requested as record already exists");
-					
-				} else {
-					logger.info("Saving status to requested for the first time");
-					if(vendor.getRequestType().equalsIgnoreCase(ApplicationConstants.Invite))
-					{
-						gmtRfqVendors.setStatus(inviteStatus);
-					}
-					else {
-						gmtRfqVendors.setStatus(resultStatus);
-					}
-					
-					gmtRfqVendors.setRfq(savedRfq);
-					gmtRfqVendors.setVendor(savedVendor);
-					gmtRfqVendors.setRequestedDate(new Date());
-					gmtRfqVendorDao.save(gmtRfqVendors);
-				}
+			        savedVendor = vendor;
+			        savedVendor.setOrganizationPhonenumber(savedRfq.getOrg().getOrganizationPhonenumber());
 
-//				// ✅ STEP 5: Update RFQ count
-//				rfqDao.updateCount(savedRfq);
-//
-//				// ✅ STEP 6: Deduct one RFQ credit
-//				orgDao.updateRfqCreditsAndUsage(savedVendor.getId());
-		});
+			        if (vendor.getOtherEmails() != null) {
+			            orgDao.updateOtherEmail(vendor.getOtherEmails(), vendor.getId());
+			        }
+			    }
+
+			    User user = new User();
+			    user.setOrg(savedVendor);
+			    savedUserDetails = setUserDetails(vendor, user);
+
+			    savedVendor = orgDao.findById(savedVendor.getId()).get();
+
+			    RfqVendor rfqVendor = new RfqVendor();
+			    rfqVendor.setOrganization(savedVendor);
+			    rfqVendor.setRfq(savedRfq);
+			    rfqVendor.setRequestType(vendor.getRequestType());
+
+			    rfqVendors.add(rfqVendor);
+
+			    MasterStatus resultStatus = masterStatusDao.findByStatus(StatusConstants.RFQ_FORWARDED);
+			    MasterStatus inviteStatus = masterStatusDao.findByStatus(StatusConstants.RFQ_INVITED);
+
+			    GmtRfqVendors existing = gmtRfqVendorDao.findByVendorAndRfq(savedVendor, savedRfq);
+			    GmtRfqVendors gmtRfqVendors = new GmtRfqVendors();
+
+			    if (existing == null) {
+			        if (vendor.getRequestType().equalsIgnoreCase(ApplicationConstants.Invite)) {
+			            gmtRfqVendors.setStatus(inviteStatus);
+			        } else {
+			            gmtRfqVendors.setStatus(resultStatus);
+			        }
+
+			        gmtRfqVendors.setRfq(savedRfq);
+			        gmtRfqVendors.setVendor(savedVendor);
+			        gmtRfqVendors.setRequestedDate(new Date());
+
+			        gmtRfqVendorDao.save(gmtRfqVendors);
+			    } else {
+			        logger.info("Updating status to Requested as record already exists");
+			    }
+			}
 		}
 
 		// here need to set rfqvendors object
@@ -2098,11 +2083,13 @@ public class GMTServiceImpl implements GMTService {
 		// Check for duplicate user
 	    User existingUsers = userDao.findByUsernameAndPhoneAndActive(
 	            organization.getEmail(),
-	            organization.getOrganizationPhonenumber(),true
+	            "+91"+organization.getOrganizationPhonenumber(),true
 	    );
 
 	    if (existingUsers!=null) {
-	        throw new AppException(HttpStatus.CONFLICT.value(), "User with the same email and phone number already exists", null, null,LocalDateTime.now());
+	    	logger.info("Existing User..");
+	    	return existingUsers;
+	      
 	    }
 	   
 
@@ -2115,7 +2102,6 @@ public class GMTServiceImpl implements GMTService {
 
 		// Fetch role
 		Role initiatorRole = roleDao.findByRoleNameAndActive(StatusConstants.ClientInitiator, true);
-		logger.info("6");
 		if (initiatorRole == null) {
 			throw new AppException(HttpStatus.INTERNAL_SERVER_ERROR.value(),
 					"Client initiator role not configured. Contact admin.", null, null, LocalDateTime.now());
@@ -2236,28 +2222,104 @@ public class GMTServiceImpl implements GMTService {
 			}
 
 			logger.info("Size of vendors List-->" + vendors.size());
-			vendors.forEach(vendor -> {
+			for(Organization vendor : vendors) {
+				
+				boolean isExistingUser=true;
 
 				try {
+					logger.info("Inside RFQ Forwarding mail Block...");
+					logger.info("email : {}  phone : {}", vendor.getEmail(),vendor.getOrganizationPhonenumber());
+					User user = userDao.findByUsernameAndPhoneAndActive(
+				            vendor.getEmail(),
+				            "+91"+vendor.getOrganizationPhonenumber(),true
+				    );
+					logger.info("User: {}",user);
+					
+					Date createdTS = user.getCreatedTS();
+					
+
+					LocalDate createdDate = createdTS.toInstant()
+					        .atZone(ZoneId.systemDefault())
+					        .toLocalDate();
+					logger.info("CreatedTs : {} ",createdDate);
+
+					LocalDate today = LocalDate.now();
+					logger.info("Todays Date : {} ",today);
+
+					if (createdDate.equals(today)) {
+						 logger.info("created today");
+						 isExistingUser=false;
+						
+					} else {
+						isExistingUser=true;
+					}
+					
 					String requestType = vendor.getRequestType(); // assuming you have this field in RFQ
 					logger.info("Request Type : {}",requestType);
 
 					if ("Forward".equalsIgnoreCase(requestType)) {
-						MailUtility.emailNewRfqForNoPR(subjectPrefix,"NewRfq", javaMailSender, rfqData, host, vendor.getEmail(),
-								username, vendor.getOtherEmails(), phoneNumber, rfqDueDate, fullName, mailIdWrapper[0],
-								passwordWrapper[0], vendor.getId(),vendor.getOrganizationPhonenumber());
+						if(isExistingUser==false) {
+							long count = rfqVendorDao.countCredentialEmailsSent(vendor.getId());
+							RfqVendor rfqVendor = rfqVendorDao.findLatestByOrganizationUuid(vendor.getId());
+							logger.info("id : {}",rfqVendor.getId());
+							logger.info("notification : {}",rfqVendor.getIsRfqNotified());
+		                       if (count==0) {
+		                         rfqVendor.setIsRfqNotified((byte) 1);
+		                          rfqVendorDao.save(rfqVendor);
+		                          logger.info("New User Forward Email with credentials...");
+									MailUtility.emailNewRfqForNoPR(subjectPrefix,"NewRfq", javaMailSender, rfqData, host, vendor.getEmail(),
+											username, vendor.getOtherEmails(), phoneNumber, rfqDueDate, fullName, mailIdWrapper[0],
+											passwordWrapper[0], vendor.getId(),vendor.getOrganizationPhonenumber());
+		                         }else {
+		                        	 logger.info("New User Forward Email without credentials...");
+		                        	 MailUtility.emailNewRfqForNoPRForExistingUsers(subjectPrefix,"NewRfq", javaMailSender, rfqData, host, vendor.getEmail(),
+		 									username, vendor.getOtherEmails(), phoneNumber, rfqDueDate, fullName, mailIdWrapper[0],
+		 									passwordWrapper[0], vendor.getId(),vendor.getOrganizationPhonenumber());
+		                         }
+							
+							
+						}else {
+							logger.info("Existing User Forward Email...");
+							MailUtility.emailNewRfqForNoPRForExistingUsers(subjectPrefix,"NewRfq", javaMailSender, rfqData, host, vendor.getEmail(),
+									username, vendor.getOtherEmails(), phoneNumber, rfqDueDate, fullName, mailIdWrapper[0],
+									passwordWrapper[0], vendor.getId(),vendor.getOrganizationPhonenumber());
+						}
+						
 					} else {
 						// Send the new “invite” email
-						MailUtility.emailInviteRfq(javaMailSender, rfqData, host, vendor.getEmail(), username,
-								vendor.getOtherEmails(), phoneNumber, fullName, mailIdWrapper[0], passwordWrapper[0],vendor.getOrganizationPhonenumber());
+						if(isExistingUser==false) {
+							
+							RfqVendor rfqVendor = rfqVendorDao.findLatestByOrganizationUuid(vendor.getId());
+							long count = rfqVendorDao.countCredentialEmailsSent(vendor.getId());
+		                       if (count==0) {
+		                         rfqVendor.setIsRfqNotified((byte) 1);
+		                          rfqVendorDao.save(rfqVendor);
+		                          logger.info("New User Invite Email with credentials...");
+							        MailUtility.emailInviteRfq(javaMailSender, rfqData, host, vendor.getEmail(), username,
+											vendor.getOtherEmails(), phoneNumber, fullName, mailIdWrapper[0], passwordWrapper[0],vendor.getOrganizationPhonenumber());
+		                         }else {
+		                        	 logger.info("New User Invite Email without credentials...");
+		                        	 MailUtility.emailInviteRfqForExistingUsers(javaMailSender, rfqData, host, vendor.getEmail(), username,
+												vendor.getOtherEmails(), phoneNumber, fullName, mailIdWrapper[0], passwordWrapper[0],vendor.getOrganizationPhonenumber());
+		                         }
+					       
+						}else {
+							
+							 logger.info("Existing User Invite Email...");
+						        MailUtility.emailInviteRfqForExistingUsers(javaMailSender, rfqData, host, vendor.getEmail(), username,
+										vendor.getOtherEmails(), phoneNumber, fullName, mailIdWrapper[0], passwordWrapper[0],vendor.getOrganizationPhonenumber());
+						}
+						
 					}
+					
 				} catch (MessagingException e) {
 					e.printStackTrace();
 				}
-			});
+			}
 
 			return true;
 		} catch (Exception e) {
+			 logger.error("Exception in sendRfqToVendors()", e);
 			return false;
 		}
 

@@ -30,6 +30,21 @@ public interface RfqVendorDao extends JpaRepository<RfqVendor, String> {
 	@Query("UPDATE  RfqVendor r SET r.quotationReceived = true, r.vendorStatus=:quoteStatus WHERE  r.rfqId=:rfqId and r.organization.id=:vendorId")
 	void updateQuotationReceived(@Param("rfqId") String rfqId,@Param("vendorId") String vendorId, @Param("quoteStatus") MasterStatus quoteStatus);
 
-		
+	@Query(value = """
+		    SELECT *
+		    FROM rfq_vendors
+		    WHERE organization_uuid = :organizationId
+		    ORDER BY created_ts DESC
+		    LIMIT 1
+		    """, nativeQuery = true)
+		RfqVendor findLatestByOrganizationUuid(@Param("organizationId") String organizationId);
+	
+	@Query("""
+		    SELECT COUNT(r)
+		    FROM RfqVendor r
+		    WHERE r.organization.id = :organizationId
+		      AND r.isRfqNotified = 1
+		""")
+		long countCredentialEmailsSent(@Param("organizationId") String organizationId);
 
 }
