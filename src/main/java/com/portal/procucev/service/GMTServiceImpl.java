@@ -2121,13 +2121,13 @@ public class GMTServiceImpl implements GMTService {
 		user.setPhone(PhoneNumberUtils.normalize(organization.getOrganizationPhonenumber()));
 		user.setResetPassword(true);
 		user.setActive(true);
-		user.setSelfClient(true);
+	//	user.setSelfClient(true);
 	//	user.setClientStatus(status);
 		user.setRole(initiatorRole);
 		user.setUniqueId(generateUserId(organization.getOrganizationPhonenumber()));
 		user.setSourceType(organization.getSourceType());
 		user.setPassword(new String("Welcome@123"));
-		user.setApproved(true);
+	//	user.setApproved(true);
 		user.setVerificationStatus(StatusConstants.EMAIL_VERIFIED);
 		
 
