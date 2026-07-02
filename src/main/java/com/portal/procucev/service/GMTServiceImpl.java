@@ -2122,7 +2122,7 @@ public class GMTServiceImpl implements GMTService {
 		user.setResetPassword(true);
 		user.setActive(true);
 		user.setSelfClient(true);
-		user.setClientStatus(status);
+	//	user.setClientStatus(status);
 		user.setRole(initiatorRole);
 		user.setUniqueId(generateUserId(organization.getOrganizationPhonenumber()));
 		user.setSourceType(organization.getSourceType());
