@@ -1988,7 +1988,8 @@ public class GMTServiceImpl implements GMTService {
 
 		if (!CollectionUtils.isEmpty(vendorList)) {
 			for (Organization vendor : vendorList) {
-			    Organization savedVendor;
+				logger.info("Vendor Mobile Number : {} ",vendor.getOrganizationPhonenumber());			    
+				Organization savedVendor;
 			    User savedUserDetails;
 
 			    if (vendor.getId() == null) {
@@ -2012,6 +2013,7 @@ public class GMTServiceImpl implements GMTService {
 			        vendor.setVendorcategory(savedRfq.getCategory());
 			        vendor.setGmtName("GMT Basic");
 					vendor.setBfsName(StatusConstants.BFS_PRO);
+					vendor.setOrganizationPhonenumber(vendor.getOrganizationPhonenumber());
 			        
 
 			        savedVendor = orgDao.save(vendor);
