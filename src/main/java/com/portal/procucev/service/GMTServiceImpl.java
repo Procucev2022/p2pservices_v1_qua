@@ -1988,8 +1988,7 @@ public class GMTServiceImpl implements GMTService {
 
 		if (!CollectionUtils.isEmpty(vendorList)) {
 			for (Organization vendor : vendorList) {
-				logger.info("Vendor List Size : {} ",vendorList.size());
-				logger.info("Vendor Mobile Number : {} ",vendor.getOrganizationPhonenumber());			    
+				logger.info("Vendor List Size : {} ",vendorList.size());			    
 				Organization savedVendor;
 			    User savedUserDetails;
 			    
@@ -2284,7 +2283,7 @@ public class GMTServiceImpl implements GMTService {
 							long count = rfqVendorDao.countCredentialEmailsSent(vendor.getId());
 							RfqVendor rfqVendor = rfqVendorDao.findLatestByOrganizationUuid(vendor.getId());
 							logger.info("id : {}",rfqVendor.getId());
-							logger.info("notification : {}",rfqVendor.getIsRfqNotified());
+							logger.info("notification status : {}",rfqVendor.getIsRfqNotified());
 		                       if (count==0) {
 		                         rfqVendor.setIsRfqNotified((byte) 1);
 		                          rfqVendorDao.save(rfqVendor);
