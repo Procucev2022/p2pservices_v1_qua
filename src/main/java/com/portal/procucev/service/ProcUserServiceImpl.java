@@ -1218,7 +1218,7 @@ public class ProcUserServiceImpl implements UserService {
 		
 		if(userActivityDto.getGmtOrBfs().equalsIgnoreCase("GMT")) {
 			Rfq rfq = rfqDao.findByRfqId(userActivityDto.getOperationSubType());
-			userActivity.setRfqCreatedTime( rfq.getCreatedTS().toInstant()
+			userActivity.setRfqCreatedTime(rfq.getCreatedTS().toInstant()
 			        .atZone(ZoneId.systemDefault())
 			        .toLocalDateTime());	
 		}	

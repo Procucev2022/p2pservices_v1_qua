@@ -22,6 +22,9 @@ import jakarta.transaction.Transactional;
 public interface UserDao extends JpaRepository<User, String> {
 
 	User findByUsername(String username);
+	
+	@Query("SELECT u FROM User u WHERE u.username = :username ORDER BY u.createdTS DESC LIMIT 1")
+	User findByLatestUserName(@Param("username") String username);
 
 	User findByUsernameAndActive(String username, boolean active);
 
