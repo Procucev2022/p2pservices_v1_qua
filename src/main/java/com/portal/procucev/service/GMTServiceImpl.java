@@ -1988,11 +1988,14 @@ public class GMTServiceImpl implements GMTService {
 
 		if (!CollectionUtils.isEmpty(vendorList)) {
 			for (Organization vendor : vendorList) {
+				logger.info("Vendor List Size : {} ",vendorList.size());
 				logger.info("Vendor Mobile Number : {} ",vendor.getOrganizationPhonenumber());			    
 				Organization savedVendor;
 			    User savedUserDetails;
+			    
+			    Organization existingVendor = orgDao.findById(vendor.getId()).orElse(null);
 
-			    if (vendor.getId() == null) {
+			    if (existingVendor == null) {
 			        // Save the new organization
 			        OrgType orgTypeObject = orgTypeDao.findByTypeName(ApplicationConstants.VENDOR);
 			        MasterStatus vendorStatus = masterStatusDao.findByStatus(StatusConstants.VENDOR_ADDED);
@@ -2014,15 +2017,14 @@ public class GMTServiceImpl implements GMTService {
 			        vendor.setGmtName("GMT Basic");
 					vendor.setBfsName(StatusConstants.BFS_PRO);
 					vendor.setOrganizationPhonenumber(vendor.getOrganizationPhonenumber());
-			        
 
 			        savedVendor = orgDao.save(vendor);
 
 			    } else {
 			        logger.info("Saving the existing vendor with other email");
-
+			        logger.info("Vendor org UUid : {} ",vendor.getId());
+                   vendor.setOrganizationPhonenumber(existingVendor.getOrganizationPhonenumber());
 			        savedVendor = vendor;
-			        savedVendor.setOrganizationPhonenumber(vendor.getOrganizationPhonenumber());
 
 			        if (vendor.getOtherEmails() != null) {
 			            orgDao.updateOtherEmail(vendor.getOtherEmails(), vendor.getId());
