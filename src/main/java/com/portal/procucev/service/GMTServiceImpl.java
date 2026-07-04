@@ -1996,7 +1996,6 @@ public class GMTServiceImpl implements GMTService {
 			    	existingVendor = orgDao.findById(vendor.getId()).orElse(null);
 			    }
 			   
-
 			    if (existingVendor == null) {
 			        // Save the new organization
 			        OrgType orgTypeObject = orgTypeDao.findByTypeName(ApplicationConstants.VENDOR);
