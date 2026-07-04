@@ -2020,7 +2020,7 @@ public class GMTServiceImpl implements GMTService {
 			        logger.info("Saving the existing vendor with other email");
 
 			        savedVendor = vendor;
-			        savedVendor.setOrganizationPhonenumber(savedRfq.getOrg().getOrganizationPhonenumber());
+			        savedVendor.setOrganizationPhonenumber(vendor.getOrganizationPhonenumber());
 
 			        if (vendor.getOtherEmails() != null) {
 			            orgDao.updateOtherEmail(vendor.getOtherEmails(), vendor.getId());
