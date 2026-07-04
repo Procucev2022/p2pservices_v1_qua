@@ -2010,6 +2010,9 @@ public class GMTServiceImpl implements GMTService {
 			        vendor.setStatus(evalStatus);
 			        vendor.setSourceType(ApplicationConstants.TOOL);
 			        vendor.setVendorcategory(savedRfq.getCategory());
+			        vendor.setGmtName("GMT Basic");
+					vendor.setBfsName(StatusConstants.BFS_PRO);
+			        
 
 			        savedVendor = orgDao.save(vendor);
 
