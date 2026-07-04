@@ -1991,8 +1991,11 @@ public class GMTServiceImpl implements GMTService {
 				logger.info("Vendor List Size : {} ",vendorList.size());			    
 				Organization savedVendor;
 			    User savedUserDetails;
-			    
-			    Organization existingVendor = orgDao.findById(vendor.getId()).orElse(null);
+			    Organization existingVendor=null;
+			    if(vendor.getId()!=null) {
+			    	existingVendor = orgDao.findById(vendor.getId()).orElse(null);
+			    }
+			   
 
 			    if (existingVendor == null) {
 			        // Save the new organization
