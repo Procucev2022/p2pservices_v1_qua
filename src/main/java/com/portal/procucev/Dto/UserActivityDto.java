@@ -3,7 +3,9 @@ package com.portal.procucev.Dto;
 import java.time.LocalDateTime;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import lombok.Data;
 
+@Data
 public class UserActivityDto {
 	
 	@JsonProperty("loginTime")

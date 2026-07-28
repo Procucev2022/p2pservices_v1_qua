@@ -295,9 +295,9 @@ public class MailUtility {
 			mimeMessageHelper.setTo(user.getUsername());
 			mimeMessageHelper.setFrom(add); // from Address
 			mimeMessageHelper.setSubject("Account Creation !!");
-			mimeMessageHelper.setText(verificationTemplate, true);
-			// javaMailSender.send(mimeMessage);
-			javaMailSender2.send(mimeMessage);
+			if (javaMailSender != null) {
+				javaMailSender.send(mimeMessage);
+			}
 		} catch (Exception e) {
 			LOGGER.error("Error in sending creation mail -- " + e.getMessage());
 			throw new AppException(StatusCodes.MAIL_SEND_ERROR, ApplicationConstants.MAIL_SENDING_FAILURE,
@@ -1854,11 +1854,10 @@ public class MailUtility {
 	            + "with AI-enabled vendor platforms, consulting, and digital technology, helping buyers streamline "
 	            + "sourcing, circulate RFQs, and make faster purchases through QUA AI. Visit "
 	            + "<a href='https://www.procucev.com'>www.procucev.com</a> to know more.</i></p>"
-
 	            + "</body></html>";
 
 	    try {
-	        JavaMailSender mailSender = getJavaMailSender(from, pswd);
+	        JavaMailSender mailSender = (javaMailSender != null) ? javaMailSender : getJavaMailSender(from, pswd);
 	        MimeMessage mimeMessage = mailSender.createMimeMessage();
 	        MimeMessageHelper helper = new MimeMessageHelper(mimeMessage, true);
 

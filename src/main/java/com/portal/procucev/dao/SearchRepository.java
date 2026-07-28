@@ -26,78 +26,6 @@ public class SearchRepository {
     @PersistenceContext
     private EntityManager em;
 
-//    public List<BFSItemMainDetailsDTO> searchItems(List<String> keywords, int limit) {
-//
-//        List<String> cleanedKeywords = normalizeKeywords(keywords);
-//        if (cleanedKeywords.isEmpty()) {
-//            return Collections.emptyList();
-//        }
-//
-//        // 1️⃣ Category search first
-//        List<BFSItemMainDetailsDTO> categoryResults =
-//                searchByCategory(cleanedKeywords, limit);
-//
-//        if (!categoryResults.isEmpty()) {
-//            return categoryResults;
-//        }
-//
-//        // 2️⃣ Fallback → description search
-//        return searchByDescription(cleanedKeywords, limit);
-//    }
-//
-//    /* ---------------------------------------------------
-//       CATEGORY SEARCH
-//     --------------------------------------------------- */
-//    private List<BFSItemMainDetailsDTO> searchByCategory(
-//            List<String> keywords, int limit) {
-//
-//        CriteriaBuilder cb = em.getCriteriaBuilder();
-//        CriteriaQuery<BFSItemMainDetailsDTO> query =
-//                cb.createQuery(BFSItemMainDetailsDTO.class);
-//        Root<BFSItems> root = query.from(BFSItems.class);
-//
-//        List<Predicate> predicates = new ArrayList<>();
-//        for (String keyword : keywords) {
-//            predicates.add(
-//                    cb.like(cb.lower(root.get("category")), "%" + keyword + "%")
-//            );
-//        }
-//
-//        query.select(buildDto(cb, root))
-//             .where(cb.or(predicates.toArray(new Predicate[0])))
-//             .orderBy(cb.asc(root.get("askPrice")));
-//
-//        return em.createQuery(query)
-//                 .setMaxResults(limit)
-//                 .getResultList();
-//    }
-//
-//    /* ---------------------------------------------------
-//       DESCRIPTION SEARCH (NO SPECIFICATION SEARCH)
-//     --------------------------------------------------- */
-//    private List<BFSItemMainDetailsDTO> searchByDescription(
-//            List<String> keywords, int limit) {
-//
-//        CriteriaBuilder cb = em.getCriteriaBuilder();
-//        CriteriaQuery<BFSItemMainDetailsDTO> query =
-//                cb.createQuery(BFSItemMainDetailsDTO.class);
-//        Root<BFSItems> root = query.from(BFSItems.class);
-//
-//        List<Predicate> predicates = new ArrayList<>();
-//        for (String keyword : keywords) {
-//            predicates.add(
-//                    cb.like(cb.lower(root.get("description")), "%" + keyword + "%")
-//            );
-//        }
-//
-//        query.select(buildDto(cb, root))
-//             .where(cb.or(predicates.toArray(new Predicate[0])))
-//             .orderBy(cb.asc(root.get("askPrice")));
-//
-//        return em.createQuery(query)
-//                 .setMaxResults(limit)
-//                 .getResultList();
-//    }
     public List<BFSItemMainDetailsDTO> searchItems(
             Set<String> categoryKeywords, Set<String> descriptionKeywords, int limit) {
 
@@ -263,19 +191,5 @@ public class SearchRepository {
                 root.get("remarks"),
                 root.get("imagesFlag")
         );
-    }
-
-    /* ---------------------------------------------------
-       KEYWORD NORMALIZATION
-     --------------------------------------------------- */
-    private List<String> normalizeKeywords(List<String> keywords) {
-        if (keywords == null) return Collections.emptyList();
-
-        return keywords.stream()
-                .filter(k -> k != null && !k.trim().isEmpty())
-                .map(String::toLowerCase)
-                .filter(k -> !k.equals("others") && !k.equals("other"))
-                .distinct()
-                .toList();
     }
 }
