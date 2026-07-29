@@ -393,6 +393,8 @@ public class UserController {
 	            response.put("description", "User email is required");
 	            response.put("userId", null);
 	            response.put("orgId", null);
+	            response.put("mobileNo", null);
+	            response.put("phone", null);
 	            response.put("status", "Failure");
 	            return ResponseEntity.ok(response);
 	        }
@@ -406,6 +408,8 @@ public class UserController {
 	            response.put("description", "User Not Found");
 	            response.put("userId", null);
 	            response.put("orgId", null);
+	            response.put("mobileNo", null);
+	            response.put("phone", null);
 	            response.put("status", "Failure");
 	            return ResponseEntity.ok(response);
 	        }
@@ -415,6 +419,7 @@ public class UserController {
 	                : (userData.getFirstName() != null ? userData.getFirstName() : userData.getUsername());
 
 	        String orgId = userData.getOrg() != null ? userData.getOrg().getId() : null;
+	        String phone = userData.getPhone() != null ? userData.getPhone() : null;
 
 	        Map<String, Object> response = new LinkedHashMap<>();
 	        response.put("code", "00");
@@ -422,6 +427,8 @@ public class UserController {
 	        response.put("description", "User Fetched Successfully");
 	        response.put("userId", userData.getId());
 	        response.put("orgId", orgId);
+	        response.put("mobileNo", phone);
+	        response.put("phone", phone);
 	        response.put("status", "Success");
 
 	        return ResponseEntity.ok(response);
