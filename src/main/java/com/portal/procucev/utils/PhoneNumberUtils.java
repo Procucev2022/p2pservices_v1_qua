@@ -19,19 +19,19 @@ public class PhoneNumberUtils {
             return null;
         }
 
-        // Case 1: already 12-digit with 91 (e.g., 919876543210)
+        // Case 1: already in correct format (e.g., +919876543210) → no change
+        if (phone.startsWith("+91") && digitsOnly.length() == 12) {
+            return phone;
+        }
+
+        // Case 2: 12-digit without + (e.g., 919876543210)
         if (digitsOnly.length() == 12 && digitsOnly.startsWith("91")) {
             return "+" + digitsOnly;
         }
 
-        // Case 2: only 10-digit local number (e.g., 9876543210)
+        // Case 3: only 10-digit local number (e.g., 9876543210)
         if (digitsOnly.length() == 10) {
             return "+91" + digitsOnly;
-        }
-
-        // Case 3: already in correct format (e.g., +919876543210) → no change
-        if (phone.startsWith("+91") && digitsOnly.length() == 12) {
-            return phone;
         }
 
         // Fallback: return digits with +

@@ -1,6 +1,7 @@
 package com.portal.procucev.config;
 
 import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.ExpiredJwtException;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
 import io.jsonwebtoken.security.Keys;
@@ -31,8 +32,6 @@ public class JwtUtil {
 		secretKey = Keys.hmacShaKeyFor(keyBytes);
 	}
 
-//    private final Key secretKey = Keys.secretKeyFor(SignatureAlgorithm.HS256);
-
 	public String generateToken(UserDetails userDetails, String phone) {
 		Map<String, Object> claims = new HashMap<>();
 		claims.put("phone", phone);
@@ -47,7 +46,10 @@ public class JwtUtil {
 
 	public Boolean validateToken(String token, UserDetails userDetails) {
 		final String username = extractUsername(token);
-		return (username.equals(userDetails.getUsername()) && !isTokenExpired(token));
+		if (username == null || !username.equals(userDetails.getUsername())) {
+			return false;
+		}
+		return !isTokenExpired(token);
 	}
 
 	public String extractUsername(String token) {
@@ -60,15 +62,22 @@ public class JwtUtil {
 
 	public <T> T extractClaim(String token, Function<Claims, T> claimsResolver) {
 		final Claims claims = extractAllClaims(token);
-		return claimsResolver.apply(claims);
+		return claims != null ? claimsResolver.apply(claims) : null;
 	}
 
 	private Claims extractAllClaims(String token) {
-		return Jwts.parserBuilder().setSigningKey(secretKey).build().parseClaimsJws(token).getBody();
+		try {
+			return Jwts.parserBuilder().setSigningKey(secretKey).build().parseClaimsJws(token).getBody();
+		} catch (ExpiredJwtException e) {
+			return e.getClaims();
+		} catch (Exception e) {
+			return null;
+		}
 	}
 
 	private Boolean isTokenExpired(String token) {
-		return extractExpiration(token).before(new Date());
+		Date expiration = extractExpiration(token);
+		return expiration != null && expiration.before(new Date());
 	}
 
 	public String extractPhone(String token) {

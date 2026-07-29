@@ -1,5 +1,6 @@
 package com.portal.procucev.controller;
 
+import java.util.Collections;
 import java.util.Map;
 import java.util.Optional;
 
@@ -62,6 +63,7 @@ public class AutomaticRfqCreationController {
 	        delivery.setCity(user.getOrg().getCity());
 	        delivery.setState(user.getOrg().getState());
 	        delivery.setPincode(user.getOrg().getZipCode());
+	        rfq.setClientdeliverylocationrfq(Collections.singletonList(delivery));
 	    }
 
 	    ClientDeliveryLocationRfq delivery = rfq.getClientdeliverylocationrfq().get(0);
