@@ -2,6 +2,7 @@ package com.portal.procucev.dao;
 
 import java.util.Date;
 import java.util.List;
+import java.util.Optional;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
@@ -263,4 +264,9 @@ public interface UserDao extends JpaRepository<User, String> {
 				    WHERE LOWER(u.org.companyName) LIKE LOWER(CONCAT('%', :searchValue, '%'))
 				    """)
 				List<User> findUsersByOrgCompanyName(@Param("searchValue") String searchValue);
+
+				//@Query("select u From User u where u.userName=:email and  u.role=:initiatorRole and u.active = true and u.role=:role ")
+				Optional<User> findFirstByUsernameAndRoleAndActiveTrueOrderByCreatedTSDesc(
+				        String email,
+				        Role role);
 }
