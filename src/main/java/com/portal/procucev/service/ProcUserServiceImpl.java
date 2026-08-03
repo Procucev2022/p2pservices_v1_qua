@@ -23,6 +23,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
@@ -30,7 +31,9 @@ import org.springframework.util.CollectionUtils;
 import com.portal.procucev.Dto.SimplePageResponse;
 import com.portal.procucev.Dto.UserActivityDto;
 import com.portal.procucev.Dto.VendorSummaryResponse;
+import com.portal.procucev.ProcucevApplication;
 import com.portal.procucev.customexception.AppException;
+import com.portal.procucev.customexception.MessageResponse;
 import com.portal.procucev.dao.EmailUserRepo;
 import com.portal.procucev.dao.OrgDao;
 import com.portal.procucev.dao.OrgTypeDao;
@@ -64,29 +67,31 @@ import jakarta.transaction.Transactional;
 @Service
 public class ProcUserServiceImpl implements UserService {
 
+	private final ProcucevApplication procucevApplication;
+
 	private static final Logger log = LoggerFactory.getLogger(ProcUserServiceImpl.class);
 
 	@Autowired
 	private UserDao userDao;
-	
+
 	@Autowired
 	private RoleDao roleDao;
 
 	@Autowired
 	private OrgDao orgDao;
-	
+
 	@Autowired
 	private RfqDao rfqDao;
 
 	@Autowired
 	private OrgTypeDao orgTypeDao;
-	
+
 	@Value("${mailid}")
 	String mailid;
-	
+
 	@Autowired
 	OtpStoreDao otpStoreDao;
-	
+
 	@Autowired
 	private EmailUserRepo emailUserRepo;
 
@@ -98,11 +103,15 @@ public class ProcUserServiceImpl implements UserService {
 
 	@Value("${host}")
 	String host;
-	
+
 	@Autowired
 	UserActivityDao userActivityDao;
 
 	private Map<String, OtpDetails> otpsMap = new ConcurrentHashMap<>();
+
+	ProcUserServiceImpl(ProcucevApplication procucevApplication) {
+		this.procucevApplication = procucevApplication;
+	}
 
 	@Override
 	public User save(User user) {
@@ -144,7 +153,7 @@ public class ProcUserServiceImpl implements UserService {
 		// User userObject = userDao.findByUsernameAndActive(user.getUsername(), true);
 		User userObject = userDao.findByUsernameAndPhoneAndActive(user.getUsername(), normalizedPhone, true);
 		if (userObject != null) {
-			int rfqRaisedCount=rfqDao.findRfqCountByUser(userObject.getId());
+			int rfqRaisedCount = rfqDao.findRfqCountByUser(userObject.getId());
 			userObject.setRfqRaised(rfqRaisedCount);
 
 			List<String> permissionDetails = new ArrayList<>();
@@ -410,60 +419,61 @@ public class ProcUserServiceImpl implements UserService {
 
 	@Override
 	public boolean generateOtp(Organization organization, HttpServletRequest request) {
-	    log.info("Entered to generate OTP");
+		log.info("Entered to generate OTP");
 
-	    try {
-	        if (organization != null) {
+		try {
+			if (organization != null) {
 
-	            // Resolve email (tempEmail takes priority)
-	          
-	            String email = organization.getEmail().trim().toLowerCase();
-	            String phone = organization.getOrganizationPhonenumber();
-	            String normalizedPhone = normalizePhone(phone);
+				// Resolve email (tempEmail takes priority)
 
-	            // ✅ USER VALIDATION (added back)
-	            User user = userDao.findByUsernameAndPhoneAndActive(email, normalizedPhone, true);
-	            if (user == null) {
-	                log.error("User not found for email: {} and phone: {}", email, normalizedPhone);
-	                return false;
-	            }
+				String email = organization.getEmail().trim().toLowerCase();
+				String phone = organization.getOrganizationPhonenumber();
+				String normalizedPhone = normalizePhone(phone);
 
-	            // Generate OTP
-	            String otp = generateOTPForEmail();
-	            LocalDateTime expirationTime = LocalDateTime.now().plusMinutes(15);
+				// ✅ USER VALIDATION (added back)
+				User user = userDao.findByUsernameAndPhoneAndActive(email, normalizedPhone, true);
+				if (user == null) {
+					log.error("User not found for email: {} and phone: {}", email, normalizedPhone);
+					return false;
+				}
 
-	            String key = normalizedPhone + "_EMAIL_" + email;
+				// Generate OTP
+				String otp = generateOTPForEmail();
+				LocalDateTime expirationTime = LocalDateTime.now().plusMinutes(15);
 
-	            // Save or update OTP in DB
-	            otpStoreDao.findByOtpKey(key).ifPresentOrElse(existing -> {
-	                existing.setOtp(otp);
-	                existing.setExpirationTime(expirationTime);
-	                otpStoreDao.save(existing);
-	            }, () -> otpStoreDao.save(new OtpStore(key, otp, expirationTime)));
+				String key = normalizedPhone + "_EMAIL_" + email;
 
-	            log.info("Stored OTP [{}] in DB for key [{}] expiring at [{}]", otp, key, expirationTime);
+				// Save or update OTP in DB
+				otpStoreDao.findByOtpKey(key).ifPresentOrElse(existing -> {
+					existing.setOtp(otp);
+					existing.setExpirationTime(expirationTime);
+					otpStoreDao.save(existing);
+				}, () -> otpStoreDao.save(new OtpStore(key, otp, expirationTime)));
 
-	            // Send OTP AFTER storing
-	            InternetAddress add = new InternetAddress(mailFom, "Procucev Notifications");
-	            MailUtility.sendOtpForEmail("OTP", email, javaMailSender, add, host, otp);
+				log.info("Stored OTP [{}] in DB for key [{}] expiring at [{}]", otp, key, expirationTime);
 
-	            log.info("OTP sent successfully to {}", email);
-	            return true;
+				// Send OTP AFTER storing
+				InternetAddress add = new InternetAddress(mailFom, "Procucev Notifications");
+				MailUtility.sendOtpForEmail("OTP", email, javaMailSender, add, host, otp);
 
-	        } else {
-	            log.error("Organization is null, cannot generate OTP");
-	            throw new AppException(HttpStatus.NO_CONTENT.value(), ApplicationConstants.NO_DATA_FOUND,
-	                    ApplicationConstants.BUSINESS_EXCEPTION, ApplicationConstants.FAILURE);
-	        }
+				log.info("OTP sent successfully to {}", email);
+				return true;
 
-	    } catch (UnsupportedEncodingException e) {
-	        log.error("Error generating OTP: {}", e.getMessage(), e);
-	    } catch (Exception ex) {
-	        log.error("Unexpected error while generating OTP", ex);
-	    }
+			} else {
+				log.error("Organization is null, cannot generate OTP");
+				throw new AppException(HttpStatus.NO_CONTENT.value(), ApplicationConstants.NO_DATA_FOUND,
+						ApplicationConstants.BUSINESS_EXCEPTION, ApplicationConstants.FAILURE);
+			}
 
-	    return false;
+		} catch (UnsupportedEncodingException e) {
+			log.error("Error generating OTP: {}", e.getMessage(), e);
+		} catch (Exception ex) {
+			log.error("Unexpected error while generating OTP", ex);
+		}
+
+		return false;
 	}
+
 	private static String generateOTPForEmail() {
 		Random random = new Random();
 		int otpLength = 6;
@@ -571,71 +581,71 @@ public class ProcUserServiceImpl implements UserService {
 	@Override
 	public boolean validateEmailOtp(Organization organization) throws UnsupportedEncodingException {
 
-	    if (organization == null) {
-	        log.error("Organization object is null in validateEmailOtp()");
-	        return false;
-	    }
-	    String email = organization.getEmail().trim().toLowerCase();
-	    String phone = organization.getOrganizationPhonenumber();
+		if (organization == null) {
+			log.error("Organization object is null in validateEmailOtp()");
+			return false;
+		}
+		String email = organization.getEmail().trim().toLowerCase();
+		String phone = organization.getOrganizationPhonenumber();
 
-	    if (email == null || phone == null || organization.getEmailOtp() == null) {
-	        log.warn("Missing email, phone, or OTP in request");
-	        return false;
-	    }
+		if (email == null || phone == null || organization.getEmailOtp() == null) {
+			log.warn("Missing email, phone, or OTP in request");
+			return false;
+		}
 
-	    String normalizedPhone = normalizePhone(phone);
-	    String key = normalizedPhone + "_EMAIL_" + email;
+		String normalizedPhone = normalizePhone(phone);
+		String key = normalizedPhone + "_EMAIL_" + email;
 
-	    log.info("Validating email OTP for key: {}", key);
+		log.info("Validating email OTP for key: {}", key);
 
-	    Optional<OtpStore> recordOpt = otpStoreDao.findByOtpKey(key);
+		Optional<OtpStore> recordOpt = otpStoreDao.findByOtpKey(key);
 
-	    if (recordOpt.isEmpty()) {
-	        log.warn("No OTP entry found for key: {}", key);
-	        userDao.updateVerificationStatus(email, normalizedPhone, StatusConstants.EMAIL_VERIFICATION_FAILED);
-	        return false;
-	    }
+		if (recordOpt.isEmpty()) {
+			log.warn("No OTP entry found for key: {}", key);
+			userDao.updateVerificationStatus(email, normalizedPhone, StatusConstants.EMAIL_VERIFICATION_FAILED);
+			return false;
+		}
 
-	    OtpStore record = recordOpt.get();
+		OtpStore record = recordOpt.get();
 
-	    // ✅ Expiry check + removal
-	    if (LocalDateTime.now().isAfter(record.getExpirationTime())) {
-	        log.warn("Email OTP expired for key: {}", key);
-	        otpStoreDao.deleteByOtpKey(key); // removal logic
-	        return false;
-	    }
+		// ✅ Expiry check + removal
+		if (LocalDateTime.now().isAfter(record.getExpirationTime())) {
+			log.warn("Email OTP expired for key: {}", key);
+			otpStoreDao.deleteByOtpKey(key); // removal logic
+			return false;
+		}
 
-	    // ✅ OTP match check
-	    if (!record.getOtp().equals(organization.getEmailOtp())) {
-	        log.warn("Invalid OTP for key: {}", key);
-	        return false;
-	    }
+		// ✅ OTP match check
+		if (!record.getOtp().equals(organization.getEmailOtp())) {
+			log.warn("Invalid OTP for key: {}", key);
+			return false;
+		}
 
-	    // ✅ USER VALIDATION
-	    User user = userDao.findByUsernameAndPhoneAndActive(email, normalizedPhone, true);
-	    if (user == null) {
-	        log.error("User not found for email: {} and phone: {}", email, normalizedPhone);
-	        return false;
-	    }
+		// ✅ USER VALIDATION
+		User user = userDao.findByUsernameAndPhoneAndActive(email, normalizedPhone, true);
+		if (user == null) {
+			log.error("User not found for email: {} and phone: {}", email, normalizedPhone);
+			return false;
+		}
 
-	    // ✅ Send verification mail if needed
-	    if (!StatusConstants.EMAIL_VERIFIED.equals(user.getVerificationStatus()) && !user.isSelfClient()) {
-	        InternetAddress add = new InternetAddress(mailid, "Procucev Notifications");
-	        MailUtility.mailingVerificationLinkWithUser(javaMailSender, add, host, user);
-	    }
+		// ✅ Send verification mail if needed
+		if (!StatusConstants.EMAIL_VERIFIED.equals(user.getVerificationStatus()) && !user.isSelfClient()) {
+			InternetAddress add = new InternetAddress(mailid, "Procucev Notifications");
+			MailUtility.mailingVerificationLinkWithUser(javaMailSender, add, host, user);
+		}
 
-	    // ✅ Update user status
-	    int updated = userDao.updateActivityTs(email, normalizedPhone, StatusConstants.EMAIL_VERIFIED);
+		// ✅ Update user status
+		int updated = userDao.updateActivityTs(email, normalizedPhone, StatusConstants.EMAIL_VERIFIED);
 
-	    if (updated > 0) {
-	        // ✅ REMOVE OTP AFTER SUCCESS
-	        otpStoreDao.deleteByOtpKey(key);
+		if (updated > 0) {
+			// ✅ REMOVE OTP AFTER SUCCESS
+			otpStoreDao.deleteByOtpKey(key);
 
-	        log.info("OTP validated, removed, and status updated successfully for key: {}", key);
-	        return true;
-	    }
+			log.info("OTP validated, removed, and status updated successfully for key: {}", key);
+			return true;
+		}
 
-	    return false;
+		return false;
 	}
 //	    public String processBuyerExcel(MultipartFile file) throws Exception {
 //	        Workbook workbook = WorkbookFactory.create(file.getInputStream());
@@ -830,122 +840,100 @@ public class ProcUserServiceImpl implements UserService {
 	// =========================
 
 	@Override
-	public SimplePageResponse<VendorSummaryResponse> getVendorSummary(
-	        int page,
-	        int size,
-	        String search,
-	        String sourceType
-	) {
+	public SimplePageResponse<VendorSummaryResponse> getVendorSummary(int page, int size, String search,
+			String sourceType) {
 
-	    Logger logger = LoggerFactory.getLogger(getClass());
-	    logger.info("Entered getVendorSummary API");
+		Logger logger = LoggerFactory.getLogger(getClass());
+		logger.info("Entered getVendorSummary API");
 
-	    // Step 1: Vendor Org Type
-	    OrgType orgTypeObject =
-	            orgTypeDao.findByTypeName(ApplicationConstants.VENDOR);
+		// Step 1: Vendor Org Type
+		OrgType orgTypeObject = orgTypeDao.findByTypeName(ApplicationConstants.VENDOR);
 
-	    if (orgTypeObject == null) {
-	        logger.warn("Vendor org type not found");
-	        return new SimplePageResponse<>(0, Collections.emptyList());
-	    }
+		if (orgTypeObject == null) {
+			logger.warn("Vendor org type not found");
+			return new SimplePageResponse<>(0, Collections.emptyList());
+		}
 
-	    // Step 2: Pagination
-	    Pageable pageable = PageRequest.of(
-	            page,
-	            size,
-	            Sort.by(Sort.Direction.DESC, "createdTS")
-	    );
+		// Step 2: Pagination
+		Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdTS"));
 
-	    // Step 3: Fetch vendors
-	    Page<Organization> vendorPage =
-	            orgDao.findVendors(orgTypeObject, sourceType, search, pageable);
+		// Step 3: Fetch vendors
+		Page<Organization> vendorPage = orgDao.findVendors(orgTypeObject, sourceType, search, pageable);
 
-	    List<Organization> vendors = vendorPage.getContent();
+		List<Organization> vendors = vendorPage.getContent();
 
-	    if (vendors.isEmpty()) {
-	        logger.warn("No vendors found");
-	        return new SimplePageResponse<>(0, Collections.emptyList());
-	    }
+		if (vendors.isEmpty()) {
+			logger.warn("No vendors found");
+			return new SimplePageResponse<>(0, Collections.emptyList());
+		}
 
-	    logger.info("Fetched {} vendors for page {}", vendors.size(), page);
+		logger.info("Fetched {} vendors for page {}", vendors.size(), page);
 
-	    // Step 4: Collect vendor IDs
-	    List<String> vendorIds = vendors.stream()
-	            .map(Organization::getId)
-	            .toList();
+		// Step 4: Collect vendor IDs
+		List<String> vendorIds = vendors.stream().map(Organization::getId).toList();
 
-	    // Step 5: Last login (single query)
-	    List<Object[]> lastLoginData =
-	            userDao.findLastLoginByOrgIds(vendorIds);
+		// Step 5: Last login (single query)
+		List<Object[]> lastLoginData = userDao.findLastLoginByOrgIds(vendorIds);
 
-	    Map<String, Date> lastLoginMap = new HashMap<>();
+		Map<String, Date> lastLoginMap = new HashMap<>();
 
-	    for (Object[] row : lastLoginData) {
-	        lastLoginMap.put((String) row[0], (Date) row[1]);
-	    }
+		for (Object[] row : lastLoginData) {
+			lastLoginMap.put((String) row[0], (Date) row[1]);
+		}
 
-	    // Step 6: Build response
-	    List<VendorSummaryResponse> response = new ArrayList<>();
+		// Step 6: Build response
+		List<VendorSummaryResponse> response = new ArrayList<>();
 
-	    for (Organization vendor : vendors) {
+		for (Organization vendor : vendors) {
 
-	        VendorSummaryResponse summary = new VendorSummaryResponse();
+			VendorSummaryResponse summary = new VendorSummaryResponse();
 
-	        try {
-	            summary.setId(vendor.getId());
-	            summary.setCompanyId(vendor.getCompanyId());
-	            summary.setCompanyName(vendor.getCompanyName());
-	            summary.setName(vendor.getName());
-	            summary.setEmail(vendor.getEmail());
-	            summary.setGst(vendor.getGstin());
-	            summary.setPincode(vendor.getZipCode());
-	            summary.setPhoneNumber(vendor.getOrganizationPhonenumber());
-	            summary.setDetails(vendor.getDetails());
-	            summary.setSourceType(vendor.getSourceType());
-	            summary.setCreatedTS(vendor.getCreatedTS());
+			try {
+				summary.setId(vendor.getId());
+				summary.setCompanyId(vendor.getCompanyId());
+				summary.setCompanyName(vendor.getCompanyName());
+				summary.setName(vendor.getName());
+				summary.setEmail(vendor.getEmail());
+				summary.setGst(vendor.getGstin());
+				summary.setPincode(vendor.getZipCode());
+				summary.setPhoneNumber(vendor.getOrganizationPhonenumber());
+				summary.setDetails(vendor.getDetails());
+				summary.setSourceType(vendor.getSourceType());
+				summary.setCreatedTS(vendor.getCreatedTS());
 
-	            summary.setSubscribed(
-	                    vendor.getSubscriptionPlan() != null ? "Yes" : "No"
-	            );
+				summary.setSubscribed(vendor.getSubscriptionPlan() != null ? "Yes" : "No");
 
-	            summary.setRfqsConsumed(
-	                    vendor.getRfqUsedCount() != null ? vendor.getRfqUsedCount() : 0L
-	            );
+				summary.setRfqsConsumed(vendor.getRfqUsedCount() != null ? vendor.getRfqUsedCount() : 0L);
 
-	            summary.setQuotesSubmitted(
-	                    vendor.getQuoteSubmitted() != null ? vendor.getQuoteSubmitted() : 0L
-	            );
+				summary.setQuotesSubmitted(vendor.getQuoteSubmitted() != null ? vendor.getQuoteSubmitted() : 0L);
 
-	            summary.setVendorClass(vendor.getVendorClass());
-	            summary.setSubscriptionExpiry(vendor.getSubscriptionExpiry());
+				summary.setVendorClass(vendor.getVendorClass());
+				summary.setSubscriptionExpiry(vendor.getSubscriptionExpiry());
 
-	            // Last login
-	            summary.setLastLogin(lastLoginMap.get(vendor.getId()));
+				// Last login
+				summary.setLastLogin(lastLoginMap.get(vendor.getId()));
 
-	            summary.setError(null);
+				summary.setError(null);
 
-	        } catch (Exception ex) {
+			} catch (Exception ex) {
 
-	            logger.error("Error processing vendor ID={}: {}", vendor.getId(), ex.getMessage(), ex);
+				logger.error("Error processing vendor ID={}: {}", vendor.getId(), ex.getMessage(), ex);
 
-	            summary.setId(vendor.getId());
-	            summary.setCompanyId(vendor.getCompanyId());
-	            summary.setCompanyName(vendor.getCompanyName());
-	            summary.setName(vendor.getName());
-	            summary.setSubscribed("Unknown");
-	            summary.setError("Error fetching data: " + ex.getMessage());
-	        }
+				summary.setId(vendor.getId());
+				summary.setCompanyId(vendor.getCompanyId());
+				summary.setCompanyName(vendor.getCompanyName());
+				summary.setName(vendor.getName());
+				summary.setSubscribed("Unknown");
+				summary.setError("Error fetching data: " + ex.getMessage());
+			}
 
-	        response.add(summary);
-	    }
+			response.add(summary);
+		}
 
-	    logger.info("Vendor summary generated successfully for {} vendors", response.size());
+		logger.info("Vendor summary generated successfully for {} vendors", response.size());
 
-	    // ✅ FINAL RETURN (IMPORTANT)
-	    return new SimplePageResponse<>(
-	            vendorPage.getTotalElements(),
-	            response
-	    );
+		// ✅ FINAL RETURN (IMPORTANT)
+		return new SimplePageResponse<>(vendorPage.getTotalElements(), response);
 	}
 
 //	public List<VendorSummaryResponse> getVendorSummary() {
@@ -1075,163 +1063,172 @@ public class ProcUserServiceImpl implements UserService {
 		// Otherwise, fallback with + (handles rare cases, but ensures valid format)
 		return "+" + digits;
 	}
-	
+
 	@Override
 	public Organization getSellerByEmail(User user) {
-	    log.info("Fetching seller details by email and phone");
+		log.info("Fetching seller details by email and phone");
 
-	    if (user == null || user.getUsername() == null || user.getPhone() == null) {
-	        log.warn("User, email, or phone is null");
-	        return null;
-	    }
-	    Role role = roleDao.findByRoleNameAndActive(ApplicationConstants.Vendor, true);
+		if (user == null || user.getUsername() == null || user.getPhone() == null) {
+			log.warn("User, email, or phone is null");
+			return null;
+		}
+		Role role = roleDao.findByRoleNameAndActive(ApplicationConstants.Vendor, true);
 
-	    String normalizedPhone = normalizePhone(user.getPhone());
-	    // seller check needs to be added
+		String normalizedPhone = normalizePhone(user.getPhone());
+		// seller check needs to be added
 
-	    User userData = userDao.findByUsernameAndPhoneAndActiveAndRole(
-	            user.getUsername(),
-	            normalizedPhone,
-	            role
-	    );
+		User userData = userDao.findByUsernameAndPhoneAndActiveAndRole(user.getUsername(), normalizedPhone, role);
 
-	    if (userData == null) {
-	        log.warn("No active user found for email: {}", user.getEmail());
-	        return null;
-	    }
+		if (userData == null) {
+			log.warn("No active user found for email: {}", user.getEmail());
+			return null;
+		}
 
-	    return userData.getOrg();
+		return userData.getOrg();
 	}
 
 	@Override
 	public List<VendorSummaryResponse> getVendorSummarySearchResults(String searchType, String searchValue) {
-		
-		 // Step 1: Vendor Org Type
-	    OrgType orgTypeObject = orgTypeDao.findByTypeName(ApplicationConstants.VENDOR);
-	    if (orgTypeObject == null) {
-	        log.warn("Vendor org type not found");
-	        return Collections.emptyList();
-	    }
-	    
-	    // Step 3: Fetch vendors
-	    List<Organization> vendors =
-	            orgDao.findVendorsBySearchType("VENDOR",searchType,searchValue);
 
-	    if (vendors.isEmpty()) {
-	        log.warn("No vendors found");
-	        return Collections.emptyList();
-	    }
+		// Step 1: Vendor Org Type
+		OrgType orgTypeObject = orgTypeDao.findByTypeName(ApplicationConstants.VENDOR);
+		if (orgTypeObject == null) {
+			log.warn("Vendor org type not found");
+			return Collections.emptyList();
+		}
 
-	    // Step 4: Collect vendor IDs
-	    List<String> vendorIds = vendors.stream()
-	            .map(Organization::getId)
-	            .toList();
+		// Step 3: Fetch vendors
+		List<Organization> vendors = orgDao.findVendorsBySearchType("VENDOR", searchType, searchValue);
 
-	    // Step 5: Last login (single query)
-	    List<Object[]> lastLoginData =
-	            userDao.findLastLoginByOrgIds(vendorIds);
+		if (vendors.isEmpty()) {
+			log.warn("No vendors found");
+			return Collections.emptyList();
+		}
 
-	    Map<String, Date> lastLoginMap = new HashMap<>();
+		// Step 4: Collect vendor IDs
+		List<String> vendorIds = vendors.stream().map(Organization::getId).toList();
 
-	    for (Object[] row : lastLoginData) {
-	        lastLoginMap.put((String) row[0], (Date) row[1]);
-	    }
+		// Step 5: Last login (single query)
+		List<Object[]> lastLoginData = userDao.findLastLoginByOrgIds(vendorIds);
 
-	    // Step 6: Build response
-	    List<VendorSummaryResponse> response = new ArrayList<>();
+		Map<String, Date> lastLoginMap = new HashMap<>();
 
-	    for (Organization vendor : vendors) {
+		for (Object[] row : lastLoginData) {
+			lastLoginMap.put((String) row[0], (Date) row[1]);
+		}
 
-	        VendorSummaryResponse summary = new VendorSummaryResponse();
+		// Step 6: Build response
+		List<VendorSummaryResponse> response = new ArrayList<>();
 
-	        try {
-	            summary.setId(vendor.getId());
-	            summary.setCompanyId(vendor.getCompanyId());
-	            summary.setCompanyName(vendor.getCompanyName());
-	            summary.setName(vendor.getName());
-	            summary.setEmail(vendor.getEmail());
-	            summary.setGst(vendor.getGstin());
-	            summary.setPincode(vendor.getZipCode());
-	            summary.setPhoneNumber(vendor.getOrganizationPhonenumber());
-	            summary.setDetails(vendor.getDetails());
-	            summary.setSourceType(vendor.getSourceType());
-	            summary.setCreatedTS(vendor.getCreatedTS());
+		for (Organization vendor : vendors) {
 
-	            summary.setSubscribed(
-	                    vendor.getSubscriptionPlan() != null ? "Yes" : "No"
-	            );
+			VendorSummaryResponse summary = new VendorSummaryResponse();
 
-	            summary.setRfqsConsumed(
-	                    vendor.getRfqUsedCount() != null ? vendor.getRfqUsedCount() : 0L
-	            );
+			try {
+				summary.setId(vendor.getId());
+				summary.setCompanyId(vendor.getCompanyId());
+				summary.setCompanyName(vendor.getCompanyName());
+				summary.setName(vendor.getName());
+				summary.setEmail(vendor.getEmail());
+				summary.setGst(vendor.getGstin());
+				summary.setPincode(vendor.getZipCode());
+				summary.setPhoneNumber(vendor.getOrganizationPhonenumber());
+				summary.setDetails(vendor.getDetails());
+				summary.setSourceType(vendor.getSourceType());
+				summary.setCreatedTS(vendor.getCreatedTS());
 
-	            summary.setQuotesSubmitted(
-	                    vendor.getQuoteSubmitted() != null ? vendor.getQuoteSubmitted() : 0L
-	            );
+				summary.setSubscribed(vendor.getSubscriptionPlan() != null ? "Yes" : "No");
 
-	            summary.setVendorClass(vendor.getVendorClass());
-	            summary.setSubscriptionExpiry(vendor.getSubscriptionExpiry());
+				summary.setRfqsConsumed(vendor.getRfqUsedCount() != null ? vendor.getRfqUsedCount() : 0L);
 
-	            // Last login
-	            summary.setLastLogin(lastLoginMap.get(vendor.getId()));
+				summary.setQuotesSubmitted(vendor.getQuoteSubmitted() != null ? vendor.getQuoteSubmitted() : 0L);
 
-	            summary.setError(null);
+				summary.setVendorClass(vendor.getVendorClass());
+				summary.setSubscriptionExpiry(vendor.getSubscriptionExpiry());
 
-	        } catch (Exception ex) {
+				// Last login
+				summary.setLastLogin(lastLoginMap.get(vendor.getId()));
 
-	            log.error("Error processing vendor ID={}: {}", vendor.getId(), ex.getMessage(), ex);
+				summary.setError(null);
 
-	            summary.setId(vendor.getId());
-	            summary.setCompanyId(vendor.getCompanyId());
-	            summary.setCompanyName(vendor.getCompanyName());
-	            summary.setName(vendor.getName());
-	            summary.setSubscribed("Unknown");
-	            summary.setError("Error fetching data: " + ex.getMessage());
-	        }
+			} catch (Exception ex) {
 
-	        response.add(summary);
-	    }
-	    
-	    
-		
+				log.error("Error processing vendor ID={}: {}", vendor.getId(), ex.getMessage(), ex);
+
+				summary.setId(vendor.getId());
+				summary.setCompanyId(vendor.getCompanyId());
+				summary.setCompanyName(vendor.getCompanyName());
+				summary.setName(vendor.getName());
+				summary.setSubscribed("Unknown");
+				summary.setError("Error fetching data: " + ex.getMessage());
+			}
+
+			response.add(summary);
+		}
+
 		return response;
 	}
 
 	@Override
-	public UserActivity saveUserActivity(UserActivityDto userActivityDto,String userName,String mobile) {
+	public UserActivity saveUserActivity(UserActivityDto userActivityDto, String userName, String mobile) {
 		log.info("Entering into saveUserActivity Servce Implementation...");
-		
-		User user = userDao.findByUsernameAndPhoneAndActive(userName, mobile,true);
+
+		User user = userDao.findByUsernameAndPhoneAndActive(userName, mobile, true);
 		Role role = roleDao.findById(user.getRole().getId()).get();
-		
-		log.info("Role is : {}",role.getRoleName());
-		log.info("OperationType : {}",userActivityDto.getOperationType());
-		log.info("Operation Module : {}",userActivityDto.getGmtOrBfs());
-			
-		UserActivity userActivity =  new UserActivity();
+
+		log.info("Role is : {}", role.getRoleName());
+		log.info("OperationType : {}", userActivityDto.getOperationType());
+		log.info("Operation Module : {}", userActivityDto.getGmtOrBfs());
+
+		UserActivity userActivity = new UserActivity();
 		userActivity.setUserName(userName);
 		userActivity.setMobileNum(mobile);
 		userActivity.setLoginTime(userActivityDto.getLoginTime());
 		userActivity.setGmtBfs(userActivityDto.getGmtOrBfs());
 		userActivity.setOperationType(userActivityDto.getOperationType());
 		userActivity.setOperationSubType(userActivityDto.getOperationSubType());
-		
-		if(userActivityDto.getGmtOrBfs().equalsIgnoreCase("GMT")) {
+
+		if (userActivityDto.getGmtOrBfs().equalsIgnoreCase("GMT")) {
 			Rfq rfq = rfqDao.findByRfqId(userActivityDto.getOperationSubType());
-			userActivity.setRfqCreatedTime(rfq.getCreatedTS().toInstant()
-			        .atZone(ZoneId.systemDefault())
-			        .toLocalDateTime());	
-		}	
+			userActivity
+					.setRfqCreatedTime(rfq.getCreatedTS().toInstant().atZone(ZoneId.systemDefault()).toLocalDateTime());
+		}
 		userActivity.setRole(role.getRoleName());
 		userActivity.setRegisteredSource(user.getSourceType());
 		userActivityDao.save(userActivity);
-		
-		UserActivity savedUserActivity  = userActivityDao.save(userActivity);
+
+		UserActivity savedUserActivity = userActivityDao.save(userActivity);
 		log.info("End of saveUserActivity ServiceImplementation....");
 		return savedUserActivity;
-		
+
 	}
-	
-	
+
+	@Override
+	public ResponseEntity<MessageResponse> getBuyerByEmail(String email) {
+
+		if (email == null || email.trim().isEmpty()) {
+			return ResponseEntity.badRequest()
+					.body(MessageResponse.error("Email is required", List.of("username is mandatory")));
+		}
+		
+		Role initiatorRole = roleDao.findByRoleNameAndActive(StatusConstants.ClientInitiator, true);
+		
+		Optional<User> optionalUser = userDao.findFirstByUsernameAndRoleAndActiveTrueOrderByCreatedTSDesc(email,initiatorRole);
+
+		if (optionalUser.isEmpty()) {
+			return ResponseEntity.status(HttpStatus.NOT_FOUND)
+					.body(MessageResponse.error("Buyer not found", List.of("No buyer found with email: " + email)));
+		}
+
+		User user = optionalUser.get();
+
+		Map<String, Object> data = new HashMap<>();
+		data.put("name", user.getFullName());
+		data.put("userId", user.getId());
+		data.put("orgId", user.getOrg().getId());
+		data.put("phone", user.getPhone());
+
+		return ResponseEntity.ok(MessageResponse.success("Buyer fetched successfully", data));
+	}
 
 }

@@ -2,9 +2,12 @@ package com.portal.procucev.service;
 import java.io.UnsupportedEncodingException;
 import java.util.List;
 
+import org.springframework.http.ResponseEntity;
+
 import com.portal.procucev.Dto.SimplePageResponse;
 import com.portal.procucev.Dto.UserActivityDto;
 import com.portal.procucev.Dto.VendorSummaryResponse;
+import com.portal.procucev.customexception.MessageResponse;
 import com.portal.procucev.model.EmailUser;
 import com.portal.procucev.model.Organization;
 import com.portal.procucev.model.ResetPassword;
@@ -69,5 +72,7 @@ public interface UserService {
 	List<VendorSummaryResponse> getVendorSummarySearchResults(String searchType, String searchValue);
 	
 	UserActivity saveUserActivity(UserActivityDto userActivity,String userName,String mobile);
+
+	ResponseEntity<MessageResponse> getBuyerByEmail(String username);
 
 }
