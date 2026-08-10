@@ -58,13 +58,14 @@ OrgDao orgDao;
 
 			rfq.setByClient(true);
 			rfq.setStatus(resultStatus);
-			rfq.setClientStatus(newStatus);
-			rfq.setSourceType(ApplicationConstants.TOOL); //need to check
+			rfq.setSourceType(ApplicationConstants.TOOL);
 
 			// String rfqId = selfRegistrationService.generateId("RFQ");
 
-			String rfqId = generateRfqId("RFQ");
-			logger.info("Generated RFQ Id: {}", rfqId);
+			String rfqId = (rfq.getRfqId() != null && !rfq.getRfqId().isBlank())
+					? rfq.getRfqId()
+					: generateRfqId("RFQ");
+			logger.info("Using RFQ Id: {}", rfqId);
 			rfq.setRfqId(rfqId);
 
 			List<RfqItem> rfqItems = rfq.getRfqItem();
