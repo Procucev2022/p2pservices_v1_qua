@@ -67,13 +67,13 @@ public class CategoryClassificationServiceTest {
     @DisplayName("Test classifyItems Excel master dataset match (High Score)")
     void testClassifyItemsExcelMasterMatch() {
         ExcelMasterDataLoader.MasterCategoryRecord record1 = new ExcelMasterDataLoader.MasterCategoryRecord();
-        record1.setItemDescription("Heavy Duty Hydraulic Gearbox");
+        record1.setItemDescription("Specialized Heavy Crane Unit 99");
         record1.setCategory("Heavy Machinery");
         record1.setDivision("Mechanical Engineering");
 
         Mockito.when(dataLoader.getMasterRecords()).thenReturn(List.of(record1));
 
-        RFQItem item = RFQItem.builder().itemDescription("Heavy Duty Hydraulic Gearbox").specification("Heavy Machinery").build();
+        RFQItem item = RFQItem.builder().itemDescription("Specialized Heavy Crane Unit 99").specification("Heavy Machinery").build();
         service.classifyItems(List.of(item));
 
         assertEquals("Heavy Machinery", item.getCategory());
@@ -81,6 +81,7 @@ public class CategoryClassificationServiceTest {
         assertEquals("MATCHED", item.getClassificationStatus());
         assertTrue(item.getCategoryConfidence() >= 0.85);
     }
+
 
     @Test
     @DisplayName("Test classifyItems Excel master numeric category fallback")
