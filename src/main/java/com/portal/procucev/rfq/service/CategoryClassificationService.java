@@ -121,34 +121,50 @@ public class CategoryClassificationService {
     private static final java.util.Map<String, String> DOMAIN_KEYWORD_MAP = java.util.Map.ofEntries(
             // IT Hardware & Electronics
             java.util.Map.entry("laptop", "IT Hardware & Electronics"),
+            java.util.Map.entry("laptops", "IT Hardware & Electronics"),
             java.util.Map.entry("computer", "IT Hardware & Electronics"),
+            java.util.Map.entry("computers", "IT Hardware & Electronics"),
             java.util.Map.entry("desktop", "IT Hardware & Electronics"),
+            java.util.Map.entry("desktops", "IT Hardware & Electronics"),
             java.util.Map.entry("notebooks", "Stationery & Office Supplies"),
             java.util.Map.entry("notebook", "IT Hardware & Electronics"),
             java.util.Map.entry("macbook", "IT Hardware & Electronics"),
+            java.util.Map.entry("macbooks", "IT Hardware & Electronics"),
             java.util.Map.entry("pc", "IT Hardware & Electronics"),
+            java.util.Map.entry("pcs", "IT Hardware & Electronics"),
             java.util.Map.entry("monitor", "IT Hardware & Electronics"),
+            java.util.Map.entry("monitors", "IT Hardware & Electronics"),
             java.util.Map.entry("workstation", "IT Hardware & Electronics"),
+            java.util.Map.entry("workstations", "IT Hardware & Electronics"),
             java.util.Map.entry("keyboard", "IT Hardware & Electronics"),
+            java.util.Map.entry("keyboards", "IT Hardware & Electronics"),
             java.util.Map.entry("mouse", "IT Hardware & Electronics"),
             java.util.Map.entry("printer", "IT Hardware & Electronics"),
+            java.util.Map.entry("printers", "IT Hardware & Electronics"),
             java.util.Map.entry("server", "IT Hardware & Electronics"),
+            java.util.Map.entry("servers", "IT Hardware & Electronics"),
             java.util.Map.entry("cpu", "IT Hardware & Electronics"),
+            java.util.Map.entry("cpus", "IT Hardware & Electronics"),
             java.util.Map.entry("ram", "IT Hardware & Electronics"),
             java.util.Map.entry("ssd", "IT Hardware & Electronics"),
+            java.util.Map.entry("ssds", "IT Hardware & Electronics"),
             java.util.Map.entry("hard disk", "IT Hardware & Electronics"),
 
             // Networking Equipment
             java.util.Map.entry("switch", "Networking Equipment"),
             java.util.Map.entry("switches", "Networking Equipment"),
             java.util.Map.entry("router", "Networking Equipment"),
+            java.util.Map.entry("routers", "Networking Equipment"),
             java.util.Map.entry("access point", "Networking Equipment"),
+            java.util.Map.entry("access points", "Networking Equipment"),
             java.util.Map.entry("ethernet", "Networking Equipment"),
             java.util.Map.entry("firewall", "Networking Equipment"),
+            java.util.Map.entry("firewalls", "Networking Equipment"),
 
             // Security & Surveillance
             java.util.Map.entry("cctv", "Security & Surveillance Equipment"),
             java.util.Map.entry("camera", "Security & Surveillance Equipment"),
+            java.util.Map.entry("cameras", "Security & Surveillance Equipment"),
             java.util.Map.entry("surveillance", "Security & Surveillance Equipment"),
 
             // Stationery & Paper
@@ -161,11 +177,13 @@ public class CategoryClassificationService {
             java.util.Map.entry("dispenser", "Appliances & Office Amenities"),
             java.util.Map.entry("dispensers", "Appliances & Office Amenities"),
             java.util.Map.entry("cooler", "Appliances & Office Amenities"),
+            java.util.Map.entry("coolers", "Appliances & Office Amenities"),
 
             // Construction
             java.util.Map.entry("cement", "Construction"),
             java.util.Map.entry("steel", "Construction"),
             java.util.Map.entry("pipe", "Construction"),
+            java.util.Map.entry("pipes", "Construction"),
             java.util.Map.entry("cpvc", "Construction"),
             java.util.Map.entry("pvc", "Construction"),
             java.util.Map.entry("bricks", "Construction"),
@@ -174,14 +192,21 @@ public class CategoryClassificationService {
 
             // Industrial Machinery
             java.util.Map.entry("motor", "Industrial Machinery"),
+            java.util.Map.entry("motors", "Industrial Machinery"),
             java.util.Map.entry("pump", "Industrial Machinery"),
+            java.util.Map.entry("pumps", "Industrial Machinery"),
             java.util.Map.entry("valve", "Industrial Machinery"),
+            java.util.Map.entry("valves", "Industrial Machinery"),
             java.util.Map.entry("bearing", "Industrial Machinery"),
+            java.util.Map.entry("bearings", "Industrial Machinery"),
             java.util.Map.entry("compressor", "Industrial Machinery"),
+            java.util.Map.entry("compressors", "Industrial Machinery"),
             java.util.Map.entry("generator", "Industrial Machinery"),
+            java.util.Map.entry("generators", "Industrial Machinery"),
 
             // Safety Equipment
             java.util.Map.entry("helmet", "Safety Equipment"),
+            java.util.Map.entry("helmets", "Safety Equipment"),
             java.util.Map.entry("safety", "Safety Equipment"),
             java.util.Map.entry("gloves", "Safety Equipment"),
 
@@ -191,23 +216,35 @@ public class CategoryClassificationService {
             java.util.Map.entry("scada", "Industrial Automation & Electrical"),
             java.util.Map.entry("vfd", "Industrial Automation & Electrical"),
             java.util.Map.entry("inverter", "Industrial Automation & Electrical"),
+            java.util.Map.entry("inverters", "Industrial Automation & Electrical"),
             java.util.Map.entry("contactor", "Industrial Automation & Electrical"),
+            java.util.Map.entry("contactors", "Industrial Automation & Electrical"),
             java.util.Map.entry("relay", "Industrial Automation & Electrical"),
+            java.util.Map.entry("relays", "Industrial Automation & Electrical"),
             java.util.Map.entry("circuit breaker", "Industrial Automation & Electrical"),
+            java.util.Map.entry("circuit breakers", "Industrial Automation & Electrical"),
 
             // Instrumentation & Process Control
             java.util.Map.entry("pressure gauge", "Instrumentation & Process Control"),
+            java.util.Map.entry("pressure gauges", "Instrumentation & Process Control"),
             java.util.Map.entry("gauge", "Instrumentation & Process Control"),
+            java.util.Map.entry("gauges", "Instrumentation & Process Control"),
             java.util.Map.entry("transmitter", "Instrumentation & Process Control"),
+            java.util.Map.entry("transmitters", "Instrumentation & Process Control"),
             java.util.Map.entry("sensor", "Instrumentation & Process Control"),
+            java.util.Map.entry("sensors", "Instrumentation & Process Control"),
             java.util.Map.entry("flow meter", "Instrumentation & Process Control"),
+            java.util.Map.entry("flow meters", "Instrumentation & Process Control"),
             java.util.Map.entry("thermocouple", "Instrumentation & Process Control"),
+            java.util.Map.entry("thermocouples", "Instrumentation & Process Control"),
 
             // Office Furniture
             java.util.Map.entry("chair", "Office Furniture"),
             java.util.Map.entry("chairs", "Office Furniture"),
             java.util.Map.entry("desk", "Office Furniture"),
+            java.util.Map.entry("desks", "Office Furniture"),
             java.util.Map.entry("table", "Office Furniture"),
+            java.util.Map.entry("tables", "Office Furniture"),
             java.util.Map.entry("furniture", "Office Furniture")
     );
 
