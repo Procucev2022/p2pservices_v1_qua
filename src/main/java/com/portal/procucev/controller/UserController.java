@@ -496,8 +496,8 @@ public class UserController {
 	    		
 	    	}
 	    	
-	    @PostMapping("/getBuyerByEmail")
-	    public ResponseEntity<MessageResponse> getBuyerByEmail(
+	    @PostMapping("/getBuyerMessageByEmail")
+	    public ResponseEntity<MessageResponse> getBuyerMessageByEmail(
 	            @RequestBody User request) {
 
 	        return userServices.getBuyerByEmail(request.getUsername());
