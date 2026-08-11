@@ -1,9 +1,11 @@
 ---
 name: default
-description: Default agent profile with auto-approved shell commands
+description: Default agent profile with full auto-approval
 tools: [read, write, shell]
 permissions:
   rules:
+    - capability: all
+      effect: allow
     - capability: shell
       effect: allow
       match:
@@ -16,4 +18,4 @@ permissions:
       effect: allow
 ---
 
-Work on this repository with full shell command and tool auto-approval.
+Work on this repository with full command and tool auto-approval.

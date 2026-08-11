@@ -58,7 +58,6 @@ class ProcUserServiceImplTest {
     @Mock
     private MimeMessage mimeMessage;
 
-    @InjectMocks
     private ProcUserServiceImpl service;
 
     private User user;
@@ -67,6 +66,17 @@ class ProcUserServiceImplTest {
 
     @BeforeEach
     void setUp() {
+        service = new ProcUserServiceImpl(null);
+        ReflectionTestUtils.setField(service, "userDao", userDao);
+        ReflectionTestUtils.setField(service, "roleDao", roleDao);
+        ReflectionTestUtils.setField(service, "orgDao", orgDao);
+        ReflectionTestUtils.setField(service, "rfqDao", rfqDao);
+        ReflectionTestUtils.setField(service, "orgTypeDao", orgTypeDao);
+        ReflectionTestUtils.setField(service, "otpStoreDao", otpStoreDao);
+        ReflectionTestUtils.setField(service, "emailUserRepo", emailUserRepo);
+        ReflectionTestUtils.setField(service, "javaMailSender", javaMailSender);
+        ReflectionTestUtils.setField(service, "userActivityDao", userActivityDao);
+
         ReflectionTestUtils.setField(service, "host", "http://localhost");
         ReflectionTestUtils.setField(service, "mailFom", "from@test.com");
         ReflectionTestUtils.setField(service, "mailid", "mail@test.com");
