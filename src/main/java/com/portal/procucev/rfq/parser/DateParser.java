@@ -42,7 +42,7 @@ public class DateParser {
             } catch (Exception ignored) {}
         }
 
-        String cleanedPrefix = cleaned.replaceAll("(?i)^(?:before|by|on|within|due|required|\\s+)+", "").trim();
+        String cleanedPrefix = cleaned.replaceAll("(?i)^(?:before|by|on|within|due|required|\\s)+", "").trim();
 
         for (DateTimeFormatter formatter : DATE_FORMATTERS) {
             try {
@@ -61,7 +61,7 @@ public class DateParser {
             return Date.from(LocalDate.now().plusDays(5).atStartOfDay(ZoneId.systemDefault()).toInstant());
         }
 
-        String cleaned = inputDate.trim();
+        String cleaned = inputDate.trim().replaceAll("(?i)^(?:before|by|on|within|due|required|\\s)+", "").trim();
         for (DateTimeFormatter formatter : DATE_FORMATTERS) {
             try {
                 LocalDate parsed = LocalDate.parse(cleaned, formatter);
@@ -72,6 +72,7 @@ public class DateParser {
 
         return Date.from(LocalDate.now().plusDays(5).atStartOfDay(ZoneId.systemDefault()).toInstant());
     }
+
 
     public String parseDateString(String inputDate) {
         String defaultFormattedDate = LocalDate.now().plusDays(5).format(DateTimeFormatter.ofPattern("yyyy-MM-dd"));

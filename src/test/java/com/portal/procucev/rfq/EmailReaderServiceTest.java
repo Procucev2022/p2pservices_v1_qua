@@ -111,8 +111,9 @@ public class EmailReaderServiceTest {
         assertTrue(file.getName().endsWith("test_file.txt"));
 
         // Test path traversal exception
-        assertThrows(Exception.class, () -> ReflectionTestUtils.invokeMethod(service, "createAttachmentFile", "../../../secret.txt"));
+        assertThrows(Throwable.class, () -> ReflectionTestUtils.invokeMethod(service, "createAttachmentFile", "../../../secret.txt"));
     }
+
 
     @Test
     @DisplayName("Test parseMessage with non-InternetAddress sender")

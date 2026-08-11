@@ -87,18 +87,19 @@ public class CategoryClassificationServiceTest {
     @DisplayName("Test classifyItems Excel master numeric category fallback")
     void testClassifyItemsNumericCategoryFallback() {
         ExcelMasterDataLoader.MasterCategoryRecord record1 = new ExcelMasterDataLoader.MasterCategoryRecord();
-        record1.setItemDescription("Custom Industrial Machine");
+        record1.setItemDescription("Unmatched Unique Equipment XYZ");
         record1.setCategory("123.45"); // Numeric
         record1.setDivision("Custom Division");
 
         Mockito.when(dataLoader.getMasterRecords()).thenReturn(List.of(record1));
 
-        RFQItem item = RFQItem.builder().itemDescription("Custom Industrial Machine").specification("123.45").build();
+        RFQItem item = RFQItem.builder().itemDescription("Unmatched Unique Equipment XYZ").specification("123.45").build();
         service.classifyItems(List.of(item));
 
         assertEquals("Custom Division", item.getCategory());
         assertEquals("MATCHED", item.getClassificationStatus());
     }
+
 
     @Test
     @DisplayName("Test classifyItems cross-domain medical IT protection and default fallback")
@@ -158,13 +159,13 @@ public class CategoryClassificationServiceTest {
     @DisplayName("Test classifyItems excel match with null category falls back to General Industrial Goods")
     void testClassifyItemsNullCategoryExcelMatch() {
         ExcelMasterDataLoader.MasterCategoryRecord record = new ExcelMasterDataLoader.MasterCategoryRecord();
-        record.setItemDescription("Custom Industrial Machine");
+        record.setItemDescription("Unmatched Special Device ABC 1");
         record.setCategory(null);
         record.setDivision("Custom Division");
 
         Mockito.when(dataLoader.getMasterRecords()).thenReturn(List.of(record));
 
-        RFQItem item = RFQItem.builder().itemDescription("Custom Industrial Machine").specification("Custom Industrial Machine").build();
+        RFQItem item = RFQItem.builder().itemDescription("Unmatched Special Device ABC 1").specification("Unmatched Special Device ABC 1").build();
         service.classifyItems(List.of(item));
 
         assertEquals("General Industrial Goods", item.getCategory());
@@ -175,13 +176,13 @@ public class CategoryClassificationServiceTest {
     @DisplayName("Test classifyItems excel match with blank category falls back to General Industrial Goods")
     void testClassifyItemsBlankCategoryExcelMatch() {
         ExcelMasterDataLoader.MasterCategoryRecord record = new ExcelMasterDataLoader.MasterCategoryRecord();
-        record.setItemDescription("Custom Industrial Machine");
+        record.setItemDescription("Unmatched Special Device ABC 2");
         record.setCategory("");
         record.setDivision("Custom Division");
 
         Mockito.when(dataLoader.getMasterRecords()).thenReturn(List.of(record));
 
-        RFQItem item = RFQItem.builder().itemDescription("Custom Industrial Machine").specification("Custom Industrial Machine").build();
+        RFQItem item = RFQItem.builder().itemDescription("Unmatched Special Device ABC 2").specification("Unmatched Special Device ABC 2").build();
         service.classifyItems(List.of(item));
 
         assertEquals("General Industrial Goods", item.getCategory());
@@ -192,13 +193,13 @@ public class CategoryClassificationServiceTest {
     @DisplayName("Test classifyItems excel numeric category with numeric division falls back to General Industrial Goods")
     void testClassifyItemsNumericCategoryAndDivision() {
         ExcelMasterDataLoader.MasterCategoryRecord record = new ExcelMasterDataLoader.MasterCategoryRecord();
-        record.setItemDescription("Custom Industrial Machine");
+        record.setItemDescription("Unmatched Special Device ABC 3");
         record.setCategory("99");
         record.setDivision("123");
 
         Mockito.when(dataLoader.getMasterRecords()).thenReturn(List.of(record));
 
-        RFQItem item = RFQItem.builder().itemDescription("Custom Industrial Machine").specification("99").build();
+        RFQItem item = RFQItem.builder().itemDescription("Unmatched Special Device ABC 3").specification("99").build();
         service.classifyItems(List.of(item));
 
         assertEquals("General Industrial Goods", item.getCategory());
@@ -209,18 +210,19 @@ public class CategoryClassificationServiceTest {
     @DisplayName("Test classifyItems excel match with null division sets General Procurement")
     void testClassifyItemsNullDivisionExcelMatch() {
         ExcelMasterDataLoader.MasterCategoryRecord record = new ExcelMasterDataLoader.MasterCategoryRecord();
-        record.setItemDescription("Custom Industrial Machine");
+        record.setItemDescription("Unmatched Special Device ABC 4");
         record.setCategory("Heavy Machinery");
         record.setDivision(null);
 
         Mockito.when(dataLoader.getMasterRecords()).thenReturn(List.of(record));
 
-        RFQItem item = RFQItem.builder().itemDescription("Custom Industrial Machine").specification("Heavy Machinery").build();
+        RFQItem item = RFQItem.builder().itemDescription("Unmatched Special Device ABC 4").specification("Heavy Machinery").build();
         service.classifyItems(List.of(item));
 
         assertEquals("Heavy Machinery", item.getCategory());
         assertEquals("General Procurement", item.getDivision());
     }
+
 
     @Test
     @DisplayName("Test classifyItems single-arg overload routes to two-arg")
