@@ -60,14 +60,34 @@ public class EmailReaderService {
             store.connect(mailHost, mailUsername, mailPassword);
 
             folder = store.getFolder(inboxFolder);
-            folder.open(Folder.READ_ONLY);
+            folder.open(Folder.READ_WRITE);
 
             Message[] messages = folder.search(new jakarta.mail.search.FlagTerm(new Flags(Flags.Flag.SEEN), false));
-            log.info("Found {} unread message(s) in inbox folder '{}'.", messages.length, inboxFolder);
+            int unreadCount = folder.getUnreadMessageCount();
+            int totalCount = folder.getMessageCount();
+            log.info("IMAP status for folder '{}': TotalMessages={}, UnreadMessages={}, SearchUnseenFound={}",
+                    inboxFolder, totalCount, unreadCount, messages.length);
+
+            if (messages.length == 0 && totalCount > 0) {
+                int start = Math.max(1, totalCount - 50);
+                Message[] recentMessages = folder.getMessages(start, totalCount);
+                List<Message> unreadList = new ArrayList<>();
+                for (Message msg : recentMessages) {
+                    if (!msg.isSet(Flags.Flag.SEEN)) {
+                        unreadList.add(msg);
+                    }
+                }
+                if (!unreadList.isEmpty()) {
+                    messages = unreadList.toArray(new Message[0]);
+                    log.info("Fallback scan detected {} unread message(s) among recent messages.", messages.length);
+                }
+            }
 
             for (Message msg : messages) {
                 try {
                     EmailData data = parseMessage(msg);
+                    log.info("Parsed unread email: Subject='{}', From='{}', ReceivedDate='{}'",
+                            data.getSubject(), data.getSenderEmail(), data.getReceivedDate());
                     emailsList.add(data);
                 } catch (Exception e) {
                     log.error("Failed to parse message subject '{}': {}", msg.getSubject(), e.getMessage());
