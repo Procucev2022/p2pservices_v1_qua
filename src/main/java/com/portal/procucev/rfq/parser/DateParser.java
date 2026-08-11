@@ -58,7 +58,7 @@ public class DateParser {
 
     public Date parseToDate(String inputDate) {
         if (inputDate == null || inputDate.trim().isEmpty()) {
-            return Date.from(LocalDate.now().plusDays(7).atStartOfDay(ZoneId.systemDefault()).toInstant());
+            return Date.from(LocalDate.now().plusDays(5).atStartOfDay(ZoneId.systemDefault()).toInstant());
         }
 
         String cleaned = inputDate.trim();
@@ -70,11 +70,11 @@ public class DateParser {
             }
         }
 
-        return Date.from(LocalDate.now().plusDays(7).atStartOfDay(ZoneId.systemDefault()).toInstant());
+        return Date.from(LocalDate.now().plusDays(5).atStartOfDay(ZoneId.systemDefault()).toInstant());
     }
 
     public String parseDateString(String inputDate) {
-        String defaultFormattedDate = LocalDate.now().plusDays(7).format(DateTimeFormatter.ofPattern("yyyy-MM-dd"));
+        String defaultFormattedDate = LocalDate.now().plusDays(5).format(DateTimeFormatter.ofPattern("yyyy-MM-dd"));
 
         if (inputDate == null || inputDate.trim().isEmpty()) {
             return defaultFormattedDate;
