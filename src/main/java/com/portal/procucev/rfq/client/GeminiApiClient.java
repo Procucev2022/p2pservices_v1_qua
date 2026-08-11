@@ -3,9 +3,11 @@ package com.portal.procucev.rfq.client;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.portal.procucev.rfq.exception.ApplicationException;
+import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.web.client.RestTemplateBuilder;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -13,6 +15,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestTemplate;
 
+import java.time.Duration;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -22,8 +25,10 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class GeminiApiClient {
 
-    private final RestTemplate restTemplate = new RestTemplate();
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    private final RestTemplateBuilder restTemplateBuilder;
+    private final ObjectMapper objectMapper;
+
+    private RestTemplate restTemplate;
 
     @Value("${app.gemini.primary-model:gemini-3.5-flash-lite}")
     private String primaryModel;
@@ -34,8 +39,22 @@ public class GeminiApiClient {
     @Value("${app.gemini.base-url:https://generativelanguage.googleapis.com/v1beta/models}")
     private String baseUrl;
 
-    @Value("${app.gemini.api-key:AQ.Ab8RN6Ko1bbQbAOaonCP3CVYOgO2LRja3NblzHS_HM7FpNj9rQ}")
+    @Value("${app.gemini.api-key}")
     private String apiKey;
+
+    @Value("${app.gemini.connect-timeout-ms:5000}")
+    private int connectTimeoutMs = 5000;
+
+    @Value("${app.gemini.read-timeout-ms:60000}")
+    private int readTimeoutMs = 60000;
+
+    @PostConstruct
+    void init() {
+        this.restTemplate = restTemplateBuilder
+                .setConnectTimeout(Duration.ofMillis(connectTimeoutMs))
+                .setReadTimeout(Duration.ofMillis(readTimeoutMs))
+                .build();
+    }
 
     public String generateContent(String promptText) {
         log.info("Sending request to Gemini API (Primary Model: {})...", primaryModel);
@@ -69,6 +88,7 @@ public class GeminiApiClient {
                 "type", "OBJECT",
                 "properties", Map.of(
                         "buyerEmail", Map.of("type", "STRING"),
+                        "category", Map.of("type", "STRING"),
                         "deliveryLocation", Map.of("type", "STRING"),
                         "deliveryCity", Map.of("type", "STRING"),
                         "deliveryState", Map.of("type", "STRING"),
@@ -82,7 +102,7 @@ public class GeminiApiClient {
                                                 "itemDescription", Map.of("type", "STRING"),
                                                 "partCode", Map.of("type", "STRING"),
                                                 "specification", Map.of("type", "STRING"),
-                                                "quantity", Map.of("type", "NUMBER"),
+                                                "quantity", Map.of("type", "NUMBER", "nullable", true),
                                                 "uom", Map.of("type", "STRING"),
                                                 "brand", Map.of("type", "STRING")
                                         ),

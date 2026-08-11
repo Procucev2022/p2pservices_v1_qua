@@ -62,9 +62,9 @@ public class EmailProcessorService {
             processedCount++;
             try {
                 String status = processSingleEmail(email);
-                if ("SUCCESS".equals(status)) {
+                if (isSuccessfulStatus(status)) {
                     successCount++;
-                } else if ("FAILED".equals(status)) {
+                } else if (isErrorStatus(status)) {
                     errorCount++;
                 }
             } catch (Exception e) {
@@ -166,8 +166,8 @@ public class EmailProcessorService {
             }
 
             // STEP 3: VALIDATE EXTRACTED RFQ DATA
-            ValidationService.ValidationResult valResult = validationService.validateWithDetails(extractedRFQ);
             extractedRFQ.setBuyerEmail(buyer.getEmail());
+            ValidationService.ValidationResult valResult = validationService.validateWithDetails(extractedRFQ);
 
             if (!valResult.isValid()) {
                 log.warn("RFQ validation failed for extracted data: {}", valResult.getFailureReason());
@@ -198,7 +198,7 @@ public class EmailProcessorService {
                     continue;
                 }
                 String desc = item.getItemDescription().trim();
-                String key = buyer.getEmail().toLowerCase() + "|" + desc.toLowerCase() + "|" + topDeliveryDate.toLowerCase();
+                String key = buildDeduplicationKey(item, buyer.getEmail(), topDeliveryDate, topDeliveryLocation);
 
                 if (seenInEmailKeys.contains(key)) {
                     log.info("Duplicate RFQ Item within same email payload detected, combining line: {}", desc);
@@ -215,15 +215,16 @@ public class EmailProcessorService {
                 acknowledgementEmailService.sendFailureAcknowledgement(failedReq, buyer);
                 emailReaderService.moveMessageToFolder(email.getMessageId(), errorFolder);
 
-                transaction.setStatus("AI_FAILED");
+                transaction.setStatus("VALIDATION_FAILED");
                 transaction.setErrorMessage("No valid items extracted");
                 emailTransactionRepository.save(transaction);
-                return "AI_FAILED";
+                return "VALIDATION_FAILED";
             }
 
             // STEP 5: ITEM GROUPING, CLASSIFICATION & RFQ CREATION FOR VALIDATED BUYER
             Map<String, List<RFQItem>> itemGroups = groupItemsByLocationAndDate(validItems, topDeliveryLocation, topDeliveryDate);
             boolean atLeastOneSuccess = false;
+            boolean hasFailures = false;
 
             for (Map.Entry<String, List<RFQItem>> groupEntry : itemGroups.entrySet()) {
                 List<RFQItem> groupItems = groupEntry.getValue();
@@ -236,6 +237,9 @@ public class EmailProcessorService {
                 ExtractedRFQ groupExtractedRFQ = ExtractedRFQ.builder()
                         .buyerEmail(buyer.getEmail())
                         .deliveryLocation(groupLocation)
+                        .deliveryCity(extractedRFQ.getDeliveryCity())
+                        .deliveryState(extractedRFQ.getDeliveryState())
+                        .deliveryPincode(extractedRFQ.getDeliveryPincode())
                         .deliveryDate(groupDate)
                         .category(extractedRFQ.getCategory())
                         .items(groupItems)
@@ -289,17 +293,24 @@ public class EmailProcessorService {
 
                     acknowledgementEmailService.sendSuccessAcknowledgement(savedRfq, buyer);
                 } else {
+                    hasFailures = true;
                     log.warn("RFQ creation failed for RFQ Number: {}", generatedRfqNumber);
                     FailedRfqRequest failedReq = buildFailedRequestFromEmail(email, groupExtractedRFQ, "RFQ Creation error: " + apiResponse.getMessage());
                     acknowledgementEmailService.sendFailureAcknowledgement(failedReq, buyer);
                 }
             }
 
-            if (atLeastOneSuccess) {
+            if (atLeastOneSuccess && !hasFailures) {
                 emailReaderService.moveMessageToFolder(email.getMessageId(), processedFolder);
                 transaction.setStatus("RFQ_CREATED");
                 emailTransactionRepository.save(transaction);
                 return "RFQ_CREATED";
+            } else if (atLeastOneSuccess) {
+                emailReaderService.moveMessageToFolder(email.getMessageId(), errorFolder);
+                transaction.setStatus("PARTIAL_FAILURE");
+                transaction.setErrorMessage("One or more grouped RFQs failed after at least one RFQ was created.");
+                emailTransactionRepository.save(transaction);
+                return "PARTIAL_FAILURE";
             } else {
                 emailReaderService.moveMessageToFolder(email.getMessageId(), errorFolder);
                 transaction.setStatus("FAILED");
@@ -320,6 +331,32 @@ public class EmailProcessorService {
             }
             return "FAILED";
         }
+    }
+
+    private boolean isSuccessfulStatus(String status) {
+        return "RFQ_CREATED".equalsIgnoreCase(status);
+    }
+
+    private boolean isErrorStatus(String status) {
+        return Set.of("FAILED", "PARTIAL_FAILURE", "AI_FAILED", "VALIDATION_FAILED", "INVALID_BUYER")
+                .contains(status);
+    }
+
+    private String buildDeduplicationKey(RFQItem item, String buyerEmail, String defaultDate, String defaultLocation) {
+        return String.join("|",
+                normalizeValue(buyerEmail),
+                normalizeValue(item.getItemDescription()),
+                normalizeValue(item.getDeliveryDate() != null ? item.getDeliveryDate() : defaultDate),
+                normalizeValue(item.getDeliveryLocation() != null ? item.getDeliveryLocation() : defaultLocation),
+                normalizeValue(item.getUom()),
+                normalizeValue(item.getEffectivePartNumber()),
+                normalizeValue(item.getSpecification()),
+                normalizeValue(item.getBrand()),
+                item.getQuantity() != null ? item.getQuantity().toString() : "");
+    }
+
+    private String normalizeValue(String value) {
+        return value == null ? "" : value.trim().toLowerCase();
     }
 
     private Map<String, List<RFQItem>> groupItemsByLocationAndDate(List<RFQItem> items, String defaultLoc, String defaultDate) {

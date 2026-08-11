@@ -3,9 +3,11 @@ package com.portal.procucev.rfq.service;
 import com.portal.procucev.rfq.model.RFQItem;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.regex.Pattern;
 
 @Slf4j
 @Service
@@ -13,6 +15,9 @@ import java.util.List;
 public class CategoryClassificationService {
 
     private final ExcelMasterDataLoader dataLoader;
+
+    @Value("${app.category.classification.min-matched-confidence:0.85}")
+    private double minMatchedConfidence = 0.85;
 
     public void classifyItems(List<RFQItem> items) {
         classifyItems(items, null);
@@ -45,7 +50,7 @@ public class CategoryClassificationService {
 
         // Step 1: Check Domain Keyword Map FIRST for high-accuracy category classification
         for (java.util.Map.Entry<String, String> entry : DOMAIN_KEYWORD_MAP.entrySet()) {
-            if (combined.contains(entry.getKey())) {
+            if (containsKeyword(combined, entry.getKey())) {
                 String catName = entry.getValue();
                 item.setCategory(catName);
                 item.setDivision(catName);
@@ -69,7 +74,7 @@ public class CategoryClassificationService {
             }
         }
 
-        if (bestMatch != null && highestScore >= 0.4) {
+        if (bestMatch != null && highestScore >= minMatchedConfidence) {
             String category = bestMatch.getCategory();
             if (category != null && category.matches("^\\d+(\\.\\d+)?$")) {
                 category = (bestMatch.getDivision() != null && !bestMatch.getDivision().isBlank() && !bestMatch.getDivision().matches("^\\d+(\\.\\d+)?$"))
@@ -98,7 +103,7 @@ public class CategoryClassificationService {
         if (masterDesc.isBlank()) return 0.0;
 
         // Prevent cross-domain surgical/medical mismatch for IT monitors & electronics
-        if ((text.contains("computer") || text.contains("pc") || text.contains("it ") || text.contains("network")) &&
+        if ((containsKeyword(text, "computer") || containsKeyword(text, "pc") || containsKeyword(text, "it") || containsKeyword(text, "network")) &&
             (masterCat.contains("surgical") || masterCat.contains("medical") || masterCat.contains("pharma"))) {
             return 0.0;
         }
@@ -206,25 +211,8 @@ public class CategoryClassificationService {
             java.util.Map.entry("furniture", "Office Furniture")
     );
 
-    private void assignDefaultCategory(RFQItem item) {
-        String combined = (item.getItemDescription() != null ? item.getItemDescription().toLowerCase() : "") + " " +
-                          (item.getSpecification() != null ? item.getSpecification().toLowerCase() : "");
-
-        for (java.util.Map.Entry<String, String> entry : DOMAIN_KEYWORD_MAP.entrySet()) {
-            if (combined.contains(entry.getKey())) {
-                item.setCategory(entry.getValue());
-                item.setDivision(entry.getValue());
-                item.setCategoryConfidence(0.8);
-                item.setClassificationStatus("DOMAIN_KEYWORD_MATCHED");
-                log.info("Classified item '{}' via keyword '{}' -> Category: '{}'",
-                        item.getItemDescription(), entry.getKey(), entry.getValue());
-                return;
-            }
-        }
-
-        item.setCategory("General Industrial Goods");
-        item.setDivision("General Procurement");
-        item.setCategoryConfidence(0.5);
-        item.setClassificationStatus("DEFAULT");
+    private boolean containsKeyword(String text, String keyword) {
+        return Pattern.compile("(^|[^a-z0-9])" + Pattern.quote(keyword) + "([^a-z0-9]|$)").matcher(text).find();
     }
+
 }

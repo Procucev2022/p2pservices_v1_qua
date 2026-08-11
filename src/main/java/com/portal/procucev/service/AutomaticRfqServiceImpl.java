@@ -58,6 +58,7 @@ OrgDao orgDao;
 
 			rfq.setByClient(true);
 			rfq.setStatus(resultStatus);
+			rfq.setClientStatus(newStatus);
 			rfq.setSourceType(ApplicationConstants.TOOL);
 
 			// String rfqId = selfRegistrationService.generateId("RFQ");

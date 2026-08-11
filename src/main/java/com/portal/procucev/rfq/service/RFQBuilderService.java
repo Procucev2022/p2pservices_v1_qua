@@ -225,8 +225,9 @@ public class RFQBuilderService {
                     brandVal = brandVal.substring(0, 50).trim();
                 }
 
-                int qty = item.getQuantity() != null ? item.getQuantity().intValue() : 1;
-                if (qty <= 0) qty = 1;
+                double qty = item.getQuantity() != null ? item.getQuantity() : 1D;
+                if (qty <= 0) qty = 1D;
+                String qtyDisplay = formatQuantity(qty);
 
                 String partCodeVal = sanitizeText(item.getEffectivePartNumber());
 
@@ -239,7 +240,7 @@ public class RFQBuilderService {
                     } else {
                         String bStr = item.getBrand() != null && !item.getBrand().equalsIgnoreCase("null") ? item.getBrand().trim() : "";
                         String dStr = item.getItemDescription() != null ? item.getItemDescription().trim() : primaryDescription;
-                        specs = sanitizeText(bStr + " " + dStr + " - " + qty + " Units");
+                        specs = sanitizeText(bStr + " " + dStr + " - " + qtyDisplay + " Units");
                     }
                 } else {
                     specs = item.getSpecification() != null && !item.getSpecification().isBlank()
@@ -297,5 +298,11 @@ public class RFQBuilderService {
     private String sanitizeText(String input) {
         if (input == null) return "";
         return input.replaceAll("[^\\x00-\\x7F]", "-").replaceAll("\\s+", " ").trim();
+    }
+
+    private String formatQuantity(double quantity) {
+        return quantity == Math.rint(quantity)
+                ? String.valueOf((long) quantity)
+                : String.valueOf(quantity);
     }
 }

@@ -1102,15 +1102,10 @@ public class ProcUserServiceImpl implements UserService {
 			return null;
 		}
 
-		Role role = roleDao.findByRoleNameAndActive(StatusConstants.ClientInitiator, true);
-		if (role == null) {
-			role = roleDao.findByRoleNameAndActive(StatusConstants.Clientrole, true);
-		}
-
-		User userData = userDao.findByUsernameAndActiveAndRole(email, role);
-		if (userData == null) {
-			userData = userDao.findByUsernameAndActive(email, true);
-		}
+		List<User> matchingUsers = userDao.findActiveUsersByUsernameAndRoleNames(
+				email.trim(),
+				List.of(StatusConstants.ClientInitiator, StatusConstants.Clientrole));
+		User userData = matchingUsers.isEmpty() ? null : matchingUsers.get(0);
 
 		if (userData == null) {
 			log.warn("No active user found for email: {}", email);

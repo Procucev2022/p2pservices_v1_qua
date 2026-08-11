@@ -1,21 +1,24 @@
 package com.portal.procucev.rfq.service;
 
+import jakarta.annotation.PostConstruct;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.poi.ss.usermodel.*;
+import org.apache.poi.ss.usermodel.Cell;
+import org.apache.poi.ss.usermodel.DataFormatter;
+import org.apache.poi.ss.usermodel.Row;
+import org.apache.poi.ss.usermodel.Sheet;
+import org.apache.poi.ss.usermodel.Workbook;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
-import jakarta.annotation.PostConstruct;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.InputStream;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 
 @Slf4j
@@ -45,13 +48,10 @@ public class ExcelMasterDataLoader {
     }
 
     public synchronized void loadMasterData() {
-        log.info("Loading Category Master Data Excel files (1st Set & 2nd Set)...");
+        log.info("Loading Category Master Data Excel files using configured path: {}", masterFilePath);
         List<MasterCategoryRecord> records = new ArrayList<>();
 
-        List<String> fileNames = List.of(
-                "1st Set of Category Items Data.xlsx",
-                "2nd Set of Category Items Data.xlsx"
-        );
+        List<String> fileNames = resolveConfiguredFiles();
 
         for (String fileName : fileNames) {
             loadSingleExcelFile(fileName, records);
@@ -117,6 +117,7 @@ public class ExcelMasterDataLoader {
                         loadedCount++;
                     }
                 }
+
                 log.info("Loaded {} records from Excel file: {}", loadedCount, fileName);
             }
         } catch (Exception e) {
@@ -124,16 +125,36 @@ public class ExcelMasterDataLoader {
         }
     }
 
+    private List<String> resolveConfiguredFiles() {
+        if (masterFilePath == null || masterFilePath.isBlank()) {
+            return List.of("1st Set of Category Items Data.xlsx", "2nd Set of Category Items Data.xlsx");
+        }
+
+        File configuredFile = new File(masterFilePath);
+        if (configuredFile.isDirectory()) {
+            return List.of(
+                    new File(configuredFile, "1st Set of Category Items Data.xlsx").getPath(),
+                    new File(configuredFile, "2nd Set of Category Items Data.xlsx").getPath()
+            );
+        }
+
+        List<String> fileNames = new ArrayList<>();
+        fileNames.add(masterFilePath);
+
+        File siblingSecondSet = configuredFile.getParentFile() != null
+                ? new File(configuredFile.getParentFile(), "2nd Set of Category Items Data.xlsx")
+                : new File("2nd Set of Category Items Data.xlsx");
+        if (!configuredFile.getName().equalsIgnoreCase("2nd Set of Category Items Data.xlsx") && siblingSecondSet.exists()) {
+            fileNames.add(siblingSecondSet.getPath());
+        }
+
+        return fileNames;
+    }
+
     private InputStream getInputStreamForFile(String fileName) {
         try {
             File file = new File(fileName);
             if (file.exists()) return new FileInputStream(file);
-
-            File projectFile = new File("c:/project/" + fileName);
-            if (projectFile.exists()) return new FileInputStream(projectFile);
-
-            File automationFile = new File("c:/project/email-rfq-automation/" + fileName);
-            if (automationFile.exists()) return new FileInputStream(automationFile);
 
             InputStream is = getClass().getClassLoader().getResourceAsStream(fileName);
             if (is != null) return is;

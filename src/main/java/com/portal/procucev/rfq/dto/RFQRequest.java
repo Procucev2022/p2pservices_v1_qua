@@ -59,7 +59,7 @@ public class RFQRequest {
     public static class RfqItemDto {
         private String brand;
         private String unitofMeasures;
-        private int quantity;
+        private Double quantity;
         private String description;
         private String category;
         private String createdBy;

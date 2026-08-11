@@ -212,10 +212,9 @@ public class AcknowledgementEmailService {
         sb.append("\n--------------------------------------------------\n");
         sb.append("NEXT STEPS\n");
         sb.append("--------------------------------------------------\n");
-        sb.append("1. Our supplier network has been notified of your requirements.\n");
-        sb.append("2. You will receive competitive quotations shortly.\n");
-        sb.append("3. You can track the status of this RFQ in your buyer portal using RFQ Number: ")
+        sb.append("1. You can track the status of this RFQ in your buyer portal using RFQ Number: ")
                 .append(rfqEntity.getRfqNumber()).append("\n\n");
+        sb.append("2. You will receive follow-up updates on this RFQ shortly.\n\n");
 
         sb.append("If you have any questions or need to make changes, please reply to this email.\n\n");
         sb.append("Best regards,\n");

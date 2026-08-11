@@ -42,7 +42,12 @@ public class ValidationService {
 
         for (int i = 0; i < items.size(); i++) {
             RFQItem item = items.get(i);
-            if (item == null) continue;
+            if (item == null) {
+                return ValidationResult.builder()
+                        .valid(false)
+                        .failureReason("Item #" + (i + 1) + " is null.")
+                        .build();
+            }
 
             if (item.getItemDescription() == null || item.getItemDescription().isBlank()) {
                 return ValidationResult.builder()

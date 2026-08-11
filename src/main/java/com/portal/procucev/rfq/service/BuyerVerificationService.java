@@ -5,11 +5,13 @@ import com.portal.procucev.model.User;
 import com.portal.procucev.rfq.entity.BuyerEntity;
 import com.portal.procucev.rfq.model.Buyer;
 import com.portal.procucev.rfq.repository.BuyerRepository;
+import com.portal.procucev.utils.StatusConstants;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
 import java.util.Optional;
 
 @Slf4j
@@ -35,10 +37,11 @@ public class BuyerVerificationService {
         String normalizedEmail = email.trim().toLowerCase();
 
         // 1. Check main portal User database table FIRST (Primary Source of Truth for Portal Users)
-        User portalUser = userDao.findByLatestUserName(normalizedEmail);
-        if (portalUser == null) {
-            portalUser = userDao.findByUsername(normalizedEmail);
-        }
+        List<User> portalUsers = userDao.findActiveUsersByUsernameAndRoleNames(
+                normalizedEmail,
+                List.of(StatusConstants.ClientInitiator, StatusConstants.Clientrole)
+        );
+        User portalUser = portalUsers.isEmpty() ? null : portalUsers.get(0);
 
         if (portalUser == null) {
             log.warn("Buyer verification failed: Email '{}' is NOT registered in the portal users database.", normalizedEmail);

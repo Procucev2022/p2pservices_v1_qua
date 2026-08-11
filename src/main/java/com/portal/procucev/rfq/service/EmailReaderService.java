@@ -12,6 +12,11 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.io.File;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.*;
 
 @Slf4j
@@ -25,8 +30,11 @@ public class EmailReaderService {
     @Value("${app.mail.username:rfq@procucev.com}")
     private String mailUsername;
 
-    @Value("${app.mail.password:djds biac asvw ppwq}")
+    @Value("${app.mail.password}")
     private String mailPassword;
+
+    @Value("${app.mail.port:993}")
+    private int mailPort = 993;
 
     @Value("${app.mail.inbox-folder:INBOX}")
     private String inboxFolder;
@@ -44,7 +52,7 @@ public class EmailReaderService {
             Properties props = new Properties();
             props.put("mail.store.protocol", "imaps");
             props.put("mail.imaps.host", mailHost);
-            props.put("mail.imaps.port", "993");
+            props.put("mail.imaps.port", String.valueOf(mailPort));
             props.put("mail.imaps.ssl.enable", "true");
 
             Session session = Session.getInstance(props);
@@ -52,7 +60,7 @@ public class EmailReaderService {
             store.connect(mailHost, mailUsername, mailPassword);
 
             folder = store.getFolder(inboxFolder);
-            folder.open(Folder.READ_WRITE);
+            folder.open(Folder.READ_ONLY);
 
             Message[] messages = folder.search(new jakarta.mail.search.FlagTerm(new Flags(Flags.Flag.SEEN), false));
             log.info("Found {} unread message(s) in inbox folder '{}'.", messages.length, inboxFolder);
@@ -83,6 +91,9 @@ public class EmailReaderService {
         try {
             Properties props = new Properties();
             props.put("mail.store.protocol", "imaps");
+            props.put("mail.imaps.host", mailHost);
+            props.put("mail.imaps.port", String.valueOf(mailPort));
+            props.put("mail.imaps.ssl.enable", "true");
             Session session = Session.getInstance(props);
             store = session.getStore("imaps");
             store.connect(mailHost, mailUsername, mailPassword);
@@ -129,14 +140,21 @@ public class EmailReaderService {
         }
 
         StringBuilder bodyBuilder = new StringBuilder();
+        StringBuilder htmlFallbackBuilder = new StringBuilder();
         StringBuilder attachmentTextBuilder = new StringBuilder();
         List<File> attachments = new ArrayList<>();
 
         if (msg.isMimeType("text/plain")) {
             bodyBuilder.append(msg.getContent().toString());
+        } else if (msg.isMimeType("text/html")) {
+            bodyBuilder.append(htmlToText(msg.getContent().toString()));
         } else if (msg.isMimeType("multipart/*")) {
             MimeMultipart multipart = (MimeMultipart) msg.getContent();
-            processMultipart(multipart, bodyBuilder, attachmentTextBuilder, attachments);
+            processMultipart(multipart, bodyBuilder, htmlFallbackBuilder, attachmentTextBuilder, attachments);
+        }
+
+        if (bodyBuilder.length() == 0 && htmlFallbackBuilder.length() > 0) {
+            bodyBuilder.append(htmlFallbackBuilder);
         }
 
         return EmailData.builder()
@@ -151,17 +169,18 @@ public class EmailReaderService {
                 .build();
     }
 
-    private void processMultipart(MimeMultipart multipart, StringBuilder bodyBuilder, StringBuilder attTextBuilder, List<File> attachments) throws Exception {
+    private void processMultipart(MimeMultipart multipart, StringBuilder bodyBuilder, StringBuilder htmlFallbackBuilder,
+                                  StringBuilder attTextBuilder, List<File> attachments) throws Exception {
         for (int i = 0; i < multipart.getCount(); i++) {
             BodyPart bodyPart = multipart.getBodyPart(i);
 
             if (Part.ATTACHMENT.equalsIgnoreCase(bodyPart.getDisposition()) || bodyPart.getFileName() != null) {
                 String fileName = bodyPart.getFileName();
-                File destDir = new File(attachmentDirectory);
-                if (!destDir.exists()) destDir.mkdirs();
-
-                File savedFile = new File(destDir, System.currentTimeMillis() + "_" + fileName);
-                bodyPart.getInputStream().transferTo(new java.io.FileOutputStream(savedFile));
+                File savedFile = createAttachmentFile(fileName);
+                try (InputStream inputStream = bodyPart.getInputStream();
+                     OutputStream outputStream = Files.newOutputStream(savedFile.toPath())) {
+                    inputStream.transferTo(outputStream);
+                }
                 attachments.add(savedFile);
 
                 String text = FileUtil.extractTextFromFile(savedFile);
@@ -170,8 +189,10 @@ public class EmailReaderService {
                 }
             } else if (bodyPart.isMimeType("text/plain")) {
                 bodyBuilder.append(bodyPart.getContent().toString());
+            } else if (bodyPart.isMimeType("text/html")) {
+                htmlFallbackBuilder.append(htmlToText(bodyPart.getContent().toString()));
             } else if (bodyPart.isMimeType("multipart/*")) {
-                processMultipart((MimeMultipart) bodyPart.getContent(), bodyBuilder, attTextBuilder, attachments);
+                processMultipart((MimeMultipart) bodyPart.getContent(), bodyBuilder, htmlFallbackBuilder, attTextBuilder, attachments);
             }
         }
     }
@@ -180,6 +201,33 @@ public class EmailReaderService {
         String[] hdrs = msg.getHeader("Message-ID");
         if (hdrs != null && hdrs.length > 0) return hdrs[0];
         return UUID.randomUUID().toString();
+    }
+
+    private File createAttachmentFile(String originalFileName) throws Exception {
+        String safeFileName = Paths.get(originalFileName == null || originalFileName.isBlank() ? "attachment" : originalFileName)
+                .getFileName()
+                .toString();
+        Path attachmentDir = Paths.get(attachmentDirectory).toAbsolutePath().normalize();
+        Files.createDirectories(attachmentDir);
+
+        Path savedPath = attachmentDir.resolve(System.currentTimeMillis() + "_" + safeFileName).normalize();
+        if (!savedPath.startsWith(attachmentDir)) {
+            throw new ApplicationException("Invalid attachment file path received.");
+        }
+        return savedPath.toFile();
+    }
+
+    private String htmlToText(String html) {
+        if (html == null || html.isBlank()) {
+            return "";
+        }
+        return html.replaceAll("(?i)<br\\s*/?>", "\n")
+                .replaceAll("(?i)</p>", "\n")
+                .replaceAll("(?i)<[^>]+>", " ")
+                .replace("&nbsp;", " ")
+                .replaceAll("[ \\t\\x0B\\f\\r]+", " ")
+                .replaceAll("\\n\\s+", "\n")
+                .trim();
     }
 
     private void closeFolderAndStore(Folder folder, Store store) {

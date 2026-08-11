@@ -11,7 +11,7 @@ public final class CommonUtil {
 
     public static String generateUniqueRfqNumber() {
         String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMddHHmmss"));
-        return "RFQ-" + timestamp;
+        return "RFQ-" + timestamp + "-" + UUID.randomUUID().toString().substring(0, 8);
     }
 
     public static boolean isNullOrBlank(String str) {
