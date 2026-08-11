@@ -12,6 +12,7 @@ CREATE TABLE IF NOT EXISTS rfq_buyers (
     city VARCHAR(255),
     state VARCHAR(255),
     pincode VARCHAR(255),
+    address TEXT,
     created_at DATETIME NOT NULL,
     updated_at DATETIME
 );

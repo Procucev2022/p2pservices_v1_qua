@@ -30,9 +30,17 @@ public class RfqSchemaInitializer {
                     "city VARCHAR(255), " +
                     "state VARCHAR(255), " +
                     "pincode VARCHAR(255), " +
+                    "address TEXT, " +
                     "created_at DATETIME NOT NULL, " +
                     "updated_at DATETIME" +
                     ")");
+
+            try {
+                jdbcTemplate.execute("ALTER TABLE rfq_buyers ADD COLUMN address TEXT");
+                log.info("Successfully added missing 'address' column to 'rfq_buyers' table.");
+            } catch (Exception ignored) {
+                // Column already exists or table was newly created
+            }
 
             jdbcTemplate.execute("CREATE TABLE IF NOT EXISTS rfq_email_transactions (" +
                     "id BIGINT AUTO_INCREMENT PRIMARY KEY, " +
