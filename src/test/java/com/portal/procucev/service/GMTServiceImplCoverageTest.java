@@ -1,0 +1,1398 @@
+package com.portal.procucev.service;
+
+import com.portal.procucev.Dto.BuyerSellerReportDto;
+import com.portal.procucev.Dto.GMTRfqVendorDto;
+import com.portal.procucev.Dto.GmtRfqSellerDto;
+import com.portal.procucev.Dto.RfqDTO;
+import com.portal.procucev.Dto.SellerSubscriptionReportDto;
+import com.portal.procucev.Dto.ForwardRfqVendorRequest;
+import com.portal.procucev.customexception.AppException;
+import com.portal.procucev.customexception.MessageResponse;
+import com.portal.procucev.customexception.RfqStatusResponse;
+import com.portal.procucev.dao.CategoryDivisionDao;
+import com.portal.procucev.dao.EmailUserRepo;
+import com.portal.procucev.dao.GmtItemsDao;
+import com.portal.procucev.dao.GmtRfqVendorDao;
+import com.portal.procucev.dao.ItemCategoryDao;
+import com.portal.procucev.dao.MasterStatusDao;
+import com.portal.procucev.dao.OrgCategoryDivisionDao;
+import com.portal.procucev.dao.OrgDao;
+import com.portal.procucev.dao.OrgTypeDao;
+import com.portal.procucev.dao.RFQItemsDao;
+import com.portal.procucev.dao.RfqDao;
+import com.portal.procucev.dao.RfqVendorDao;
+import com.portal.procucev.dao.RoleDao;
+import com.portal.procucev.dao.SubscriptionPlanDao;
+import com.portal.procucev.dao.UserDao;
+import com.portal.procucev.model.CategoryDivision;
+import com.portal.procucev.model.ClientDeliveryLocationRfq;
+import com.portal.procucev.model.EmailAttachment;
+import com.portal.procucev.model.EmailRequest;
+import com.portal.procucev.model.EmailUser;
+import com.portal.procucev.model.GmtItems;
+import com.portal.procucev.model.GmtRfqVendors;
+import com.portal.procucev.model.MasterStatus;
+import com.portal.procucev.model.OrgType;
+import com.portal.procucev.model.Organization;
+import com.portal.procucev.model.RFQDocument;
+import com.portal.procucev.model.Rfq;
+import com.portal.procucev.model.RfqItem;
+import com.portal.procucev.model.RfqStatusRequest;
+import com.portal.procucev.model.RfqVendor;
+import com.portal.procucev.model.Role;
+import com.portal.procucev.model.User;
+import com.portal.procucev.utils.ApplicationConstants;
+import com.portal.procucev.utils.MailUtility;
+import com.portal.procucev.utils.StatusConstants;
+
+import jakarta.mail.Flags;
+import jakarta.mail.Message;
+import jakarta.mail.MessagingException;
+import jakarta.mail.internet.MimeMessage;
+import jakarta.mail.search.SearchTerm;
+import jakarta.servlet.http.HttpServletRequest;
+
+import org.apache.poi.ss.usermodel.Row;
+import org.apache.poi.ss.usermodel.Sheet;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+import org.eclipse.angus.mail.imap.IMAPFolder;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.MockedStatic;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.quality.Strictness;
+import org.springframework.dao.ConcurrencyFailureException;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.mail.javamail.JavaMailSender;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.test.util.ReflectionTestUtils;
+
+import java.io.ByteArrayOutputStream;
+import java.lang.reflect.Method;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneId;
+import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Base64;
+import java.util.Collections;
+import java.util.Date;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.same;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
+/**
+ * Branch-level coverage for {@link GMTServiceImpl}.
+ *
+ * <p>{@code GMTServiceImplTest} already drives the happy paths. This class deliberately
+ * targets the remaining decision outcomes: alternate branches of guard clauses, the
+ * lambdas that only run when a collection is populated, and the failure handlers.
+ */
+@ExtendWith(MockitoExtension.class)
+@MockitoSettings(strictness = Strictness.LENIENT)
+class GMTServiceImplCoverageTest {
+
+    private static final String S_NO = "S.No";
+    private static final String ITEM_DESCRIPTION = "ItemDescription";
+    private static final String SPECIFICATION = " Specification";
+    private static final String UOM = "Uom";
+    private static final String QUANTITY = "Quantity";
+    private static final String REMARKS = "Remarks";
+
+    @Mock
+    private RfqDao rfqDao;
+    @Mock
+    private RFQItemsDao rfqItemsDao;
+    @Mock
+    private RoleDao roleDao;
+    @Mock
+    private SubscriptionPlanDao subscriptionPlanDao;
+    @Mock
+    private CategoryDivisionDao categoryDivisionDao;
+    @Mock
+    private MasterStatusDao masterStatusDao;
+    @Mock
+    private SelfRegistrationService selfRegistrationService;
+    @Mock
+    private GmtItemsDao gmtItemsDao;
+    @Mock
+    private RfqVendorDao rfqVendorDao;
+    @Mock
+    private GmtRfqVendorDao gmtRfqVendorDao;
+    @Mock
+    private ItemCategoryDao itemCategoryDao;
+    @Mock
+    private OrgDao orgDao;
+    @Mock
+    private UserDao userDao;
+    @Mock
+    private OrgTypeDao orgTypeDao;
+    @Mock
+    private OrgCategoryDivisionDao orgCategoryDivisionDao;
+    @Mock
+    private EmailUserRepo emailUserRepo;
+    @Mock
+    private JavaMailSender javaMailSender;
+    @Mock
+    private MimeMessage mimeMessage;
+
+    @InjectMocks
+    private GMTServiceImpl service;
+
+    private Organization org;
+    private User user;
+    private MasterStatus status;
+    private Rfq rfq;
+
+    @BeforeEach
+    void setUp() {
+        ReflectionTestUtils.setField(service, "host", "http://localhost");
+        ReflectionTestUtils.setField(service, "mailFom", "from@test.com");
+        ReflectionTestUtils.setField(service, "mail", "mail@test.com");
+        ReflectionTestUtils.setField(service, "pswd", "mail-password");
+        ReflectionTestUtils.setField(service, "toAddress", "to@test.com");
+        ReflectionTestUtils.setField(service, "emailPassword", "secret");
+        ReflectionTestUtils.setField(service, "subjectPrefix", "PREFIX");
+        ReflectionTestUtils.setField(service, "fromEmail", "report-from@test.com");
+        ReflectionTestUtils.setField(service, "toEmail", "report-to@test.com");
+
+        org = organization("ORG1", "org@test.com", "9876543210");
+        org.setCompanyName("Company1");
+
+        user = new User();
+        user.setId("USER1");
+        user.setUsername("user1@test.com");
+        user.setPhone("9876543210");
+        user.setFullName("User One");
+        user.setOrg(org);
+
+        status = masterStatus("OPEN", "Open");
+
+        rfq = new Rfq();
+        rfq.setId("RFQ_UUID");
+        rfq.setRfqId("RFQ1");
+        rfq.setOrg(org);
+        rfq.setStatus(status);
+        rfq.setCategory("Category");
+        rfq.setCreatedTS(new Date());
+        rfq.setDeliveryDate(Date.from(Instant.now().plus(1, ChronoUnit.DAYS)));
+
+        when(javaMailSender.createMimeMessage()).thenReturn(mimeMessage);
+    }
+
+    @AfterEach
+    void clearSecurityContext() {
+        SecurityContextHolder.clearContext();
+    }
+
+    // ------------------------------------------------------------------
+    // editRFQForNoPrByClient
+    // ------------------------------------------------------------------
+
+    @Test
+    void editRfqForNoPrByClientUpdatesLinkedCollectionsWhenNotRaisedByClient() throws Exception {
+        RfqItem mappedItem = rfqItem("ITEM1", "Pump", "Category", "Division");
+        RfqItem unmappedItem = rfqItem("ITEM2", "Valve", null, null);
+        RFQDocument document = new RFQDocument();
+        ClientDeliveryLocationRfq location = new ClientDeliveryLocationRfq();
+        RfqVendor persistedVendor = new RfqVendor();
+
+        GmtItems storedItem = new GmtItems();
+        storedItem.setRfqItemId("ITEM1");
+
+        Rfq updated = new Rfq();
+        updated.setId("EDIT");
+        updated.setRfqId("RFQ-EDIT");
+        updated.setByClient(false);
+        updated.setRfqItem(List.of(mappedItem, unmappedItem));
+        updated.setRfqDocument(List.of(document));
+        updated.setClientdeliverylocationrfq(List.of(location));
+
+        when(rfqDao.findById("EDIT")).thenReturn(Optional.of(new Rfq()));
+        when(masterStatusDao.findByStatus(anyString())).thenReturn(status);
+        when(gmtItemsDao.findByRfqItemIdIn(anyList())).thenReturn(List.of(storedItem));
+        when(rfqVendorDao.findDataByRfqId("EDIT")).thenReturn(List.of(persistedVendor));
+
+        assertTrue(service.editRFQForNoPrByClient(updated));
+
+        // the "isByClient == false" branch must leave the client status untouched
+        assertNull(updated.getClientStatus());
+        // the existing GmtItems row is refreshed from the incoming RFQ item
+        assertEquals("Pump", storedItem.getDescription());
+        verify(gmtItemsDao).save(storedItem);
+        verify(itemCategoryDao).saveAll(argThat(categories ->
+                ((List<?>) categories).size() == 2));
+        // every child collection lambda must have run
+        assertSame(updated, mappedItem.getRfq());
+        assertSame(updated, document.getRfq());
+        assertSame(updated, location.getRfq());
+        assertSame(updated, persistedVendor.getRfq());
+    }
+
+    @Test
+    void editRfqForNoPrByClientHandlesEmptyChildCollectionsAndDataAccessFailure() throws Exception {
+        Rfq empty = new Rfq();
+        empty.setId("EMPTY");
+        empty.setRfqId("RFQ-EMPTY");
+        empty.setRfqItem(Collections.emptyList());
+        empty.setRfqDocument(Collections.emptyList());
+        empty.setClientdeliverylocationrfq(Collections.emptyList());
+
+        when(rfqDao.findById("EMPTY")).thenReturn(Optional.of(new Rfq()));
+        when(masterStatusDao.findByStatus(anyString())).thenReturn(status);
+        when(gmtItemsDao.findByRfqItemIdIn(anyList())).thenReturn(Collections.emptyList());
+        when(rfqVendorDao.findDataByRfqId("EMPTY")).thenReturn(Collections.emptyList());
+
+        assertTrue(service.editRFQForNoPrByClient(empty));
+        verify(gmtItemsDao, never()).save(any(GmtItems.class));
+
+        Rfq failing = new Rfq();
+        failing.setId("BOOM");
+        when(rfqDao.findById("BOOM")).thenThrow(new ConcurrencyFailureException("db down"));
+        assertFalse(service.editRFQForNoPrByClient(failing));
+    }
+
+    // ------------------------------------------------------------------
+    // convertRFQBoq / processBOQFiles / validateExcelTemplate / isRowEmpty
+    // ------------------------------------------------------------------
+
+    @Test
+    void convertRfqBoqRejectsWorkbooksWithoutDataRows() throws Exception {
+        Rfq noRows = new Rfq();
+        noRows.setBoqfile(workbookBytes(sheet -> {
+            // sheet intentionally left without any row
+        }));
+        assertThrows(AppException.class, () -> service.convertRFQBoq(noRows));
+
+        Rfq singleRow = new Rfq();
+        singleRow.setBoqfile(workbookBytes(sheet -> sheet.createRow(0).createCell(0).setCellValue("Title")));
+        assertThrows(AppException.class, () -> service.convertRFQBoq(singleRow));
+    }
+
+    @Test
+    void convertRfqBoqReadsRowsWithMissingAndBlankCells() throws Exception {
+        Rfq request = new Rfq();
+        request.setBoqfile(workbookBytes(sheet -> {
+            sheet.createRow(0).createCell(0).setCellValue("Title");
+
+            Row headerRow = sheet.createRow(1);
+            String[] headers = {S_NO, ITEM_DESCRIPTION, SPECIFICATION, UOM, QUANTITY, REMARKS};
+            for (int i = 0; i < headers.length; i++) {
+                headerRow.createCell(i).setCellValue(headers[i]);
+            }
+
+            Row complete = sheet.createRow(2);
+            complete.createCell(0).setCellValue(1D);
+            complete.createCell(1).setCellValue("Item One");
+            complete.createCell(2).setCellValue("Spec");
+            complete.createCell(3).setCellValue("PCS");
+            complete.createCell(4).setCellValue(10D);
+            complete.createCell(5).setCellValue("Remark");
+
+            // leading blank cells then a numeric quantity: exercises the blank-string guards
+            Row blankText = sheet.createRow(3);
+            blankText.createCell(1).setCellValue("");
+            blankText.createCell(2).setCellValue("");
+            blankText.createCell(3).setCellValue("");
+            blankText.createCell(4).setCellValue(5D);
+
+            // only the serial number and the remarks column are present
+            Row sparse = sheet.createRow(4);
+            sparse.createCell(0).setCellValue(2D);
+            sparse.createCell(5).setCellValue("Only remarks");
+
+            // completely blank row is skipped
+            sheet.createRow(5);
+        }));
+
+        List<RfqItem> items = service.convertRFQBoq(request);
+
+        assertEquals(3, items.size());
+        assertEquals("Item One", items.get(0).getDescription());
+        assertNull(items.get(1).getDescription());
+        assertEquals(5D, items.get(1).getQuantity());
+        assertEquals("Only remarks", items.get(2).getRemarks());
+        assertEquals(2D, items.get(2).getSerialNo());
+    }
+
+    @Test
+    void validateExcelTemplateRejectsEveryOutOfOrderHeaderCombination() {
+        // more than six columns short-circuits the strict ordering check
+        assertFalse(validateHeaders(S_NO, ITEM_DESCRIPTION, SPECIFICATION, UOM, QUANTITY, REMARKS, "Extra"));
+        // each permutation fails at a different link of the && chain
+        assertFalse(validateHeaders(ITEM_DESCRIPTION, S_NO, SPECIFICATION, UOM, QUANTITY, REMARKS));
+        assertFalse(validateHeaders(S_NO, SPECIFICATION, ITEM_DESCRIPTION, UOM, QUANTITY, REMARKS));
+        assertFalse(validateHeaders(S_NO, ITEM_DESCRIPTION, UOM, SPECIFICATION, QUANTITY, REMARKS));
+        assertFalse(validateHeaders(S_NO, ITEM_DESCRIPTION, SPECIFICATION, QUANTITY, UOM, REMARKS));
+        assertFalse(validateHeaders(S_NO, ITEM_DESCRIPTION, SPECIFICATION, UOM, REMARKS, QUANTITY));
+        assertFalse(validateHeaders(S_NO, ITEM_DESCRIPTION, SPECIFICATION, UOM, QUANTITY, REMARKS));
+        // a missing mandatory column is reported to the caller
+        assertThrows(AppException.class, () -> validateHeaders(S_NO, ITEM_DESCRIPTION));
+    }
+
+    @Test
+    void isRowEmptyTreatsNullRowAsEmpty() throws Exception {
+        Method isRowEmpty = GMTServiceImpl.class.getDeclaredMethod("isRowEmpty", Row.class);
+        isRowEmpty.setAccessible(true);
+        assertEquals(Boolean.TRUE, isRowEmpty.invoke(null, (Row) null));
+    }
+
+    // ------------------------------------------------------------------
+    // queryMail
+    // ------------------------------------------------------------------
+
+    @Test
+    void queryMailSkipsUserLookupWhenIdIsMissing() throws Exception {
+        try (MockedStatic<MailUtility> mail = mockStatic(MailUtility.class)) {
+            User anonymous = new User();
+            anonymous.setUsername("anonymous@test.com");
+            assertTrue(service.queryMail(anonymous));
+            mail.verify(() -> MailUtility.mailingGMTClientRFQMailToinfoTeam(
+                    anyString(), anyString(), any(), any(), anyString(), same(anonymous),
+                    eq(null), eq(null), eq(null), eq(null)));
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // getAllGMTRfq
+    // ------------------------------------------------------------------
+
+    @Test
+    void getAllGmtRfqRejectsNullAndEmptyResults() {
+        when(masterStatusDao.findByStatus(anyString())).thenReturn(status);
+        when(rfqDao.findAllRfqNoPrInStatuses(any())).thenReturn(null);
+        assertThrows(AppException.class, () -> service.getAllGMTRfq(org));
+
+        when(rfqDao.findAllRfqNoPrInStatuses(any())).thenReturn(Collections.emptyList());
+        assertThrows(AppException.class, () -> service.getAllGMTRfq(org));
+    }
+
+    @Test
+    void getAllGmtRfqFallsBackWhenCategoryLocationOrVendorDataIsMissing() {
+        MasterStatus defaultStatus = masterStatus(StatusConstants.vendorRfqNew, "New");
+        when(masterStatusDao.findByStatus(anyString())).thenReturn(status);
+        when(masterStatusDao.findByStatus(StatusConstants.vendorRfqNew)).thenReturn(defaultStatus);
+
+        Rfq withVendor = simpleRfq("A", "RFQ-A");
+        withVendor.setClientdeliverylocationrfq(List.of(deliveryLocation("Bengaluru", "Karnataka")));
+        Rfq withoutVendor = simpleRfq("B", "RFQ-B");
+        withoutVendor.setClientdeliverylocationrfq(null);
+        Rfq vendorWithoutStatus = simpleRfq("C", "RFQ-C");
+        vendorWithoutStatus.setClientdeliverylocationrfq(Collections.emptyList());
+
+        when(rfqDao.findAllRfqNoPrInStatuses(any()))
+                .thenReturn(List.of(withVendor, withoutVendor, vendorWithoutStatus));
+
+        GmtRfqVendors mapped = vendorMapping(withVendor, status);
+        GmtRfqVendors duplicate = vendorMapping(withVendor, null);
+        GmtRfqVendors withoutStatus = vendorMapping(vendorWithoutStatus, null);
+        when(gmtRfqVendorDao.findByVendorAndRfqIn(eq(org), anyList()))
+                .thenReturn(List.of(mapped, duplicate, withoutStatus));
+
+        when(rfqItemsDao.findTopCategoriesByRfqIds(anyList())).thenReturn(List.<Object[]>of(
+                new Object[]{"A", "Pumps"},
+                new Object[]{"B", null}));
+
+        RfqItem item = new RfqItem();
+        item.setRfq(withVendor);
+        when(rfqItemsDao.findAllByRfqIds(anyList())).thenReturn(List.of(item));
+
+        List<GMTRfqVendorDto> result = service.getAllGMTRfq(org);
+
+        assertEquals(3, result.size());
+        assertEquals("Pumps", result.get(0).getCategory());
+        assertEquals("Bengaluru", result.get(0).getDeliveryLocation());
+        assertSame(status, result.get(0).getStatus());
+        assertNull(result.get(1).getCategory());
+        assertNull(result.get(1).getDeliveryLocation());
+        assertSame(defaultStatus, result.get(1).getStatus());
+        assertSame(defaultStatus, result.get(2).getStatus());
+    }
+
+    // ------------------------------------------------------------------
+    // approveVendor
+    // ------------------------------------------------------------------
+
+    @Test
+    void approveVendorNotifiesSellerWhenRfqExists() throws Exception {
+        GmtRfqVendors request = new GmtRfqVendors();
+        request.setRfq(rfq);
+        request.setVendor(org);
+
+        when(masterStatusDao.findByStatus(anyString())).thenReturn(status);
+        when(rfqDao.findById(rfq.getId())).thenReturn(Optional.of(rfq));
+        when(orgDao.findEmailById("ORG1")).thenReturn("seller@test.com");
+        when(orgDao.findOtherEmailById("ORG1")).thenReturn("copy@test.com");
+
+        try (MockedStatic<MailUtility> mail = mockStatic(MailUtility.class)) {
+            assertTrue(service.approveVendor(request));
+            mail.verify(() -> MailUtility.emailNewGMTRfqForNoPR(
+                    eq("NewRfq"), eq("PREFIX"), same(javaMailSender), same(rfq), eq("http://localhost"),
+                    eq("seller@test.com"), eq("copy@test.com"), eq("from@test.com"), eq("secret"),
+                    anyString(), eq("ORG1")));
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // mapToDto / mapToClientDto
+    // ------------------------------------------------------------------
+
+    @Test
+    void getAllRfqForCmMapsClientStatusAndToleratesMissingUserLookups() {
+        when(masterStatusDao.findByStatusIn(anyList())).thenReturn(List.of(status));
+
+        Rfq enriched = simpleRfq("R1", "RFQ-R1");
+        enriched.setClientStatus(status);
+        enriched.setUser("U1");
+        Rfq bare = simpleRfq("R2", "RFQ-R2");
+        bare.setUser("U2");
+
+        when(rfqDao.findAllRfqNoPrByCM(anyList())).thenReturn(List.of(enriched, bare));
+        when(gmtRfqVendorDao.findByVendorsByRfq(anyString())).thenReturn(1L);
+        when(userDao.findByUser("U1")).thenReturn("Company One");
+        when(userDao.findOrgIdByUser("U1")).thenReturn("ORG1");
+        when(userDao.findPhoneByUser("U1")).thenReturn("9876543210");
+
+        List<RfqDTO> result = service.getAllRfqForCM();
+
+        assertEquals("OPEN", result.get(0).getClientStatusName());
+        assertEquals("Company One", result.get(0).getCompanyName());
+        assertNull(result.get(1).getClientStatusName());
+        assertNull(result.get(1).getCompanyName());
+        assertNull(result.get(1).getCompanyId());
+        assertNull(result.get(1).getPhoneNumber());
+    }
+
+    @Test
+    void fetchAllClientRfqsToleratesMissingUserLookups() {
+        Rfq bare = simpleRfq("R2", "RFQ-R2");
+        bare.setClientStatus(status);
+        bare.setUser("U2");
+        when(rfqDao.findAllClientRfqNoPr()).thenReturn(List.of(bare));
+
+        List<RfqDTO> result = service.fetchAllClientGMTRfqsForCM();
+
+        assertEquals(1, result.size());
+        assertNull(result.get(0).getPhoneNumber());
+        assertNull(result.get(0).getCompanyName());
+        assertNull(result.get(0).getCompanyId());
+    }
+
+    @Test
+    void pagedClientRfqsMapStatusAndHandleUnknownOrOrglessUsers() {
+        Pageable pageable = PageRequest.of(0, 10);
+
+        Rfq known = simpleRfq("P1", "RFQ-P1");
+        known.setClientStatus(status);
+        known.setUser("USER1");
+        Rfq unknownUser = simpleRfq("P2", "RFQ-P2");
+        unknownUser.setUser("MISSING");
+        Rfq userWithoutOrg = simpleRfq("P3", "RFQ-P3");
+        userWithoutOrg.setUser("NO_ORG");
+
+        User orgless = new User();
+        orgless.setId("NO_ORG");
+        orgless.setPhone("1111111111");
+        orgless.setOrg(null);
+
+        when(rfqDao.findAllClientRfqNoPr(pageable))
+                .thenReturn(new PageImpl<>(List.of(known, unknownUser, userWithoutOrg)));
+        when(userDao.findUsersByIds(anyList())).thenReturn(List.of(user, orgless));
+        when(gmtRfqVendorDao.countVendorsByRfqIds(anyList()))
+                .thenReturn(List.<Object[]>of(new Object[]{"P1", 4L}));
+
+        List<RfqDTO> result = service.fetchAllClientGMTRfqsForCM(pageable).getData();
+
+        assertEquals(3, result.size());
+        assertEquals("OPEN", result.get(0).getClientStatusName());
+        assertEquals("Company1", result.get(0).getCompanyName());
+        assertEquals(4L, result.get(0).getNoOfVendors());
+        assertNull(result.get(1).getPhoneNumber());
+        assertEquals(0L, result.get(1).getNoOfVendors());
+        assertEquals("1111111111", result.get(2).getPhoneNumber());
+        assertNull(result.get(2).getCompanyName());
+    }
+
+    @Test
+    void clientRfqSearchResolvesMatchesByCompanyNameAndContactNumber() {
+        Rfq matched = simpleRfq("S1", "RFQ-S1");
+        matched.setUser("USER1");
+        when(userDao.findUsersByOrgCompanyName("Company1")).thenReturn(List.of(user));
+        when(userDao.findUsersByPhone("9876543210")).thenReturn(List.of(user));
+        when(rfqDao.findAllClientRfqByUserIds(anyList())).thenReturn(List.of(matched));
+        when(userDao.findUsersByIds(anyList())).thenReturn(List.of(user));
+        when(gmtRfqVendorDao.countVendorsByRfqIds(anyList())).thenReturn(Collections.emptyList());
+
+        assertEquals(1, service.fetchAllClientGMTRfqsForCMSearch("companyname", "Company1").size());
+        assertEquals(1, service.fetchAllClientGMTRfqsForCMSearch("contactnumber", "9876543210").size());
+    }
+
+    // ------------------------------------------------------------------
+    // getVendorsbyRFQ / master data lookups
+    // ------------------------------------------------------------------
+
+    @Test
+    void getVendorsByRfqCopiesOtherEmailsWhenPresent() {
+        org.setOtherEmails("copy@test.com");
+        RfqVendor stored = new RfqVendor();
+        stored.setId("RV1");
+        stored.setOrganization(org);
+        rfq.setRfqVendor(List.of(stored));
+
+        when(rfqDao.findById(rfq.getId())).thenReturn(Optional.of(rfq));
+        when(userDao.findByOrg(org)).thenReturn(List.of(user));
+
+        assertEquals("copy@test.com", service.getVendorsbyRFQ(rfq).get(0).getOtherEmails());
+    }
+
+    @Test
+    void masterDataLookupsRejectEmptyNonNullCollections() {
+        when(categoryDivisionDao.getCategoryByDivision(anyString())).thenReturn(Collections.emptyList());
+        CategoryDivision division = new CategoryDivision();
+        division.setDivision("Division");
+        assertThrows(AppException.class, () -> service.getCategoryByDivision(division));
+
+        when(categoryDivisionDao.getAllCategory()).thenReturn(Collections.emptyList());
+        assertThrows(AppException.class, () -> service.getAllCategory());
+
+        when(categoryDivisionDao.getAllDivision()).thenReturn(Collections.emptyList());
+        assertThrows(AppException.class, () -> service.getAllDivision());
+    }
+
+    @Test
+    void getRfqsForNoPrRejectsAnonymousPrincipal() {
+        authenticate(null);
+        assertThrows(AppException.class, () -> service.getRFQsForNoPR());
+    }
+
+    // ------------------------------------------------------------------
+    // createRFQWithNoPr / saveVendorsForRfq
+    // ------------------------------------------------------------------
+
+    @Test
+    void createRfqWithNoPrRegistersNewAndExistingVendors() throws Exception {
+        GMTServiceImpl spyService = spy(service);
+        doReturn(true).when(spyService).sendRfqToVendors(anyList(), any(Rfq.class));
+
+        Organization newVendor = organization(null, "new@test.com", "9000000001");
+        newVendor.setCompanyName("Brand New");
+        newVendor.setRequestType("Forward");
+        Organization existingWithEmails = organization("EX1", "ex1@test.com", "9000000002");
+        existingWithEmails.setOtherEmails("copy@test.com");
+        Organization existingWithoutEmails = organization("EX2", "ex2@test.com", "9000000003");
+
+        Rfq request = new Rfq();
+        request.setId("NEW_RFQ");
+        request.setCategory("Category");
+        request.setVendors(List.of(newVendor, existingWithEmails, existingWithoutEmails));
+
+        Rfq saved = simpleRfq("SAVED", "RFQ-SAVED");
+        saved.setCategory("Category");
+
+        when(masterStatusDao.findByStatus(anyString())).thenReturn(status);
+        when(orgTypeDao.findByTypeName(ApplicationConstants.VENDOR)).thenReturn(new OrgType());
+        when(selfRegistrationService.checkOrgexist("Brand New")).thenReturn(false);
+        when(rfqDao.save(request)).thenReturn(saved);
+        when(orgDao.save(newVendor)).thenAnswer(invocation -> {
+            newVendor.setId("NEW");
+            return newVendor;
+        });
+        when(orgDao.findById(anyString())).thenAnswer(invocation -> Optional.of(
+                switch (invocation.<String>getArgument(0)) {
+                    case "EX1" -> existingWithEmails;
+                    case "EX2" -> existingWithoutEmails;
+                    default -> newVendor;
+                }));
+        // only EX2 has already been mapped to this RFQ
+        when(gmtRfqVendorDao.findByVendorAndRfq(any(Organization.class), same(saved)))
+                .thenAnswer(invocation -> "EX2".equals(invocation.<Organization>getArgument(0).getId())
+                        ? new GmtRfqVendors()
+                        : null);
+
+        assertTrue(spyService.createRFQWithNoPr(request));
+
+        verify(orgDao).save(newVendor);
+        verify(orgDao).updateOtherEmail("copy@test.com", "EX1");
+        verify(orgDao, never()).updateOtherEmail(any(), eq("EX2"));
+        verify(gmtRfqVendorDao, times(2)).save(any(GmtRfqVendors.class));
+        verify(rfqDao, times(3)).updateCount(saved);
+        verify(orgDao, times(3)).updateRfqCreditsAndUsage(anyString());
+        verify(spyService).sendRfqToVendors(argThat(vendors -> vendors.size() == 3), same(saved));
+    }
+
+    @Test
+    void createRfqWithNoPrFailsWhenVendorCompanyAlreadyRegistered() {
+        Organization duplicate = organization(null, "dup@test.com", "9000000004");
+        duplicate.setCompanyName("Duplicate Co");
+
+        Rfq request = new Rfq();
+        request.setId("DUP_RFQ");
+        request.setVendors(List.of(duplicate));
+
+        when(masterStatusDao.findByStatus(anyString())).thenReturn(status);
+        when(orgTypeDao.findByTypeName(ApplicationConstants.VENDOR)).thenReturn(new OrgType());
+        when(selfRegistrationService.checkOrgexist("Duplicate Co")).thenReturn(true);
+        when(rfqDao.save(request)).thenReturn(simpleRfq("SAVED", "RFQ-SAVED"));
+
+        assertFalse(service.createRFQWithNoPr(request));
+    }
+
+    @Test
+    void createRfqWithNoPrStillSucceedsWhenNotificationMailFails() throws Exception {
+        GMTServiceImpl spyService = spy(service);
+        doThrow(new MessagingException("mail server down"))
+                .when(spyService).sendRfqToVendors(anyList(), any(Rfq.class));
+
+        Rfq request = new Rfq();
+        request.setId("NO_VENDORS");
+        when(masterStatusDao.findByStatus(anyString())).thenReturn(status);
+        when(rfqDao.save(request)).thenReturn(simpleRfq("SAVED", "RFQ-SAVED"));
+
+        assertTrue(spyService.createRFQWithNoPr(request));
+    }
+
+    // ------------------------------------------------------------------
+    // saveVendorsForForwardRfq
+    // ------------------------------------------------------------------
+
+    @Test
+    void saveVendorsForForwardRfqCoversForwardStatusAndMissingOtherEmails() throws Exception {
+        GMTServiceImpl spyService = spy(service);
+        doReturn(true).when(spyService).sendRfqToVendors(anyList(), any(Rfq.class));
+
+        Organization forwardVendor = organization("EX1", "ex1@test.com", "9000000005");
+        forwardVendor.setRequestType("Forward");
+
+        Rfq request = new Rfq();
+        request.setVendors(List.of(forwardVendor));
+
+        when(orgDao.findById("EX1")).thenReturn(Optional.of(forwardVendor));
+        when(gmtRfqVendorDao.findByVendorAndRfq(any(Organization.class), any(Rfq.class))).thenReturn(null);
+        when(masterStatusDao.findByStatus(anyString())).thenReturn(status);
+        when(userDao.findByUsernameAndPhoneAndActive(anyString(), anyString(), eq(true))).thenReturn(user);
+
+        assertTrue(ReflectionTestUtils.<Boolean>invokeMethod(
+                spyService, "saveVendorsForForwardRfq", request, rfq));
+        verify(gmtRfqVendorDao).save(any(GmtRfqVendors.class));
+        verify(orgDao, never()).updateOtherEmail(any(), anyString());
+
+        doThrow(new MessagingException("mail server down"))
+                .when(spyService).sendRfqToVendors(anyList(), any(Rfq.class));
+        assertTrue(ReflectionTestUtils.<Boolean>invokeMethod(
+                spyService, "saveVendorsForForwardRfq", request, rfq));
+    }
+
+    @Test
+    void saveVendorsForForwardRfqRejectsAlreadyRegisteredCompany() {
+        Organization duplicate = organization(null, "dup@test.com", "9000000006");
+        duplicate.setCompanyName("Duplicate Co");
+
+        Rfq request = new Rfq();
+        request.setVendors(List.of(duplicate));
+
+        when(orgTypeDao.findByTypeName(ApplicationConstants.VENDOR)).thenReturn(new OrgType());
+        when(masterStatusDao.findByStatus(anyString())).thenReturn(status);
+        when(selfRegistrationService.checkOrgexist("Duplicate Co")).thenReturn(true);
+
+        assertThrows(AppException.class, () -> ReflectionTestUtils.invokeMethod(
+                service, "saveVendorsForForwardRfq", request, rfq));
+    }
+
+    // ------------------------------------------------------------------
+    // setUserDetails
+    // ------------------------------------------------------------------
+
+    @Test
+    void setUserDetailsAcceptsAlreadyPrefixedMobileNumbers() {
+        Organization vendor = organization("V1", "vendor@test.com", "+919876543210");
+        vendor.setName("Vendor Name");
+
+        when(userDao.findByUsernameAndPhoneAndActive("vendor@test.com", "+919876543210", true)).thenReturn(null);
+        when(masterStatusDao.findByStatus(StatusConstants.SELF_REGISTER_VC_ACCEPTED)).thenReturn(status);
+        when(roleDao.findByRoleNameAndActive(StatusConstants.VENDOR, true)).thenReturn(new Role());
+        when(userDao.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        User created = service.setUserDetails(vendor, new User());
+
+        assertEquals("vendor@test.com", created.getUsername());
+        assertEquals("+919876543210", created.getPhone());
+        assertEquals(StatusConstants.EMAIL_VERIFIED, created.getVerificationStatus());
+    }
+
+    @Test
+    void setUserDetailsFailsWhenReferenceDataOrPersistenceIsUnavailable() {
+        Organization vendor = organization("V1", "vendor@test.com", "9876543210");
+        when(userDao.findByUsernameAndPhoneAndActive(anyString(), anyString(), eq(true))).thenReturn(null);
+
+        when(masterStatusDao.findByStatus(StatusConstants.SELF_REGISTER_VC_ACCEPTED)).thenReturn(null);
+        assertThrows(AppException.class, () -> service.setUserDetails(vendor, new User()));
+
+        when(masterStatusDao.findByStatus(StatusConstants.SELF_REGISTER_VC_ACCEPTED)).thenReturn(status);
+        when(roleDao.findByRoleNameAndActive(StatusConstants.VENDOR, true)).thenReturn(null);
+        assertThrows(AppException.class, () -> service.setUserDetails(vendor, new User()));
+
+        when(roleDao.findByRoleNameAndActive(StatusConstants.VENDOR, true)).thenReturn(new Role());
+        when(userDao.save(any(User.class))).thenThrow(new ConcurrencyFailureException("db down"));
+        assertThrows(AppException.class, () -> service.setUserDetails(vendor, new User()));
+    }
+
+    // ------------------------------------------------------------------
+    // sendRfqToVendors
+    // ------------------------------------------------------------------
+
+    @Test
+    void sendRfqToVendorsHandlesPrefixedPhoneMailFailureAndPersistenceFailure() throws Exception {
+        authenticate("buyer@test.com");
+
+        MasterStatus sent = masterStatus(StatusConstants.pcRfqSent, "Sent");
+        MasterStatus fresh = masterStatus(StatusConstants.vendorRfqNew, "New");
+        when(masterStatusDao.findByStatusIn(anyList())).thenReturn(List.of(sent, fresh));
+
+        EmailUser emailUser = new EmailUser();
+        emailUser.setEmail("configured@test.com");
+        emailUser.setPassword("configured-password");
+        when(emailUserRepo.findByEmail("buyer@test.com")).thenReturn(emailUser);
+        when(userDao.findByUsernameAndActive("buyer@test.com", true)).thenReturn(user);
+
+        Organization prefixedVendor = organization("V+91", "plus@test.com", "+919876543210");
+        prefixedVendor.setRequestType("Forward");
+        rfq.setVendors(List.of(prefixedVendor));
+
+        User vendorUser = new User();
+        vendorUser.setCreatedTS(Date.from(Instant.now().minus(2, ChronoUnit.DAYS)));
+        when(userDao.findByUsernameAndPhoneAndActive("plus@test.com", "+919876543210", true))
+                .thenReturn(vendorUser);
+
+        RfqVendor persisted = new RfqVendor();
+        persisted.setRfq(rfq);
+        when(rfqDao.findById(rfq.getId())).thenReturn(Optional.of(rfq));
+
+        try (MockedStatic<MailUtility> mail = mockStatic(MailUtility.class)) {
+            mail.when(() -> MailUtility.emailNewRfqForNoPRForExistingUsers(
+                            any(), any(), any(), any(), any(), any(), any(), any(),
+                            any(), any(), any(), any(), any(), any(), any()))
+                    .thenThrow(new MessagingException("mail server down"));
+
+            // the per-vendor MessagingException is swallowed, the overall call still succeeds
+            assertTrue(service.sendRfqToVendors(List.of(persisted), rfq));
+
+            doThrow(new ConcurrencyFailureException("db down")).when(rfqVendorDao).saveAll(anyList());
+            assertFalse(service.sendRfqToVendors(List.of(persisted), rfq));
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // forwardRfqForNoPr
+    // ------------------------------------------------------------------
+
+    @Test
+    void forwardRfqForNoPrIgnoresMissingIdentifierAndUnknownRfq() {
+        assertTrue(service.forwardRfqForNoPr(new Rfq()));
+
+        Rfq unknown = new Rfq();
+        unknown.setId("UNKNOWN");
+        when(rfqDao.findById("UNKNOWN")).thenReturn(Optional.empty());
+        assertTrue(service.forwardRfqForNoPr(unknown));
+    }
+
+    @Test
+    void forwardRfqForNoPrForwardsToStoredRfq() throws Exception {
+        GMTServiceImpl spyService = spy(service);
+        doReturn(true).when(spyService).sendRfqToVendors(anyList(), any(Rfq.class));
+
+        Organization vendor = organization("EX1", "ex1@test.com", "9000000007");
+        vendor.setRequestType(ApplicationConstants.Invite);
+        Rfq incoming = new Rfq();
+        incoming.setId("RFQ_UUID");
+        incoming.setVendors(List.of(vendor));
+
+        when(rfqDao.findById("RFQ_UUID")).thenReturn(Optional.of(rfq));
+        when(orgDao.findById("EX1")).thenReturn(Optional.of(vendor));
+        when(masterStatusDao.findByStatus(anyString())).thenReturn(status);
+        when(userDao.findByUsernameAndPhoneAndActive(anyString(), anyString(), eq(true))).thenReturn(user);
+        when(gmtRfqVendorDao.findByVendorAndRfq(any(Organization.class), any(Rfq.class))).thenReturn(null);
+
+        assertTrue(spyService.forwardRfqForNoPr(incoming));
+        assertEquals(List.of(vendor), rfq.getVendors());
+    }
+
+    @Test
+    void forwardRfqForNoPrWrapsUnexpectedFailures() {
+        Rfq broken = new Rfq();
+        broken.setId("BROKEN");
+        when(rfqDao.findById("BROKEN")).thenThrow(new ConcurrencyFailureException("db down"));
+        assertThrows(AppException.class, () -> service.forwardRfqForNoPr(broken));
+    }
+
+    // ------------------------------------------------------------------
+    // client administration
+    // ------------------------------------------------------------------
+
+    @Test
+    void acceptSelfClientSkipsOrganizationUpdateWhenUserHasNoOrganization() throws Exception {
+        User orgless = new User();
+        orgless.setId("USER1");
+        orgless.setUsername("orgless@test.com");
+
+        when(userDao.findById("USER1")).thenReturn(Optional.of(orgless));
+        when(masterStatusDao.findByStatus(anyString())).thenReturn(status);
+
+        try (MockedStatic<MailUtility> mail = mockStatic(MailUtility.class)) {
+            assertTrue(service.acceptSelfClient(orgless));
+            verify(orgDao, never()).updateClientStatus(any(), anyString());
+            mail.verify(() -> MailUtility.mailingVerificationLinkWithSelfUserLogin(
+                    same(javaMailSender), eq("mail@test.com"), any(), eq("mail-password"),
+                    eq("http://localhost"), same(orgless)));
+        }
+    }
+
+    @Test
+    void ignoreClientSkipsStatusUpdateWhenUserIsUnknown() {
+        when(userDao.findById("USER1")).thenReturn(Optional.empty());
+        when(masterStatusDao.findByStatus(anyString())).thenReturn(status);
+
+        assertTrue(service.ignoreClient(user));
+        verify(userDao, never()).updateClientStatus(any(), any());
+    }
+
+    @Test
+    void disableUserPromotesRemainingOrganizationEmail() {
+        when(userDao.findById("USER1")).thenReturn(Optional.of(user));
+        when(userDao.findOrgIdByUser("USER1")).thenReturn("ORG1");
+        when(userDao.findByOrg("ORG1")).thenReturn(List.of("next@test.com", "other@test.com"));
+
+        assertTrue(service.disableUser(user));
+        verify(userDao).deactiveUser("USER1");
+        verify(orgDao).updateEmailByOrg("ORG1", "next@test.com");
+    }
+
+    // ------------------------------------------------------------------
+    // editAndResendRfq
+    // ------------------------------------------------------------------
+
+    @Test
+    void editAndResendRfqHandlesEmptyChildCollectionsAndNullVendorList() throws Exception {
+        GMTServiceImpl spyService = spy(service);
+
+        Rfq updated = new Rfq();
+        updated.setId("EDIT");
+        updated.setRfqId("RFQ-EDIT");
+        updated.setRfqItem(Collections.emptyList());
+        updated.setRfqDocument(Collections.emptyList());
+        updated.setClientdeliverylocationrfq(Collections.emptyList());
+
+        when(rfqDao.findById("EDIT")).thenReturn(Optional.of(new Rfq()));
+        when(masterStatusDao.findByStatus(anyString())).thenReturn(status);
+        when(gmtItemsDao.findByRfqItemIdIn(anyList())).thenReturn(Collections.emptyList());
+        when(rfqVendorDao.findDataByRfqId("EDIT")).thenReturn(Collections.emptyList());
+
+        GmtRfqSellerDto seller = new GmtRfqSellerDto();
+        seller.setVendorUuid("ORG1");
+        doReturn(List.of(seller)).when(spyService).getVendorsByGmtRfq(updated);
+        doReturn(true).when(spyService).resendRfqToVendors(anyList(), same(updated));
+
+        assertTrue(spyService.editAndResendRfq(updated));
+        verify(gmtItemsDao, never()).save(any(GmtItems.class));
+
+        // a null vendor list is reported to the caller as "no vendors found"
+        doReturn(null).when(spyService).getVendorsByGmtRfq(updated);
+        assertThrows(AppException.class, () -> spyService.editAndResendRfq(updated));
+    }
+
+    // ------------------------------------------------------------------
+    // getGmtBuyers
+    // ------------------------------------------------------------------
+
+    @Test
+    void getGmtBuyersReturnsEmptyListWhenNoUsersMatchRole() {
+        Role role = new Role();
+        when(roleDao.findByRoleNameAndActive(ApplicationConstants.ClientInitiator, true)).thenReturn(role);
+        when(userDao.getUsersBySelfClientAndRole(role)).thenReturn(Collections.emptyList());
+
+        assertTrue(service.getGmtBuyers().isEmpty());
+    }
+
+    // ------------------------------------------------------------------
+    // createRFQByClient
+    // ------------------------------------------------------------------
+
+    @Test
+    void createRfqByClientJoinsRemarksAndBrandForEveryItem() throws Exception {
+        Rfq request = new Rfq();
+        request.setId("CLIENT_RFQ");
+        RfqItem both = rfqItem("I1", "Pump", "Category", "Division");
+        both.setRemarks("Urgent");
+        both.setBrand("ACME");
+        RfqItem brandOnly = rfqItem("I2", "Valve", "Category", "Division");
+        brandOnly.setBrand("ACME");
+        RfqItem neither = rfqItem("I3", "Pipe", "Category", "Division");
+        request.setRfqItem(List.of(both, brandOnly, neither));
+
+        when(masterStatusDao.findByStatus(anyString())).thenReturn(status);
+        when(rfqDao.save(request)).thenReturn(simpleRfq("SAVED", "RFQ-SAVED"));
+
+        Map<String, Object> result = service.createRFQByClient(request);
+
+        assertNotNull(result.get("rfqId"));
+        assertEquals("SAVED", result.get("rfquuid"));
+        assertEquals("Urgent ACME", both.getBrand());
+        assertEquals("ACME", brandOnly.getBrand());
+        assertEquals("", neither.getBrand());
+        verify(gmtItemsDao).saveAll(anyList());
+    }
+
+    @Test
+    void createRfqByClientReturnsNullWhenPersistenceFails() throws Exception {
+        Rfq request = new Rfq();
+        request.setId("CLIENT_RFQ");
+        request.setRfqItem(List.of(rfqItem("I1", "Pump", "Category", "Division")));
+
+        when(masterStatusDao.findByStatus(anyString())).thenReturn(status);
+        when(gmtItemsDao.saveAll(anyList())).thenThrow(new ConcurrencyFailureException("db down"));
+
+        assertNull(service.createRFQByClient(request));
+    }
+
+    // ------------------------------------------------------------------
+    // sendEmail
+    // ------------------------------------------------------------------
+
+    @Test
+    void sendEmailSupportsMissingRecipientListsAndEmptyAttachments() {
+        EmailRequest simple = new EmailRequest();
+        simple.setSubject("Subject");
+        simple.setBody("Body");
+        simple.setAttachments(Collections.emptyList());
+
+        MessageResponse simpleResponse = service.sendEmail(simple);
+        assertEquals("200", simpleResponse.getStatusCode());
+
+        EmailAttachment attachment = new EmailAttachment();
+        attachment.setFileName("report.csv");
+        attachment.setContentType("text/csv");
+        attachment.setFileData(Base64.getEncoder().encodeToString("a,b".getBytes()));
+
+        EmailRequest withAttachment = new EmailRequest();
+        withAttachment.setSubject("Subject");
+        withAttachment.setBody("Body");
+        withAttachment.setAttachments(List.of(attachment));
+
+        assertEquals("200", service.sendEmail(withAttachment).getStatusCode());
+
+        attachment.setFileData(null);
+        assertEquals("500", service.sendEmail(withAttachment).getStatusCode());
+    }
+
+    // ------------------------------------------------------------------
+    // RFQ status APIs
+    // ------------------------------------------------------------------
+
+    @Test
+    void getRfqStatusesNormalisesNullIdsAndReportsNonProgressStatuses() {
+        RfqStatusRequest request = new RfqStatusRequest();
+        request.setClientId("USER1");
+        request.setRfqIds(Arrays.asList(null, "RFQ1"));
+
+        MasterStatus closed = masterStatus("CLOSED", "Closed");
+        rfq.setStatus(closed);
+        rfq.setQuotationReceived(false);
+        when(rfqDao.findByUserAndRfqIdIn(eq("USER1"), anyList())).thenReturn(List.of(rfq));
+
+        List<RfqStatusResponse> responses = service.getRfqStatuses(request);
+        assertEquals(2, responses.size());
+        assertEquals("RFQnull", responses.get(0).getRfqid());
+        assertEquals("Invalid RFQID", responses.get(0).getStatus());
+        assertEquals("Closed", responses.get(1).getStatus());
+
+        request.setRfqIds(null);
+        when(rfqDao.findLast3ByClientId(eq("USER1"), any(PageRequest.class))).thenReturn(List.of(rfq));
+        assertEquals("Closed", service.getRfqStatuses(request).get(0).getStatus());
+    }
+
+    @Test
+    void getRfqSellerStatusesCoversNullIdsAndLatestRfqFallback() {
+        RfqStatusRequest request = new RfqStatusRequest();
+        request.setClientId("USER1");
+        request.setRfqIds(Arrays.asList(null, "RFQ1"));
+
+        when(rfqDao.findRfqsByIdsExcludingSellerRequested(anyList(), eq("USER1"))).thenReturn(List.of(rfq));
+        List<RfqStatusResponse> responses = service.getRfqSellerStatuses(request);
+        assertEquals("RFQnull", responses.get(0).getRfqid());
+        assertEquals("Open", responses.get(1).getStatus());
+
+        Rfq withoutStatus = simpleRfq("NS", "RFQ-NS");
+        withoutStatus.setStatus(null);
+        request.setRfqIds(null);
+        when(rfqDao.findLatest5RfqsExcludingSellerRequested(eq("USER1"), any(Pageable.class)))
+                .thenReturn(List.of(rfq, withoutStatus));
+
+        List<RfqStatusResponse> latest = service.getRfqSellerStatuses(request);
+        assertEquals("Open", latest.get(0).getStatus());
+        assertEquals("Unknown", latest.get(1).getStatus());
+    }
+
+    @Test
+    void getSellerRfqStatusDataCoversNullIdListAndUnquotedLatestRfqs() {
+        RfqStatusRequest request = new RfqStatusRequest();
+        request.setClientId("ORG1");
+        request.setRfqIds(null);
+
+        GmtRfqVendors downloaded = vendorMapping(rfq, status);
+        downloaded.setQuotationReceived(false);
+        when(gmtRfqVendorDao.findLatest5ByVendorUuid(eq("ORG1"), any(Pageable.class)))
+                .thenReturn(List.of(downloaded));
+
+        assertEquals("Downloaded", service.getSellerRfqStatusData(request).get(0).getStatus());
+    }
+
+    // ------------------------------------------------------------------
+    // forwardRfqsToVendor / sendRfqsToVendor
+    // ------------------------------------------------------------------
+
+    @Test
+    void forwardRfqsToVendorRecordsSystemErrorsPerRfq() {
+        ForwardRfqVendorRequest request = new ForwardRfqVendorRequest();
+        request.setSellerId("ORG1");
+        request.setEmail("seller@test.com");
+        request.setRfqIds(List.of("RFQ1"));
+
+        when(orgDao.findRfqCreditsDataByOrg("ORG1")).thenReturn(5);
+        when(rfqDao.findByRfqId("RFQ1")).thenReturn(rfq);
+        when(masterStatusDao.findByStatus(anyString())).thenReturn(status);
+        // an absent organisation makes the mandatory Optional#get blow up
+        when(orgDao.findById("ORG1")).thenReturn(Optional.empty());
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> summary = (Map<String, Object>) service.forwardRfqsToVendor(request).get("summary");
+        assertEquals(1, summary.get("failed"));
+        assertEquals(0, summary.get("successful"));
+    }
+
+    @Test
+    void sendRfqsToVendorReturnsFalseWhenPersistenceFails() {
+        MasterStatus sent = masterStatus(StatusConstants.pcRfqSent, "Sent");
+        when(masterStatusDao.findByStatusIn(anyList())).thenReturn(List.of(sent));
+        when(rfqDao.findById(rfq.getId())).thenReturn(Optional.of(rfq));
+        when(rfqVendorDao.save(any(RfqVendor.class))).thenThrow(new ConcurrencyFailureException("db down"));
+
+        RfqVendor vendor = new RfqVendor();
+        vendor.setEmail("seller@test.com");
+        assertFalse(service.sendRfqsToVendor(vendor, rfq));
+    }
+
+    // ------------------------------------------------------------------
+    // getOrgByUserId
+    // ------------------------------------------------------------------
+
+    @Test
+    void getOrgByUserIdRejectsUnknownUserAndUserWithoutOrganization() {
+        User request = new User();
+        request.setId("USER1");
+
+        when(userDao.findById("USER1")).thenReturn(Optional.empty());
+        assertThrows(AppException.class, () -> service.getOrgByUserId(request));
+
+        User orgless = new User();
+        orgless.setId("USER1");
+        when(userDao.findById("USER1")).thenReturn(Optional.of(orgless));
+        assertThrows(AppException.class, () -> service.getOrgByUserId(request));
+    }
+
+    // ------------------------------------------------------------------
+    // getLastOpenRfqsForVendor
+    // ------------------------------------------------------------------
+
+    @Test
+    void getLastOpenRfqsForVendorOmitsLocationAndDeadlineWhenUnset() {
+        Rfq bare = simpleRfq("OPEN1", "RFQ-OPEN1");
+        bare.setCreatedTS(new Date());
+        bare.setClientdeliverylocationrfq(Collections.emptyList());
+        bare.setRfqClosingDate(null);
+
+        GmtRfqVendors mapping = vendorMapping(bare, status);
+        mapping.setRequestedDate(new Date());
+        when(gmtRfqVendorDao.findLastOpenRfqsByVendor(eq("ORG1"), any(Pageable.class)))
+                .thenReturn(List.of(mapping));
+
+        Map<String, Object> row = service.getLastOpenRfqsForVendor("ORG1").get(0);
+        assertFalse(row.containsKey("location"));
+        assertFalse(row.containsKey("days_remaining"));
+        assertEquals("open_for_bidding", row.get("status"));
+    }
+
+    // ------------------------------------------------------------------
+    // emailForwarder
+    // ------------------------------------------------------------------
+
+    @Test
+    void emailForwarderSkipsUnparseableSubjectsAndMissingBuyers() throws Exception {
+        Message noRfqId = mock(Message.class);
+        Message noBuyerList = mock(Message.class);
+        Message forwarded = mock(Message.class);
+        when(noRfqId.getSubject()).thenReturn("PREFIX You have an Enquiry");
+        when(noBuyerList.getSubject()).thenReturn("PREFIX You have an Enquiry RFQ No RFQ7 - ORG7");
+        when(forwarded.getSubject()).thenReturn("PREFIX You have an Enquiry RFQ No RFQ8 - ORG8");
+
+        jakarta.mail.Session session = mock(jakarta.mail.Session.class);
+        jakarta.mail.Store store = mock(jakarta.mail.Store.class);
+        IMAPFolder inbox = mock(IMAPFolder.class);
+        when(session.getStore("imaps")).thenReturn(store);
+        when(store.getFolder("INBOX")).thenReturn(inbox);
+        when(inbox.search(any(SearchTerm.class)))
+                .thenReturn(new Message[]{noRfqId, noBuyerList, forwarded});
+
+        when(rfqDao.findRFQByRfQId("RFQ7")).thenReturn(null);
+        when(rfqDao.findRFQByRfQId("RFQ8")).thenReturn(List.of("BUYER8"));
+        when(userDao.findEmailById("BUYER8")).thenReturn("buyer8@test.com");
+        when(masterStatusDao.findByStatus(StatusConstants.VENDOR_QUOTE_SUBMITTED)).thenReturn(status);
+        when(rfqDao.getIdbyRfqId("RFQ8")).thenReturn(Collections.emptyList());
+
+        try (MockedStatic<jakarta.mail.Session> sessions = mockStatic(jakarta.mail.Session.class);
+             MockedStatic<MailUtility> mail = mockStatic(MailUtility.class)) {
+            sessions.when(() -> jakarta.mail.Session.getInstance(any(java.util.Properties.class)))
+                    .thenReturn(session);
+            mail.when(() -> MailUtility.forwardMessage(
+                            eq("buyer8@test.com"), same(javaMailSender), eq("from@test.com"),
+                            same(forwarded), eq("secret")))
+                    .thenReturn(true);
+
+            assertDoesNotThrow(() -> service.emailForwarder());
+        }
+
+        verify(noRfqId).setFlag(Flags.Flag.SEEN, true);
+        verify(noBuyerList).setFlag(Flags.Flag.SEEN, true);
+        verify(gmtRfqVendorDao, never()).updateQuotationReceived(anyString(), anyString(), any());
+        verify(orgDao).updateQuoteCount("ORG8");
+    }
+
+    // ------------------------------------------------------------------
+    // updateVendorClasses
+    // ------------------------------------------------------------------
+
+    @Test
+    void updateVendorClassesUsesExistingUsageCountsAndSurvivesUpdateFailures() {
+        OrgType vendorType = new OrgType();
+        when(orgTypeDao.findByTypeName(ApplicationConstants.VENDOR)).thenReturn(vendorType);
+
+        Organization promoted = new Organization();
+        promoted.setId("PROMOTED");
+        promoted.setRfqUsedCount(9L);
+        promoted.setQuoteSubmitted(4L);
+        promoted.setVendorClass(StatusConstants.Gold);
+
+        Organization failing = new Organization();
+        failing.setId("FAILING");
+        failing.setRfqUsedCount(2L);
+        failing.setQuoteSubmitted(1L);
+
+        when(orgDao.findByOrgType(vendorType)).thenReturn(List.of(promoted, failing));
+        doThrow(new ConcurrencyFailureException("db down"))
+                .when(orgDao).updateVendorClass("FAILING", StatusConstants.Gold);
+
+        assertDoesNotThrow(() -> service.updateVendorClasses());
+        verify(orgDao).updateVendorClass("PROMOTED", StatusConstants.Diamond);
+    }
+
+    // ------------------------------------------------------------------
+    // buyer lookups
+    // ------------------------------------------------------------------
+
+    @Test
+    void getBuyerDataByRfqRejectsBlankUserIdAndReportsUnknownUser() {
+        Rfq blankUser = simpleRfq("B1", "RFQ-B1");
+        blankUser.setUser("   ");
+        when(rfqDao.findById("B1")).thenReturn(Optional.of(blankUser));
+        assertNull(service.getBuyerDataByRFQ(blankUser));
+
+        Rfq unknownUser = simpleRfq("B2", "RFQ-B2");
+        unknownUser.setUser("GHOST");
+        when(rfqDao.findById("B2")).thenReturn(Optional.of(unknownUser));
+        when(userDao.findUserById("GHOST")).thenReturn(null);
+        assertNull(service.getBuyerDataByRFQ(unknownUser));
+    }
+
+    @Test
+    void getBuyerByRfqRejectsMissingIdAndReportsNoActiveUser() {
+        assertNull(service.getBuyerByRFQ(new Rfq()));
+
+        Rfq lookup = simpleRfq("B3", "RFQ-B3");
+        when(rfqDao.findClientById("B3")).thenReturn("ORG1");
+        when(userDao.findUserByOrgId("ORG1")).thenReturn(null);
+        assertNull(service.getBuyerByRFQ(lookup));
+    }
+
+    // ------------------------------------------------------------------
+    // daily report
+    // ------------------------------------------------------------------
+
+    @Test
+    void dailyReportHandlesMissingLoginTimestampsAndQueryFailures() {
+        BuyerSellerReportDto withoutTimestamp = new BuyerSellerReportDto(
+                null, "Buyer", "Name", "9876543210", "Company", "buyer@test.com",
+                "City", "GMT", "RFQ1", "Item");
+        byte[] csv = ReflectionTestUtils.invokeMethod(
+                service, "generateBuyerSellerCsv", List.of(withoutTimestamp));
+        assertNotNull(csv);
+        assertTrue(new String(csv, java.nio.charset.StandardCharsets.UTF_8).contains("1,,Buyer"));
+
+        SellerSubscriptionReportDto seller = new SellerSubscriptionReportDto(
+                new Date(0), "Seller", "888", "Seller Co", "seller@test.com", "Town",
+                "Yes", 2L, "RFQ2");
+        assertNotNull(ReflectionTestUtils.invokeMethod(
+                service, "generateSellerSubscriptionCsv", List.of(seller)));
+
+        when(userDao.getDailyBuyerSellerReport(any(Date.class), any(Date.class)))
+                .thenThrow(new ConcurrencyFailureException("db down"));
+        assertDoesNotThrow(() -> service.dailyReportEmailForwarder());
+    }
+
+    // ------------------------------------------------------------------
+    // resendRfqToVendors
+    // ------------------------------------------------------------------
+
+    @Test
+    void resendRfqToVendorsReturnsFalseWhenSellerOrganizationIsMissing() throws Exception {
+        authenticate("buyer@test.com");
+        when(emailUserRepo.findByEmail("buyer@test.com")).thenReturn(null);
+        when(userDao.findByUsernameAndActive("buyer@test.com", true)).thenReturn(null);
+        when(orgDao.findById("GHOST")).thenReturn(Optional.empty());
+
+        GmtRfqSellerDto seller = new GmtRfqSellerDto();
+        seller.setVendorUuid("GHOST");
+
+        assertFalse(service.resendRfqToVendors(List.of(seller), rfq));
+    }
+
+    // ------------------------------------------------------------------
+    // OTP
+    // ------------------------------------------------------------------
+
+    @Test
+    void generateOtpStoresOneOtpPerOrganization() {
+        HttpServletRequest request = mock(HttpServletRequest.class);
+        try (MockedStatic<MailUtility> mail = mockStatic(MailUtility.class)) {
+            assertTrue(service.generateOtp(org, request));
+        }
+
+        @SuppressWarnings("unchecked")
+        Map<String, String> otpMap = (Map<String, String>) ReflectionTestUtils.getField(service, "otpMap");
+        assertNotNull(otpMap);
+        assertEquals(6, otpMap.get("ORG1").length());
+    }
+
+    // ------------------------------------------------------------------
+    // helpers
+    // ------------------------------------------------------------------
+
+    private void authenticate(String username) {
+        Authentication authentication = mock(Authentication.class);
+        UserDetails principal = mock(UserDetails.class);
+        when(principal.getUsername()).thenReturn(username);
+        when(authentication.getPrincipal()).thenReturn(principal);
+        SecurityContextHolder.getContext().setAuthentication(authentication);
+    }
+
+    private boolean validateHeaders(String... headers) {
+        Boolean valid = ReflectionTestUtils.invokeMethod(
+                service, "validateExcelTemplate", new ArrayList<>(List.of(headers)));
+        return Boolean.TRUE.equals(valid);
+    }
+
+    private byte[] workbookBytes(java.util.function.Consumer<Sheet> populator) throws Exception {
+        try (XSSFWorkbook workbook = new XSSFWorkbook();
+             ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+            populator.accept(workbook.createSheet("BOQ"));
+            workbook.write(out);
+            return out.toByteArray();
+        }
+    }
+
+    private Organization organization(String id, String email, String phone) {
+        Organization organization = new Organization();
+        organization.setId(id);
+        organization.setEmail(email);
+        organization.setOrganizationPhonenumber(phone);
+        return organization;
+    }
+
+    private MasterStatus masterStatus(String value, String uiDisplay) {
+        MasterStatus masterStatus = new MasterStatus();
+        masterStatus.setStatus(value);
+        masterStatus.setUiDisplay(uiDisplay);
+        return masterStatus;
+    }
+
+    private Rfq simpleRfq(String id, String rfqId) {
+        Rfq value = new Rfq();
+        value.setId(id);
+        value.setRfqId(rfqId);
+        value.setStatus(status);
+        return value;
+    }
+
+    private RfqItem rfqItem(String id, String description, String category, String division) {
+        RfqItem item = new RfqItem();
+        item.setId(id);
+        item.setDescription(description);
+        item.setCategory(category);
+        item.setDivision(division);
+        item.setQuantity(3D);
+        item.setUnitofMeasures("PCS");
+        return item;
+    }
+
+    private ClientDeliveryLocationRfq deliveryLocation(String city, String state) {
+        ClientDeliveryLocationRfq location = new ClientDeliveryLocationRfq();
+        location.setCity(city);
+        location.setState(state);
+        return location;
+    }
+
+    private GmtRfqVendors vendorMapping(Rfq target, MasterStatus mappingStatus) {
+        GmtRfqVendors mapping = new GmtRfqVendors();
+        mapping.setRfq(target);
+        mapping.setVendor(org);
+        mapping.setStatus(mappingStatus);
+        mapping.setRequestedDate(new Date());
+        return mapping;
+    }
+
+    @SuppressWarnings("unused")
+    private LocalDate today() {
+        return LocalDate.now(ZoneId.of("Asia/Kolkata"));
+    }
+}
