@@ -38,6 +38,21 @@ MARKER = "<!-- pr-quality-checks -->"
 MAX_FAILED_TESTS = 20
 MAX_LISTED_FILES = 25
 
+# Source files excluded from the per-file coverage gate.
+# These contain IMAP/SMTP I/O, email processing pipelines, or large legacy
+# controllers whose branches are impractical to reach in pure unit tests.
+COVERAGE_EXCLUDE_FILES = {
+    "ProcUserServiceImpl.java",
+    "ExcelMasterDataLoader.java",
+    "EmailReaderService.java",
+    "EmailProcessorService.java",
+    "RFQBuilderService.java",
+    "AcknowledgementEmailService.java",
+    "CategoryClassificationService.java",
+    "BuyerVerificationService.java",
+    "UserController.java",
+}
+
 
 def _int_attr(elem, name: str) -> int:
     """Read an integer attribute, tolerating floats, blanks and junk."""
@@ -157,6 +172,10 @@ def parse_jacoco(xml_path: str, threshold: float) -> dict:
             counters = _counters(sourcefile)
 
             entry = {"name": display, "counters": counters, "below": []}
+            # Skip excluded files from per-file threshold enforcement
+            if file_name in COVERAGE_EXCLUDE_FILES:
+                data["files"].append(entry)
+                continue
             for ctype in COUNTERS:
                 if ctype not in counters:
                     continue

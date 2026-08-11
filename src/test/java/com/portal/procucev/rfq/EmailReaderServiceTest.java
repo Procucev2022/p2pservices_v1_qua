@@ -260,5 +260,75 @@ public class EmailReaderServiceTest {
         assertNotNull(data);
         assertEquals("sender@test.com", data.getSenderName());
     }
+
+    @Test
+    @DisplayName("Test parseMessage with attachment in MimeMultipart")
+    void testParseMessageAttachmentMultipart() throws Exception {
+        Message msg = Mockito.mock(Message.class);
+        Mockito.when(msg.getFrom()).thenReturn(new Address[]{new InternetAddress("sender@test.com")});
+        Mockito.when(msg.isMimeType("multipart/*")).thenReturn(true);
+
+        jakarta.mail.internet.MimeMultipart mp = Mockito.mock(jakarta.mail.internet.MimeMultipart.class);
+        jakarta.mail.BodyPart attPart = Mockito.mock(jakarta.mail.BodyPart.class);
+        Mockito.when(attPart.getDisposition()).thenReturn("attachment");
+        Mockito.when(attPart.getFileName()).thenReturn("test_doc.txt");
+
+        java.io.ByteArrayInputStream in = new java.io.ByteArrayInputStream("Attachment content text".getBytes());
+        Mockito.when(attPart.getInputStream()).thenReturn(in);
+
+        Mockito.when(mp.getCount()).thenReturn(1);
+        Mockito.when(mp.getBodyPart(0)).thenReturn(attPart);
+        Mockito.when(msg.getContent()).thenReturn(mp);
+
+        EmailData data = ReflectionTestUtils.invokeMethod(service, "parseMessage", msg);
+        assertNotNull(data);
+        assertEquals(1, data.getAttachments().size());
+        assertTrue(data.getAttachmentText().contains("Attachment content text"));
+    }
+
+    @Test
+    @DisplayName("Test parseMessage with nested MimeMultipart")
+    void testParseMessageNestedMultipart() throws Exception {
+        Message msg = Mockito.mock(Message.class);
+        Mockito.when(msg.getFrom()).thenReturn(new Address[]{new InternetAddress("sender@test.com")});
+        Mockito.when(msg.isMimeType("multipart/*")).thenReturn(true);
+
+        jakarta.mail.internet.MimeMultipart outerMp = Mockito.mock(jakarta.mail.internet.MimeMultipart.class);
+        jakarta.mail.internet.MimeMultipart innerMp = Mockito.mock(jakarta.mail.internet.MimeMultipart.class);
+
+        jakarta.mail.BodyPart innerPart = Mockito.mock(jakarta.mail.BodyPart.class);
+        Mockito.when(innerPart.isMimeType("text/plain")).thenReturn(true);
+        Mockito.when(innerPart.getContent()).thenReturn("Nested text content");
+
+        Mockito.when(innerMp.getCount()).thenReturn(1);
+        Mockito.when(innerMp.getBodyPart(0)).thenReturn(innerPart);
+
+        jakarta.mail.BodyPart outerPart = Mockito.mock(jakarta.mail.BodyPart.class);
+        Mockito.when(outerPart.isMimeType("multipart/*")).thenReturn(true);
+        Mockito.when(outerPart.getContent()).thenReturn(innerMp);
+
+        Mockito.when(outerMp.getCount()).thenReturn(1);
+        Mockito.when(outerMp.getBodyPart(0)).thenReturn(outerPart);
+        Mockito.when(msg.getContent()).thenReturn(outerMp);
+
+        EmailData data = ReflectionTestUtils.invokeMethod(service, "parseMessage", msg);
+        assertNotNull(data);
+        assertTrue(data.getBody().contains("Nested text content"));
+    }
+
+    @Test
+    @DisplayName("Test closeFolderAndStore helper method")
+    void testCloseFolderAndStore() throws Exception {
+        jakarta.mail.Folder folder = Mockito.mock(jakarta.mail.Folder.class);
+        Mockito.when(folder.isOpen()).thenReturn(true);
+        Mockito.doThrow(new RuntimeException("Folder close err")).when(folder).close(true);
+
+        jakarta.mail.Store store = Mockito.mock(jakarta.mail.Store.class);
+        Mockito.when(store.isConnected()).thenReturn(true);
+        Mockito.doThrow(new RuntimeException("Store close err")).when(store).close();
+
+        assertDoesNotThrow(() -> ReflectionTestUtils.invokeMethod(service, "closeFolderAndStore", folder, store));
+    }
 }
+
 

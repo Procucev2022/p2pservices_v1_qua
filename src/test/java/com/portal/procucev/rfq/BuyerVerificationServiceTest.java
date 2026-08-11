@@ -278,5 +278,41 @@ public class BuyerVerificationServiceTest {
         Buyer buyer = buyerVerificationService.verifyAndGetBuyer("noatsign");
         assertEquals("Valued Buyer", buyer.getName());
     }
+
+    @Test
+    @DisplayName("Test verifyAndGetBuyer when buyerEntity is verified but address is null (updates address)")
+    void testVerifyAndGetBuyerVerifiedNullAddress() {
+        String email = "nulladdr.verified@test.com";
+
+        Organization org = new Organization();
+        org.setId("103");
+        org.setCompanyName("Corp3");
+        org.setAddress1("123 Street");
+
+        User user = new User();
+        user.setId("506");
+        user.setFirstName("Verified");
+        user.setLastName("User");
+        user.setOrg(org);
+
+        Mockito.when(userDao.findActiveUsersByUsernameAndRoleNames(eq(email), Mockito.anyList()))
+                .thenReturn(List.of(user));
+
+        BuyerEntity existingEntity = BuyerEntity.builder()
+                .id(7L)
+                .email(email)
+                .verified(true)
+                .address(null)
+                .build();
+
+        Mockito.when(buyerRepository.findByEmailIgnoreCase(email)).thenReturn(Optional.of(existingEntity));
+        Mockito.when(buyerRepository.save(any(BuyerEntity.class))).thenAnswer(i -> i.getArgument(0));
+
+        Buyer buyer = buyerVerificationService.verifyAndGetBuyer(email);
+        assertTrue(buyer.isVerified());
+        assertEquals("123 Street", buyer.getAddress());
+        Mockito.verify(buyerRepository).save(existingEntity);
+    }
 }
+
 

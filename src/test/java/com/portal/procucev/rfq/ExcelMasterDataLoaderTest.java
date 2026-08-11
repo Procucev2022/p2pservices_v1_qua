@@ -388,4 +388,72 @@ public class ExcelMasterDataLoaderTest {
         assertFalse(records.isEmpty());
         assertEquals("Widget", records.get(0).getItemDescription());
     }
+
+    @Test
+    @DisplayName("Test loadMasterData directory containing other .xlsx files")
+    void testLoadMasterDataDirectoryFallbackXlsx() throws Exception {
+        File dir = new File(tempDir.toFile(), "empty_sets_dir");
+        dir.mkdirs();
+        File customXlsx = new File(dir, "custom_data.xlsx");
+        try (Workbook wb = new XSSFWorkbook()) {
+            Sheet sheet = wb.createSheet("Sheet1");
+            Row h = sheet.createRow(0);
+            h.createCell(0).setCellValue("Category");
+            h.createCell(1).setCellValue("Description");
+            Row r = sheet.createRow(1);
+            r.createCell(0).setCellValue("Hardware");
+            r.createCell(1).setCellValue("Bolt");
+            try (FileOutputStream fos = new FileOutputStream(customXlsx)) {
+                wb.write(fos);
+            }
+        }
+
+        ReflectionTestUtils.setField(loader, "masterFilePath", dir.getAbsolutePath());
+        loader.loadMasterData();
+
+        List<ExcelMasterDataLoader.MasterCategoryRecord> records = loader.getMasterRecords();
+        assertFalse(records.isEmpty());
+        assertEquals("Hardware", records.get(0).getCategory());
+    }
+
+    @Test
+    @DisplayName("Test loadMasterData directory with set1 and set2 present")
+    void testLoadMasterDataDirectoryWithBothSets() throws Exception {
+        File dir = new File(tempDir.toFile(), "both_sets_dir");
+        dir.mkdirs();
+        File set1 = new File(dir, "1st Set of Category Items Data.xlsx");
+        File set2 = new File(dir, "2nd Set of Category Items Data.xlsx");
+
+        try (Workbook wb = new XSSFWorkbook()) {
+            Sheet s1 = wb.createSheet("S1");
+            Row h1 = s1.createRow(0);
+            h1.createCell(0).setCellValue("Category");
+            h1.createCell(1).setCellValue("Description");
+            Row r1 = s1.createRow(1);
+            r1.createCell(0).setCellValue("Set1Cat");
+            r1.createCell(1).setCellValue("Set1Desc");
+            try (FileOutputStream fos = new FileOutputStream(set1)) {
+                wb.write(fos);
+            }
+        }
+        try (Workbook wb = new XSSFWorkbook()) {
+            Sheet s2 = wb.createSheet("S2");
+            Row h2 = s2.createRow(0);
+            h2.createCell(0).setCellValue("Category");
+            h2.createCell(1).setCellValue("Description");
+            Row r2 = s2.createRow(1);
+            r2.createCell(0).setCellValue("Set2Cat");
+            r2.createCell(1).setCellValue("Set2Desc");
+            try (FileOutputStream fos = new FileOutputStream(set2)) {
+                wb.write(fos);
+            }
+        }
+
+        ReflectionTestUtils.setField(loader, "masterFilePath", dir.getAbsolutePath());
+        loader.loadMasterData();
+
+        List<ExcelMasterDataLoader.MasterCategoryRecord> records = loader.getMasterRecords();
+        assertEquals(2, records.size());
+    }
 }
+
