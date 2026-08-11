@@ -6,6 +6,8 @@ import com.portal.procucev.rfq.exception.ApplicationException;
 import com.portal.procucev.rfq.model.*;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.test.util.ReflectionTestUtils;
+
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -526,12 +528,12 @@ public class RfqDtoAndModelTest {
         assertNull(b.getCreatedAt());
         assertNull(b.getUpdatedAt());
 
-        b.onCreate();
+        ReflectionTestUtils.invokeMethod(b, "onCreate");
         assertNotNull(b.getCreatedAt());
         assertNotNull(b.getUpdatedAt());
 
         LocalDateTime firstUpdate = b.getUpdatedAt();
-        b.onUpdate();
+        ReflectionTestUtils.invokeMethod(b, "onUpdate");
         assertNotNull(b.getUpdatedAt());
     }
 
@@ -543,11 +545,11 @@ public class RfqDtoAndModelTest {
         assertNull(t.getCreatedAt());
         assertNull(t.getUpdatedAt());
 
-        t.onCreate();
+        ReflectionTestUtils.invokeMethod(t, "onCreate");
         assertNotNull(t.getCreatedAt());
         assertNotNull(t.getUpdatedAt());
 
-        t.onUpdate();
+        ReflectionTestUtils.invokeMethod(t, "onUpdate");
         assertNotNull(t.getUpdatedAt());
     }
 
@@ -559,11 +561,11 @@ public class RfqDtoAndModelTest {
         assertNull(r.getCreatedAt());
         assertNull(r.getUpdatedAt());
 
-        r.onCreate();
+        ReflectionTestUtils.invokeMethod(r, "onCreate");
         assertNotNull(r.getCreatedAt());
         assertNotNull(r.getUpdatedAt());
 
-        r.onUpdate();
+        ReflectionTestUtils.invokeMethod(r, "onUpdate");
         assertNotNull(r.getUpdatedAt());
     }
 
@@ -575,9 +577,10 @@ public class RfqDtoAndModelTest {
         item.setItemDescription("Widget");
         assertNull(item.getCreatedAt());
 
-        item.onCreate();
+        ReflectionTestUtils.invokeMethod(item, "onCreate");
         assertNotNull(item.getCreatedAt());
     }
+
 
     @Test
     @DisplayName("Test RfqItemRecord full field coverage via setters")
