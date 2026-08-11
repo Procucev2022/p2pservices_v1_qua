@@ -169,7 +169,7 @@ public class CategoryClassificationServiceTest {
         service.classifyItems(List.of(item));
 
         assertEquals("General Industrial Goods", item.getCategory());
-        assertEquals("MATCHED", item.getClassificationStatus());
+        assertEquals("DEFAULT", item.getClassificationStatus());
     }
 
     @Test
@@ -186,8 +186,9 @@ public class CategoryClassificationServiceTest {
         service.classifyItems(List.of(item));
 
         assertEquals("General Industrial Goods", item.getCategory());
-        assertEquals("MATCHED", item.getClassificationStatus());
+        assertEquals("DEFAULT", item.getClassificationStatus());
     }
+
 
     @Test
     @DisplayName("Test classifyItems excel numeric category with numeric division falls back to General Industrial Goods")
