@@ -432,10 +432,14 @@ public class RfqDtoAndModelTest {
         RFQItem item1 = RFQItem.builder()
                 .itemDescription("Laptop")
                 .partCode("P123")
+                .partNumber("PN456")
+                .modelNumber("M789")
                 .specification("16GB RAM")
                 .quantity(10.0)
                 .uom("NOS")
                 .brand("Dell")
+                .deliveryLocation("BLR")
+                .deliveryDate("2026-08-25")
                 .category("IT")
                 .division("Hardware")
                 .categoryConfidence(0.95)
@@ -445,12 +449,246 @@ public class RfqDtoAndModelTest {
 
         assertEquals("Laptop", item1.getItemDescription());
         assertEquals("P123", item1.getPartCode());
+        assertEquals("PN456", item1.getPartNumber());
+        assertEquals("M789", item1.getModelNumber());
         assertEquals("16GB RAM", item1.getSpecification());
         assertEquals(10.0, item1.getQuantity());
         assertEquals("NOS", item1.getUom());
+        assertEquals("Dell", item1.getBrand());
+        assertEquals("BLR", item1.getDeliveryLocation());
+        assertEquals("2026-08-25", item1.getDeliveryDate());
+        assertEquals("IT", item1.getCategory());
+        assertEquals("Hardware", item1.getDivision());
+        assertEquals(0.95, item1.getCategoryConfidence());
+        assertEquals("MATCHED", item1.getClassificationStatus());
+        assertEquals("Remarks", item1.getRemarks());
+
+        // getEffectivePartNumber: partCode set
         assertEquals("P123", item1.getEffectivePartNumber());
 
-        RFQItem itemNoPartCode = RFQItem.builder().itemDescription("Laptop").build();
-        assertEquals("", itemNoPartCode.getEffectivePartNumber());
+        // getEffectivePartNumber: partCode null, partNumber set
+        RFQItem itemPN = RFQItem.builder().partNumber("PN456").build();
+        assertEquals("PN456", itemPN.getEffectivePartNumber());
+
+        // getEffectivePartNumber: partCode blank, partNumber set
+        RFQItem itemPNBlank = RFQItem.builder().partCode("").partNumber("PN456").build();
+        assertEquals("PN456", itemPNBlank.getEffectivePartNumber());
+
+        // getEffectivePartNumber: partCode null, partNumber null, modelNumber set
+        RFQItem itemMN = RFQItem.builder().modelNumber("M789").build();
+        assertEquals("M789", itemMN.getEffectivePartNumber());
+
+        // getEffectivePartNumber: partCode blank, partNumber blank, modelNumber set
+        RFQItem itemMNBlank = RFQItem.builder().partCode("").partNumber("").modelNumber("M789").build();
+        assertEquals("M789", itemMNBlank.getEffectivePartNumber());
+
+        // getEffectivePartNumber: all null
+        RFQItem itemNone = RFQItem.builder().itemDescription("Laptop").build();
+        assertEquals("", itemNone.getEffectivePartNumber());
+
+        // getEffectivePartNumber: all blank
+        RFQItem itemAllBlank = RFQItem.builder().partCode("  ").partNumber("  ").modelNumber("  ").build();
+        assertEquals("", itemAllBlank.getEffectivePartNumber());
+
+        // equals / hashCode / toString
+        RFQItem item2 = new RFQItem("Laptop", "P123", "PN456", "M789", "16GB RAM", 10.0, "NOS", "Dell", "Remarks", "BLR", "2026-08-25", "IT", "Hardware", 0.95, "MATCHED");
+        assertEquals(item1, item2);
+        assertEquals(item1.hashCode(), item2.hashCode());
+        assertNotNull(item1.toString());
+
+        // no-arg constructor + setters
+        RFQItem item3 = new RFQItem();
+        item3.setItemDescription("Laptop");
+        item3.setPartCode("P123");
+        item3.setPartNumber("PN456");
+        item3.setModelNumber("M789");
+        item3.setSpecification("16GB RAM");
+        item3.setQuantity(10.0);
+        item3.setUom("NOS");
+        item3.setBrand("Dell");
+        item3.setDeliveryLocation("BLR");
+        item3.setDeliveryDate("2026-08-25");
+        item3.setCategory("IT");
+        item3.setDivision("Hardware");
+        item3.setCategoryConfidence(0.95);
+        item3.setClassificationStatus("MATCHED");
+        item3.setRemarks("Remarks");
+        assertEquals(item1, item3);
+    }
+
+    // --- Entity lifecycle method tests ---
+
+    @Test
+    @DisplayName("Test BuyerEntity lifecycle methods: onCreate and onUpdate")
+    void testBuyerEntityLifecycle() {
+        BuyerEntity b = new BuyerEntity();
+        b.setEmail("test@test.com");
+        assertNull(b.getCreatedAt());
+        assertNull(b.getUpdatedAt());
+
+        b.onCreate();
+        assertNotNull(b.getCreatedAt());
+        assertNotNull(b.getUpdatedAt());
+
+        LocalDateTime firstUpdate = b.getUpdatedAt();
+        b.onUpdate();
+        assertNotNull(b.getUpdatedAt());
+    }
+
+    @Test
+    @DisplayName("Test EmailTransaction lifecycle methods: onCreate and onUpdate")
+    void testEmailTransactionLifecycle() {
+        EmailTransaction t = new EmailTransaction();
+        t.setMessageId("MSG-X");
+        assertNull(t.getCreatedAt());
+        assertNull(t.getUpdatedAt());
+
+        t.onCreate();
+        assertNotNull(t.getCreatedAt());
+        assertNotNull(t.getUpdatedAt());
+
+        t.onUpdate();
+        assertNotNull(t.getUpdatedAt());
+    }
+
+    @Test
+    @DisplayName("Test RFQEntity lifecycle methods: onCreate and onUpdate")
+    void testRFQEntityLifecycle() {
+        RFQEntity r = new RFQEntity();
+        r.setRfqNumber("RFQ-X");
+        assertNull(r.getCreatedAt());
+        assertNull(r.getUpdatedAt());
+
+        r.onCreate();
+        assertNotNull(r.getCreatedAt());
+        assertNotNull(r.getUpdatedAt());
+
+        r.onUpdate();
+        assertNotNull(r.getUpdatedAt());
+    }
+
+    @Test
+    @DisplayName("Test RfqItemRecord lifecycle method: onCreate")
+    void testRfqItemRecordLifecycle() {
+        RfqItemRecord item = new RfqItemRecord();
+        item.setBuyerEmail("test@test.com");
+        item.setItemDescription("Widget");
+        assertNull(item.getCreatedAt());
+
+        item.onCreate();
+        assertNotNull(item.getCreatedAt());
+    }
+
+    @Test
+    @DisplayName("Test RfqItemRecord full field coverage via setters")
+    void testRfqItemRecordSetters() {
+        LocalDateTime now = LocalDateTime.now();
+        RfqItemRecord item = new RfqItemRecord();
+        item.setId(1L);
+        item.setBuyerEmail("buyer@test.com");
+        item.setItemDescription("Desc");
+        item.setDeliveryDate("2026-01-01");
+        item.setRfqNumber("RFQ-1");
+        item.setCategory("Cat");
+        item.setDivision("Div");
+        item.setCategoryConfidence(0.9);
+        item.setClassificationStatus("MATCHED");
+        item.setCreatedAt(now);
+
+        assertEquals(1L, item.getId());
+        assertEquals("buyer@test.com", item.getBuyerEmail());
+        assertEquals("Desc", item.getItemDescription());
+        assertEquals("2026-01-01", item.getDeliveryDate());
+        assertEquals("RFQ-1", item.getRfqNumber());
+        assertEquals("Cat", item.getCategory());
+        assertEquals("Div", item.getDivision());
+        assertEquals(0.9, item.getCategoryConfidence());
+        assertEquals("MATCHED", item.getClassificationStatus());
+        assertEquals(now, item.getCreatedAt());
+    }
+
+    @Test
+    @DisplayName("Test BuyerEntity full field coverage via setters")
+    void testBuyerEntitySetters() {
+        LocalDateTime now = LocalDateTime.now();
+        BuyerEntity b = new BuyerEntity();
+        b.setId(1L);
+        b.setEmail("a@b.com");
+        b.setCompanyName("Co");
+        b.setContactPerson("CP");
+        b.setPhone("123");
+        b.setVerified(false);
+        b.setOrgId("O1");
+        b.setUserId("U1");
+        b.setCity("C");
+        b.setState("S");
+        b.setPincode("P");
+        b.setAddress("A");
+        b.setCreatedAt(now);
+        b.setUpdatedAt(now);
+
+        assertEquals(1L, b.getId());
+        assertEquals("a@b.com", b.getEmail());
+        assertEquals("Co", b.getCompanyName());
+        assertEquals("CP", b.getContactPerson());
+        assertEquals("123", b.getPhone());
+        assertFalse(b.isVerified());
+        assertEquals("O1", b.getOrgId());
+        assertEquals("U1", b.getUserId());
+        assertEquals("C", b.getCity());
+        assertEquals("S", b.getState());
+        assertEquals("P", b.getPincode());
+        assertEquals("A", b.getAddress());
+        assertEquals(now, b.getCreatedAt());
+        assertEquals(now, b.getUpdatedAt());
+    }
+
+    @Test
+    @DisplayName("Test EmailTransaction full field coverage via setters")
+    void testEmailTransactionSetters() {
+        LocalDateTime now = LocalDateTime.now();
+        EmailTransaction t = new EmailTransaction();
+        t.setId(1L);
+        t.setMessageId("M1");
+        t.setSubject("S");
+        t.setSenderEmail("se");
+        t.setStatus("OK");
+        t.setErrorMessage("err");
+        t.setCreatedAt(now);
+        t.setUpdatedAt(now);
+
+        assertEquals(1L, t.getId());
+        assertEquals("M1", t.getMessageId());
+        assertEquals("S", t.getSubject());
+        assertEquals("se", t.getSenderEmail());
+        assertEquals("OK", t.getStatus());
+        assertEquals("err", t.getErrorMessage());
+    }
+
+    @Test
+    @DisplayName("Test RFQEntity full field coverage via setters")
+    void testRFQEntitySetters() {
+        LocalDateTime now = LocalDateTime.now();
+        RFQEntity r = new RFQEntity();
+        r.setId(1L);
+        r.setRfqNumber("RFQ-1");
+        r.setBuyerEmail("b@t.com");
+        r.setStatus("CREATED");
+        r.setRawSubject("Sub");
+        r.setItemsJson("[]");
+        r.setDeliveryLocation("L");
+        r.setDeliveryDate("D");
+        r.setCreatedAt(now);
+        r.setUpdatedAt(now);
+
+        assertEquals(1L, r.getId());
+        assertEquals("RFQ-1", r.getRfqNumber());
+        assertEquals("b@t.com", r.getBuyerEmail());
+        assertEquals("CREATED", r.getStatus());
+        assertEquals("Sub", r.getRawSubject());
+        assertEquals("[]", r.getItemsJson());
+        assertEquals("L", r.getDeliveryLocation());
+        assertEquals("D", r.getDeliveryDate());
     }
 }
+

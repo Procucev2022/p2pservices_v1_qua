@@ -94,4 +94,59 @@ public class DateParserTest {
         assertEquals(defaultDate, dateParser.parseDateString("   "));
         assertEquals("2026-08-25", dateParser.parseDateString("2026-08-25"));
     }
+
+    @Test
+    @DisplayName("Test parseToDate with empty and blank inputs")
+    void testParseToDateBlankInput() {
+        Date d1 = dateParser.parseToDate("");
+        assertNotNull(d1);
+
+        Date d2 = dateParser.parseToDate("   ");
+        assertNotNull(d2);
+    }
+
+    @Test
+    @DisplayName("Test toIsoDateString with '1 day' singular phrasing")
+    void testToIsoDateStringSingularDay() {
+        String res = dateParser.toIsoDateString("after 1 day");
+        String expected = LocalDate.now().plusDays(1).format(DateTimeFormatter.ofPattern("yyyy-MM-dd"));
+        assertEquals(expected, res);
+    }
+
+    @Test
+    @DisplayName("Test parseDateString with unparseable returns raw text not null")
+    void testParseDateStringUnparseable() {
+        String result = dateParser.parseDateString("ASAP");
+        assertEquals("ASAP", result);
+    }
+
+    @Test
+    @DisplayName("Test toIsoDateString with multiple format patterns")
+    void testToIsoDateStringAllFormats() {
+        assertEquals("2026-01-15", dateParser.toIsoDateString("January 15, 2026"));
+        assertEquals("2026-01-15", dateParser.toIsoDateString("Jan 15, 2026"));
+        assertEquals("2026-01-15", dateParser.toIsoDateString("15 January 2026"));
+        assertEquals("2026-01-15", dateParser.toIsoDateString("15 Jan 2026"));
+        assertEquals("2026-01-15", dateParser.toIsoDateString("15-January-2026"));
+        assertEquals("2026-01-15", dateParser.toIsoDateString("15-Jan-2026"));
+        assertEquals("2026-01-15", dateParser.toIsoDateString("15/01/2026"));
+        assertEquals("2026-01-15", dateParser.toIsoDateString("01/15/2026"));
+        assertEquals("2026-01-15", dateParser.toIsoDateString("15-01-2026"));
+    }
+
+    @Test
+    @DisplayName("Test parseToDate with various parseable formats")
+    void testParseToDateMultipleFormats() {
+        assertNotNull(dateParser.parseToDate("25-Aug-2026"));
+        assertNotNull(dateParser.parseToDate("25/08/2026"));
+        assertNotNull(dateParser.parseToDate("August 25, 2026"));
+    }
+
+    @Test
+    @DisplayName("Test toIsoDateString prefix stripping variations")
+    void testToIsoDateStringPrefixVariations() {
+        assertEquals("2026-08-25", dateParser.toIsoDateString("on 2026-08-25"));
+        assertEquals("2026-08-25", dateParser.toIsoDateString("before 2026-08-25"));
+        assertEquals("2026-08-25", dateParser.toIsoDateString("within 2026-08-25"));
+    }
 }

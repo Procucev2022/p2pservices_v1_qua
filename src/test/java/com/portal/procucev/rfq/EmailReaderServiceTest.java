@@ -157,4 +157,107 @@ public class EmailReaderServiceTest {
         assertNotNull(data);
         assertTrue(data.getBody().contains("Multipart plain content"));
     }
+
+    @Test
+    @DisplayName("Test parseMessage with null from address array")
+    void testParseMessageNullFrom() throws Exception {
+        Message msg = Mockito.mock(Message.class);
+        Mockito.when(msg.getFrom()).thenReturn(null);
+        Mockito.when(msg.isMimeType("text/plain")).thenReturn(true);
+        Mockito.when(msg.getContent()).thenReturn("Body text");
+
+        EmailData data = ReflectionTestUtils.invokeMethod(service, "parseMessage", msg);
+        assertNotNull(data);
+        assertEquals("", data.getSenderEmail());
+    }
+
+    @Test
+    @DisplayName("Test parseMessage with empty from address array")
+    void testParseMessageEmptyFrom() throws Exception {
+        Message msg = Mockito.mock(Message.class);
+        Mockito.when(msg.getFrom()).thenReturn(new Address[]{});
+        Mockito.when(msg.isMimeType("text/plain")).thenReturn(true);
+        Mockito.when(msg.getContent()).thenReturn("Body text");
+
+        EmailData data = ReflectionTestUtils.invokeMethod(service, "parseMessage", msg);
+        assertNotNull(data);
+        assertEquals("", data.getSenderEmail());
+    }
+
+    @Test
+    @DisplayName("Test parseMessage multipart html fallback (no text/plain)")
+    void testParseMessageMultipartHtmlFallback() throws Exception {
+        Message msg = Mockito.mock(Message.class);
+        Mockito.when(msg.getFrom()).thenReturn(new Address[]{new InternetAddress("sender@test.com")});
+        Mockito.when(msg.isMimeType("text/plain")).thenReturn(false);
+        Mockito.when(msg.isMimeType("text/html")).thenReturn(false);
+        Mockito.when(msg.isMimeType("multipart/*")).thenReturn(true);
+
+        jakarta.mail.internet.MimeMultipart mp = Mockito.mock(jakarta.mail.internet.MimeMultipart.class);
+        jakarta.mail.BodyPart htmlPart = Mockito.mock(jakarta.mail.BodyPart.class);
+        Mockito.when(htmlPart.isMimeType("text/plain")).thenReturn(false);
+        Mockito.when(htmlPart.isMimeType("text/html")).thenReturn(true);
+        Mockito.when(htmlPart.getContent()).thenReturn("<p>HTML only</p>");
+
+        Mockito.when(mp.getCount()).thenReturn(1);
+        Mockito.when(mp.getBodyPart(0)).thenReturn(htmlPart);
+        Mockito.when(msg.getContent()).thenReturn(mp);
+
+        EmailData data = ReflectionTestUtils.invokeMethod(service, "parseMessage", msg);
+        assertNotNull(data);
+        assertTrue(data.getBody().contains("HTML only"));
+    }
+
+    @Test
+    @DisplayName("Test createAttachmentFile with null fileName")
+    void testCreateAttachmentFileNullName() {
+        File file = ReflectionTestUtils.invokeMethod(service, "createAttachmentFile", (String) null);
+        assertNotNull(file);
+        assertTrue(file.getName().contains("attachment"));
+    }
+
+    @Test
+    @DisplayName("Test createAttachmentFile with blank fileName")
+    void testCreateAttachmentFileBlankName() {
+        File file = ReflectionTestUtils.invokeMethod(service, "createAttachmentFile", "   ");
+        assertNotNull(file);
+        assertTrue(file.getName().contains("attachment"));
+    }
+
+    @Test
+    @DisplayName("Test htmlToText with blank HTML")
+    void testHtmlToTextBlank() {
+        String result = ReflectionTestUtils.invokeMethod(service, "htmlToText", "   ");
+        assertEquals("", result);
+    }
+
+    @Test
+    @DisplayName("Test parseMessage with content not matching any mime type")
+    void testParseMessageUnknownContentType() throws Exception {
+        Message msg = Mockito.mock(Message.class);
+        Mockito.when(msg.getFrom()).thenReturn(new Address[]{new InternetAddress("sender@test.com")});
+        Mockito.when(msg.isMimeType("text/plain")).thenReturn(false);
+        Mockito.when(msg.isMimeType("text/html")).thenReturn(false);
+        Mockito.when(msg.isMimeType("multipart/*")).thenReturn(false);
+
+        EmailData data = ReflectionTestUtils.invokeMethod(service, "parseMessage", msg);
+        assertNotNull(data);
+        assertEquals("", data.getBody());
+    }
+
+    @Test
+    @DisplayName("Test parseMessage InternetAddress with null personal name")
+    void testParseMessageNullPersonal() throws Exception {
+        Message msg = Mockito.mock(Message.class);
+        InternetAddress addr = new InternetAddress("sender@test.com");
+        addr.setPersonal(null);
+        Mockito.when(msg.getFrom()).thenReturn(new Address[]{addr});
+        Mockito.when(msg.isMimeType("text/plain")).thenReturn(true);
+        Mockito.when(msg.getContent()).thenReturn("Body");
+
+        EmailData data = ReflectionTestUtils.invokeMethod(service, "parseMessage", msg);
+        assertNotNull(data);
+        assertEquals("sender@test.com", data.getSenderName());
+    }
 }
+

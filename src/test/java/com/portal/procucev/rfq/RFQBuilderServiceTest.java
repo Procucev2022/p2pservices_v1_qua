@@ -155,4 +155,234 @@ public class RFQBuilderServiceTest {
         assertEquals("", req.getClientdeliverylocationrfq().get(0).getAddress());
         assertEquals("", req.getClientdeliverylocationrfq().get(0).getPincode());
     }
+
+    @Test
+    @DisplayName("Test buildRFQRequest with 560xxx pincode triggers Bangalore detection")
+    void testBuildRFQRequestBangalorePincode() {
+        ExtractedRFQ rfq = ExtractedRFQ.builder()
+                .deliveryLocation("Office in 560037 area")
+                .items(List.of(RFQItem.builder().itemDescription("Item").quantity(1.0).build()))
+                .build();
+
+        Buyer buyer = Buyer.builder().name("User").email("user@test.com").build();
+
+        RFQRequest req = rfqBuilderService.buildRFQRequest(rfq, buyer, "Sub", null);
+        assertEquals("Bangalore", req.getClientdeliverylocationrfq().get(0).getCity());
+        assertEquals("Karnataka", req.getClientdeliverylocationrfq().get(0).getState());
+        assertEquals("560037", req.getClientdeliverylocationrfq().get(0).getPincode());
+    }
+
+    @Test
+    @DisplayName("Test buildRFQRequest with state detection from location text")
+    void testBuildRFQRequestStateDetection() {
+        ExtractedRFQ rfq = ExtractedRFQ.builder()
+                .deliveryLocation("Mumbai, Maharashtra")
+                .items(List.of(RFQItem.builder().itemDescription("Item").quantity(1.0).build()))
+                .build();
+
+        Buyer buyer = Buyer.builder().name("User").email("user@test.com").build();
+
+        RFQRequest req = rfqBuilderService.buildRFQRequest(rfq, buyer, "Sub", null);
+        assertEquals("Maharashtra", req.getClientdeliverylocationrfq().get(0).getState());
+    }
+
+    @Test
+    @DisplayName("Test buildRFQRequest with pincode DAO lookup for state")
+    void testBuildRFQRequestPincodeDaoLookup() {
+        PincodeData pinData = new PincodeData();
+        pinData.setState("Telangana");
+        pinData.setCity("Hyderabad");
+        Mockito.when(pincodeDao.findByPincode("500001")).thenReturn(pinData);
+
+        ExtractedRFQ rfq = ExtractedRFQ.builder()
+                .deliveryPincode("500001")
+                .items(List.of(RFQItem.builder().itemDescription("Item").quantity(1.0).build()))
+                .build();
+
+        Buyer buyer = Buyer.builder().name("User").email("user@test.com").build();
+
+        RFQRequest req = rfqBuilderService.buildRFQRequest(rfq, buyer, "Sub", null);
+        assertEquals("Telangana", req.getClientdeliverylocationrfq().get(0).getState());
+    }
+
+    @Test
+    @DisplayName("Test buildRFQRequest with buyer address fallback when location is empty")
+    void testBuildRFQRequestBuyerAddressFallback() {
+        ExtractedRFQ rfq = ExtractedRFQ.builder()
+                .items(List.of(RFQItem.builder().itemDescription("Item").quantity(1.0).build()))
+                .build();
+
+        Buyer buyer = Buyer.builder()
+                .name("User").email("user@test.com")
+                .address("123 Street").city("Chennai").state("Tamil Nadu").pincode("600001")
+                .build();
+
+        RFQRequest req = rfqBuilderService.buildRFQRequest(rfq, buyer, "Sub", null);
+        assertEquals("123 Street", req.getClientdeliverylocationrfq().get(0).getAddress());
+        assertEquals("Chennai", req.getClientdeliverylocationrfq().get(0).getCity());
+        assertEquals("Tamil Nadu", req.getClientdeliverylocationrfq().get(0).getState());
+        assertEquals("600001", req.getClientdeliverylocationrfq().get(0).getPincode());
+    }
+
+    @Test
+    @DisplayName("Test buildRFQRequest with multiple items and various brand edge cases")
+    void testBuildRFQRequestBrandEdgeCases() {
+        ExtractedRFQ rfq = ExtractedRFQ.builder()
+                .items(List.of(
+                        RFQItem.builder().itemDescription("Item1").quantity(1.0).brand("null").build(),
+                        RFQItem.builder().itemDescription("Item2").quantity(1.0).brand("Not Specified").build(),
+                        RFQItem.builder().itemDescription("Item3").quantity(1.0).brand("Brand: Already Prefixed").build(),
+                        RFQItem.builder().itemDescription("Item4").quantity(-5.0).build()
+                ))
+                .build();
+
+        Buyer buyer = Buyer.builder().name("User").email("user@test.com").build();
+
+        RFQRequest req = rfqBuilderService.buildRFQRequest(rfq, buyer, "Sub", null);
+        assertEquals("Brand: Not Specified", req.getRfqItem().get(0).getBrand());
+        assertEquals("Brand: Not Specified", req.getRfqItem().get(1).getBrand());
+        assertEquals("Brand: Already Prefixed", req.getRfqItem().get(2).getBrand());
+        assertEquals(1.0, req.getRfqItem().get(3).getQuantity()); // negative resets to 1
+    }
+
+    @Test
+    @DisplayName("Test buildRFQRequest with multiple items spec fallbacks and null orgId/userId")
+    void testBuildRFQRequestSpecsFallbacks() {
+        ExtractedRFQ rfq = ExtractedRFQ.builder()
+                .items(List.of(
+                        RFQItem.builder().itemDescription("Item1").quantity(1.0).specification("Spec1").build(),
+                        RFQItem.builder().itemDescription("Item2").quantity(1.0).remarks("Remark2").build(),
+                        RFQItem.builder().itemDescription("Item3").quantity(1.0).build()
+                ))
+                .build();
+
+        Buyer buyer = Buyer.builder().name("User").email("user@test.com").orgId(null).userId(null).build();
+
+        RFQRequest req = rfqBuilderService.buildRFQRequest(rfq, buyer, "Sub", null);
+        assertEquals("Spec1", req.getRfqItem().get(0).getRemarks());
+        assertEquals("Remark2", req.getRfqItem().get(1).getRemarks());
+        assertEquals("1", req.getOrg().getId());
+        assertEquals("1", req.getUser());
+    }
+
+    @Test
+    @DisplayName("Test buildRFQRequest with single item spec fallback")
+    void testBuildRFQRequestSingleItemSpecFallback() {
+        ExtractedRFQ rfq = ExtractedRFQ.builder()
+                .items(List.of(RFQItem.builder().itemDescription("Item").quantity(1.0).remarks("SingleRemark").build()))
+                .build();
+
+        Buyer buyer = Buyer.builder().name("User").email("user@test.com").build();
+
+        RFQRequest req = rfqBuilderService.buildRFQRequest(rfq, buyer, "Sub", null);
+        assertEquals("SingleRemark", req.getRfqItem().get(0).getRemarks());
+    }
+
+    @Test
+    @DisplayName("Test buildRFQRequest with multiple items and blank first description")
+    void testBuildRFQRequestMultipleItemsBlankFirstDesc() {
+        ExtractedRFQ rfq = ExtractedRFQ.builder()
+                .items(List.of(
+                        RFQItem.builder().itemDescription("").quantity(1.0).build(),
+                        RFQItem.builder().itemDescription("Item2").quantity(1.0).build()
+                ))
+                .build();
+
+        Buyer buyer = Buyer.builder().name("User").email("user@test.com").build();
+
+        RFQRequest req = rfqBuilderService.buildRFQRequest(rfq, buyer, "Sub", null);
+        assertEquals("Procurement Items", req.getProjectDesc());
+    }
+
+    @Test
+    @DisplayName("Test buildRFQRequest with pincodeDao exception handling")
+    void testBuildRFQRequestPincodeDaoException() {
+        Mockito.when(pincodeDao.findByCityIgnoreCase("raipur")).thenThrow(new RuntimeException("DB error"));
+
+        ExtractedRFQ rfq = ExtractedRFQ.builder()
+                .deliveryLocation("Raipur, Chhattisgarh")
+                .items(List.of(RFQItem.builder().itemDescription("Item").quantity(1.0).build()))
+                .build();
+
+        Buyer buyer = Buyer.builder().name("User").email("user@test.com").build();
+
+        RFQRequest req = rfqBuilderService.buildRFQRequest(rfq, buyer, "Sub", null);
+        assertNotNull(req);
+        assertEquals("Chhattisgarh", req.getClientdeliverylocationrfq().get(0).getState());
+    }
+
+    @Test
+    @DisplayName("Test buildRFQRequest with various state detections")
+    void testBuildRFQRequestVariousStates() {
+        // Telangana
+        testStateDetection("Hyderabad, Telangana", "Telangana");
+        testStateDetection("Vijayawada, Andhra Pradesh", "Andhra Pradesh");
+        testStateDetection("Chennai, Tamil Nadu", "Tamil Nadu");
+        testStateDetection("New Delhi, Delhi", "Delhi");
+        testStateDetection("Ahmedabad, Gujarat", "Gujarat");
+        testStateDetection("Kolkata, West Bengal", "West Bengal");
+        testStateDetection("Jaipur, Rajasthan", "Rajasthan");
+        testStateDetection("Bhopal, Madhya Pradesh", "Madhya Pradesh");
+        testStateDetection("Noida, Uttar Pradesh", "Uttar Pradesh");
+    }
+
+    private void testStateDetection(String location, String expectedState) {
+        ExtractedRFQ rfq = ExtractedRFQ.builder()
+                .deliveryLocation(location)
+                .items(List.of(RFQItem.builder().itemDescription("Item").quantity(1.0).build()))
+                .build();
+
+        Buyer buyer = Buyer.builder().name("User").email("user@test.com").build();
+        RFQRequest req = rfqBuilderService.buildRFQRequest(rfq, buyer, "Sub", null);
+        assertEquals(expectedState, req.getClientdeliverylocationrfq().get(0).getState());
+    }
+
+    @Test
+    @DisplayName("Test buildRFQRequest with null attachment file in list")
+    void testBuildRFQRequestNullAttachmentFile() {
+        ExtractedRFQ rfq = ExtractedRFQ.builder()
+                .items(List.of(RFQItem.builder().itemDescription("Item").quantity(1.0).build()))
+                .build();
+
+        Buyer buyer = Buyer.builder().name("User").email("user@test.com").build();
+
+        File nullFile = null;
+        File emptyFile = new File(tempDir.toFile(), "empty.txt");
+        // emptyFile doesn't exist, so it should be skipped
+
+        RFQRequest req = rfqBuilderService.buildRFQRequest(rfq, buyer, "Sub", List.of(emptyFile));
+        assertTrue(req.getRfqDocument().isEmpty());
+    }
+
+    @Test
+    @DisplayName("Test buildRFQRequest with delivery city/state/pincode from extracted RFQ fields")
+    void testBuildRFQRequestExplicitCityStatePincode() {
+        ExtractedRFQ rfq = ExtractedRFQ.builder()
+                .deliveryCity("CustomCity")
+                .deliveryState("CustomState")
+                .deliveryPincode("999999")
+                .items(List.of(RFQItem.builder().itemDescription("Item").quantity(1.0).build()))
+                .build();
+
+        Buyer buyer = Buyer.builder().name("User").email("user@test.com").build();
+
+        RFQRequest req = rfqBuilderService.buildRFQRequest(rfq, buyer, "Sub", null);
+        assertEquals("CustomCity", req.getClientdeliverylocationrfq().get(0).getCity());
+        assertEquals("CustomState", req.getClientdeliverylocationrfq().get(0).getState());
+        assertEquals("999999", req.getClientdeliverylocationrfq().get(0).getPincode());
+    }
+
+    @Test
+    @DisplayName("Test buildRFQRequest single item with null description uses 'RFQ Requirement'")
+    void testBuildRFQRequestSingleItemNullDesc() {
+        ExtractedRFQ rfq = ExtractedRFQ.builder()
+                .items(List.of(RFQItem.builder().quantity(1.0).build()))
+                .build();
+
+        Buyer buyer = Buyer.builder().name("User").email("user@test.com").build();
+
+        RFQRequest req = rfqBuilderService.buildRFQRequest(rfq, buyer, "Sub", null);
+        assertEquals("RFQ Requirement", req.getProjectDesc());
+    }
 }
+

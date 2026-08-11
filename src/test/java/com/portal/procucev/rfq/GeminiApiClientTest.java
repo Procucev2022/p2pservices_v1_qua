@@ -102,4 +102,56 @@ public class GeminiApiClientTest {
 
         assertThrows(ApplicationException.class, () -> client.generateContent("Test Prompt"));
     }
+
+    @Test
+    @DisplayName("Test generateContent with empty candidates array throws")
+    void testGenerateContentEmptyCandidates() {
+        String emptyResponse = "{\"candidates\": []}";
+
+        Mockito.when(restTemplate.postForEntity(anyString(), any(), eq(String.class)))
+                .thenReturn(new ResponseEntity<>(emptyResponse, HttpStatus.OK));
+
+        assertThrows(ApplicationException.class, () -> client.generateContent("Test Prompt"));
+    }
+
+    @Test
+    @DisplayName("Test generateContent with empty parts array throws")
+    void testGenerateContentEmptyParts() {
+        String emptyPartsResponse = "{\"candidates\": [{\"content\": {\"parts\": []}}]}";
+
+        Mockito.when(restTemplate.postForEntity(anyString(), any(), eq(String.class)))
+                .thenReturn(new ResponseEntity<>(emptyPartsResponse, HttpStatus.OK));
+
+        assertThrows(ApplicationException.class, () -> client.generateContent("Test Prompt"));
+    }
+
+    @Test
+    @DisplayName("Test generateContent with null body throws")
+    void testGenerateContentNullBody() {
+        Mockito.when(restTemplate.postForEntity(anyString(), any(), eq(String.class)))
+                .thenReturn(new ResponseEntity<>(null, HttpStatus.OK));
+
+        assertThrows(ApplicationException.class, () -> client.generateContent("Test Prompt"));
+    }
+
+    @Test
+    @DisplayName("Test generateContent with non-2xx response throws")
+    void testGenerateContentNon2xxResponse() {
+        Mockito.when(restTemplate.postForEntity(anyString(), any(), eq(String.class)))
+                .thenReturn(new ResponseEntity<>("{}", HttpStatus.INTERNAL_SERVER_ERROR));
+
+        assertThrows(ApplicationException.class, () -> client.generateContent("Test Prompt"));
+    }
+
+    @Test
+    @DisplayName("Test generateContent with missing content path throws")
+    void testGenerateContentMissingContentPath() {
+        String missingContent = "{\"candidates\": [{\"no_content\": {}}]}";
+
+        Mockito.when(restTemplate.postForEntity(anyString(), any(), eq(String.class)))
+                .thenReturn(new ResponseEntity<>(missingContent, HttpStatus.OK));
+
+        assertThrows(ApplicationException.class, () -> client.generateContent("Test Prompt"));
+    }
 }
+

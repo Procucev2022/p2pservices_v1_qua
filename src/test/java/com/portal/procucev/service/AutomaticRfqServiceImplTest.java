@@ -127,4 +127,105 @@ class AutomaticRfqServiceImplTest {
         String id4 = service.generateRfqId("");
         assertNotNull(id4);
     }
+
+    @Test
+    void testRaiseRfq_WithExistingRfqId() {
+        Rfq rfq = new Rfq();
+        rfq.setRfqId("EXISTING-ID-001");
+        List<RfqItem> items = new ArrayList<>();
+        RfqItem item = new RfqItem();
+        item.setId("ITEM1");
+        item.setBrand("Brand");
+        item.setDescription("Desc");
+        item.setQuantity(10.0);
+        item.setRemarks("Remark");
+        item.setUnitofMeasures("NOS");
+        items.add(item);
+        rfq.setRfqItem(items);
+
+        when(masterStatusDao.findByStatus(anyString())).thenReturn(new MasterStatus());
+
+        boolean result = service.raiseRfq(rfq);
+        assertTrue(result);
+        assertEquals("EXISTING-ID-001", rfq.getRfqId());
+        verify(rfqDao).save(rfq);
+    }
+
+    @Test
+    void testRaiseRfq_WithBlankRfqId_GeneratesNew() {
+        Rfq rfq = new Rfq();
+        rfq.setRfqId("");
+        List<RfqItem> items = new ArrayList<>();
+        RfqItem item = new RfqItem();
+        item.setId("ITEM2");
+        item.setBrand("B");
+        item.setDescription("D");
+        item.setQuantity(1.0);
+        item.setRemarks("R");
+        item.setUnitofMeasures("U");
+        items.add(item);
+        rfq.setRfqItem(items);
+
+        when(masterStatusDao.findByStatus(anyString())).thenReturn(new MasterStatus());
+
+        boolean result = service.raiseRfq(rfq);
+        assertTrue(result);
+        assertNotNull(rfq.getRfqId());
+        assertFalse(rfq.getRfqId().isBlank());
+    }
+
+    @Test
+    void testRaiseRfq_WithNullRfqId_GeneratesNew() {
+        Rfq rfq = new Rfq();
+        rfq.setRfqId(null);
+        List<RfqItem> items = new ArrayList<>();
+        RfqItem item = new RfqItem();
+        item.setId("ITEM3");
+        item.setBrand("B");
+        item.setDescription("D");
+        item.setQuantity(1.0);
+        item.setRemarks("R");
+        item.setUnitofMeasures("U");
+        items.add(item);
+        rfq.setRfqItem(items);
+
+        when(masterStatusDao.findByStatus(anyString())).thenReturn(new MasterStatus());
+
+        boolean result = service.raiseRfq(rfq);
+        assertTrue(result);
+        assertNotNull(rfq.getRfqId());
+        assertFalse(rfq.getRfqId().isBlank());
+    }
+
+    @Test
+    void testRaiseRfq_SetsCorrectFlags() {
+        Rfq rfq = new Rfq();
+        rfq.setRfqId("RFQ-FLAG-TEST");
+        List<RfqItem> items = new ArrayList<>();
+        RfqItem item = new RfqItem();
+        item.setId("ITEM4");
+        item.setBrand("B");
+        item.setDescription("D");
+        item.setQuantity(5.0);
+        item.setRemarks("R");
+        item.setUnitofMeasures("U");
+        items.add(item);
+        rfq.setRfqItem(items);
+
+        MasterStatus ms = new MasterStatus();
+        when(masterStatusDao.findByStatus(anyString())).thenReturn(ms);
+
+        boolean result = service.raiseRfq(rfq);
+        assertTrue(result);
+        assertTrue(rfq.isByClient());
+        assertEquals(ms, rfq.getStatus());
+        assertEquals(ms, rfq.getClientStatus());
+    }
+
+    @Test
+    void testValidateEmail_Exception() {
+        when(userDao.findByLatestUserName("error@test.com")).thenThrow(new RuntimeException("DB Error"));
+        assertThrows(RuntimeException.class, () -> service.validateEmail("error@test.com"));
+    }
 }
+

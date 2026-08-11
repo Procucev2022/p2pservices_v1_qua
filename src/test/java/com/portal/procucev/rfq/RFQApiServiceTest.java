@@ -93,4 +93,83 @@ public class RFQApiServiceTest {
         assertEquals("FAILED", resp.getStatus());
         assertTrue(resp.getMessage().contains("DB Exception"));
     }
+
+    @Test
+    @DisplayName("Test submitRFQ with null user, null org, null delivery date")
+    void testSubmitRFQNullFields() {
+        Mockito.when(automaticRfqService.raiseRfq(any(Rfq.class))).thenReturn(true);
+
+        RFQRequest req = RFQRequest.builder()
+                .rfqNumber("RFQ-103")
+                .buyerEmail("buyer@test.com")
+                .user(null)
+                .org(null)
+                .deliveryDate(null)
+                .clientdeliverylocationrfq(null)
+                .rfqItem(null)
+                .rfqDocument(null)
+                .build();
+
+        RFQResponse resp = rfqApiService.submitRFQ(req);
+        assertEquals("SUCCESS", resp.getStatus());
+    }
+
+    @Test
+    @DisplayName("Test submitRFQ with blank delivery date and empty locations/items/documents")
+    void testSubmitRFQBlankDeliveryDate() {
+        Mockito.when(automaticRfqService.raiseRfq(any(Rfq.class))).thenReturn(true);
+
+        RFQRequest req = RFQRequest.builder()
+                .rfqNumber("RFQ-104")
+                .buyerEmail("buyer@test.com")
+                .deliveryDate("")
+                .org(RFQRequest.OrgRef.builder().id("").build())
+                .clientdeliverylocationrfq(List.of())
+                .rfqItem(List.of())
+                .rfqDocument(List.of())
+                .build();
+
+        RFQResponse resp = rfqApiService.submitRFQ(req);
+        assertEquals("SUCCESS", resp.getStatus());
+    }
+
+    @Test
+    @DisplayName("Test submitRFQ with null quantity and blank encoded file skipped")
+    void testSubmitRFQNullQuantityAndBlankFile() {
+        Mockito.when(automaticRfqService.raiseRfq(any(Rfq.class))).thenReturn(true);
+
+        RFQRequest req = RFQRequest.builder()
+                .rfqNumber("RFQ-105")
+                .buyerEmail("buyer@test.com")
+                .rfqItem(List.of(
+                        RFQRequest.RfqItemDto.builder()
+                                .description("Item")
+                                .quantity(null)
+                                .build()
+                ))
+                .rfqDocument(List.of(
+                        Map.of("fileName", "doc.txt", "file", ""),
+                        Map.of("fileName", "empty.txt")
+                ))
+                .build();
+
+        RFQResponse resp = rfqApiService.submitRFQ(req);
+        assertEquals("SUCCESS", resp.getStatus());
+    }
+
+    @Test
+    @DisplayName("Test submitRFQ with org id null")
+    void testSubmitRFQWithOrgIdNull() {
+        Mockito.when(automaticRfqService.raiseRfq(any(Rfq.class))).thenReturn(true);
+
+        RFQRequest req = RFQRequest.builder()
+                .rfqNumber("RFQ-106")
+                .buyerEmail("buyer@test.com")
+                .org(RFQRequest.OrgRef.builder().id(null).build())
+                .build();
+
+        RFQResponse resp = rfqApiService.submitRFQ(req);
+        assertEquals("SUCCESS", resp.getStatus());
+    }
 }
+

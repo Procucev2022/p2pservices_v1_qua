@@ -184,4 +184,208 @@ public class ExcelMasterDataLoaderTest {
         ReflectionTestUtils.setField(loader, "masterFilePath", "non_existent_file.xlsx");
         assertDoesNotThrow(() -> loader.loadMasterData());
     }
+
+    @Test
+    @DisplayName("Test loadMasterData with null masterFilePath uses default file names")
+    void testLoadMasterDataNullPath() {
+        ReflectionTestUtils.setField(loader, "masterFilePath", null);
+        assertDoesNotThrow(() -> loader.loadMasterData());
+    }
+
+    @Test
+    @DisplayName("Test loadMasterData with blank masterFilePath uses default file names")
+    void testLoadMasterDataBlankPath() {
+        ReflectionTestUtils.setField(loader, "masterFilePath", "   ");
+        assertDoesNotThrow(() -> loader.loadMasterData());
+    }
+
+    @Test
+    @DisplayName("Test loadMasterData directory with no standard files falls back to listing xlsx")
+    void testLoadMasterDataDirectoryListFallback() throws Exception {
+        File dir = tempDir.toFile();
+        File customFile = new File(dir, "custom_data.xlsx");
+        try (Workbook wb = new XSSFWorkbook()) {
+            Sheet sheet = wb.createSheet("Data");
+            Row header = sheet.createRow(0);
+            header.createCell(0).setCellValue("Category");
+            header.createCell(1).setCellValue("Description");
+            Row row = sheet.createRow(1);
+            row.createCell(0).setCellValue("Tools");
+            row.createCell(1).setCellValue("Hammer");
+            try (FileOutputStream fos = new FileOutputStream(customFile)) {
+                wb.write(fos);
+            }
+        }
+
+        ReflectionTestUtils.setField(loader, "masterFilePath", dir.getAbsolutePath());
+        loader.loadMasterData();
+
+        List<ExcelMasterDataLoader.MasterCategoryRecord> records = loader.getMasterRecords();
+        assertFalse(records.isEmpty());
+    }
+
+    @Test
+    @DisplayName("Test loadMasterData with file named '1st Set...' resolves sibling 2nd set")
+    void testLoadMasterDataSiblingResolution() throws Exception {
+        File set1 = new File(tempDir.toFile(), "1st Set of Category Items Data.xlsx");
+        File set2 = new File(tempDir.toFile(), "2nd Set of Category Items Data.xlsx");
+
+        for (File f : List.of(set1, set2)) {
+            try (Workbook wb = new XSSFWorkbook()) {
+                Sheet sheet = wb.createSheet("Data");
+                Row header = sheet.createRow(0);
+                header.createCell(0).setCellValue("Category");
+                header.createCell(1).setCellValue("Description");
+                Row row = sheet.createRow(1);
+                row.createCell(0).setCellValue("Cat-" + f.getName().charAt(0));
+                row.createCell(1).setCellValue("Desc");
+                try (FileOutputStream fos = new FileOutputStream(f)) {
+                    wb.write(fos);
+                }
+            }
+        }
+
+        ReflectionTestUtils.setField(loader, "masterFilePath", set1.getAbsolutePath());
+        loader.loadMasterData();
+
+        List<ExcelMasterDataLoader.MasterCategoryRecord> records = loader.getMasterRecords();
+        assertEquals(2, records.size());
+    }
+
+    @Test
+    @DisplayName("Test loadMasterData with no recognizable headers uses default column order")
+    void testLoadMasterDataNoRecognizableHeaders() throws Exception {
+        File file = new File(tempDir.toFile(), "noheaders.xlsx");
+        try (Workbook wb = new XSSFWorkbook()) {
+            Sheet sheet = wb.createSheet("Data");
+            Row header = sheet.createRow(0);
+            header.createCell(0).setCellValue("Col A");
+            header.createCell(1).setCellValue("Col B");
+            header.createCell(2).setCellValue("Col C");
+            header.createCell(3).setCellValue("Col D");
+            Row row = sheet.createRow(1);
+            row.createCell(0).setCellValue("CatVal");
+            row.createCell(1).setCellValue("DivVal");
+            row.createCell(2).setCellValue("CodeVal");
+            row.createCell(3).setCellValue("DescVal");
+            try (FileOutputStream fos = new FileOutputStream(file)) {
+                wb.write(fos);
+            }
+        }
+
+        ReflectionTestUtils.setField(loader, "masterFilePath", file.getAbsolutePath());
+        loader.loadMasterData();
+
+        List<ExcelMasterDataLoader.MasterCategoryRecord> records = loader.getMasterRecords();
+        assertFalse(records.isEmpty());
+        assertEquals("CatVal", records.get(0).getCategory());
+    }
+
+    @Test
+    @DisplayName("Test loadMasterData with blank data rows are skipped")
+    void testLoadMasterDataBlankRowsSkipped() throws Exception {
+        File file = new File(tempDir.toFile(), "blank_rows.xlsx");
+        try (Workbook wb = new XSSFWorkbook()) {
+            Sheet sheet = wb.createSheet("Data");
+            Row header = sheet.createRow(0);
+            header.createCell(0).setCellValue("Category");
+            header.createCell(1).setCellValue("Description");
+            // blank row
+            Row row = sheet.createRow(1);
+            row.createCell(0).setCellValue("");
+            row.createCell(1).setCellValue("");
+            // valid row
+            Row row2 = sheet.createRow(2);
+            row2.createCell(0).setCellValue("ValidCat");
+            row2.createCell(1).setCellValue("ValidDesc");
+            try (FileOutputStream fos = new FileOutputStream(file)) {
+                wb.write(fos);
+            }
+        }
+
+        ReflectionTestUtils.setField(loader, "masterFilePath", file.getAbsolutePath());
+        loader.loadMasterData();
+
+        List<ExcelMasterDataLoader.MasterCategoryRecord> records = loader.getMasterRecords();
+        assertEquals(1, records.size());
+        assertEquals("ValidCat", records.get(0).getCategory());
+    }
+
+    @Test
+    @DisplayName("Test loadMasterData with numeric cell values ending in .0 are cleaned")
+    void testLoadMasterDataNumericCellCleaning() throws Exception {
+        File file = new File(tempDir.toFile(), "numeric.xlsx");
+        try (Workbook wb = new XSSFWorkbook()) {
+            Sheet sheet = wb.createSheet("Data");
+            Row header = sheet.createRow(0);
+            header.createCell(0).setCellValue("Category");
+            header.createCell(1).setCellValue("Code");
+            header.createCell(2).setCellValue("Description");
+            Row row = sheet.createRow(1);
+            row.createCell(0).setCellValue("Cat");
+            row.createCell(1).setCellValue(12345.0); // numeric
+            row.createCell(2).setCellValue("Item");
+            try (FileOutputStream fos = new FileOutputStream(file)) {
+                wb.write(fos);
+            }
+        }
+
+        ReflectionTestUtils.setField(loader, "masterFilePath", file.getAbsolutePath());
+        loader.loadMasterData();
+
+        List<ExcelMasterDataLoader.MasterCategoryRecord> records = loader.getMasterRecords();
+        assertFalse(records.isEmpty());
+    }
+
+    @Test
+    @DisplayName("Test loadMasterData with header containing 'id' keyword")
+    void testLoadMasterDataIdHeader() throws Exception {
+        File file = new File(tempDir.toFile(), "id_header.xlsx");
+        try (Workbook wb = new XSSFWorkbook()) {
+            Sheet sheet = wb.createSheet("Data");
+            Row header = sheet.createRow(0);
+            header.createCell(0).setCellValue("Category");
+            header.createCell(1).setCellValue("ID");
+            header.createCell(2).setCellValue("Description");
+            Row row = sheet.createRow(1);
+            row.createCell(0).setCellValue("Cat");
+            row.createCell(1).setCellValue("ID-001");
+            row.createCell(2).setCellValue("Item");
+            try (FileOutputStream fos = new FileOutputStream(file)) {
+                wb.write(fos);
+            }
+        }
+
+        ReflectionTestUtils.setField(loader, "masterFilePath", file.getAbsolutePath());
+        loader.loadMasterData();
+
+        List<ExcelMasterDataLoader.MasterCategoryRecord> records = loader.getMasterRecords();
+        assertFalse(records.isEmpty());
+        assertEquals("ID-001", records.get(0).getItemCode());
+    }
+
+    @Test
+    @DisplayName("Test loadMasterData with header containing 'item' keyword maps to description")
+    void testLoadMasterDataItemHeader() throws Exception {
+        File file = new File(tempDir.toFile(), "item_header.xlsx");
+        try (Workbook wb = new XSSFWorkbook()) {
+            Sheet sheet = wb.createSheet("Data");
+            Row header = sheet.createRow(0);
+            header.createCell(0).setCellValue("Category");
+            header.createCell(1).setCellValue("Item");
+            Row row = sheet.createRow(1);
+            row.createCell(0).setCellValue("Cat");
+            row.createCell(1).setCellValue("Widget");
+            try (FileOutputStream fos = new FileOutputStream(file)) {
+                wb.write(fos);
+            }
+        }
+
+        ReflectionTestUtils.setField(loader, "masterFilePath", file.getAbsolutePath());
+        loader.loadMasterData();
+
+        List<ExcelMasterDataLoader.MasterCategoryRecord> records = loader.getMasterRecords();
+        assertFalse(records.isEmpty());
+        assertEquals("Widget", records.get(0).getItemDescription());
+    }
 }

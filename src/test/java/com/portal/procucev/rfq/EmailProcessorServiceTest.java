@@ -361,4 +361,166 @@ public class EmailProcessorServiceTest {
         assertEquals("COMPLETED_WITH_ERRORS", stats.getStatus());
         assertEquals(1, stats.getErrors());
     }
+
+    @Test
+    @DisplayName("Test processUnreadEmails with mixed success and failure")
+    void testProcessUnreadEmailsMixed() {
+        EmailData e1 = EmailData.builder().messageId("M-OK").senderEmail("noreply@procucev.com").subject("sys").build();
+        EmailData e2 = EmailData.builder().messageId("M-ERR").senderEmail("buyer@test.com").build();
+
+        Mockito.when(emailReaderService.fetchUnreadEmails()).thenReturn(List.of(e1, e2));
+        Mockito.when(emailTransactionRepository.findByMessageId("M-ERR")).thenThrow(new RuntimeException("Crash"));
+
+        ProcessingStats stats = emailProcessorService.processUnreadEmails();
+        assertNotNull(stats);
+        assertEquals(2, stats.getEmailsProcessed());
+    }
+
+    @Test
+    @DisplayName("Test processSingleEmail with null items in extractedRFQ")
+    void testProcessSingleEmailNullItems() {
+        EmailData email = EmailData.builder()
+                .messageId("MSG-NULL-ITEMS")
+                .senderEmail("buyer@test.com")
+                .subject("Need items")
+                .build();
+
+        Mockito.when(emailTransactionRepository.findByMessageId("MSG-NULL-ITEMS")).thenReturn(Optional.empty());
+
+        Buyer buyer = Buyer.builder().email("buyer@test.com").verified(true).build();
+        Mockito.when(buyerVerificationService.verifyAndGetBuyer("buyer@test.com")).thenReturn(buyer);
+
+        ExtractedRFQ rfq = ExtractedRFQ.builder().buyerEmail("buyer@test.com").items(null).build();
+        Mockito.when(aiExtractionService.extractRFQFromEmail(email)).thenReturn(rfq);
+
+        ValidationService.ValidationResult valResult = new ValidationService.ValidationResult(true, false, List.of(), null);
+        Mockito.when(validationService.validateWithDetails(any())).thenReturn(valResult);
+
+        String result = emailProcessorService.processSingleEmail(email);
+        assertEquals("VALIDATION_FAILED", result);
+    }
+
+    @Test
+    @DisplayName("Test processSingleEmail with empty items list after dedup")
+    void testProcessSingleEmailEmptyItemsAfterDedup() {
+        EmailData email = EmailData.builder()
+                .messageId("MSG-EMPTY-DEDUP")
+                .senderEmail("buyer@test.com")
+                .subject("Need items")
+                .build();
+
+        Mockito.when(emailTransactionRepository.findByMessageId("MSG-EMPTY-DEDUP")).thenReturn(Optional.empty());
+
+        Buyer buyer = Buyer.builder().email("buyer@test.com").verified(true).build();
+        Mockito.when(buyerVerificationService.verifyAndGetBuyer("buyer@test.com")).thenReturn(buyer);
+
+        ExtractedRFQ rfq = ExtractedRFQ.builder().buyerEmail("buyer@test.com").items(List.of()).build();
+        Mockito.when(aiExtractionService.extractRFQFromEmail(email)).thenReturn(rfq);
+
+        ValidationService.ValidationResult valResult = new ValidationService.ValidationResult(true, false, List.of(), null);
+        Mockito.when(validationService.validateWithDetails(any())).thenReturn(valResult);
+
+        String result = emailProcessorService.processSingleEmail(email);
+        assertEquals("VALIDATION_FAILED", result);
+    }
+
+    @Test
+    @DisplayName("Test processSingleEmail validation failure non-missing-quantity")
+    void testProcessSingleEmailValidationFailedNonQuantity() {
+        EmailData email = EmailData.builder()
+                .messageId("MSG-VAL-NON-QTY")
+                .senderEmail("buyer@test.com")
+                .subject("Need items")
+                .build();
+
+        Mockito.when(emailTransactionRepository.findByMessageId("MSG-VAL-NON-QTY")).thenReturn(Optional.empty());
+
+        Buyer buyer = Buyer.builder().email("buyer@test.com").name("Buyer").verified(true).build();
+        Mockito.when(buyerVerificationService.verifyAndGetBuyer("buyer@test.com")).thenReturn(buyer);
+
+        ExtractedRFQ rfq = ExtractedRFQ.builder()
+                .buyerEmail("buyer@test.com")
+                .items(List.of(RFQItem.builder().itemDescription("Widget").quantity(1.0).build()))
+                .build();
+        Mockito.when(aiExtractionService.extractRFQFromEmail(email)).thenReturn(rfq);
+
+        ValidationService.ValidationResult valResult = new ValidationService.ValidationResult(false, false, List.of(), "Invalid format");
+        Mockito.when(validationService.validateWithDetails(any())).thenReturn(valResult);
+
+        String result = emailProcessorService.processSingleEmail(email);
+        assertEquals("VALIDATION_FAILED", result);
+    }
+
+    @Test
+    @DisplayName("Test processSingleEmail with null extractedRFQ from AI")
+    void testProcessSingleEmailNullExtractedRFQ() {
+        EmailData email = EmailData.builder()
+                .messageId("MSG-NULL-RFQ")
+                .senderEmail("buyer@test.com")
+                .subject("Need items")
+                .build();
+
+        Mockito.when(emailTransactionRepository.findByMessageId("MSG-NULL-RFQ")).thenReturn(Optional.empty());
+
+        Buyer buyer = Buyer.builder().email("buyer@test.com").verified(true).build();
+        Mockito.when(buyerVerificationService.verifyAndGetBuyer("buyer@test.com")).thenReturn(buyer);
+
+        Mockito.when(aiExtractionService.extractRFQFromEmail(email)).thenReturn(null);
+
+        String result = emailProcessorService.processSingleEmail(email);
+        assertEquals("AI_FAILED", result);
+    }
+
+    @Test
+    @DisplayName("Test processSingleEmail with item-level delivery location/date")
+    void testProcessSingleEmailItemLevelDelivery() {
+        EmailData email = EmailData.builder()
+                .messageId("MSG-ITEM-LOC")
+                .senderEmail("buyer@test.com")
+                .subject("Need items")
+                .build();
+
+        Mockito.when(emailTransactionRepository.findByMessageId("MSG-ITEM-LOC")).thenReturn(Optional.empty());
+
+        Buyer buyer = Buyer.builder().email("buyer@test.com").name("Buyer").verified(true).build();
+        Mockito.when(buyerVerificationService.verifyAndGetBuyer("buyer@test.com")).thenReturn(buyer);
+
+        List<RFQItem> items = List.of(
+                RFQItem.builder().itemDescription("Widget A").quantity(1.0).deliveryLocation("Mumbai").deliveryDate("2026-09-01").build(),
+                RFQItem.builder().itemDescription("Widget B").quantity(2.0).build()
+        );
+        ExtractedRFQ rfq = ExtractedRFQ.builder()
+                .buyerEmail("buyer@test.com")
+                .deliveryLocation("Default Location")
+                .deliveryDate("2026-08-25")
+                .category("Test Category")
+                .items(items)
+                .build();
+        Mockito.when(aiExtractionService.extractRFQFromEmail(email)).thenReturn(rfq);
+
+        ValidationService.ValidationResult valResult = new ValidationService.ValidationResult(true, false, List.of(), null);
+        Mockito.when(validationService.validateWithDetails(any())).thenReturn(valResult);
+
+        RFQRequest request = RFQRequest.builder().rfqNumber("RFQ-LOC").deliveryDate("2026-08-25").build();
+        Mockito.when(rfqBuilderService.buildRFQRequest(any(), any(), any(), any())).thenReturn(request);
+
+        RFQResponse apiResponse = RFQResponse.builder().status("SUCCESS").rfqNumber("RFQ-LOC").build();
+        Mockito.when(rfqApiService.submitRFQ(request)).thenReturn(apiResponse);
+
+        RFQEntity savedEntity = RFQEntity.builder().rfqNumber("RFQ-LOC").buyerEmail("buyer@test.com").build();
+        Mockito.when(rfqRepository.save(any())).thenReturn(savedEntity);
+
+        String result = emailProcessorService.processSingleEmail(email);
+        assertEquals("RFQ_CREATED", result);
+    }
+
+    @Test
+    @DisplayName("Test processUnreadEmails returns null fetch gracefully")
+    void testProcessUnreadEmailsNullFetch() {
+        Mockito.when(emailReaderService.fetchUnreadEmails()).thenReturn(null);
+
+        ProcessingStats stats = emailProcessorService.processUnreadEmails();
+        assertNotNull(stats);
+    }
 }
+
