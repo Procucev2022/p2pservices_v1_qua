@@ -1,0 +1,413 @@
+name: PR Quality Checks
+
+on:
+  pull_request:
+    branches:
+      - '**'
+  pull_request_target:
+    branches:
+      - '**'
+
+permissions:
+  contents: read
+  pull-requests: write
+  checks: write
+
+jobs:
+  quality-checks:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: maven
+
+      - name: Cache Maven packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2/repository
+          key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
+          restore-keys: |
+            ${{ runner.os }}-maven-
+
+      # Step 1: Compile and check for compilation errors (Typechecking)
+      - name: Compile code
+        id: compile
+        run: |
+          mvn clean compile -DskipTests
+          echo "compile_status=success" >> $GITHUB_OUTPUT
+        continue-on-error: true
+
+      # Step 2: Run Checkstyle for linting
+      - name: Run Checkstyle (Linting)
+        id: checkstyle
+        run: |
+          mvn checkstyle:check -DskipTests 2>&1 | tee checkstyle-output.txt || true
+          if [ -f checkstyle-output.txt ]; then
+            if grep -q "BUILD SUCCESS" checkstyle-output.txt; then
+              echo "checkstyle_status=success" >> $GITHUB_OUTPUT
+            else
+              echo "checkstyle_status=failure" >> $GITHUB_OUTPUT
+            fi
+          fi
+        continue-on-error: true
+
+      # Step 3: Build the application
+      - name: Build application
+        id: build
+        run: |
+          mvn package -DskipTests
+          echo "build_status=success" >> $GITHUB_OUTPUT
+        continue-on-error: true
+
+      # Step 4: Run unit tests with JaCoCo coverage
+      - name: Run unit tests with coverage
+        id: test
+        run: |
+          mvn test jacoco:report jacoco:check -Dmaven.test.failure.ignore=true
+          echo "test_status=success" >> $GITHUB_OUTPUT
+        continue-on-error: true
+
+      # Step 5: Generate test summary
+      - name: Generate test summary
+        id: test-summary
+        run: |
+          # Parse Surefire test results
+          TEST_PASSED=0
+          TEST_FAILED=0
+          TEST_SKIPPED=0
+          TEST_TOTAL=0
+          
+          if [ -d "target/surefire-reports" ]; then
+            for file in target/surefire-reports/*.txt; do
+              if [ -f "$file" ]; then
+                # Extract test counts from surefire reports
+                PASSED=$(grep -oP 'Tests run: \K\d+' "$file" 2>/dev/null || echo "0")
+                FAILED=$(grep -oP 'Failures: \K\d+' "$file" 2>/dev/null || echo "0")
+                SKIPPED=$(grep -oP 'Skipped: \K\d+' "$file" 2>/dev/null || echo "0")
+                
+                TEST_PASSED=$((TEST_PASSED + PASSED))
+                TEST_FAILED=$((TEST_FAILED + FAILED))
+                TEST_SKIPPED=$((TEST_SKIPPED + SKIPPED))
+              fi
+            done
+          fi
+          
+          TEST_TOTAL=$((TEST_PASSED + TEST_FAILED + TEST_SKIPPED))
+          
+          echo "test_passed=$TEST_PASSED" >> $GITHUB_OUTPUT
+          echo "test_failed=$TEST_FAILED" >> $GITHUB_OUTPUT
+          echo "test_skipped=$TEST_SKIPPED" >> $GITHUB_OUTPUT
+          echo "test_total=$TEST_TOTAL" >> $GITHUB_OUTPUT
+
+      # Step 6: Extract coverage data from JaCoCo report
+      - name: Extract coverage data
+        id: coverage
+        run: |
+          if [ -f "target/site/jacoco/jacoco.xml" ]; then
+            # Extract coverage percentages from JaCoCo XML report
+            INSTRUCTION_COVERED=$(grep -oP 'counter type="INSTRUCTION".*?covered="\K\d+' target/site/jacoco/jacoco.xml | head -1 || echo "0")
+            INSTRUCTION_MISSED=$(grep -oP 'counter type="INSTRUCTION".*?missed="\K\d+' target/site/jacoco/jacoco.xml | head -1 || echo "0")
+            
+            BRANCH_COVERED=$(grep -oP 'counter type="BRANCH".*?covered="\K\d+' target/site/jacoco/jacoco.xml | head -1 || echo "0")
+            BRANCH_MISSED=$(grep -oP 'counter type="BRANCH".*?missed="\K\d+' target/site/jacoco/jacoco.xml | head -1 || echo "0")
+            
+            LINE_COVERED=$(grep -oP 'counter type="LINE".*?covered="\K\d+' target/site/jacoco/jacoco.xml | head -1 || echo "0")
+            LINE_MISSED=$(grep -oP 'counter type="LINE".*?missed="\K\d+' target/site/jacoco/jacoco.xml | head -1 || echo "0")
+            
+            METHOD_COVERED=$(grep -oP 'counter type="METHOD".*?covered="\K\d+' target/site/jacoco/jacoco.xml | head -1 || echo "0")
+            METHOD_MISSED=$(grep -oP 'counter type="METHOD".*?missed="\K\d+' target/site/jacoco/jacoco.xml | head -1 || echo "0")
+            
+            CLASS_COVERED=$(grep -oP 'counter type="CLASS".*?covered="\K\d+' target/site/jacoco/jacoco.xml | head -1 || echo "0")
+            CLASS_MISSED=$(grep -oP 'counter type="CLASS".*?missed="\K\d+' target/site/jacoco/jacoco.xml | head -1 || echo "0")
+            
+            # Calculate totals and percentages
+            INSTRUCTION_TOTAL=$((INSTRUCTION_COVERED + INSTRUCTION_MISSED))
+            BRANCH_TOTAL=$((BRANCH_COVERED + BRANCH_MISSED))
+            LINE_TOTAL=$((LINE_COVERED + LINE_MISSED))
+            METHOD_TOTAL=$((METHOD_COVERED + METHOD_MISSED))
+            CLASS_TOTAL=$((CLASS_COVERED + CLASS_MISSED))
+            
+            if [ $INSTRUCTION_TOTAL -gt 0 ]; then
+              INSTRUCTION_PCT=$(awk "BEGIN {printf \"%.2f\", ($INSTRUCTION_COVERED/$INSTRUCTION_TOTAL)*100}")
+            else
+              INSTRUCTION_PCT="0.00"
+            fi
+            
+            if [ $BRANCH_TOTAL -gt 0 ]; then
+              BRANCH_PCT=$(awk "BEGIN {printf \"%.2f\", ($BRANCH_COVERED/$BRANCH_TOTAL)*100}")
+            else
+              BRANCH_PCT="0.00"
+            fi
+            
+            if [ $LINE_TOTAL -gt 0 ]; then
+              LINE_PCT=$(awk "BEGIN {printf \"%.2f\", ($LINE_COVERED/$LINE_TOTAL)*100}")
+            else
+              LINE_PCT="0.00"
+            fi
+            
+            if [ $METHOD_TOTAL -gt 0 ]; then
+              METHOD_PCT=$(awk "BEGIN {printf \"%.2f\", ($METHOD_COVERED/$METHOD_TOTAL)*100}")
+            else
+              METHOD_PCT="0.00"
+            fi
+            
+            if [ $CLASS_TOTAL -gt 0 ]; then
+              CLASS_PCT=$(awk "BEGIN {printf \"%.2f\", ($CLASS_COVERED/$CLASS_TOTAL)*100}")
+            else
+              CLASS_PCT="0.00"
+            fi
+            
+            echo "instruction_coverage=$INSTRUCTION_PCT" >> $GITHUB_OUTPUT
+            echo "branch_coverage=$BRANCH_PCT" >> $GITHUB_OUTPUT
+            echo "line_coverage=$LINE_PCT" >> $GITHUB_OUTPUT
+            echo "method_coverage=$METHOD_PCT" >> $GITHUB_OUTPUT
+            echo "class_coverage=$CLASS_PCT" >> $GITHUB_OUTPUT
+          else
+            echo "instruction_coverage=0.00" >> $GITHUB_OUTPUT
+            echo "branch_coverage=0.00" >> $GITHUB_OUTPUT
+            echo "line_coverage=0.00" >> $GITHUB_OUTPUT
+            echo "method_coverage=0.00" >> $GITHUB_OUTPUT
+            echo "class_coverage=0.00" >> $GITHUB_OUTPUT
+          fi
+
+      # Step 7: Check coverage threshold (90%)
+      - name: Verify coverage threshold (90%)
+        id: coverage-check
+        run: |
+          COVERAGE_PASSED=true
+          
+          INSTRUCTION_PCT="${{ steps.coverage.outputs.instruction_coverage }}"
+          BRANCH_PCT="${{ steps.coverage.outputs.branch_coverage }}"
+          LINE_PCT="${{ steps.coverage.outputs.line_coverage }}"
+          METHOD_PCT="${{ steps.coverage.outputs.method_coverage }}"
+          CLASS_PCT="${{ steps.coverage.outputs.class_coverage }}"
+          
+          echo "Checking coverage thresholds (minimum 90%)..."
+          
+          if (( $(echo "$INSTRUCTION_PCT < 90.00" | bc -l) )); then
+            echo "::warning::Instruction coverage ($INSTRUCTION_PCT%) is below 90% threshold"
+            COVERAGE_PASSED=false
+          fi
+          
+          if (( $(echo "$BRANCH_PCT < 90.00" | bc -l) )); then
+            echo "::warning::Branch coverage ($BRANCH_PCT%) is below 90% threshold"
+            COVERAGE_PASSED=false
+          fi
+          
+          if (( $(echo "$LINE_PCT < 90.00" | bc -l) )); then
+            echo "::warning::Line coverage ($LINE_PCT%) is below 90% threshold"
+            COVERAGE_PASSED=false
+          fi
+          
+          if (( $(echo "$METHOD_PCT < 90.00" | bc -l) )); then
+            echo "::warning::Method coverage ($METHOD_PCT%) is below 90% threshold"
+            COVERAGE_PASSED=false
+          fi
+          
+          if (( $(echo "$CLASS_PCT < 90.00" | bc -l) )); then
+            echo "::warning::Class coverage ($CLASS_PCT%) is below 90% threshold"
+            COVERAGE_PASSED=false
+          fi
+          
+          if [ "$COVERAGE_PASSED" = true ]; then
+            echo "coverage_status=success" >> $GITHUB_OUTPUT
+            echo "All coverage thresholds met!"
+          else
+            echo "coverage_status=failure" >> $GITHUB_OUTPUT
+            echo "::error::Coverage threshold (90%) not met in some categories"
+            exit 1
+          fi
+        continue-on-error: true
+
+      # Step 8: Upload coverage report as artifact
+      - name: Upload JaCoCo coverage report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: jacoco-coverage-report
+          path: target/site/jacoco/
+          retention-days: 7
+
+      # Step 9: Upload test results as artifact
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-results
+          path: target/surefire-reports/
+          retention-days: 7
+
+      # Step 10: Create PR comment with summary
+      - name: Create PR comment with test summary
+        uses: actions/github-script@v7
+        if: always()
+        with:
+          script: |
+            const testPassed = '${{ steps.test-summary.outputs.test_passed }}' || '0';
+            const testFailed = '${{ steps.test-summary.outputs.test_failed }}' || '0';
+            const testSkipped = '${{ steps.test-summary.outputs.test_skipped }}' || '0';
+            const testTotal = '${{ steps.test-summary.outputs.test_total }}' || '0';
+            
+            const instructionCoverage = '${{ steps.coverage.outputs.instruction_coverage }}' || '0.00';
+            const branchCoverage = '${{ steps.coverage.outputs.branch_coverage }}' || '0.00';
+            const lineCoverage = '${{ steps.coverage.outputs.line_coverage }}' || '0.00';
+            const methodCoverage = '${{ steps.coverage.outputs.method_coverage }}' || '0.00';
+            const classCoverage = '${{ steps.coverage.outputs.class_coverage }}' || '0.00';
+            
+            const compileStatus = '${{ steps.compile.outcome }}';
+            const buildStatus = '${{ steps.build.outcome }}';
+            const testStatus = '${{ steps.test.outcome }}';
+            const coverageStatus = '${{ steps.coverage-check.outputs.coverage_status }}';
+            
+            const getStatusIcon = (status) => {
+              return status === 'success' ? '✅' : '❌';
+            };
+            
+            const getCoverageIcon = (coverage) => {
+              const pct = parseFloat(coverage);
+              return pct >= 90.0 ? '✅' : '⚠️';
+            };
+            
+            const body = `## 🔍 Quality Checks Summary
+            
+            | Check | Status |
+            |-------|--------|
+            | 📦 Compilation | ${getStatusIcon(compileStatus)} ${compileStatus} |
+            | 🔨 Build | ${getStatusIcon(buildStatus)} ${buildStatus} |
+            | 🧪 Unit Tests | ${getStatusIcon(testStatus)} ${testStatus} |
+            | 📊 Coverage (90% threshold) | ${coverageStatus === 'success' ? '✅ Passed' : '❌ Failed'} |
+            
+            ---
+            
+            ### 🧪 Unit Tests Summary
+            
+            | Metric | Count |
+            |--------|-------|
+            | **Total Tests** | ${testTotal} |
+            | ✅ Passed | ${testPassed} |
+            | ❌ Failed | ${testFailed} |
+            | ⏭️ Skipped | ${testSkipped} |
+            
+            ---
+            
+            ### 📊 Code Coverage Summary
+            
+            | Coverage Type | Percentage | Status |
+            |---------------|------------|--------|
+            | 📝 Instruction | ${instructionCoverage}% | ${getCoverageIcon(instructionCoverage)} |
+            | 🔀 Branch | ${branchCoverage}% | ${getCoverageIcon(branchCoverage)} |
+            | 📄 Line | ${lineCoverage}% | ${getCoverageIcon(lineCoverage)} |
+            | ⚙️ Method | ${methodCoverage}% | ${getCoverageIcon(methodCoverage)} |
+            | 🏗️ Class | ${classCoverage}% | ${getCoverageIcon(classCoverage)} |
+            
+            **Required Threshold:** 90% across all parameters for each source file
+            
+            ---
+            
+            📁 **Artifacts:**
+            - [JaCoCo Coverage Report](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
+            - [Test Results](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
+            
+            > 💡 Click on the artifacts section in the workflow run to download detailed reports.
+            `;
+            
+            // Find existing comment
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+            
+            const botComment = comments.find(comment => 
+              comment.user.type === 'Bot' && 
+              comment.body.includes('Quality Checks Summary')
+            );
+            
+            if (botComment) {
+              // Update existing comment
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: botComment.id,
+                body: body
+              });
+            } else {
+              // Create new comment
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: body
+              });
+            }
+
+      # Step 11: Final quality gate check
+      - name: Quality gate check
+        run: |
+          echo "=========================================="
+          echo "       QUALITY GATE SUMMARY"
+          echo "=========================================="
+          echo ""
+          
+          COMPILE_STATUS="${{ steps.compile.outcome }}"
+          BUILD_STATUS="${{ steps.build.outcome }}"
+          TEST_STATUS="${{ steps.test.outcome }}"
+          COVERAGE_STATUS="${{ steps.coverage-check.outputs.coverage_status }}"
+          
+          FAILED=false
+          
+          echo "📦 Compilation: $COMPILE_STATUS"
+          if [ "$COMPILE_STATUS" != "success" ]; then
+            FAILED=true
+            echo "   ❌ Compilation failed"
+          else
+            echo "   ✅ Compilation successful"
+          fi
+          
+          echo ""
+          echo "🔨 Build: $BUILD_STATUS"
+          if [ "$BUILD_STATUS" != "success" ]; then
+            FAILED=true
+            echo "   ❌ Build failed"
+          else
+            echo "   ✅ Build successful"
+          fi
+          
+          echo ""
+          echo "🧪 Unit Tests: $TEST_STATUS"
+          if [ "$TEST_STATUS" != "success" ]; then
+            FAILED=true
+            echo "   ❌ Tests failed"
+          else
+            echo "   ✅ All tests passed"
+          fi
+          
+          echo ""
+          echo "📊 Coverage: $COVERAGE_STATUS"
+          if [ "$COVERAGE_STATUS" != "success" ]; then
+            FAILED=true
+            echo "   ❌ Coverage below 90% threshold"
+          else
+            echo "   ✅ Coverage meets 90% threshold"
+          fi
+          
+          echo ""
+          echo "=========================================="
+          
+          if [ "$FAILED" = true ]; then
+            echo ""
+            echo "❌ Quality gate FAILED - Please fix the issues above"
+            exit 1
+          else
+            echo ""
+            echo "✅ Quality gate PASSED - All checks successful!"
+          fi
