@@ -56,7 +56,11 @@ public class EmailProcessorService {
         log.info("========== STARTING EMAIL RFQ PROCESSING JOB (p2pservices_v1) ==========");
 
         List<EmailData> unreadEmails = emailReaderService.fetchUnreadEmails();
+        if (unreadEmails == null) {
+            unreadEmails = Collections.emptyList();
+        }
         log.info("Processing {} unread email(s).", unreadEmails.size());
+
 
         for (EmailData email : unreadEmails) {
             processedCount++;
@@ -165,6 +169,18 @@ public class EmailProcessorService {
                 return "AI_FAILED";
             }
 
+            if (extractedRFQ == null) {
+                log.error("AI extraction returned null for validated buyer {}", buyer.getEmail());
+                FailedRfqRequest failedReq = buildFailedRequestFromEmail(email, null, "AI Extraction returned null");
+                acknowledgementEmailService.sendFailureAcknowledgement(failedReq, buyer);
+                emailReaderService.moveMessageToFolder(email.getMessageId(), errorFolder);
+
+                transaction.setStatus("AI_FAILED");
+                transaction.setErrorMessage("AI Extraction returned null");
+                emailTransactionRepository.save(transaction);
+                return "AI_FAILED";
+            }
+
             // STEP 3: VALIDATE EXTRACTED RFQ DATA
             extractedRFQ.setBuyerEmail(buyer.getEmail());
             ValidationService.ValidationResult valResult = validationService.validateWithDetails(extractedRFQ);
@@ -188,12 +204,25 @@ public class EmailProcessorService {
             }
 
             // STEP 4: LINE ITEM DEDUPLICATION WITHIN SAME EMAIL PAYLOAD
+            if (extractedRFQ.getItems() == null || extractedRFQ.getItems().isEmpty()) {
+                log.warn("RFQ validation failed: No valid line items remaining.");
+                FailedRfqRequest failedReq = buildFailedRequestFromEmail(email, extractedRFQ, "No valid line items remaining for RFQ creation.");
+                acknowledgementEmailService.sendFailureAcknowledgement(failedReq, buyer);
+                emailReaderService.moveMessageToFolder(email.getMessageId(), errorFolder);
+
+                transaction.setStatus("VALIDATION_FAILED");
+                transaction.setErrorMessage("No valid items extracted");
+                emailTransactionRepository.save(transaction);
+                return "VALIDATION_FAILED";
+            }
+
             List<RFQItem> validItems = new ArrayList<>();
             Set<String> seenInEmailKeys = new HashSet<>();
             String topDeliveryDate = extractedRFQ.getDeliveryDate() != null ? extractedRFQ.getDeliveryDate().trim() : "";
             String topDeliveryLocation = extractedRFQ.getDeliveryLocation() != null ? extractedRFQ.getDeliveryLocation().trim() : "";
 
             for (RFQItem item : extractedRFQ.getItems()) {
+
                 if (item == null || item.getItemDescription() == null || item.getItemDescription().isBlank()) {
                     continue;
                 }
