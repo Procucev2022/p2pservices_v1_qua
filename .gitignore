@@ -33,6 +33,7 @@ build/
 .vscode/
 
 ### Local data & scripts ###
+.env
 *.xlsx
 run.bat
 test.bat
