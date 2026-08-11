@@ -19,7 +19,7 @@
 
     <!-- Suppression for generated files -->
     <module name="SuppressionFilter">
-        <property name="file" value="${basedir}/suppressions.xml"/>
+        <property name="file" value="suppressions.xml"/>
         <property name="optional" value="true"/>
     </module>
 
@@ -109,8 +109,8 @@
         <!-- Imports -->
         <module name="AvoidStarImport"/>
         <module name="CustomImportOrder">
-            <property name="sortImports" value="true"/>
-            <property name="separateGroupsBetweenStaticJavaAndStatic" value="true"/>
+            <property name="sortImportsInGroupAlphabetically" value="true"/>
+            <property name="separateLineBetweenGroups" value="true"/>
             <property name="customImportOrderRules" value="STATIC###STANDARD_JAVA_PACKAGE###THIRD_PARTY_PACKAGE"/>
         </module>
         <module name="IllegalImport"/>
@@ -140,7 +140,7 @@
         <module name="RequireEmptyLineBeforeBlockTagGroup"/>
         <module name="SingleLineJavadoc"/>
         <module name="SummaryJavadocCheck">
-            <property name="forbiddenSummaryFragments" value="^@return the *{@literal .* this .*}"/>
+            <property name="forbiddenSummaryFragments" value="^@return the *\{@literal .* this .*\}"/>
         </module>
 
         <!-- Miscellaneous -->
@@ -282,7 +282,6 @@
             <property name="allowEmptyMethods" value="true"/>
             <property name="allowEmptyTypes" value="true"/>
             <property name="allowEmptyLoops" value="true"/>
-            <property name="allowEmptySwitch" value="true"/>
         </module>
     </module>
 </module>
