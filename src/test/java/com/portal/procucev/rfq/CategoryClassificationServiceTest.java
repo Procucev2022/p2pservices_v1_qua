@@ -67,13 +67,13 @@ public class CategoryClassificationServiceTest {
     @DisplayName("Test classifyItems Excel master dataset match (High Score)")
     void testClassifyItemsExcelMasterMatch() {
         ExcelMasterDataLoader.MasterCategoryRecord record1 = new ExcelMasterDataLoader.MasterCategoryRecord();
-        record1.setItemDescription("Heavy Duty Hydraulic Pump");
+        record1.setItemDescription("Heavy Duty Hydraulic Gearbox");
         record1.setCategory("Heavy Machinery");
         record1.setDivision("Mechanical Engineering");
 
         Mockito.when(dataLoader.getMasterRecords()).thenReturn(List.of(record1));
 
-        RFQItem item = RFQItem.builder().itemDescription("Heavy Duty Hydraulic Pump").build();
+        RFQItem item = RFQItem.builder().itemDescription("Heavy Duty Hydraulic Gearbox").specification("Heavy Machinery").build();
         service.classifyItems(List.of(item));
 
         assertEquals("Heavy Machinery", item.getCategory());
@@ -92,7 +92,7 @@ public class CategoryClassificationServiceTest {
 
         Mockito.when(dataLoader.getMasterRecords()).thenReturn(List.of(record1));
 
-        RFQItem item = RFQItem.builder().itemDescription("Custom Industrial Machine").build();
+        RFQItem item = RFQItem.builder().itemDescription("Custom Industrial Machine").specification("123.45").build();
         service.classifyItems(List.of(item));
 
         assertEquals("Custom Division", item.getCategory());

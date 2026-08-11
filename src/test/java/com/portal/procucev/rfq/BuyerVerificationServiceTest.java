@@ -70,7 +70,7 @@ public class BuyerVerificationServiceTest {
         String email = "buyer@test.com";
 
         Organization org = new Organization();
-        org.setId(101L);
+        org.setId("101");
         org.setCompanyName("Acme Corp");
         org.setCity("Bangalore");
         org.setState("Karnataka");
@@ -79,7 +79,7 @@ public class BuyerVerificationServiceTest {
         org.setAddress2("Suite 4");
 
         User user = new User();
-        user.setId(501L);
+        user.setId("501");
         user.setFirstName("John");
         user.setLastName("Doe");
         user.setPhone("9876543210");
@@ -119,7 +119,7 @@ public class BuyerVerificationServiceTest {
         String email = "buyer2@test.com";
 
         User user = new User();
-        user.setId(502L);
+        user.setId("502");
         user.setFullName("Alice Smith");
         user.setPhone("1112223333");
         user.setOrg(null);

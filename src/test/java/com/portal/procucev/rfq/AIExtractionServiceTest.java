@@ -43,7 +43,7 @@ public class AIExtractionServiceTest {
         EmailData email = EmailData.builder()
                 .subject("Need Laptops")
                 .body("Please quote 10 laptops")
-                .fromEmail("sender@test.com")
+                .senderEmail("sender@test.com")
                 .attachmentText("Attached doc text")
                 .build();
 
@@ -73,7 +73,7 @@ public class AIExtractionServiceTest {
         EmailData email = EmailData.builder()
                 .subject("Monitor requirement")
                 .body("Body text")
-                .fromEmail("fallbacksender@test.com")
+                .senderEmail("fallbacksender@test.com")
                 .build();
 
         ExtractedRFQ rfq = aiExtractionService.extractRFQFromEmail(email);
@@ -89,7 +89,7 @@ public class AIExtractionServiceTest {
 
         EmailData email = EmailData.builder()
                 .subject("Error test")
-                .fromEmail("sender@test.com")
+                .senderEmail("sender@test.com")
                 .build();
 
         assertThrows(ApplicationException.class, () -> aiExtractionService.extractRFQFromEmail(email));
@@ -102,7 +102,7 @@ public class AIExtractionServiceTest {
         Mockito.when(geminiApiClient.generateContent(anyString())).thenReturn(jsonResponse);
 
         EmailData email = EmailData.builder()
-                .fromEmail("sender@test.com")
+                .senderEmail("sender@test.com")
                 .build();
 
         ExtractedRFQ rfq = aiExtractionService.extractRFQFromEmail(email);
@@ -115,7 +115,7 @@ public class AIExtractionServiceTest {
     void testExtractRFQFromEmailNullResponse() {
         Mockito.when(geminiApiClient.generateContent(anyString())).thenReturn(null);
 
-        EmailData email = EmailData.builder().fromEmail("sender@test.com").build();
+        EmailData email = EmailData.builder().senderEmail("sender@test.com").build();
         ExtractedRFQ rfq = aiExtractionService.extractRFQFromEmail(email);
         assertNotNull(rfq);
         assertEquals("sender@test.com", rfq.getBuyerEmail());

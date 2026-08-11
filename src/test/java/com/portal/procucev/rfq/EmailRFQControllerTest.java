@@ -40,7 +40,7 @@ public class EmailRFQControllerTest {
 
         assertNotNull(response);
         assertEquals(HttpStatus.OK, response.getStatusCode());
-        assertEquals("SUCCESS", response.getBody().getStatus());
+        assertTrue(response.getBody().isSuccess());
         assertEquals(5, response.getBody().getData().getEmailsProcessed());
     }
 
@@ -57,6 +57,6 @@ public class EmailRFQControllerTest {
 
         ResponseEntity<ApiResponse<RFQEntity>> notFoundResp = controller.getRfqByNumber("RFQ-NOT-FOUND");
         assertEquals(HttpStatus.NOT_FOUND, notFoundResp.getStatusCode());
-        assertEquals("ERROR", notFoundResp.getBody().getStatus());
+        assertFalse(notFoundResp.getBody().isSuccess());
     }
 }

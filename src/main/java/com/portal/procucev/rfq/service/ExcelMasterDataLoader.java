@@ -78,33 +78,46 @@ public class ExcelMasterDataLoader {
                 for (Row row : sheet) {
                     if (isHeader) {
                         isHeader = false;
+                        boolean foundAnyHeader = false;
                         for (int i = 0; i < row.getLastCellNum(); i++) {
-                            String headerText = getCellValue(row.getCell(i)).toLowerCase();
-                            if (headerText.contains("cat")) {
-                                catCol = i;
-                            } else if (headerText.contains("div")) {
-                                divCol = i;
-                            } else if (headerText.contains("code") || headerText.contains("id")) {
-                                codeCol = i;
-                            } else if (headerText.contains("desc") || headerText.contains("item")) {
-                                descCol = i;
-                            } else if (headerText.contains("spec")) {
+                            Cell cell = row.getCell(i);
+                            if (cell == null) continue;
+                            String headerText = getCellValue(cell).toLowerCase().trim();
+                            if (headerText.isBlank()) continue;
+
+                            if (headerText.contains("spec")) {
                                 specCol = i;
+                                foundAnyHeader = true;
+                            } else if (headerText.contains("code") || headerText.equalsIgnoreCase("id") || headerText.endsWith(" id")) {
+                                codeCol = i;
+                                foundAnyHeader = true;
+                            } else if (headerText.contains("category") || headerText.contains("cat")) {
+                                catCol = i;
+                                foundAnyHeader = true;
+                            } else if (headerText.contains("division") || headerText.contains("div")) {
+                                divCol = i;
+                                foundAnyHeader = true;
+                            } else if (headerText.contains("desc") || headerText.contains("description") || headerText.contains("item")) {
+                                descCol = i;
+                                foundAnyHeader = true;
                             }
                         }
-                        if (catCol == -1) catCol = 0;
-                        if (divCol == -1) divCol = 1;
-                        if (codeCol == -1) codeCol = 2;
-                        if (descCol == -1) descCol = 3;
-                        if (specCol == -1) specCol = 4;
+
+                        if (!foundAnyHeader) {
+                            catCol = 0;
+                            divCol = 1;
+                            codeCol = 2;
+                            descCol = 3;
+                            specCol = 4;
+                        }
                         continue;
                     }
 
-                    String cat = catCol >= 0 ? getCellValue(row.getCell(catCol)) : "";
-                    String div = divCol >= 0 ? getCellValue(row.getCell(divCol)) : "";
-                    String code = codeCol >= 0 ? getCellValue(row.getCell(codeCol)) : "";
-                    String desc = descCol >= 0 ? getCellValue(row.getCell(descCol)) : "";
-                    String spec = specCol >= 0 ? getCellValue(row.getCell(specCol)) : "";
+                    String cat = catCol >= 0 && catCol < row.getLastCellNum() ? getCellValue(row.getCell(catCol)) : "";
+                    String div = divCol >= 0 && divCol < row.getLastCellNum() ? getCellValue(row.getCell(divCol)) : "";
+                    String code = codeCol >= 0 && codeCol < row.getLastCellNum() ? getCellValue(row.getCell(codeCol)) : "";
+                    String desc = descCol >= 0 && descCol < row.getLastCellNum() ? getCellValue(row.getCell(descCol)) : "";
+                    String spec = specCol >= 0 && specCol < row.getLastCellNum() ? getCellValue(row.getCell(specCol)) : "";
 
                     if (!desc.isBlank() || !cat.isBlank()) {
                         targetList.add(MasterCategoryRecord.builder()
@@ -132,20 +145,30 @@ public class ExcelMasterDataLoader {
 
         File configuredFile = new File(masterFilePath);
         if (configuredFile.isDirectory()) {
-            return List.of(
-                    new File(configuredFile, "1st Set of Category Items Data.xlsx").getPath(),
-                    new File(configuredFile, "2nd Set of Category Items Data.xlsx").getPath()
-            );
+            List<String> files = new ArrayList<>();
+            File set1 = new File(configuredFile, "1st Set of Category Items Data.xlsx");
+            File set2 = new File(configuredFile, "2nd Set of Category Items Data.xlsx");
+            if (set1.exists()) files.add(set1.getPath());
+            if (set2.exists()) files.add(set2.getPath());
+            if (files.isEmpty()) {
+                File[] list = configuredFile.listFiles((dir, name) -> name.toLowerCase().endsWith(".xlsx"));
+                if (list != null) {
+                    for (File f : list) files.add(f.getPath());
+                }
+            }
+            return files;
         }
 
         List<String> fileNames = new ArrayList<>();
         fileNames.add(masterFilePath);
 
-        File siblingSecondSet = configuredFile.getParentFile() != null
-                ? new File(configuredFile.getParentFile(), "2nd Set of Category Items Data.xlsx")
-                : new File("2nd Set of Category Items Data.xlsx");
-        if (!configuredFile.getName().equalsIgnoreCase("2nd Set of Category Items Data.xlsx") && siblingSecondSet.exists()) {
-            fileNames.add(siblingSecondSet.getPath());
+        if ("1st Set of Category Items Data.xlsx".equalsIgnoreCase(configuredFile.getName())) {
+            File siblingSecondSet = configuredFile.getParentFile() != null
+                    ? new File(configuredFile.getParentFile(), "2nd Set of Category Items Data.xlsx")
+                    : new File("2nd Set of Category Items Data.xlsx");
+            if (siblingSecondSet.exists()) {
+                fileNames.add(siblingSecondSet.getPath());
+            }
         }
 
         return fileNames;

@@ -15,6 +15,8 @@ public class ValidationService {
 
     @Data
     @Builder
+    @lombok.NoArgsConstructor
+    @lombok.AllArgsConstructor
     public static class ValidationResult {
         private boolean valid;
         private boolean missingQuantity;

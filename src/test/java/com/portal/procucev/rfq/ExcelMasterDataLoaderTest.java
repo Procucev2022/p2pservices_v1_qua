@@ -42,7 +42,7 @@ public class ExcelMasterDataLoaderTest {
     @Test
     @DisplayName("Test loadMasterData with custom temporary excel directory")
     void testLoadMasterDataWithCustomTempFile() throws Exception {
-        File excelFile = new File(tempDir.toFile(), "test_master.xlsx");
+        File excelFile = new File(tempDir.toFile(), "1st Set of Category Items Data.xlsx");
         try (Workbook wb = new XSSFWorkbook()) {
             Sheet sheet = wb.createSheet("Categories");
             Row header = sheet.createRow(0);
@@ -64,12 +64,50 @@ public class ExcelMasterDataLoaderTest {
             }
         }
 
+        ReflectionTestUtils.setField(loader, "masterFilePath", tempDir.toFile().getAbsolutePath());
+        loader.loadMasterData();
+
+        List<ExcelMasterDataLoader.MasterCategoryRecord> records = loader.getMasterRecords();
+        assertNotNull(records);
+        assertEquals(1, records.size());
+        assertEquals("IT Hardware", records.get(0).getCategory());
+        assertEquals("Electronics", records.get(0).getDivision());
+        assertEquals("ITEM123", records.get(0).getItemCode());
+        assertEquals("Dell Latitude Laptop", records.get(0).getItemDescription());
+        assertEquals("16GB RAM, 512GB SSD", records.get(0).getSpecifications());
+    }
+
+    @Test
+    @DisplayName("Test loadMasterData with non-standard header column order")
+    void testLoadMasterDataDynamicHeaderOrder() throws Exception {
+        File excelFile = new File(tempDir.toFile(), "custom_headers.xlsx");
+        try (Workbook wb = new XSSFWorkbook()) {
+            Sheet sheet = wb.createSheet("Categories");
+            Row header = sheet.createRow(0);
+            header.createCell(0).setCellValue("Division");
+            header.createCell(1).setCellValue("Category");
+            header.createCell(2).setCellValue("Item Description");
+            header.createCell(3).setCellValue("Item Code");
+            header.createCell(4).setCellValue("Specifications");
+
+            Row row1 = sheet.createRow(1);
+            row1.createCell(0).setCellValue("Electronics");
+            row1.createCell(1).setCellValue("IT Hardware");
+            row1.createCell(2).setCellValue("Dell Latitude Laptop");
+            row1.createCell(3).setCellValue("ITEM123");
+            row1.createCell(4).setCellValue("16GB RAM, 512GB SSD");
+
+            try (FileOutputStream fos = new FileOutputStream(excelFile)) {
+                wb.write(fos);
+            }
+        }
+
         ReflectionTestUtils.setField(loader, "masterFilePath", excelFile.getAbsolutePath());
         loader.loadMasterData();
 
         List<ExcelMasterDataLoader.MasterCategoryRecord> records = loader.getMasterRecords();
         assertNotNull(records);
-        assertFalse(records.isEmpty());
+        assertEquals(1, records.size());
         assertEquals("IT Hardware", records.get(0).getCategory());
         assertEquals("Electronics", records.get(0).getDivision());
         assertEquals("ITEM123", records.get(0).getItemCode());

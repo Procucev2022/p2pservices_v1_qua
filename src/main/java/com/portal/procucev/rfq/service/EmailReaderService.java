@@ -224,6 +224,9 @@ public class EmailReaderService {
     }
 
     private File createAttachmentFile(String originalFileName) throws Exception {
+        if (originalFileName != null && originalFileName.contains("..")) {
+            throw new ApplicationException("Invalid attachment file path received.");
+        }
         String safeFileName = Paths.get(originalFileName == null || originalFileName.isBlank() ? "attachment" : originalFileName)
                 .getFileName()
                 .toString();

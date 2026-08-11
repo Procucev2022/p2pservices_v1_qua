@@ -42,7 +42,7 @@ public class DateParser {
             } catch (Exception ignored) {}
         }
 
-        String cleanedPrefix = cleaned.replaceAll("(?i)^(?:before|by|on|within|due|required)\\s+", "").trim();
+        String cleanedPrefix = cleaned.replaceAll("(?i)^(?:before|by|on|within|due|required|\\s+)+", "").trim();
 
         for (DateTimeFormatter formatter : DATE_FORMATTERS) {
             try {

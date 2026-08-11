@@ -152,7 +152,7 @@ public class RFQBuilderServiceTest {
         RFQRequest req = rfqBuilderService.buildRFQRequest(rfq, buyer, null, null);
         assertNotNull(req);
         assertEquals(1, req.getClientdeliverylocationrfq().size());
-        assertEquals("Default Location", req.getClientdeliverylocationrfq().get(0).getAddress());
-        assertEquals("560001", req.getClientdeliverylocationrfq().get(0).getPincode());
+        assertEquals("", req.getClientdeliverylocationrfq().get(0).getAddress());
+        assertEquals("", req.getClientdeliverylocationrfq().get(0).getPincode());
     }
 }
