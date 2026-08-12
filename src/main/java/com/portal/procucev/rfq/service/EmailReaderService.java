@@ -62,6 +62,11 @@ public class EmailReaderService {
             props.put("mail.imaps.host", mailHost);
             props.put("mail.imaps.port", String.valueOf(mailPort));
             props.put("mail.imaps.ssl.enable", "true");
+            // Bounded waits: an unreachable mail host must not pin a scheduler
+            // thread indefinitely.
+            props.put("mail.imaps.connectiontimeout", "15000");
+            props.put("mail.imaps.timeout", "30000");
+            props.put("mail.imaps.writetimeout", "30000");
 
             Session session = Session.getInstance(props);
             store = session.getStore("imaps");
