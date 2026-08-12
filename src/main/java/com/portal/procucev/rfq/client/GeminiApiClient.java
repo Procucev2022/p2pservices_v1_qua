@@ -73,7 +73,7 @@ public class GeminiApiClient {
     }
 
     private String callGeminiModel(String model, String promptText) throws Exception {
-        String url = String.format("%s/%s:generateContent?key=%s", baseUrl, model, apiKey);
+        String url = String.format("%s/%s:generateContent", baseUrl, model);
 
         Map<String, Object> textPart = new HashMap<>();
         textPart.put("text", promptText);
@@ -122,6 +122,7 @@ public class GeminiApiClient {
 
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.set("x-goog-api-key", apiKey);
 
         HttpEntity<String> entity = new HttpEntity<>(objectMapper.writeValueAsString(requestBody), headers);
         ResponseEntity<String> response = restTemplate.postForEntity(url, entity, String.class);

@@ -11,6 +11,7 @@ public interface AutomaticRfqService {
 	
 	
 	boolean raiseRfq(Rfq rfq);
+	String generateRfqId(String company);
 	Map<String,String> validateEmail(String email);
 
 }

@@ -60,7 +60,15 @@ public class BuyerVerificationService {
         }
 
         log.info("Found registered portal user for email: {} (User ID: {})", normalizedEmail, portalUser.getId());
-        String orgId = (portalUser.getOrg() != null) ? String.valueOf(portalUser.getOrg().getId()) : "1";
+        if (portalUser.getOrg() == null || portalUser.getOrg().getId() == null) {
+            log.warn("Buyer verification failed: portal user {} has no organization.", normalizedEmail);
+            return Buyer.builder()
+                    .email(normalizedEmail)
+                    .name(extractNameFromEmail(normalizedEmail))
+                    .verified(false)
+                    .build();
+        }
+        String orgId = String.valueOf(portalUser.getOrg().getId());
         String userId = String.valueOf(portalUser.getId());
         String compName = (portalUser.getOrg() != null && portalUser.getOrg().getCompanyName() != null)
                 ? portalUser.getOrg().getCompanyName() : "Portal Buyer";

@@ -10,5 +10,6 @@ import java.util.Optional;
 @Repository
 public interface RFQRepository extends JpaRepository<RFQEntity, Long> {
     Optional<RFQEntity> findByRfqNumber(String rfqNumber);
+    Optional<RFQEntity> findByRfqNumberAndBuyerEmailIgnoreCase(String rfqNumber, String buyerEmail);
     List<RFQEntity> findByBuyerEmail(String buyerEmail);
 }

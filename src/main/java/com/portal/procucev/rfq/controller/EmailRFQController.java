@@ -8,6 +8,8 @@ import com.portal.procucev.rfq.service.EmailProcessorService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
 @Slf4j
@@ -27,9 +29,11 @@ public class EmailRFQController {
     }
 
     @GetMapping("/{rfqNumber}")
-    public ResponseEntity<ApiResponse<RFQEntity>> getRfqByNumber(@PathVariable String rfqNumber) {
+    public ResponseEntity<ApiResponse<RFQEntity>> getRfqByNumber(@PathVariable String rfqNumber,
+                                                                  @AuthenticationPrincipal UserDetails userDetails) {
         log.info("Querying persisted RFQ by RFQ Number: {}", rfqNumber);
-        return rfqRepository.findByRfqNumber(rfqNumber)
+        String buyerEmail = userDetails.getUsername();
+        return rfqRepository.findByRfqNumberAndBuyerEmailIgnoreCase(rfqNumber, buyerEmail)
                 .map(rfq -> ResponseEntity.ok(ApiResponse.success("RFQ found.", rfq)))
                 .orElseGet(() -> ResponseEntity.status(404)
                         .body(ApiResponse.error("RFQ not found for number: " + rfqNumber)));

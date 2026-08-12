@@ -42,6 +42,9 @@ public class EmailReaderService {
     @Value("${app.mail.attachment-directory:./attachments}")
     private String attachmentDirectory;
 
+    @Value("${app.mail.max-attachment-bytes:26214400}")
+    private long maxAttachmentBytes;
+
     public List<EmailData> fetchUnreadEmails() {
         log.info("Connecting to IMAP server ({}) for user: {}", mailHost, mailUsername);
         List<EmailData> emailsList = new ArrayList<>();
@@ -60,7 +63,7 @@ public class EmailReaderService {
             store.connect(mailHost, mailUsername, mailPassword);
 
             folder = store.getFolder(inboxFolder);
-            folder.open(Folder.READ_WRITE);
+            folder.open(Folder.READ_ONLY);
 
             Message[] messages = folder.search(new jakarta.mail.search.FlagTerm(new Flags(Flags.Flag.SEEN), false));
             int unreadCount = folder.getUnreadMessageCount();
@@ -197,9 +200,23 @@ public class EmailReaderService {
             if (Part.ATTACHMENT.equalsIgnoreCase(bodyPart.getDisposition()) || bodyPart.getFileName() != null) {
                 String fileName = bodyPart.getFileName();
                 File savedFile = createAttachmentFile(fileName);
-                try (InputStream inputStream = bodyPart.getInputStream();
-                     OutputStream outputStream = Files.newOutputStream(savedFile.toPath())) {
-                    inputStream.transferTo(outputStream);
+                try {
+                    try (InputStream inputStream = bodyPart.getInputStream();
+                         OutputStream outputStream = Files.newOutputStream(savedFile.toPath())) {
+                        byte[] buffer = new byte[8192];
+                        long totalBytes = 0;
+                        int bytesRead;
+                        while ((bytesRead = inputStream.read(buffer)) != -1) {
+                            totalBytes += bytesRead;
+                            if (totalBytes > maxAttachmentBytes) {
+                                throw new ApplicationException("Attachment exceeds the configured size limit.");
+                            }
+                            outputStream.write(buffer, 0, bytesRead);
+                        }
+                    }
+                } catch (Exception e) {
+                    Files.deleteIfExists(savedFile.toPath());
+                    throw e;
                 }
                 attachments.add(savedFile);
 
