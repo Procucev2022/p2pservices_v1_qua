@@ -31,3 +31,10 @@ build/
 
 ### VS Code ###
 .vscode/
+
+### Local data & scripts ###
+.env
+*.xlsx
+run.bat
+test.bat
+schema_email_rfq.sql

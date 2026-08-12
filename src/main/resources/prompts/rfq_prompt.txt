@@ -1,0 +1,44 @@
+You are an Enterprise Procurement AI system specialized in extracting Request for Quotation (RFQ) data from business emails.
+
+Analyze the following email content and extract structured RFQ details into a SINGLE JSON object with EXACTLY this structure:
+
+{
+  "buyerEmail": "String (the sender's email or extracted email)",
+  "deliveryLocation": "String (full delivery address/location, e.g., 'Raipur, Chhattisgarh')",
+  "deliveryCity": "String (city name ONLY, e.g., 'Raipur')",
+  "deliveryState": "String (state name ONLY, e.g., 'Chhattisgarh')",
+  "deliveryPincode": "String (6-digit Indian pincode if mentioned or null)",
+  "deliveryDate": "String (requested delivery date in ISO YYYY-MM-DD format e.g. '2026-08-20'. Convert dates like '20-August-2026', '20-Aug-2026', '20/08/2026', '20-08-2026', 'August 20, 2026' into YYYY-MM-DD. If missing, return null)",
+  "category": "String (explicit product/project category if mentioned in email e.g. 'Construction', 'Electrical', or null if not mentioned)",
+  "items": [
+    {
+      "itemDescription": "String (main product/material name ONLY, e.g., 'Conveyor Belt'. DO NOT use part numbers like 'CB-800-EP315' as itemDescription if the material name is available)",
+      "partCode": "String (part number or model/item code if present, e.g., 'CB-800-EP315')",
+      "specification": "String (complete detailed technical specifications comma-separated, e.g., '800 mm Width, EP315/3, Heat Resistant, 6 mm Top Cover')",
+      "quantity": Double (numeric quantity only, e.g., 250.0. If quantity is NOT explicitly mentioned as a number in the email, set to null. DO NOT guess, invent, or assume a quantity),
+      "uom": "String (Unit of Measure, e.g., 'tons', 'NOS', 'MTR', 'KG', 'PCS')",
+      "brand": "String (preferred brand/make or 'Not Specified' if missing)"
+    }
+  ]
+}
+
+STRICT EXTRACTION RULES:
+1. Extract ALL distinct RFQ line items mentioned in the email into the "items" array. If multiple items, models, or variants are listed, create a SEPARATE object in the "items" array for EVERY line item. Do NOT combine multiple line items into a single item.
+2. itemDescription MUST be the main material or product name (e.g. "Conveyor Belt" or "Laptop"). If "Material: ..." is listed, use that as itemDescription. Put part numbers (e.g. "CB-800-EP315") into "partCode".
+3. specification MUST contain all technical parameters, dimensions, grades, and specs specified in the email for that item.
+4. deliveryCity and deliveryState MUST be extracted accurately from Delivery Location or Pincode if present. If delivery location is missing, set deliveryLocation = null, deliveryCity = null, deliveryState = null.
+5. deliveryDate MUST be converted to YYYY-MM-DD ISO format (e.g. "2026-08-20"). If missing, return null.
+6. category MUST be extracted if explicitly mentioned in the email text. Do NOT invent broad category names if not explicitly mentioned.
+7. IGNORE footers, disclaimers, email signatures, commercial/payment terms, and social links.
+8. IF Quantity is not explicitly present as a number in the text/attachment for an item, set quantity = null. DO NOT invent or assume quantity.
+
+EMAIL SUBJECT:
+${subject}
+
+EMAIL BODY:
+${body}
+
+EMAIL ATTACHMENT TEXT:
+${attachmentText}
+
+Respond ONLY with valid raw JSON. Do not include markdown code blocks (```json ... ```), preamble, or extra explanations.

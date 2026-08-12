@@ -67,6 +67,10 @@ public interface UserService {
 
 	Organization getSellerByEmail(User user);
 
+	Organization getBuyerByEmail(User user);
+
+	User getBuyerUserByEmail(User user);
+
 	SimplePageResponse<VendorSummaryResponse> getVendorSummary(int page, int size, String search, String sourceType);
 
 	List<VendorSummaryResponse> getVendorSummarySearchResults(String searchType, String searchValue);

@@ -5,6 +5,7 @@ import java.io.UnsupportedEncodingException;
 import java.net.http.HttpRequest;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -374,6 +375,59 @@ public class UserController {
 	        // If found, return actual organization
 	        return ResponseEntity.ok(org);
 	    }
+
+	    @PostMapping("/getBuyerByEmail")
+	    public ResponseEntity<?> getBuyerByEmail(@RequestBody User user) {
+
+	        String email = (user != null && user.getUsername() != null) ? user.getUsername() : (user != null ? user.getEmail() : null);
+
+	        if (email == null || email.trim().isEmpty()) {
+	            Map<String, Object> response = new LinkedHashMap<>();
+	            response.put("code", "01");
+	            response.put("name", null);
+	            response.put("description", "User email is required");
+	            response.put("userId", null);
+	            response.put("orgId", null);
+	            response.put("mobileNo", null);
+	            response.put("phone", null);
+	            response.put("status", "Failure");
+	            return ResponseEntity.ok(response);
+	        }
+
+	        User userData = userServices.getBuyerUserByEmail(user);
+
+	        if (userData == null) {
+	            Map<String, Object> response = new LinkedHashMap<>();
+	            response.put("code", "01");
+	            response.put("name", null);
+	            response.put("description", "User Not Found");
+	            response.put("userId", null);
+	            response.put("orgId", null);
+	            response.put("mobileNo", null);
+	            response.put("phone", null);
+	            response.put("status", "Failure");
+	            return ResponseEntity.ok(response);
+	        }
+
+	        String name = userData.getFullName() != null && !userData.getFullName().isEmpty() 
+	                ? userData.getFullName() 
+	                : (userData.getFirstName() != null ? userData.getFirstName() : userData.getUsername());
+
+	        String orgId = userData.getOrg() != null ? userData.getOrg().getId() : null;
+	        String phone = userData.getPhone() != null ? userData.getPhone() : null;
+
+	        Map<String, Object> response = new LinkedHashMap<>();
+	        response.put("code", "00");
+	        response.put("name", name);
+	        response.put("description", "User Fetched Successfully");
+	        response.put("userId", userData.getId());
+	        response.put("orgId", orgId);
+	        response.put("mobileNo", phone);
+	        response.put("phone", phone);
+	        response.put("status", "Success");
+
+	        return ResponseEntity.ok(response);
+	    }
 	    
 	    @GetMapping("/vendorSummarySearch")
 		public ResponseEntity<Map<String, Object>> getVendorSummarySearchResults(@RequestParam String searchType,@RequestParam String searchValue){
@@ -442,8 +496,8 @@ public class UserController {
 	    		
 	    	}
 	    	
-	    @PostMapping("/getBuyerByEmail")
-	    public ResponseEntity<MessageResponse> getBuyerByEmail(
+	    @PostMapping("/getBuyerMessageByEmail")
+	    public ResponseEntity<MessageResponse> getBuyerMessageByEmail(
 	            @RequestBody User request) {
 
 	        return userServices.getBuyerByEmail(request.getUsername());

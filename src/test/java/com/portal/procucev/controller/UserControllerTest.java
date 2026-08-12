@@ -399,4 +399,69 @@ class UserControllerTest {
         ResponseEntity<?> resp2 = controller.saveUserActivities(new UserActivityDto(), req);
         assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, resp2.getStatusCode());
     }
+
+    @Test
+    void testSaveAuth_Scenarios() {
+        EmailUser eu = new EmailUser();
+        eu.setEmail("existing@test.com");
+
+        when(emailUserRepo.findByEmail("existing@test.com")).thenReturn(eu);
+        ResponseEntity<?> resp1 = controller.saveEmailUser(eu);
+        assertEquals(HttpStatus.OK, resp1.getStatusCode());
+
+        EmailUser newEu = new EmailUser();
+        newEu.setEmail("new@test.com");
+        when(emailUserRepo.findByEmail("new@test.com")).thenReturn(null);
+        when(userServices.saveEmailuser(newEu)).thenReturn(true);
+        ResponseEntity<?> resp2 = controller.saveEmailUser(newEu);
+        assertEquals(HttpStatus.OK, resp2.getStatusCode());
+
+        when(emailUserRepo.findByEmail(any())).thenThrow(new RuntimeException("DB Exception"));
+        ResponseEntity<?> resp3 = controller.saveEmailUser(newEu);
+        assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, resp3.getStatusCode());
+    }
+
+    @Test
+    void testUpdateAuthAndDisableUser() {
+        EmailUser eu = new EmailUser();
+        when(userServices.updateEmailUserPswd(any())).thenReturn(true);
+        ResponseEntity<?> resp1 = controller.updateEmailUserPswd(eu);
+        assertEquals(HttpStatus.OK, resp1.getStatusCode());
+
+        when(userServices.disableUser(any())).thenReturn(true);
+        ResponseEntity<?> resp2 = controller.disableUser(user);
+        assertEquals(HttpStatus.OK, resp2.getStatusCode());
+    }
+
+    @Test
+    void testSendOtpAndValidateOtp() throws Exception {
+        HttpServletRequest req = mock(HttpServletRequest.class);
+        when(userServices.generateOtp(any(), any())).thenReturn(true);
+        ResponseEntity<?> resp1 = controller.sendOtp(org, req);
+        assertEquals(HttpStatus.OK, resp1.getStatusCode());
+
+        when(userServices.generateOtp(any(), any())).thenReturn(false);
+        ResponseEntity<?> resp2 = controller.sendOtp(org, req);
+        assertEquals(HttpStatus.NOT_FOUND, resp2.getStatusCode());
+
+        when(userServices.validateEmailOtp(any())).thenReturn(true);
+        ResponseEntity<?> resp3 = controller.validateOtp(org);
+        assertEquals(HttpStatus.OK, resp3.getStatusCode());
+
+        when(userServices.validateEmailOtp(any())).thenReturn(false);
+        ResponseEntity<?> resp4 = controller.validateOtp(org);
+        assertEquals(HttpStatus.BAD_REQUEST, resp4.getStatusCode());
+    }
+
+    @Test
+    void testUpdateSeller() {
+        when(userServices.updateOrganization(any())).thenReturn(true);
+        ResponseEntity<?> resp1 = controller.updateOrganization(org);
+        assertEquals(HttpStatus.OK, resp1.getStatusCode());
+
+        when(userServices.updateOrganization(any())).thenReturn(false);
+        ResponseEntity<?> resp2 = controller.updateOrganization(org);
+        assertEquals(HttpStatus.OK, resp2.getStatusCode());
+    }
 }
+

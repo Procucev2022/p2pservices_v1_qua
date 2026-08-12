@@ -1088,6 +1088,40 @@ public class ProcUserServiceImpl implements UserService {
 	}
 
 	@Override
+	public User getBuyerUserByEmail(User user) {
+		if (user == null) {
+			log.warn("User object is null");
+			return null;
+		}
+
+		String email = user.getUsername() != null ? user.getUsername() : user.getEmail();
+		log.info("Fetching buyer details by email: {}", email);
+
+		if (email == null || email.trim().isEmpty()) {
+			log.warn("Buyer email is null or empty");
+			return null;
+		}
+
+		List<User> matchingUsers = userDao.findActiveUsersByUsernameAndRoleNames(
+				email.trim(),
+				List.of(StatusConstants.ClientInitiator, StatusConstants.Clientrole));
+		User userData = matchingUsers.isEmpty() ? null : matchingUsers.get(0);
+
+		if (userData == null) {
+			log.warn("No active user found for email: {}", email);
+			return null;
+		}
+
+		return userData;
+	}
+
+	@Override
+	public Organization getBuyerByEmail(User user) {
+		User buyerUser = getBuyerUserByEmail(user);
+		return buyerUser != null ? buyerUser.getOrg() : null;
+	}
+
+	@Override
 	public List<VendorSummaryResponse> getVendorSummarySearchResults(String searchType, String searchValue) {
 
 		// Step 1: Vendor Org Type

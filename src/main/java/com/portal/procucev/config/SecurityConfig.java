@@ -35,8 +35,11 @@ public class SecurityConfig {
     	 http.cors(cors -> cors.configurationSource(corsConfigurationSource))
         .csrf(csrf -> csrf.disable())
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/", "/error", "/authenticate", "/mobile/**", "/partialvendor/**","/automate/**","/api/zoho/webhook/**").permitAll()
-                        .requestMatchers("/rest/**").authenticated()
+                .requestMatchers("/", "/error", "/authenticate", "/mobile/**", "/partialvendor/**",
+                        "/automate/validateEmail", "/api/zoho/webhook/**").permitAll()
+                .requestMatchers("/automate/raiseRfq").authenticated()
+                .requestMatchers("/rfq/email/process").hasAnyAuthority("ROLE_ADMIN", "ADMIN", "ROLE_OPERATIONS", "OPERATIONS")
+                .requestMatchers("/rfq/email/**").authenticated()
                 )
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS));
         http.addFilterBefore(jwtRequestFilter, UsernamePasswordAuthenticationFilter.class);
