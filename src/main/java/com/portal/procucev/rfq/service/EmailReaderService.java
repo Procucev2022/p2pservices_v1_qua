@@ -30,7 +30,7 @@ public class EmailReaderService {
     @Value("${app.mail.username:rfq@procucev.com}")
     private String mailUsername;
 
-    @Value("${app.mail.password}")
+    @Value("${app.mail.password:}")
     private String mailPassword;
 
     @Value("${app.mail.port:993}")
@@ -46,6 +46,11 @@ public class EmailReaderService {
     private long maxAttachmentBytes = 26214400L;
 
     public List<EmailData> fetchUnreadEmails() {
+        if (mailPassword == null || mailPassword.isBlank()) {
+            throw new ApplicationException(
+                    "Mailbox password is not configured. Set the EMAIL_PASSWORD environment variable "
+                            + "(or the app.mail.password property) to enable email-to-RFQ processing.");
+        }
         log.info("Connecting to IMAP server ({}) for user: {}", mailHost, mailUsername);
         List<EmailData> emailsList = new ArrayList<>();
         Store store = null;
