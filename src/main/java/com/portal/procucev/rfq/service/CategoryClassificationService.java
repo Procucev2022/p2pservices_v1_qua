@@ -48,18 +48,6 @@ public class CategoryClassificationService {
             return;
         }
 
-        // Step 0b: Check if top-level extractedCategory is non-generic
-        if (extractedCategory != null && !extractedCategory.isBlank() && !extractedCategory.equalsIgnoreCase("null") && !isGenericCategory(extractedCategory)) {
-            String cleanCat = extractedCategory.trim();
-            item.setCategory(cleanCat);
-            item.setDivision(cleanCat);
-            item.setCategoryConfidence(0.95);
-            item.setClassificationStatus("AI_EXTRACTED");
-            log.info("Classified item '{}' -> Category: '{}' (From explicit Email/AI extraction)",
-                    item.getItemDescription(), cleanCat);
-            return;
-        }
-
         String desc = item.getItemDescription() != null ? item.getItemDescription().toLowerCase() : "";
         String spec = item.getSpecification() != null ? item.getSpecification().toLowerCase() : "";
         String brand = item.getBrand() != null ? item.getBrand().toLowerCase() : "";

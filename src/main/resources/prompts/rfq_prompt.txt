@@ -4,20 +4,23 @@ Analyze the following email content and extract structured RFQ details into a SI
 
 {
   "buyerEmail": "String (the sender's email or extracted email)",
-  "deliveryLocation": "String (full delivery address/location, e.g., 'Raipur, Chhattisgarh')",
+  "deliveryLocation": "String (default top-level delivery location if item-level location is not specified, e.g., 'Raipur, Chhattisgarh')",
   "deliveryCity": "String (city name ONLY, e.g., 'Raipur')",
   "deliveryState": "String (state name ONLY, e.g., 'Chhattisgarh')",
   "deliveryPincode": "String (6-digit Indian pincode if mentioned or null)",
-  "deliveryDate": "String (requested delivery date in ISO YYYY-MM-DD format e.g. '2026-08-20'. Convert dates like '20-August-2026', '20-Aug-2026', '20/08/2026', '20-08-2026', 'August 20, 2026' into YYYY-MM-DD. If missing, return null)",
-  "category": "String (explicit product/project category if mentioned in email e.g. 'Construction', 'Electrical', or null if not mentioned)",
+  "deliveryDate": "String (default top-level delivery date in ISO YYYY-MM-DD format e.g. '2026-08-20'. If missing, return null)",
+  "category": "String (general email category or null)",
   "items": [
     {
-      "itemDescription": "String (main product/material name ONLY, e.g., 'Conveyor Belt'. DO NOT use part numbers like 'CB-800-EP315' as itemDescription if the material name is available)",
+      "itemDescription": "String (main product/material name ONLY, e.g., 'Dell Latitude 5450 Laptop' or 'Conveyor Belt')",
+      "category": "String (item-specific category if mentioned e.g., 'Laptop', 'Medical', 'Electrical', 'Construction', 'Pipes', or null if missing)",
       "partCode": "String (part number or model/item code if present, e.g., 'CB-800-EP315')",
-      "specification": "String (complete detailed technical specifications comma-separated, e.g., '800 mm Width, EP315/3, Heat Resistant, 6 mm Top Cover')",
-      "quantity": Double (numeric quantity only, e.g., 250.0. If quantity is NOT explicitly mentioned as a number in the email, set to null. DO NOT guess, invent, or assume a quantity),
-      "uom": "String (Unit of Measure, e.g., 'tons', 'NOS', 'MTR', 'KG', 'PCS')",
-      "brand": "String (preferred brand/make or 'Not Specified' if missing)"
+      "specification": "String (complete detailed technical specifications comma-separated)",
+      "quantity": Double (numeric quantity only, e.g., 10.0. If quantity is NOT explicitly mentioned as a number in the email, set to null. DO NOT guess, invent, or assume a quantity),
+      "uom": "String (Unit of Measure, e.g., 'Bags', 'NOS', 'MTR', 'KG', 'PCS', 'Meters')",
+      "brand": "String (preferred brand/make or 'Not Specified' if missing)",
+      "deliveryDate": "String (item-specific requested delivery date e.g. '2026-09-30' or '30-Sep-2026' or null if missing)",
+      "deliveryLocation": "String (item-specific delivery location e.g. 'Bengaluru, Karnataka' or null if missing)"
     }
   ]
 }

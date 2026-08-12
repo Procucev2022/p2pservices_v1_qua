@@ -310,43 +310,26 @@ public class AcknowledgementEmailService {
     private String buildConsolidatedSuccessEmailBody(List<RFQEntity> rfqEntities, String buyerName) {
         StringBuilder sb = new StringBuilder();
         sb.append("Dear ").append(buyerName).append(",\n\n");
-        sb.append("Thank you for submitting your Request for Quotations (RFQs).\n");
-        sb.append("We are pleased to inform you that ").append(rfqEntities.size())
-                .append(" separate RFQs have been successfully created in our procurement system based on your category and location requirements.\n\n");
+        sb.append("Thank you for submitting your Request for Quotation.\n\n");
+        sb.append("Your email has been successfully processed and the following RFQs have been created:\n\n");
 
         for (int r = 0; r < rfqEntities.size(); r++) {
             RFQEntity rfqEntity = rfqEntities.get(r);
             List<RFQItem> items = parseItemsJson(rfqEntity.getItemsJson());
 
-            sb.append("--------------------------------------------------\n");
-            sb.append("RFQ #").append(r + 1).append(" DETAILS\n");
-            sb.append("--------------------------------------------------\n");
-            sb.append("RFQ Number:\n").append(rfqEntity.getRfqNumber()).append("\n\n");
-            sb.append("Delivery Date:\n").append(rfqEntity.getDeliveryDate() != null ? rfqEntity.getDeliveryDate() : "N/A").append("\n\n");
-            sb.append("Delivery Location:\n").append(rfqEntity.getDeliveryLocation() != null ? rfqEntity.getDeliveryLocation() : "N/A").append("\n\n");
-
-            if (!items.isEmpty()) {
-                sb.append("Items:\n");
-                for (int i = 0; i < items.size(); i++) {
-                    RFQItem item = items.get(i);
-                    sb.append("  ").append(i + 1).append(". ")
-                            .append(item.getItemDescription() != null ? item.getItemDescription() : "Item")
-                            .append(" | Qty: ").append(item.getQuantity() != null ? item.getQuantity().intValue() : 1)
-                            .append(" ").append(item.getUom() != null ? item.getUom() : "Nos");
-                    if (item.getCategory() != null) {
-                        sb.append(" | Category: ").append(item.getCategory());
-                    }
-                    sb.append("\n");
+            sb.append(r + 1).append(". ").append(rfqEntity.getRfqNumber()).append("\n");
+            if (items != null && !items.isEmpty()) {
+                RFQItem first = items.get(0);
+                if (first.getCategory() != null && !first.getCategory().isBlank()) {
+                    sb.append("   Category: ").append(first.getCategory()).append("\n");
                 }
+                sb.append("   Item: ").append(first.getItemDescription() != null ? first.getItemDescription() : "Item").append("\n");
+                sb.append("   Quantity: ").append(first.getQuantity() != null ? first.getQuantity().intValue() : 1)
+                        .append(" ").append(first.getUom() != null ? first.getUom() : "Nos").append("\n");
             }
-            sb.append("\n");
+            sb.append("   Delivery Location: ").append(rfqEntity.getDeliveryLocation() != null ? rfqEntity.getDeliveryLocation() : "N/A").append("\n");
+            sb.append("   Delivery Date: ").append(rfqEntity.getDeliveryDate() != null ? rfqEntity.getDeliveryDate() : "N/A").append("\n\n");
         }
-
-        sb.append("--------------------------------------------------\n");
-        sb.append("NEXT STEPS\n");
-        sb.append("--------------------------------------------------\n");
-        sb.append("1. You can track the status of these RFQs in your buyer portal.\n");
-        sb.append("2. You will receive follow-up updates on these RFQs shortly.\n\n");
 
         sb.append("If you have any questions or need to make changes, please reply to this email.\n\n");
         sb.append("Best regards,\n");
