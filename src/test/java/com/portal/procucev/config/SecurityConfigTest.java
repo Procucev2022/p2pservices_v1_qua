@@ -28,8 +28,6 @@ class SecurityConfigTest {
 
     @Mock
     private JwtRequestFilter jwtRequestFilter;
-    @Mock
-    private CorsConfigurationSource corsConfigurationSource;
 
     @InjectMocks
     private SecurityConfig securityConfig;
@@ -71,6 +69,12 @@ class SecurityConfigTest {
 
         SecurityFilterChain result = securityConfig.filterChain(http);
         assertNotNull(result);
+    }
+
+    @Test
+    void testCorsConfigurationSource() {
+        CorsConfigurationSource source = securityConfig.corsConfigurationSource();
+        assertNotNull(source);
     }
 
     @Test
