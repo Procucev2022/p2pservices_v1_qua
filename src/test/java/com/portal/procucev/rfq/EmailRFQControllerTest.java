@@ -13,6 +13,8 @@ import org.mockito.Mockito;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 
+import org.springframework.security.core.userdetails.UserDetails;
+
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -47,15 +49,20 @@ public class EmailRFQControllerTest {
     @Test
     @DisplayName("Test getRfqByNumber endpoint found and not found")
     void testGetRfqByNumber() {
-        RFQEntity entity = RFQEntity.builder().rfqNumber("RFQ-100").build();
-        Mockito.when(rfqRepository.findByRfqNumber("RFQ-100")).thenReturn(Optional.of(entity));
-        Mockito.when(rfqRepository.findByRfqNumber("RFQ-NOT-FOUND")).thenReturn(Optional.empty());
+        UserDetails userDetails = Mockito.mock(UserDetails.class);
+        Mockito.when(userDetails.getUsername()).thenReturn("buyer@example.com");
 
-        ResponseEntity<ApiResponse<RFQEntity>> foundResp = controller.getRfqByNumber("RFQ-100");
+        RFQEntity entity = RFQEntity.builder().rfqNumber("RFQ-100").buyerEmail("buyer@example.com").build();
+        Mockito.when(rfqRepository.findByRfqNumberAndBuyerEmailIgnoreCase("RFQ-100", "buyer@example.com"))
+                .thenReturn(Optional.of(entity));
+        Mockito.when(rfqRepository.findByRfqNumberAndBuyerEmailIgnoreCase("RFQ-NOT-FOUND", "buyer@example.com"))
+                .thenReturn(Optional.empty());
+
+        ResponseEntity<ApiResponse<RFQEntity>> foundResp = controller.getRfqByNumber("RFQ-100", userDetails);
         assertEquals(HttpStatus.OK, foundResp.getStatusCode());
         assertEquals("RFQ-100", foundResp.getBody().getData().getRfqNumber());
 
-        ResponseEntity<ApiResponse<RFQEntity>> notFoundResp = controller.getRfqByNumber("RFQ-NOT-FOUND");
+        ResponseEntity<ApiResponse<RFQEntity>> notFoundResp = controller.getRfqByNumber("RFQ-NOT-FOUND", userDetails);
         assertEquals(HttpStatus.NOT_FOUND, notFoundResp.getStatusCode());
         assertFalse(notFoundResp.getBody().isSuccess());
     }
