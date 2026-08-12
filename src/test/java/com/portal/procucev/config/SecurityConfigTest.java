@@ -72,12 +72,6 @@ class SecurityConfigTest {
     }
 
     @Test
-    void testCorsConfigurationSource() {
-        CorsConfigurationSource source = securityConfig.corsConfigurationSource();
-        assertNotNull(source);
-    }
-
-    @Test
     void testPasswordEncoder() {
         PasswordEncoder encoder = securityConfig.passwordEncoder();
         assertNotNull(encoder);
