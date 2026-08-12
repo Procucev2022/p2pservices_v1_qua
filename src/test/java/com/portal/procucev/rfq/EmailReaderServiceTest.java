@@ -36,6 +36,7 @@ public class EmailReaderServiceTest {
         ReflectionTestUtils.setField(service, "mailPort", 993);
         ReflectionTestUtils.setField(service, "inboxFolder", "INBOX");
         ReflectionTestUtils.setField(service, "attachmentDirectory", tempDir.toAbsolutePath().toString());
+        ReflectionTestUtils.setField(service, "maxAttachmentBytes", 26214400L);
     }
 
     @Test

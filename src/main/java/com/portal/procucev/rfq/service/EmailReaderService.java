@@ -43,7 +43,7 @@ public class EmailReaderService {
     private String attachmentDirectory;
 
     @Value("${app.mail.max-attachment-bytes:26214400}")
-    private long maxAttachmentBytes;
+    private long maxAttachmentBytes = 26214400L;
 
     public List<EmailData> fetchUnreadEmails() {
         log.info("Connecting to IMAP server ({}) for user: {}", mailHost, mailUsername);

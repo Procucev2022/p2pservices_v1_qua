@@ -271,13 +271,16 @@ public class RFQBuilderService {
             }
         }
 
+        String orgIdVal = (buyer != null && buyer.getOrgId() != null && !buyer.getOrgId().isBlank()) ? buyer.getOrgId() : "1";
+        String userIdVal = (buyer != null && buyer.getUserId() != null && !buyer.getUserId().isBlank()) ? buyer.getUserId() : "1";
+
         RFQRequest request = RFQRequest.builder()
-                .createdBy(buyer.getName())
+                .createdBy(buyer != null && buyer.getName() != null ? buyer.getName() : "User")
                 .projectDesc(primaryDescription)
                 .deliveryDate(deliveryDate)
                 .noPrFlag(true)
-                .org(RFQRequest.OrgRef.builder().id(buyer.getOrgId()).build())
-                .user(buyer.getUserId())
+                .org(RFQRequest.OrgRef.builder().id(orgIdVal).build())
+                .user(userIdVal)
                 .sourceType("T")
                 .remarks("")
                 .clientdeliverylocationrfq(locations)
@@ -285,8 +288,8 @@ public class RFQBuilderService {
                 .vendors(new ArrayList<>())
                 .rfqDocument(rfqDocuments)
                 .rfqNumber(rfqNumber)
-                .buyerEmail(buyer.getEmail())
-                .token(buyer.getToken())
+                .buyerEmail(buyer != null ? buyer.getEmail() : null)
+                .token(buyer != null ? buyer.getToken() : null)
                 .build();
 
         log.info("Built RFQ Request Payload: RFQ Number={}, createdBy={}, projectDesc='{}'",
