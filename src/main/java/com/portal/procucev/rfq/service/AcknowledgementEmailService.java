@@ -23,8 +23,54 @@ public class AcknowledgementEmailService {
     private final JavaMailSender mailSender;
     private final ObjectMapper objectMapper;
 
-    @org.springframework.beans.factory.annotation.Value("${app.mail.from:rfq@procucev.com}")
-    private String mailFrom;
+    @org.springframework.beans.factory.annotation.Value("${rfq.acknowledgement.from:veerababu.v@procucev.com}")
+    private String mailFrom = "veerababu.v@procucev.com";
+
+    @org.springframework.beans.factory.annotation.Value("${rfq.acknowledgement.cc:support@procucev.com}")
+    private String mailCc = "support@procucev.com";
+
+    public void sendSuccessAcknowledgement(List<RFQEntity> rfqEntities, Buyer buyer) {
+        if (rfqEntities == null || rfqEntities.isEmpty()) {
+            log.error("Cannot send success acknowledgement: RFQEntity list is empty.");
+            return;
+        }
+
+        if (rfqEntities.size() == 1) {
+            sendSuccessAcknowledgement(rfqEntities.get(0), buyer);
+            return;
+        }
+
+        String buyerEmail = (buyer != null && buyer.getEmail() != null && !buyer.getEmail().isBlank())
+                ? buyer.getEmail() : rfqEntities.get(0).getBuyerEmail();
+
+        if (buyerEmail == null || buyerEmail.isBlank() || !buyerEmail.contains("@")) {
+            log.error("Cannot send success acknowledgement: Invalid recipient email '{}'", buyerEmail);
+            return;
+        }
+
+        log.info("Sending consolidated acknowledgement for {} RFQs to recipient: {}", rfqEntities.size(), buyerEmail);
+
+        try {
+            String buyerName = (buyer != null && buyer.getName() != null && !buyer.getName().isBlank())
+                    ? buyer.getName() : "Valued Customer";
+
+            SimpleMailMessage mailMessage = new SimpleMailMessage();
+            mailMessage.setFrom(mailFrom);
+            mailMessage.setTo(buyerEmail);
+            if (mailCc != null && !mailCc.isBlank()) {
+                mailMessage.setCc(mailCc.trim());
+            }
+            mailMessage.setSubject("RFQs Successfully Created (" + rfqEntities.size() + " RFQs)");
+
+            String body = buildConsolidatedSuccessEmailBody(rfqEntities, buyerName);
+            mailMessage.setText(body);
+
+            mailSender.send(mailMessage);
+            log.info("Consolidated success acknowledgement sent successfully for {} RFQs", rfqEntities.size());
+        } catch (Exception e) {
+            log.error("Failed to send consolidated success acknowledgement email to {}: {}", buyerEmail, e.getMessage());
+        }
+    }
 
     public void sendSuccessAcknowledgement(RFQEntity rfqEntity, Buyer buyer) {
         if (rfqEntity == null) {
@@ -50,6 +96,9 @@ public class AcknowledgementEmailService {
             SimpleMailMessage mailMessage = new SimpleMailMessage();
             mailMessage.setFrom(mailFrom);
             mailMessage.setTo(buyerEmail);
+            if (mailCc != null && !mailCc.isBlank()) {
+                mailMessage.setCc(mailCc.trim());
+            }
             mailMessage.setSubject("RFQ Successfully Created – " + rfqNumber);
 
             String body = buildSuccessEmailBody(rfqEntity, buyerName);
@@ -179,6 +228,40 @@ public class AcknowledgementEmailService {
         }
     }
 
+    public void sendDuplicateEmailAcknowledgement(String buyerEmail, String rawSubject) {
+        if (buyerEmail == null || buyerEmail.isBlank() || !buyerEmail.contains("@")) {
+            log.error("Cannot send duplicate email acknowledgement: Invalid recipient email '{}'", buyerEmail);
+            return;
+        }
+
+        log.info("Sending duplicate email acknowledgement to: {}", buyerEmail);
+
+        try {
+            SimpleMailMessage mailMessage = new SimpleMailMessage();
+            mailMessage.setFrom(mailFrom);
+            mailMessage.setTo(buyerEmail);
+            if (mailCc != null && !mailCc.isBlank()) {
+                mailMessage.setCc(mailCc.trim());
+            }
+            mailMessage.setSubject("Duplicate Request Received: " + (rawSubject != null && !rawSubject.isBlank() ? rawSubject : "RFQ Request"));
+
+            StringBuilder sb = new StringBuilder();
+            sb.append("Dear Valued Customer,\n\n");
+            sb.append("We received your email request, but our system detected that this request has already been received and processed.\n\n");
+            sb.append("To prevent duplicate RFQ creation, no new RFQ was generated for this duplicate submission.\n\n");
+            sb.append("If you have any questions or need further assistance, please contact customer support.\n\n");
+            sb.append("Best regards,\n");
+            sb.append("Customer Support Team\n");
+            sb.append("Procucev Platform\n");
+
+            mailMessage.setText(sb.toString());
+            mailSender.send(mailMessage);
+            log.info("Duplicate email acknowledgement sent successfully to: {}", buyerEmail);
+        } catch (Exception e) {
+            log.error("Failed to send duplicate email acknowledgement to {}: {}", buyerEmail, e.getMessage());
+        }
+    }
+
     private String buildSuccessEmailBody(RFQEntity rfqEntity, String buyerName) {
         List<RFQItem> items = parseItemsJson(rfqEntity.getItemsJson());
         StringBuilder sb = new StringBuilder();
@@ -215,6 +298,55 @@ public class AcknowledgementEmailService {
         sb.append("1. You can track the status of this RFQ in your buyer portal using RFQ Number: ")
                 .append(rfqEntity.getRfqNumber()).append("\n\n");
         sb.append("2. You will receive follow-up updates on this RFQ shortly.\n\n");
+
+        sb.append("If you have any questions or need to make changes, please reply to this email.\n\n");
+        sb.append("Best regards,\n");
+        sb.append("Procurement Operations Team\n");
+        sb.append("Procucev Platform\n");
+
+        return sb.toString();
+    }
+
+    private String buildConsolidatedSuccessEmailBody(List<RFQEntity> rfqEntities, String buyerName) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("Dear ").append(buyerName).append(",\n\n");
+        sb.append("Thank you for submitting your Request for Quotations (RFQs).\n");
+        sb.append("We are pleased to inform you that ").append(rfqEntities.size())
+                .append(" separate RFQs have been successfully created in our procurement system based on your category and location requirements.\n\n");
+
+        for (int r = 0; r < rfqEntities.size(); r++) {
+            RFQEntity rfqEntity = rfqEntities.get(r);
+            List<RFQItem> items = parseItemsJson(rfqEntity.getItemsJson());
+
+            sb.append("--------------------------------------------------\n");
+            sb.append("RFQ #").append(r + 1).append(" DETAILS\n");
+            sb.append("--------------------------------------------------\n");
+            sb.append("RFQ Number:\n").append(rfqEntity.getRfqNumber()).append("\n\n");
+            sb.append("Delivery Date:\n").append(rfqEntity.getDeliveryDate() != null ? rfqEntity.getDeliveryDate() : "N/A").append("\n\n");
+            sb.append("Delivery Location:\n").append(rfqEntity.getDeliveryLocation() != null ? rfqEntity.getDeliveryLocation() : "N/A").append("\n\n");
+
+            if (!items.isEmpty()) {
+                sb.append("Items:\n");
+                for (int i = 0; i < items.size(); i++) {
+                    RFQItem item = items.get(i);
+                    sb.append("  ").append(i + 1).append(". ")
+                            .append(item.getItemDescription() != null ? item.getItemDescription() : "Item")
+                            .append(" | Qty: ").append(item.getQuantity() != null ? item.getQuantity().intValue() : 1)
+                            .append(" ").append(item.getUom() != null ? item.getUom() : "Nos");
+                    if (item.getCategory() != null) {
+                        sb.append(" | Category: ").append(item.getCategory());
+                    }
+                    sb.append("\n");
+                }
+            }
+            sb.append("\n");
+        }
+
+        sb.append("--------------------------------------------------\n");
+        sb.append("NEXT STEPS\n");
+        sb.append("--------------------------------------------------\n");
+        sb.append("1. You can track the status of these RFQs in your buyer portal.\n");
+        sb.append("2. You will receive follow-up updates on these RFQs shortly.\n\n");
 
         sb.append("If you have any questions or need to make changes, please reply to this email.\n\n");
         sb.append("Best regards,\n");

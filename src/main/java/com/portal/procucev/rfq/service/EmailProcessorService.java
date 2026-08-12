@@ -101,6 +101,7 @@ public class EmailProcessorService {
 
         if (normalizedSender.contains("notification")
                 || normalizedSender.equalsIgnoreCase("rfq@procucev.com")
+                || normalizedSender.equalsIgnoreCase("veerababu.v@procucev.com")
                 || normalizedSender.contains("invitations@procucev.com")
                 || normalizedSender.contains("gmtrfq@procucev.com")
                 || normalizedSender.contains("no-reply")
@@ -112,6 +113,7 @@ public class EmailProcessorService {
 
         if (emailTransactionRepository.findByMessageId(email.getMessageId()).isPresent()) {
             log.warn("Duplicate Email detected (Message-ID: {}). Skipping.", email.getMessageId());
+            acknowledgementEmailService.sendDuplicateEmailAcknowledgement(normalizedSender, email.getSubject());
             emailReaderService.moveMessageToFolder(email.getMessageId(), processedFolder);
             return "SKIPPED";
         }
@@ -252,16 +254,25 @@ public class EmailProcessorService {
                 return "VALIDATION_FAILED";
             }
 
-            // STEP 5: ITEM GROUPING, CLASSIFICATION & RFQ CREATION FOR VALIDATED BUYER
-            Map<String, List<RFQItem>> itemGroups = groupItemsByLocationAndDate(validItems, topDeliveryLocation, topDeliveryDate);
-            boolean atLeastOneSuccess = false;
+            // STEP 5: ITEM CLASSIFICATION & GROUPING BY CATEGORY, LOCATION & DATE
+            categoryClassificationService.classifyItems(validItems, extractedRFQ.getCategory());
+            for (RFQItem item : validItems) {
+                log.info("Category assigned to item '{}': '{}' (Division: '{}')",
+                        item.getItemDescription(), item.getCategory(), item.getDivision());
+            }
+
+            Map<String, List<RFQItem>> itemGroups = groupItemsByCategoryLocationAndDate(validItems, topDeliveryLocation, topDeliveryDate);
+            List<RFQEntity> createdRfqs = new ArrayList<>();
             boolean hasFailures = false;
 
             for (Map.Entry<String, List<RFQItem>> groupEntry : itemGroups.entrySet()) {
                 List<RFQItem> groupItems = groupEntry.getValue();
 
-                String groupLocation = groupItems.get(0).getDeliveryLocation() != null
+                String groupCategory = groupItems.get(0).getCategory() != null && !groupItems.get(0).getCategory().isBlank()
+                        ? groupItems.get(0).getCategory() : extractedRFQ.getCategory();
+                String rawGroupLocation = groupItems.get(0).getDeliveryLocation() != null
                         ? groupItems.get(0).getDeliveryLocation() : topDeliveryLocation;
+                String groupLocation = resolveDeliveryLocation(rawGroupLocation, buyer);
                 String groupDate = groupItems.get(0).getDeliveryDate() != null
                         ? groupItems.get(0).getDeliveryDate() : topDeliveryDate;
 
@@ -272,24 +283,17 @@ public class EmailProcessorService {
                         .deliveryState(extractedRFQ.getDeliveryState())
                         .deliveryPincode(extractedRFQ.getDeliveryPincode())
                         .deliveryDate(groupDate)
-                        .category(extractedRFQ.getCategory())
+                        .category(groupCategory)
                         .items(groupItems)
                         .build();
-
-                categoryClassificationService.classifyItems(groupItems, extractedRFQ.getCategory());
-                for (RFQItem item : groupItems) {
-                    log.info("Category assigned to item '{}': '{}' (Division: '{}')",
-                            item.getItemDescription(), item.getCategory(), item.getDivision());
-                }
 
                 RFQRequest rfqRequest = rfqBuilderService.buildRFQRequest(groupExtractedRFQ, buyer, email.getSubject(), email.getAttachments());
                 String generatedRfqNumber = rfqRequest.getRfqNumber();
 
-                log.info("Creating RFQ for buyerId={}", buyer.getUserId());
+                log.info("Creating RFQ for buyerId={}, Category='{}', Location='{}'", buyer.getUserId(), groupCategory, groupLocation);
                 RFQResponse apiResponse = rfqApiService.submitRFQ(rfqRequest);
 
                 if ("SUCCESS".equalsIgnoreCase(apiResponse.getStatus())) {
-                    atLeastOneSuccess = true;
                     log.info("RFQ created successfully: rfqId={}", generatedRfqNumber);
 
                     RFQEntity rfqEntity = RFQEntity.builder()
@@ -303,6 +307,7 @@ public class EmailProcessorService {
                             .build();
 
                     RFQEntity savedRfq = rfqRepository.save(rfqEntity);
+                    createdRfqs.add(savedRfq);
 
                     for (RFQItem item : groupItems) {
                         try {
@@ -321,8 +326,6 @@ public class EmailProcessorService {
                             log.warn("Could not save RFQ item record: {}", ex.getMessage());
                         }
                     }
-
-                    acknowledgementEmailService.sendSuccessAcknowledgement(savedRfq, buyer);
                 } else {
                     hasFailures = true;
                     log.warn("RFQ creation failed for RFQ Number: {}", generatedRfqNumber);
@@ -330,6 +333,12 @@ public class EmailProcessorService {
                     acknowledgementEmailService.sendFailureAcknowledgement(failedReq, buyer);
                 }
             }
+
+            if (!createdRfqs.isEmpty()) {
+                acknowledgementEmailService.sendSuccessAcknowledgement(createdRfqs, buyer);
+            }
+
+            boolean atLeastOneSuccess = !createdRfqs.isEmpty();
 
             if (atLeastOneSuccess && !hasFailures) {
                 emailReaderService.moveMessageToFolder(email.getMessageId(), processedFolder);
@@ -403,15 +412,17 @@ public class EmailProcessorService {
         return value == null ? "" : value.trim().toLowerCase();
     }
 
-    private Map<String, List<RFQItem>> groupItemsByLocationAndDate(List<RFQItem> items, String defaultLoc, String defaultDate) {
+    private Map<String, List<RFQItem>> groupItemsByCategoryLocationAndDate(List<RFQItem> items, String defaultLoc, String defaultDate) {
         Map<String, List<RFQItem>> groups = new LinkedHashMap<>();
         for (RFQItem item : items) {
+            String cat = item.getCategory() != null && !item.getCategory().isBlank()
+                    ? item.getCategory().trim() : "General";
             String loc = item.getDeliveryLocation() != null && !item.getDeliveryLocation().isBlank()
                     ? item.getDeliveryLocation().trim() : defaultLoc;
             String date = item.getDeliveryDate() != null && !item.getDeliveryDate().isBlank()
                     ? item.getDeliveryDate().trim() : defaultDate;
 
-            String groupKey = loc.toLowerCase() + "|" + date.toLowerCase();
+            String groupKey = cat.toLowerCase() + "|" + loc.toLowerCase() + "|" + date.toLowerCase();
             groups.computeIfAbsent(groupKey, k -> new ArrayList<>()).add(item);
         }
         return groups;
@@ -460,5 +471,22 @@ public class EmailProcessorService {
                 .reasonForFailure(reason)
                 .processingReference(email.getMessageId())
                 .build();
+    }
+
+    private String resolveDeliveryLocation(String extractedLoc, Buyer buyer) {
+        if (extractedLoc != null && !extractedLoc.isBlank() && !extractedLoc.equalsIgnoreCase("Not Specified")) {
+            return extractedLoc.trim();
+        }
+        List<String> parts = new ArrayList<>();
+        if (buyer != null) {
+            if (buyer.getAddress() != null && !buyer.getAddress().isBlank()) parts.add(buyer.getAddress().trim());
+            if (buyer.getCity() != null && !buyer.getCity().isBlank()) parts.add(buyer.getCity().trim());
+            if (buyer.getState() != null && !buyer.getState().isBlank()) parts.add(buyer.getState().trim());
+            if (buyer.getPincode() != null && !buyer.getPincode().isBlank()) parts.add(buyer.getPincode().trim());
+        }
+        if (!parts.isEmpty()) {
+            return String.join(", ", parts);
+        }
+        return "Registered Profile Address";
     }
 }

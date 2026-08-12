@@ -94,6 +94,10 @@ public class RFQBuilderService {
         }
 
         String locStr = extractedRFQ.getDeliveryLocation() != null ? extractedRFQ.getDeliveryLocation().trim() : "";
+        if (locStr.equalsIgnoreCase("Not Specified") || locStr.equalsIgnoreCase("NotSpecified") || locStr.equalsIgnoreCase("N/A")) {
+            locStr = "";
+        }
+
         if (!locStr.isBlank()) {
             java.util.regex.Matcher m = java.util.regex.Pattern.compile("\\b(\\d{6})\\b").matcher(locStr);
             if (m.find()) {
@@ -166,19 +170,22 @@ public class RFQBuilderService {
         }
 
         String address = locStr;
-        if (address.isBlank() && buyer != null && buyer.getAddress() != null && !buyer.getAddress().isBlank()) {
+        if ((address.isBlank() || address.equalsIgnoreCase("Not Specified")) && buyer != null && buyer.getAddress() != null && !buyer.getAddress().isBlank()) {
             address = buyer.getAddress().trim();
         }
 
         // Fallback to Buyer's Registered Profile Address if still missing
-        if (city.isBlank() && buyer != null && buyer.getCity() != null && !buyer.getCity().isBlank()) {
+        if ((city.isBlank() || city.equalsIgnoreCase("Not Specified")) && buyer != null && buyer.getCity() != null && !buyer.getCity().isBlank()) {
             city = buyer.getCity().trim();
         }
-        if (state.isBlank() && buyer != null && buyer.getState() != null && !buyer.getState().isBlank()) {
+        if ((state.isBlank() || state.equalsIgnoreCase("Not Specified")) && buyer != null && buyer.getState() != null && !buyer.getState().isBlank()) {
             state = buyer.getState().trim();
         }
-        if (pincode.isBlank() && buyer != null && buyer.getPincode() != null && !buyer.getPincode().isBlank()) {
+        if ((pincode.isBlank() || pincode.equalsIgnoreCase("Not Specified")) && buyer != null && buyer.getPincode() != null && !buyer.getPincode().isBlank()) {
             pincode = buyer.getPincode().trim();
+        }
+        if (address.isBlank() || address.equalsIgnoreCase("Not Specified")) {
+            address = "Registered Profile Address";
         }
 
         List<RFQRequest.LocationDto> locations = List.of(

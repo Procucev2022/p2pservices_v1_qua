@@ -8,13 +8,14 @@ import com.portal.procucev.rfq.service.AcknowledgementEmailService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
 
 import java.util.List;
 
-import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 
 public class AcknowledgementEmailServiceTest {
@@ -44,14 +45,26 @@ public class AcknowledgementEmailServiceTest {
         Buyer buyer = Buyer.builder().email("buyer@test.com").name("John").build();
 
         service.sendSuccessAcknowledgement(entity, buyer);
-        Mockito.verify(mailSender).send(any(SimpleMailMessage.class));
+
+        ArgumentCaptor<SimpleMailMessage> captor = ArgumentCaptor.forClass(SimpleMailMessage.class);
+        Mockito.verify(mailSender).send(captor.capture());
+        SimpleMailMessage sentMsg = captor.getValue();
+
+        assertEquals("veerababu.v@procucev.com", sentMsg.getFrom(), "Sender must be veerababu.v@procucev.com");
+        assertNotNull(sentMsg.getTo());
+        assertEquals("buyer@test.com", sentMsg.getTo()[0], "TO address must be validated buyer email");
+        assertNotNull(sentMsg.getCc());
+        assertEquals(1, sentMsg.getCc().length, "No duplicate CC should be present");
+        assertEquals("support@procucev.com", sentMsg.getCc()[0], "CC address must be support@procucev.com");
+        assertNotEquals("rfq@procucev.com", sentMsg.getFrom());
+        assertNotEquals("notification@procucev.com", sentMsg.getFrom());
     }
 
     @Test
     @DisplayName("Test sendSuccessAcknowledgement invalid scenarios")
     void testSendSuccessAcknowledgementInvalid() {
         // Null entity
-        assertDoesNotThrow(() -> service.sendSuccessAcknowledgement(null, null));
+        assertDoesNotThrow(() -> service.sendSuccessAcknowledgement((RFQEntity) null, null));
 
         // Invalid buyer email
         RFQEntity entity = RFQEntity.builder().rfqNumber("RFQ-101").buyerEmail("invalidemail").build();
@@ -268,6 +281,22 @@ public class AcknowledgementEmailServiceTest {
 
         service.sendSuccessAcknowledgement(entity, Buyer.builder().email("buyer@test.com").name("Test").build());
         Mockito.verify(mailSender).send(any(SimpleMailMessage.class));
+    }
+
+    @Test
+    @DisplayName("Test sendDuplicateEmailAcknowledgement sends email to buyer with CC to support")
+    void testSendDuplicateEmailAcknowledgement() {
+        service.sendDuplicateEmailAcknowledgement("buyer@test.com", "Duplicate Subject");
+
+        ArgumentCaptor<SimpleMailMessage> captor = ArgumentCaptor.forClass(SimpleMailMessage.class);
+        Mockito.verify(mailSender).send(captor.capture());
+        SimpleMailMessage sentMsg = captor.getValue();
+
+        assertEquals("veerababu.v@procucev.com", sentMsg.getFrom());
+        assertEquals("buyer@test.com", sentMsg.getTo()[0]);
+        assertNotNull(sentMsg.getCc());
+        assertEquals("support@procucev.com", sentMsg.getCc()[0]);
+        assertTrue(sentMsg.getSubject().contains("Duplicate Request Received"));
     }
 }
 

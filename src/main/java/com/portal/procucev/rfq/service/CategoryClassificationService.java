@@ -34,7 +34,22 @@ public class CategoryClassificationService {
     }
 
     private void classifySingleItem(RFQItem item, List<ExcelMasterDataLoader.MasterCategoryRecord> masterRecords, String extractedCategory) {
-        if (extractedCategory != null && !extractedCategory.isBlank() && !extractedCategory.equalsIgnoreCase("null")) {
+        // Step 0: Check if item itself has an explicit non-generic category
+        if (item.getCategory() != null && !item.getCategory().isBlank() && !isGenericCategory(item.getCategory())) {
+            String cleanCat = item.getCategory().trim();
+            item.setCategory(cleanCat);
+            if (item.getDivision() == null || item.getDivision().isBlank()) {
+                item.setDivision(cleanCat);
+            }
+            item.setCategoryConfidence(0.95);
+            item.setClassificationStatus("AI_EXTRACTED");
+            log.info("Classified item '{}' -> Category: '{}' (From item-level AI extraction)",
+                    item.getItemDescription(), cleanCat);
+            return;
+        }
+
+        // Step 0b: Check if top-level extractedCategory is non-generic
+        if (extractedCategory != null && !extractedCategory.isBlank() && !extractedCategory.equalsIgnoreCase("null") && !isGenericCategory(extractedCategory)) {
             String cleanCat = extractedCategory.trim();
             item.setCategory(cleanCat);
             item.setDivision(cleanCat);
@@ -44,9 +59,12 @@ public class CategoryClassificationService {
                     item.getItemDescription(), cleanCat);
             return;
         }
+
         String desc = item.getItemDescription() != null ? item.getItemDescription().toLowerCase() : "";
         String spec = item.getSpecification() != null ? item.getSpecification().toLowerCase() : "";
-        String combined = desc + " " + spec;
+        String brand = item.getBrand() != null ? item.getBrand().toLowerCase() : "";
+        String remarks = item.getRemarks() != null ? item.getRemarks().toLowerCase() : "";
+        String combined = desc + " " + spec + " " + brand + " " + remarks;
 
         // Step 1: Check Domain Keyword Map FIRST for high-accuracy category classification
         for (java.util.Map.Entry<String, String> entry : DOMAIN_KEYWORD_MAP.entrySet()) {
@@ -95,6 +113,18 @@ public class CategoryClassificationService {
             item.setCategoryConfidence(0.5);
             item.setClassificationStatus("DEFAULT");
         }
+    }
+
+    private boolean isGenericCategory(String cat) {
+        if (cat == null || cat.isBlank()) return true;
+        String lower = cat.trim().toLowerCase();
+        if (lower.matches(".*\\b(categories|category|multiple|various|mixed|different|several|all|general|not specified|n/a|null)\\b.*")) {
+            return true;
+        }
+        if (lower.matches(".*\\d+\\s*(categories|category).*")) {
+            return true;
+        }
+        return false;
     }
 
     private double calculateMatchScore(String text, ExcelMasterDataLoader.MasterCategoryRecord record) {
@@ -179,6 +209,12 @@ public class CategoryClassificationService {
             java.util.Map.entry("cooler", "Appliances & Office Amenities"),
             java.util.Map.entry("coolers", "Appliances & Office Amenities"),
 
+            // Medical & Healthcare Equipment
+            java.util.Map.entry("medical", "Medical Equipment"),
+            java.util.Map.entry("medical equipment", "Medical Equipment"),
+            java.util.Map.entry("healthcare", "Medical Equipment"),
+            java.util.Map.entry("patient monitor", "Medical Equipment"),
+
             // Construction
             java.util.Map.entry("cement", "Construction"),
             java.util.Map.entry("steel", "Construction"),
@@ -189,28 +225,12 @@ public class CategoryClassificationService {
             java.util.Map.entry("bricks", "Construction"),
             java.util.Map.entry("rebar", "Construction"),
             java.util.Map.entry("concrete", "Construction"),
-
-            // Industrial Machinery
-            java.util.Map.entry("motor", "Industrial Machinery"),
-            java.util.Map.entry("motors", "Industrial Machinery"),
-            java.util.Map.entry("pump", "Industrial Machinery"),
-            java.util.Map.entry("pumps", "Industrial Machinery"),
-            java.util.Map.entry("valve", "Industrial Machinery"),
-            java.util.Map.entry("valves", "Industrial Machinery"),
-            java.util.Map.entry("bearing", "Industrial Machinery"),
-            java.util.Map.entry("bearings", "Industrial Machinery"),
-            java.util.Map.entry("compressor", "Industrial Machinery"),
-            java.util.Map.entry("compressors", "Industrial Machinery"),
-            java.util.Map.entry("generator", "Industrial Machinery"),
-            java.util.Map.entry("generators", "Industrial Machinery"),
-
-            // Safety Equipment
-            java.util.Map.entry("helmet", "Safety Equipment"),
-            java.util.Map.entry("helmets", "Safety Equipment"),
-            java.util.Map.entry("safety", "Safety Equipment"),
-            java.util.Map.entry("gloves", "Safety Equipment"),
+            java.util.Map.entry("construction material", "Construction"),
+            java.util.Map.entry("construction materials", "Construction"),
 
             // Industrial Automation & Electrical
+            java.util.Map.entry("electrical", "Industrial Automation & Electrical"),
+            java.util.Map.entry("electrical equipment", "Industrial Automation & Electrical"),
             java.util.Map.entry("plc", "Industrial Automation & Electrical"),
             java.util.Map.entry("plc controller", "Industrial Automation & Electrical"),
             java.util.Map.entry("scada", "Industrial Automation & Electrical"),

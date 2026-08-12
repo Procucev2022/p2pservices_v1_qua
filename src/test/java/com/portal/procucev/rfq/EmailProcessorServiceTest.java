@@ -228,7 +228,7 @@ public class EmailProcessorServiceTest {
         String result = emailProcessorService.processSingleEmail(email);
 
         assertEquals("RFQ_CREATED", result);
-        Mockito.verify(acknowledgementEmailService).sendSuccessAcknowledgement(any(), eq(verifiedBuyer));
+        Mockito.verify(acknowledgementEmailService).sendSuccessAcknowledgement(anyList(), eq(verifiedBuyer));
     }
 
     @Test

@@ -27,7 +27,7 @@ public class EmailReaderService {
     @Value("${app.mail.host:imap.gmail.com}")
     private String mailHost;
 
-    @Value("${app.mail.username:rfq@procucev.com}")
+    @Value("${app.mail.username:veerababu.v@procucev.com}")
     private String mailUsername;
 
     @Value("${app.mail.password}")
@@ -63,7 +63,7 @@ public class EmailReaderService {
             store.connect(mailHost, mailUsername, mailPassword);
 
             folder = store.getFolder(inboxFolder);
-            folder.open(Folder.READ_ONLY);
+            folder.open(Folder.READ_WRITE);
 
             Message[] messages = folder.search(new jakarta.mail.search.FlagTerm(new Flags(Flags.Flag.SEEN), false));
             int unreadCount = folder.getUnreadMessageCount();
@@ -89,6 +89,7 @@ public class EmailReaderService {
             for (Message msg : messages) {
                 try {
                     EmailData data = parseMessage(msg);
+                    msg.setFlag(Flags.Flag.SEEN, true);
                     log.info("Parsed unread email: Subject='{}', From='{}', ReceivedDate='{}'",
                             data.getSubject(), data.getSenderEmail(), data.getReceivedDate());
                     emailsList.add(data);
@@ -130,20 +131,40 @@ public class EmailReaderService {
             }
 
             Message[] messages = srcFolder.getMessages();
+            boolean messageFoundAndMoved = false;
+            String normalizedTargetId = normalizeMessageId(messageId);
+
             for (Message msg : messages) {
                 String[] headers = msg.getHeader("Message-ID");
-                if (headers != null && headers.length > 0 && headers[0].equals(messageId)) {
-                    srcFolder.copyMessages(new Message[]{msg}, targetFolder);
-                    msg.setFlag(Flags.Flag.DELETED, true);
-                    log.info("Successfully moved message [{}] to '{}'", messageId, targetFolderName);
-                    break;
+                if (headers != null && headers.length > 0) {
+                    String currentMsgId = normalizeMessageId(headers[0]);
+                    if (!normalizedTargetId.isEmpty() && currentMsgId.equalsIgnoreCase(normalizedTargetId)) {
+                        msg.setFlag(Flags.Flag.SEEN, true);
+                        srcFolder.copyMessages(new Message[]{msg}, targetFolder);
+                        msg.setFlag(Flags.Flag.DELETED, true);
+                        messageFoundAndMoved = true;
+                        log.info("Successfully marked SEEN and moved message [{}] to folder '{}'", messageId, targetFolderName);
+                        break;
+                    }
                 }
             }
+
+            if (messageFoundAndMoved) {
+                srcFolder.expunge();
+            } else {
+                log.warn("Could not find message [{}] in folder '{}' to move to '{}'", messageId, inboxFolder, targetFolderName);
+            }
+
         } catch (Exception e) {
-            log.error("Error moving message [{}] to folder '{}': {}", messageId, targetFolderName, e.getMessage());
+            log.error("Error moving message [{}] to folder '{}': {}", messageId, targetFolderName, e.getMessage(), e);
         } finally {
             closeFolderAndStore(srcFolder, store);
         }
+    }
+
+    private String normalizeMessageId(String raw) {
+        if (raw == null) return "";
+        return raw.replaceAll("[<>]", "").trim();
     }
 
     private EmailData parseMessage(Message msg) throws Exception {
