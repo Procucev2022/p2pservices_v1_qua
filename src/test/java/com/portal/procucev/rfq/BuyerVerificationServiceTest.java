@@ -174,7 +174,9 @@ public class BuyerVerificationServiceTest {
         user.setFirstName(null);
         user.setLastName(null);
         user.setFullName(null);
-        user.setOrg(null);
+        Organization org = new Organization();
+        org.setId("503");
+        user.setOrg(org);
 
         Mockito.when(userDao.findActiveUsersByUsernameAndRoleNames(eq(email), Mockito.anyList()))
                 .thenReturn(List.of(user));
