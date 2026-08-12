@@ -101,20 +101,20 @@ public class EmailProcessorServiceTest {
     }
 
     @Test
-    @DisplayName("Test processSingleEmail skips duplicate email")
+    @DisplayName("Test processSingleEmail processes duplicate messageId without skipping")
     void testProcessSingleEmailDuplicate() {
         EmailData email = EmailData.builder()
                 .messageId("MSG-DUP")
-                .senderEmail("buyer@test.com")
+                .senderEmail("unregistered@test.com")
                 .subject("Need items")
                 .build();
 
-        Mockito.when(emailTransactionRepository.findByMessageId("MSG-DUP"))
-                .thenReturn(Optional.of(EmailTransaction.builder().messageId("MSG-DUP").build()));
+        Buyer unverifiedBuyer = Buyer.builder().email("unregistered@test.com").verified(false).build();
+        Mockito.when(buyerVerificationService.verifyAndGetBuyer("unregistered@test.com")).thenReturn(unverifiedBuyer);
 
         String result = emailProcessorService.processSingleEmail(email);
 
-        assertEquals("SKIPPED", result);
+        assertEquals("INVALID_BUYER", result);
     }
 
     @Test
@@ -125,8 +125,6 @@ public class EmailProcessorServiceTest {
                 .senderEmail("unregistered@test.com")
                 .subject("Need items")
                 .build();
-
-        Mockito.when(emailTransactionRepository.findByMessageId("MSG-UNREG")).thenReturn(Optional.empty());
 
         Buyer unverifiedBuyer = Buyer.builder().email("unregistered@test.com").verified(false).build();
         Mockito.when(buyerVerificationService.verifyAndGetBuyer("unregistered@test.com")).thenReturn(unverifiedBuyer);
@@ -145,8 +143,6 @@ public class EmailProcessorServiceTest {
                 .senderEmail("buyer@test.com")
                 .subject("Need items")
                 .build();
-
-        Mockito.when(emailTransactionRepository.findByMessageId("MSG-AI-FAIL")).thenReturn(Optional.empty());
 
         Buyer verifiedBuyer = Buyer.builder().email("buyer@test.com").verified(true).build();
         Mockito.when(buyerVerificationService.verifyAndGetBuyer("buyer@test.com")).thenReturn(verifiedBuyer);
@@ -167,8 +163,6 @@ public class EmailProcessorServiceTest {
                 .senderEmail("buyer@test.com")
                 .subject("Need items")
                 .build();
-
-        Mockito.when(emailTransactionRepository.findByMessageId("MSG-VAL-FAIL")).thenReturn(Optional.empty());
 
         Buyer verifiedBuyer = Buyer.builder().email("buyer@test.com").name("Buyer").verified(true).build();
         Mockito.when(buyerVerificationService.verifyAndGetBuyer("buyer@test.com")).thenReturn(verifiedBuyer);
@@ -196,8 +190,6 @@ public class EmailProcessorServiceTest {
                 .senderEmail("buyer@test.com")
                 .subject("Need Laptops")
                 .build();
-
-        Mockito.when(emailTransactionRepository.findByMessageId("MSG-SUCCESS")).thenReturn(Optional.empty());
 
         Buyer verifiedBuyer = Buyer.builder().email("buyer@test.com").name("Buyer").verified(true).build();
         Mockito.when(buyerVerificationService.verifyAndGetBuyer("buyer@test.com")).thenReturn(verifiedBuyer);
@@ -239,8 +231,6 @@ public class EmailProcessorServiceTest {
                 .senderEmail("buyer@test.com")
                 .subject("Need Items")
                 .build();
-
-        Mockito.when(emailTransactionRepository.findByMessageId("MSG-DEDUP")).thenReturn(Optional.empty());
 
         Buyer verifiedBuyer = Buyer.builder().email("buyer@test.com").name("Buyer").verified(true).build();
         Mockito.when(buyerVerificationService.verifyAndGetBuyer("buyer@test.com")).thenReturn(verifiedBuyer);
@@ -284,8 +274,6 @@ public class EmailProcessorServiceTest {
                 .subject("Empty Items")
                 .build();
 
-        Mockito.when(emailTransactionRepository.findByMessageId("MSG-NO-ITEMS")).thenReturn(Optional.empty());
-
         Buyer verifiedBuyer = Buyer.builder().email("buyer@test.com").name("Buyer").verified(true).build();
         Mockito.when(buyerVerificationService.verifyAndGetBuyer("buyer@test.com")).thenReturn(verifiedBuyer);
 
@@ -310,8 +298,6 @@ public class EmailProcessorServiceTest {
                 .senderEmail("buyer@test.com")
                 .subject("Submit Fail")
                 .build();
-
-        Mockito.when(emailTransactionRepository.findByMessageId("MSG-SUBMIT-FAIL")).thenReturn(Optional.empty());
 
         Buyer verifiedBuyer = Buyer.builder().email("buyer@test.com").name("Buyer").verified(true).build();
         Mockito.when(buyerVerificationService.verifyAndGetBuyer("buyer@test.com")).thenReturn(verifiedBuyer);
@@ -344,7 +330,7 @@ public class EmailProcessorServiceTest {
                 .subject("Crash")
                 .build();
 
-        Mockito.when(emailTransactionRepository.findByMessageId("MSG-EX")).thenThrow(new RuntimeException("Crash"));
+        Mockito.when(emailTransactionRepository.save(any())).thenThrow(new RuntimeException("Crash"));
 
         assertThrows(RuntimeException.class, () -> emailProcessorService.processSingleEmail(email));
     }
@@ -354,7 +340,7 @@ public class EmailProcessorServiceTest {
     void testProcessUnreadEmailsWithErrors() {
         EmailData email1 = EmailData.builder().messageId("M1").senderEmail("buyer@test.com").build();
         Mockito.when(emailReaderService.fetchUnreadEmails()).thenReturn(List.of(email1));
-        Mockito.when(emailTransactionRepository.findByMessageId("M1")).thenThrow(new RuntimeException("Error"));
+        Mockito.when(emailTransactionRepository.save(any())).thenThrow(new RuntimeException("Error"));
 
         ProcessingStats stats = emailProcessorService.processUnreadEmails();
         assertNotNull(stats);
@@ -369,7 +355,7 @@ public class EmailProcessorServiceTest {
         EmailData e2 = EmailData.builder().messageId("M-ERR").senderEmail("buyer@test.com").build();
 
         Mockito.when(emailReaderService.fetchUnreadEmails()).thenReturn(List.of(e1, e2));
-        Mockito.when(emailTransactionRepository.findByMessageId("M-ERR")).thenThrow(new RuntimeException("Crash"));
+        Mockito.when(emailTransactionRepository.save(any())).thenThrow(new RuntimeException("Crash"));
 
         ProcessingStats stats = emailProcessorService.processUnreadEmails();
         assertNotNull(stats);
@@ -384,8 +370,6 @@ public class EmailProcessorServiceTest {
                 .senderEmail("buyer@test.com")
                 .subject("Need items")
                 .build();
-
-        Mockito.when(emailTransactionRepository.findByMessageId("MSG-NULL-ITEMS")).thenReturn(Optional.empty());
 
         Buyer buyer = Buyer.builder().email("buyer@test.com").verified(true).build();
         Mockito.when(buyerVerificationService.verifyAndGetBuyer("buyer@test.com")).thenReturn(buyer);
@@ -409,8 +393,6 @@ public class EmailProcessorServiceTest {
                 .subject("Need items")
                 .build();
 
-        Mockito.when(emailTransactionRepository.findByMessageId("MSG-EMPTY-DEDUP")).thenReturn(Optional.empty());
-
         Buyer buyer = Buyer.builder().email("buyer@test.com").verified(true).build();
         Mockito.when(buyerVerificationService.verifyAndGetBuyer("buyer@test.com")).thenReturn(buyer);
 
@@ -432,8 +414,6 @@ public class EmailProcessorServiceTest {
                 .senderEmail("buyer@test.com")
                 .subject("Need items")
                 .build();
-
-        Mockito.when(emailTransactionRepository.findByMessageId("MSG-VAL-NON-QTY")).thenReturn(Optional.empty());
 
         Buyer buyer = Buyer.builder().email("buyer@test.com").name("Buyer").verified(true).build();
         Mockito.when(buyerVerificationService.verifyAndGetBuyer("buyer@test.com")).thenReturn(buyer);
@@ -460,8 +440,6 @@ public class EmailProcessorServiceTest {
                 .subject("Need items")
                 .build();
 
-        Mockito.when(emailTransactionRepository.findByMessageId("MSG-NULL-RFQ")).thenReturn(Optional.empty());
-
         Buyer buyer = Buyer.builder().email("buyer@test.com").verified(true).build();
         Mockito.when(buyerVerificationService.verifyAndGetBuyer("buyer@test.com")).thenReturn(buyer);
 
@@ -479,8 +457,6 @@ public class EmailProcessorServiceTest {
                 .senderEmail("buyer@test.com")
                 .subject("Need items")
                 .build();
-
-        Mockito.when(emailTransactionRepository.findByMessageId("MSG-ITEM-LOC")).thenReturn(Optional.empty());
 
         Buyer buyer = Buyer.builder().email("buyer@test.com").name("Buyer").verified(true).build();
         Mockito.when(buyerVerificationService.verifyAndGetBuyer("buyer@test.com")).thenReturn(buyer);

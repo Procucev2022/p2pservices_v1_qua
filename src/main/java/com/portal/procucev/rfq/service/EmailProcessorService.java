@@ -110,12 +110,6 @@ public class EmailProcessorService {
             return "SKIPPED_SYSTEM_EMAIL";
         }
 
-        if (emailTransactionRepository.findByMessageId(email.getMessageId()).isPresent()) {
-            log.warn("Duplicate Email detected (Message-ID: {}). Skipping.", email.getMessageId());
-            emailReaderService.moveMessageToFolder(email.getMessageId(), processedFolder);
-            return "SKIPPED";
-        }
-
         EmailTransaction transaction = EmailTransaction.builder()
                 .messageId(email.getMessageId())
                 .subject(email.getSubject())

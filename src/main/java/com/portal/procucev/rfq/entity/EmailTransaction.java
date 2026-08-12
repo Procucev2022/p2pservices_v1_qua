@@ -20,7 +20,7 @@ public class EmailTransaction {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "message_id", nullable = false, unique = true)
+    @Column(name = "message_id", nullable = false)
     private String messageId;
 
     @Column(name = "subject")
