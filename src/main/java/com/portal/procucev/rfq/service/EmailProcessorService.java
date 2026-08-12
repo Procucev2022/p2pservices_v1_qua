@@ -74,6 +74,8 @@ public class EmailProcessorService {
             } catch (Exception e) {
                 errorCount++;
                 log.error("Unhandled error processing email subject: '{}'", email.getSubject(), e);
+            } finally {
+                deleteTemporaryAttachments(email);
             }
         }
 
@@ -369,6 +371,19 @@ public class EmailProcessorService {
     private boolean isErrorStatus(String status) {
         return Set.of("FAILED", "PARTIAL_FAILURE", "AI_FAILED", "VALIDATION_FAILED", "INVALID_BUYER")
                 .contains(status);
+    }
+
+    private void deleteTemporaryAttachments(EmailData email) {
+        if (email.getAttachments() == null) {
+            return;
+        }
+        for (java.io.File attachment : email.getAttachments()) {
+            try {
+                java.nio.file.Files.deleteIfExists(attachment.toPath());
+            } catch (Exception e) {
+                log.warn("Could not delete temporary attachment {}: {}", attachment, e.getMessage());
+            }
+        }
     }
 
     private String buildDeduplicationKey(RFQItem item, String buyerEmail, String defaultDate, String defaultLocation) {
