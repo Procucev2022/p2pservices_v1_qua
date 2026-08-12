@@ -122,7 +122,9 @@ public class BuyerVerificationServiceTest {
         user.setId("502");
         user.setFullName("Alice Smith");
         user.setPhone("1112223333");
-        user.setOrg(null);
+        Organization org = new Organization();
+        org.setId("1");
+        user.setOrg(org);
 
         Mockito.when(userDao.findActiveUsersByUsernameAndRoleNames(eq(email), Mockito.anyList()))
                 .thenReturn(List.of(user));
