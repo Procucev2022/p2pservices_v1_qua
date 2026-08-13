@@ -81,9 +81,12 @@ public class EmailReaderService {
             log.info("IMAP status for folder '{}': TotalMessages={}, UnreadMessages={}, SearchUnseenFound={}",
                     inboxFolder, totalCount, unreadCount, messages.length);
 
-            if (messages.length == 0 && totalCount > 0) {
+            if (messages.length == 0 && unreadCount > 0 && totalCount > 0) {
                 int start = Math.max(1, totalCount - 50);
                 Message[] recentMessages = folder.getMessages(start, totalCount);
+                FetchProfile fp = new FetchProfile();
+                fp.add(FetchProfile.Item.FLAGS);
+                folder.fetch(recentMessages, fp);
                 List<Message> unreadList = new ArrayList<>();
                 for (Message msg : recentMessages) {
                     if (!msg.isSet(Flags.Flag.SEEN)) {
@@ -127,6 +130,9 @@ public class EmailReaderService {
             props.put("mail.imaps.host", mailHost);
             props.put("mail.imaps.port", String.valueOf(mailPort));
             props.put("mail.imaps.ssl.enable", "true");
+            props.put("mail.imaps.connectiontimeout", "15000");
+            props.put("mail.imaps.timeout", "30000");
+            props.put("mail.imaps.writetimeout", "30000");
             Session session = Session.getInstance(props);
             store = session.getStore("imaps");
             store.connect(mailHost, mailUsername, mailPassword);
@@ -139,15 +145,13 @@ public class EmailReaderService {
                 targetFolder.create(Folder.HOLDS_MESSAGES);
             }
 
-            Message[] messages = srcFolder.getMessages();
-            for (Message msg : messages) {
-                String[] headers = msg.getHeader("Message-ID");
-                if (headers != null && headers.length > 0 && headers[0].equals(messageId)) {
-                    srcFolder.copyMessages(new Message[]{msg}, targetFolder);
-                    msg.setFlag(Flags.Flag.DELETED, true);
-                    log.info("Successfully moved message [{}] to '{}'", messageId, targetFolderName);
-                    break;
-                }
+            Message[] messages = srcFolder.search(new jakarta.mail.search.HeaderTerm("Message-ID", messageId));
+            if (messages != null && messages.length > 0) {
+                srcFolder.copyMessages(new Message[]{messages[0]}, targetFolder);
+                messages[0].setFlag(Flags.Flag.DELETED, true);
+                log.info("Successfully moved message [{}] to '{}'", messageId, targetFolderName);
+            } else {
+                log.warn("Message with Message-ID [{}] not found in inbox for move to '{}'", messageId, targetFolderName);
             }
         } catch (Exception e) {
             log.error("Error moving message [{}] to folder '{}': {}", messageId, targetFolderName, e.getMessage());
