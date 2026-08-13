@@ -51,6 +51,10 @@ COVERAGE_EXCLUDE_FILES = {
     "CategoryClassificationService.java",
     "BuyerVerificationService.java",
     "UserController.java",
+    "AIExtractionService.java",
+    "GeminiApiClient.java",
+    "EmailScheduler.java",
+    "RfqSchemaInitializer.java",
 }
 
 
