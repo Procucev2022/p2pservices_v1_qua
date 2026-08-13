@@ -12,6 +12,7 @@ import com.portal.procucev.rfq.model.Buyer;
 import com.portal.procucev.rfq.model.EmailData;
 import com.portal.procucev.rfq.model.ExtractedRFQ;
 import com.portal.procucev.rfq.model.RFQItem;
+import com.portal.procucev.rfq.parser.DateParser;
 import com.portal.procucev.rfq.repository.EmailTransactionRepository;
 import com.portal.procucev.rfq.repository.RFQRepository;
 import com.portal.procucev.rfq.repository.RfqItemRecordRepository;
@@ -39,6 +40,7 @@ public class EmailProcessorService {
     private final RFQRepository rfqRepository;
     private final EmailTransactionRepository emailTransactionRepository;
     private final RfqItemRecordRepository rfqItemRecordRepository;
+    private final DateParser dateParser;
     private final ObjectMapper objectMapper;
 
     @Value("${app.mail.processed-folder:Processed}")
@@ -224,13 +226,14 @@ public class EmailProcessorService {
                     continue;
                 }
 
-                // Resolve item-level location & date fallbacks
+                // Resolve item-level location & date fallbacks with ISO yyyy-MM-dd normalization
                 String itemLoc = (item.getDeliveryLocation() != null && !item.getDeliveryLocation().isBlank() && !item.getDeliveryLocation().equalsIgnoreCase("Not Specified"))
                         ? item.getDeliveryLocation().trim() : defaultLocation;
                 item.setDeliveryLocation(itemLoc);
 
-                String itemDate = (item.getDeliveryDate() != null && !item.getDeliveryDate().isBlank() && !item.getDeliveryDate().equalsIgnoreCase("Not Specified"))
+                String rawItemDate = (item.getDeliveryDate() != null && !item.getDeliveryDate().isBlank() && !item.getDeliveryDate().equalsIgnoreCase("Not Specified"))
                         ? item.getDeliveryDate().trim() : defaultDate;
+                String itemDate = dateParser.parseDateString(rawItemDate);
                 item.setDeliveryDate(itemDate);
 
                 String key = buildDeduplicationKey(item, buyer.getEmail(), defaultDate, defaultLocation);
@@ -420,8 +423,10 @@ public class EmailProcessorService {
                     ? item.getCategory().trim() : "General";
             String loc = item.getDeliveryLocation() != null && !item.getDeliveryLocation().isBlank()
                     ? item.getDeliveryLocation().trim() : defaultLoc;
-            String date = item.getDeliveryDate() != null && !item.getDeliveryDate().isBlank()
+            String rawDate = item.getDeliveryDate() != null && !item.getDeliveryDate().isBlank()
                     ? item.getDeliveryDate().trim() : defaultDate;
+            String date = dateParser.parseDateString(rawDate);
+            item.setDeliveryDate(date);
 
             String groupKey = cat.toLowerCase() + "|" + loc.toLowerCase() + "|" + date.toLowerCase();
             groups.computeIfAbsent(groupKey, k -> new ArrayList<>()).add(item);

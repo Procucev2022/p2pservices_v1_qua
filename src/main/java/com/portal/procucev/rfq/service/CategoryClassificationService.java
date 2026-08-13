@@ -253,7 +253,19 @@ public class CategoryClassificationService {
             java.util.Map.entry("desks", "Office Furniture"),
             java.util.Map.entry("table", "Office Furniture"),
             java.util.Map.entry("tables", "Office Furniture"),
-            java.util.Map.entry("furniture", "Office Furniture")
+            java.util.Map.entry("furniture", "Office Furniture"),
+
+            // Batteries & Power Storage
+            java.util.Map.entry("battery", "Batteries"),
+            java.util.Map.entry("batteries", "Batteries"),
+            java.util.Map.entry("12v", "Batteries"),
+            java.util.Map.entry("amaron", "Batteries"),
+
+            // Abrasives & Consumables
+            java.util.Map.entry("abrasive", "Abrasives"),
+            java.util.Map.entry("abrasives", "Abrasives"),
+            java.util.Map.entry("fiber disc", "Abrasives"),
+            java.util.Map.entry("60 grit", "Abrasives")
     );
 
     private boolean containsKeyword(String text, String keyword) {

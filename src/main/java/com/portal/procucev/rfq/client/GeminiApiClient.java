@@ -30,10 +30,10 @@ public class GeminiApiClient {
 
     private RestTemplate restTemplate;
 
-    @Value("${app.gemini.primary-model:gemini-3.5-flash-lite}")
+    @Value("${app.gemini.primary-model:gemini-2.5-flash}")
     private String primaryModel;
 
-    @Value("${app.gemini.fallback-model:gemini-3.1-flash-lite}")
+    @Value("${app.gemini.fallback-model:gemini-2.0-flash}")
     private String fallbackModel;
 
     @Value("${app.gemini.base-url:https://generativelanguage.googleapis.com/v1beta/models}")
