@@ -29,6 +29,17 @@ public class RFQItem {
     private Double categoryConfidence;
     private String classificationStatus;
 
+    @com.fasterxml.jackson.annotation.JsonSetter("quantity")
+    public void setQuantity(Object rawQty) {
+        this.quantity = com.portal.procucev.rfq.util.QuantityNormalizer.normalize(rawQty);
+        if ((this.uom == null || this.uom.isBlank()) && rawQty != null) {
+            String extracted = com.portal.procucev.rfq.util.QuantityNormalizer.extractUom(rawQty.toString());
+            if (extracted != null && !extracted.isBlank()) {
+                this.uom = extracted;
+            }
+        }
+    }
+
     @com.fasterxml.jackson.annotation.JsonProperty("description")
     public void setDescriptionAlias(String description) {
         if (this.itemDescription == null || this.itemDescription.isBlank()) {

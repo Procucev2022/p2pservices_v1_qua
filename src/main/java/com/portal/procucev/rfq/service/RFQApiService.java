@@ -67,7 +67,10 @@ public class RFQApiService {
                     RfqItem item = new RfqItem();
                     item.setDescription(dto.getDescription());
                     item.setCategory(dto.getCategory());
-                    item.setQuantity(dto.getQuantity() != null ? dto.getQuantity() : 1D);
+                    if (dto.getQuantity() == null || dto.getQuantity() <= 0) {
+                        throw new IllegalArgumentException("Quantity is mandatory for RFQ item: " + dto.getDescription());
+                    }
+                    item.setQuantity(dto.getQuantity());
                     item.setUnitofMeasures(dto.getUnitofMeasures());
                     item.setBrand(dto.getBrand());
                     item.setItemcode(dto.getItemcode());

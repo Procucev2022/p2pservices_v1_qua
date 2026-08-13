@@ -27,7 +27,7 @@ public class EmailReaderService {
     @Value("${app.mail.host:imap.gmail.com}")
     private String mailHost;
 
-    @Value("${app.mail.username:veerababu.v@procucev.com}")
+    @Value("${app.mail.username:rfq@procucev.com}")
     private String mailUsername;
 
     @Value("${app.mail.password}")
@@ -199,7 +199,22 @@ public class EmailReaderService {
 
         if (bodyBuilder.length() == 0 && htmlFallbackBuilder.length() > 0) {
             bodyBuilder.append(htmlFallbackBuilder);
+        } else if (htmlFallbackBuilder.length() > 0 && htmlFallbackBuilder.toString().contains("|") && !bodyBuilder.toString().contains("|")) {
+            bodyBuilder.append("\n--- Structured HTML Content ---\n").append(htmlFallbackBuilder);
         }
+
+        String inReplyTo = null;
+        String references = null;
+        try {
+            String[] inReplyToHeaders = msg.getHeader("In-Reply-To");
+            if (inReplyToHeaders != null && inReplyToHeaders.length > 0) {
+                inReplyTo = inReplyToHeaders[0];
+            }
+            String[] refHeaders = msg.getHeader("References");
+            if (refHeaders != null && refHeaders.length > 0) {
+                references = refHeaders[0];
+            }
+        } catch (Exception ignored) {}
 
         return EmailData.builder()
                 .messageId(messageId)
@@ -207,9 +222,11 @@ public class EmailReaderService {
                 .senderEmail(senderEmail)
                 .senderName(senderName)
                 .receivedDate(msg.getReceivedDate())
-                .body(bodyBuilder.toString())
+                .body(bodyBuilder.toString().trim())
                 .attachments(attachments)
                 .attachmentText(attachmentTextBuilder.toString())
+                .inReplyTo(inReplyTo)
+                .references(references)
                 .build();
     }
 
@@ -278,17 +295,38 @@ public class EmailReaderService {
         return savedPath.toFile();
     }
 
-    private String htmlToText(String html) {
+    public String htmlToText(String html) {
         if (html == null || html.isBlank()) {
             return "";
         }
-        return html.replaceAll("(?i)<br\\s*/?>", "\n")
-                .replaceAll("(?i)</p>", "\n")
-                .replaceAll("(?i)<[^>]+>", " ")
-                .replace("&nbsp;", " ")
-                .replaceAll("[ \\t\\x0B\\f\\r]+", " ")
-                .replaceAll("\\n\\s+", "\n")
-                .trim();
+        String text = html;
+        text = text.replaceAll("(?i)<tr[^>]*>", "\n| ");
+        text = text.replaceAll("(?i)</tr>", " |");
+        text = text.replaceAll("(?i)</th[^>]*>", " |");
+        text = text.replaceAll("(?i)<th[^>]*>", " ");
+        text = text.replaceAll("(?i)</td[^>]*>", " |");
+        text = text.replaceAll("(?i)<td[^>]*>", " ");
+        text = text.replaceAll("(?i)<br\\s*/?>", "\n");
+        text = text.replaceAll("(?i)</p>", "\n");
+        text = text.replaceAll("(?i)</div>", "\n");
+        text = text.replaceAll("(?i)</li>", "\n");
+        text = text.replaceAll("(?i)<li[^>]*>", "\n- ");
+        text = text.replaceAll("(?i)<[^>]+>", " ");
+        text = text.replace("&nbsp;", " ")
+                .replace("&amp;", "&")
+                .replace("&lt;", "<")
+                .replace("&gt;", ">")
+                .replace("&quot;", "\"");
+
+        String[] lines = text.split("\\r?\\n");
+        StringBuilder sb = new StringBuilder();
+        for (String line : lines) {
+            String trimmed = line.replaceAll("[ \\t\\x0B\\f]+", " ").trim();
+            if (!trimmed.isEmpty()) {
+                sb.append(trimmed).append("\n");
+            }
+        }
+        return sb.toString().trim();
     }
 
     private void closeFolderAndStore(Folder folder, Store store) {

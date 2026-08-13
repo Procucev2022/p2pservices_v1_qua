@@ -10,6 +10,7 @@ import com.portal.procucev.rfq.model.Buyer;
 import com.portal.procucev.rfq.model.EmailData;
 import com.portal.procucev.rfq.model.ExtractedRFQ;
 import com.portal.procucev.rfq.model.RFQItem;
+import com.portal.procucev.rfq.parser.DateParser;
 import com.portal.procucev.rfq.repository.EmailTransactionRepository;
 import com.portal.procucev.rfq.repository.RFQRepository;
 import com.portal.procucev.rfq.repository.RfqItemRecordRepository;
@@ -68,6 +69,7 @@ public class EmailProcessorServiceTest {
                 rfqRepository,
                 emailTransactionRepository,
                 rfqItemRecordRepository,
+                new DateParser(),
                 new ObjectMapper()
         );
     }

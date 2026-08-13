@@ -31,8 +31,8 @@ public class GeminiApiClientTest {
         restTemplate = Mockito.mock(RestTemplate.class);
         objectMapper = new ObjectMapper();
 
-        Mockito.when(restTemplateBuilder.setConnectTimeout(any(Duration.class))).thenReturn(restTemplateBuilder);
-        Mockito.when(restTemplateBuilder.setReadTimeout(any(Duration.class))).thenReturn(restTemplateBuilder);
+        Mockito.when(restTemplateBuilder.connectTimeout(any(Duration.class))).thenReturn(restTemplateBuilder);
+        Mockito.when(restTemplateBuilder.readTimeout(any(Duration.class))).thenReturn(restTemplateBuilder);
         Mockito.when(restTemplateBuilder.build()).thenReturn(restTemplate);
 
         client = new GeminiApiClient(restTemplateBuilder, objectMapper);

@@ -58,4 +58,14 @@ public class RFQEntity {
     protected void onUpdate() {
         this.updatedAt = LocalDateTime.now();
     }
+
+    @com.fasterxml.jackson.annotation.JsonProperty("displayRfqNumber")
+    public String getDisplayRfqNumber() {
+        return com.portal.procucev.rfq.util.CommonUtil.formatRfqDisplayNumber(this.rfqNumber);
+    }
+
+    @com.fasterxml.jackson.annotation.JsonProperty("shortRfqNumber")
+    public String getShortRfqNumber() {
+        return com.portal.procucev.rfq.util.CommonUtil.shortenRfqNumber(this.rfqNumber);
+    }
 }

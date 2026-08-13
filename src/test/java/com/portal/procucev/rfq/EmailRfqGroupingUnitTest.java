@@ -115,13 +115,13 @@ public class EmailRfqGroupingUnitTest {
                     .buyerEmail(req.getBuyerEmail())
                     .deliveryDate(req.getDeliveryDate())
                     .clientdeliverylocationrfq(List.of(RFQRequest.LocationDto.builder().city(req.getDeliveryLocation()).build()))
-                    .rfqItem(List.of(RFQRequest.RfqItemDto.builder().description("Item").quantity(10).build()))
+                    .rfqItem(List.of(RFQRequest.RfqItemDto.builder().description("Item").quantity(10.0).build()))
                     .build();
         });
     }
 
     @Test
-    @DisplayName("TEST 6: 6-item email grouping into exactly 4 RFQs")
+    @DisplayName("TEST 6: 6-item email grouping into exactly 3 RFQs by location and date")
     void testSixItemsGroupingKeyRules() {
         EmailData email = EmailData.builder().messageId("MSG-TEST6").subject("Procurement").senderEmail("buyer@company.com").build();
         RFQItem i1 = RFQItem.builder().itemDescription("Laptop 1").category("IT Hardware").quantity(5.0).deliveryLocation("Bengaluru").deliveryDate("30-Sep-2026").build();
@@ -137,14 +137,14 @@ public class EmailRfqGroupingUnitTest {
         String result = emailProcessorService.processSingleEmail(email);
         assertEquals("RFQ_CREATED", result);
 
-        // Verify exactly 4 RFQs are saved
-        verify(rfqRepository, times(4)).save(any(RFQEntity.class));
+        // Verify exactly 3 RFQs are saved (grouped by location & date)
+        verify(rfqRepository, times(3)).save(any(RFQEntity.class));
 
         // Verify ONLY 1 consolidated acknowledgement email is sent
         ArgumentCaptor<SimpleMailMessage> mailCaptor = ArgumentCaptor.forClass(SimpleMailMessage.class);
         verify(mailSender, times(1)).send(mailCaptor.capture());
         SimpleMailMessage mail = mailCaptor.getValue();
-        assertEquals("veerababu.v@procucev.com", mail.getFrom());
+        assertEquals("rfq@procucev.com", mail.getFrom());
         assertEquals("buyer@company.com", mail.getTo()[0]);
         assertEquals("support@procucev.com", mail.getCc()[0]);
     }

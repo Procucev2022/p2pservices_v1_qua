@@ -17,4 +17,14 @@ public class RFQResponse {
     private String buyerEmail;
     private String message;
     private LocalDateTime createdAt;
+
+    @com.fasterxml.jackson.annotation.JsonProperty("displayRfqNumber")
+    public String getDisplayRfqNumber() {
+        return com.portal.procucev.rfq.util.CommonUtil.formatRfqDisplayNumber(this.rfqNumber);
+    }
+
+    @com.fasterxml.jackson.annotation.JsonProperty("shortRfqNumber")
+    public String getShortRfqNumber() {
+        return com.portal.procucev.rfq.util.CommonUtil.shortenRfqNumber(this.rfqNumber);
+    }
 }

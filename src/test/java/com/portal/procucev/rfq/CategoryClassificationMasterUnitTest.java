@@ -5,6 +5,7 @@ import com.portal.procucev.rfq.client.GeminiApiClient;
 import com.portal.procucev.rfq.dto.RFQRequest;
 import com.portal.procucev.rfq.dto.RFQResponse;
 import com.portal.procucev.rfq.entity.RFQEntity;
+import com.portal.procucev.rfq.entity.RfqItemRecord;
 import com.portal.procucev.rfq.model.Buyer;
 import com.portal.procucev.rfq.model.EmailData;
 import com.portal.procucev.rfq.model.ExtractedRFQ;
@@ -58,7 +59,9 @@ public class CategoryClassificationMasterUnitTest {
         buyerVerificationService = Mockito.mock(BuyerVerificationService.class);
         rfqBuilderService = Mockito.mock(RFQBuilderService.class);
         rfqApiService = Mockito.mock(RFQApiService.class);
-        categoryClassificationService = new CategoryClassificationService();
+        ExcelMasterDataLoader excelMasterDataLoader = Mockito.mock(ExcelMasterDataLoader.class);
+        when(excelMasterDataLoader.getMasterRecords()).thenReturn(List.of());
+        categoryClassificationService = new CategoryClassificationService(excelMasterDataLoader);
         mailSender = Mockito.mock(JavaMailSender.class);
         rfqRepository = Mockito.mock(RFQRepository.class);
         emailTransactionRepository = Mockito.mock(EmailTransactionRepository.class);
@@ -113,7 +116,7 @@ public class CategoryClassificationMasterUnitTest {
                     .buyerEmail(req.getBuyerEmail())
                     .deliveryDate(req.getDeliveryDate())
                     .clientdeliverylocationrfq(List.of(RFQRequest.LocationDto.builder().city(req.getDeliveryLocation()).build()))
-                    .rfqItem(List.of(RFQRequest.RfqItemDto.builder().description("Item").quantity(10).build()))
+                    .rfqItem(List.of(RFQRequest.RfqItemDto.builder().description("Item").quantity(10.0).build()))
                     .build();
         });
     }
@@ -148,9 +151,9 @@ public class CategoryClassificationMasterUnitTest {
         String result = emailProcessorService.processSingleEmail(email);
         assertEquals("RFQ_CREATED", result);
 
-        ArgumentCaptor<RFQEntity> captor = ArgumentCaptor.forClass(RFQEntity.class);
-        verify(rfqRepository, times(2)).save(captor.capture());
-        List<RFQEntity> saved = captor.getAllValues();
+        ArgumentCaptor<RfqItemRecord> captor = ArgumentCaptor.forClass(RfqItemRecord.class);
+        verify(rfqItemRecordRepository, times(2)).save(captor.capture());
+        List<RfqItemRecord> saved = captor.getAllValues();
 
         assertNotEquals(saved.get(0).getCategory(), saved.get(1).getCategory());
     }

@@ -85,9 +85,14 @@ public class RfqDTO {
 		this.newCommentAvailableVendor = newCommentAvailableVendor;
 		this.sourceType = sourceType;
 	}
-	
-	
-	
-	
-	
+
+	@com.fasterxml.jackson.annotation.JsonProperty("displayRfqId")
+	public String getDisplayRfqId() {
+		return com.portal.procucev.rfq.util.CommonUtil.formatRfqDisplayNumber(this.rfqId);
+	}
+
+	@com.fasterxml.jackson.annotation.JsonProperty("displayRfqNumber")
+	public String getDisplayRfqNumber() {
+		return com.portal.procucev.rfq.util.CommonUtil.formatRfqDisplayNumber(this.rfqId);
+	}
 }

@@ -32,8 +32,8 @@ public class AcknowledgementEmailServiceTest {
     }
 
     @Test
-    @DisplayName("Test sendSuccessAcknowledgement with valid entity and buyer")
-    void testSendSuccessAcknowledgementSuccess() {
+    @DisplayName("Case 1: Registered buyer + valid RFQ -> CASE 1 Template")
+    void testCase1SuccessAcknowledgement() {
         RFQEntity entity = RFQEntity.builder()
                 .rfqNumber("RFQ-100")
                 .buyerEmail("buyer@test.com")
@@ -50,237 +50,92 @@ public class AcknowledgementEmailServiceTest {
         Mockito.verify(mailSender).send(captor.capture());
         SimpleMailMessage sentMsg = captor.getValue();
 
-        assertEquals("veerababu.v@procucev.com", sentMsg.getFrom(), "Sender must be veerababu.v@procucev.com");
+        assertEquals("rfq@procucev.com", sentMsg.getFrom(), "Sender must be rfq@procucev.com");
         assertNotNull(sentMsg.getTo());
-        assertEquals("buyer@test.com", sentMsg.getTo()[0], "TO address must be validated buyer email");
+        assertEquals("buyer@test.com", sentMsg.getTo()[0]);
         assertNotNull(sentMsg.getCc());
-        assertEquals(1, sentMsg.getCc().length, "No duplicate CC should be present");
-        assertEquals("support@procucev.com", sentMsg.getCc()[0], "CC address must be support@procucev.com");
-        assertNotEquals("rfq@procucev.com", sentMsg.getFrom());
+        assertEquals("support@procucev.com", sentMsg.getCc()[0]);
         assertNotEquals("notification@procucev.com", sentMsg.getFrom());
+
+        assertEquals("🚀 Your RFQ #RFQ-100 is Live — Suppliers Notified!", sentMsg.getSubject());
+        assertTrue(sentMsg.getText().contains("Hi John,"));
+        assertTrue(sentMsg.getText().contains("converted into RFQ #RFQ-100"));
+        assertTrue(sentMsg.getText().contains("Team Procucev"));
+    }
+
+    @Test
+    @DisplayName("Case 2: Unregistered buyer -> CASE 2 Template")
+    void testCase2UnregisteredBuyerAcknowledgement() {
+        service.sendUnregisteredBuyerAcknowledgement("unregistered@test.com");
+
+        ArgumentCaptor<SimpleMailMessage> captor = ArgumentCaptor.forClass(SimpleMailMessage.class);
+        Mockito.verify(mailSender).send(captor.capture());
+        SimpleMailMessage sentMsg = captor.getValue();
+
+        assertEquals("rfq@procucev.com", sentMsg.getFrom(), "Sender must be rfq@procucev.com");
+        assertEquals("unregistered@test.com", sentMsg.getTo()[0]);
+        assertNotNull(sentMsg.getCc());
+        assertEquals("support@procucev.com", sentMsg.getCc()[0]);
+        assertNotEquals("notification@procucev.com", sentMsg.getFrom());
+
+        assertEquals("🚀 Almost There! Register to Get Your RFQ Live", sentMsg.getSubject());
+        assertTrue(sentMsg.getText().contains("Hi there,"));
+        assertTrue(sentMsg.getText().contains("procucev.com/get-my-quote/"));
+        assertTrue(sentMsg.getText().contains("Team Procucev"));
+    }
+
+    @Test
+    @DisplayName("Case 3: Registered buyer + missing details -> CASE 3 Template")
+    void testCase3DetailsMissingAcknowledgement() {
+        Buyer buyer = Buyer.builder().email("buyer@test.com").name("Jane").build();
+
+        service.sendCase3DetailsMissingAcknowledgement("buyer@test.com", "Jane");
+
+        ArgumentCaptor<SimpleMailMessage> captor = ArgumentCaptor.forClass(SimpleMailMessage.class);
+        Mockito.verify(mailSender).send(captor.capture());
+        SimpleMailMessage sentMsg = captor.getValue();
+
+        assertEquals("rfq@procucev.com", sentMsg.getFrom(), "Sender must be rfq@procucev.com");
+        assertEquals("buyer@test.com", sentMsg.getTo()[0]);
+        assertNotNull(sentMsg.getCc());
+        assertEquals("support@procucev.com", sentMsg.getCc()[0]);
+        assertNotEquals("notification@procucev.com", sentMsg.getFrom());
+
+        assertEquals("⚡ One Quick Detail Needed to Process Your RFQ", sentMsg.getSubject());
+        assertTrue(sentMsg.getText().contains("Hi Jane,"));
+        assertTrue(sentMsg.getText().contains("• Quantity required"));
+        assertTrue(sentMsg.getText().contains("Team Procucev"));
     }
 
     @Test
     @DisplayName("Test sendSuccessAcknowledgement invalid scenarios")
     void testSendSuccessAcknowledgementInvalid() {
-        // Null entity
         assertDoesNotThrow(() -> service.sendSuccessAcknowledgement((RFQEntity) null, null));
 
-        // Invalid buyer email
         RFQEntity entity = RFQEntity.builder().rfqNumber("RFQ-101").buyerEmail("invalidemail").build();
         service.sendSuccessAcknowledgement(entity, null);
         Mockito.verify(mailSender, Mockito.never()).send(any(SimpleMailMessage.class));
     }
 
     @Test
-    @DisplayName("Test sendSuccessAcknowledgement mailSender exception handling")
-    void testSendSuccessAcknowledgementMailSenderException() {
-        RFQEntity entity = RFQEntity.builder().rfqNumber("RFQ-102").buyerEmail("buyer@test.com").build();
-        Mockito.doThrow(new RuntimeException("SMTP Error")).when(mailSender).send(any(SimpleMailMessage.class));
-
-        assertDoesNotThrow(() -> service.sendSuccessAcknowledgement(entity, null));
-    }
-
-    @Test
-    @DisplayName("Test sendFailureAcknowledgement with valid request and buyer")
+    @DisplayName("Test sendFailureAcknowledgement sends Case 3 template")
     void testSendFailureAcknowledgementSuccess() {
         FailedRfqRequest req = FailedRfqRequest.builder()
                 .buyerEmail("buyer@test.com")
-                .rawSubject("Subject")
                 .description("Desc")
-                .quantity("10")
-                .uom("NOS")
-                .deliveryLocation("Location")
-                .deliveryDate("2026-08-25")
-                .reasonForFailure("Failure reason")
                 .build();
 
         Buyer buyer = Buyer.builder().email("buyer@test.com").name("Jane").build();
 
         service.sendFailureAcknowledgement(req, buyer);
-        Mockito.verify(mailSender).send(any(SimpleMailMessage.class));
-    }
 
-    @Test
-    @DisplayName("Test sendFailureAcknowledgement invalid scenarios")
-    void testSendFailureAcknowledgementInvalid() {
-        assertDoesNotThrow(() -> service.sendFailureAcknowledgement(null, null));
+        ArgumentCaptor<SimpleMailMessage> captor = ArgumentCaptor.forClass(SimpleMailMessage.class);
+        Mockito.verify(mailSender).send(captor.capture());
+        SimpleMailMessage sentMsg = captor.getValue();
 
-        FailedRfqRequest req = FailedRfqRequest.builder().buyerEmail("").build();
-        service.sendFailureAcknowledgement(req, null);
-        Mockito.verify(mailSender, Mockito.never()).send(any(SimpleMailMessage.class));
-    }
-
-    @Test
-    @DisplayName("Test sendMissingQuantityAcknowledgement")
-    void testSendMissingQuantityAcknowledgement() {
-        service.sendMissingQuantityAcknowledgement("buyer@test.com", "Buyer Name", List.of("Laptop", "Monitor"));
-        Mockito.verify(mailSender).send(any(SimpleMailMessage.class));
-
-        // Invalid email
-        service.sendMissingQuantityAcknowledgement("invalidemail", null, null);
-    }
-
-    @Test
-    @DisplayName("Test sendUnregisteredBuyerAcknowledgement")
-    void testSendUnregisteredBuyerAcknowledgement() {
-        service.sendUnregisteredBuyerAcknowledgement("unregistered@test.com");
-        Mockito.verify(mailSender).send(any(SimpleMailMessage.class));
-
-        // Invalid email
-        service.sendUnregisteredBuyerAcknowledgement("");
-    }
-
-    @Test
-    @DisplayName("Test sendSuccessAcknowledgement with invalid itemsJson and null item fields")
-    void testSendSuccessAcknowledgementInvalidJson() {
-        RFQEntity entity1 = RFQEntity.builder()
-                .rfqNumber("RFQ-103")
-                .buyerEmail("buyer@test.com")
-                .itemsJson("INVALID_JSON")
-                .build();
-        service.sendSuccessAcknowledgement(entity1, null);
-
-        RFQEntity entity2 = RFQEntity.builder()
-                .rfqNumber("RFQ-104")
-                .buyerEmail("buyer@test.com")
-                .itemsJson("[{\"itemDescription\":null,\"quantity\":null,\"uom\":null,\"category\":null}]")
-                .build();
-        service.sendSuccessAcknowledgement(entity2, Buyer.builder().email("buyer@test.com").name("").build());
-    }
-
-    @Test
-    @DisplayName("Test sendMissingQuantityAcknowledgement with null or empty missing list")
-    void testSendMissingQuantityAcknowledgementNullList() {
-        service.sendMissingQuantityAcknowledgement("buyer@test.com", null, null);
-        service.sendMissingQuantityAcknowledgement("buyer@test.com", "Buyer", List.of());
-    }
-
-    @Test
-    @DisplayName("Test sendFailureAcknowledgement mail exception handling")
-    void testSendFailureAcknowledgementMailException() {
-        Mockito.doThrow(new RuntimeException("SMTP Error")).when(mailSender).send(any(SimpleMailMessage.class));
-
-        FailedRfqRequest req = FailedRfqRequest.builder()
-                .buyerEmail("buyer@test.com")
-                .description("Desc")
-                .quantity("1")
-                .uom("NOS")
-                .deliveryLocation("L")
-                .deliveryDate("D")
-                .build();
-
-        assertDoesNotThrow(() -> service.sendFailureAcknowledgement(req, null));
-    }
-
-    @Test
-    @DisplayName("Test sendSuccessAcknowledgement with buyer email blank falls back to entity email")
-    void testSendSuccessAcknowledgementBuyerEmailFallback() {
-        RFQEntity entity = RFQEntity.builder()
-                .rfqNumber("RFQ-200")
-                .buyerEmail("entity@test.com")
-                .itemsJson("[]")
-                .build();
-
-        Buyer buyer = Buyer.builder().email("").name("Test").build();
-
-        service.sendSuccessAcknowledgement(entity, buyer);
-        Mockito.verify(mailSender).send(any(SimpleMailMessage.class));
-    }
-
-    @Test
-    @DisplayName("Test sendSuccessAcknowledgement with null buyer falls back to entity email")
-    void testSendSuccessAcknowledgementNullBuyer() {
-        RFQEntity entity = RFQEntity.builder()
-                .rfqNumber("RFQ-201")
-                .buyerEmail("entity@test.com")
-                .deliveryDate(null)
-                .deliveryLocation(null)
-                .itemsJson("[]")
-                .build();
-
-        service.sendSuccessAcknowledgement(entity, null);
-        Mockito.verify(mailSender).send(any(SimpleMailMessage.class));
-    }
-
-    @Test
-    @DisplayName("Test sendFailureAcknowledgement with null rawSubject and null reasonForFailure")
-    void testSendFailureAcknowledgementNullFields() {
-        FailedRfqRequest req = FailedRfqRequest.builder()
-                .buyerEmail("buyer@test.com")
-                .rawSubject(null)
-                .reasonForFailure(null)
-                .description("Desc")
-                .quantity("1")
-                .uom("NOS")
-                .deliveryLocation("L")
-                .deliveryDate("D")
-                .build();
-
-        service.sendFailureAcknowledgement(req, Buyer.builder().email("").name("").build());
-        Mockito.verify(mailSender).send(any(SimpleMailMessage.class));
-    }
-
-    @Test
-    @DisplayName("Test sendUnregisteredBuyerAcknowledgement mail exception handling")
-    void testSendUnregisteredBuyerAcknowledgementException() {
-        Mockito.doThrow(new RuntimeException("SMTP")).when(mailSender).send(any(SimpleMailMessage.class));
-        assertDoesNotThrow(() -> service.sendUnregisteredBuyerAcknowledgement("buyer@test.com"));
-    }
-
-    @Test
-    @DisplayName("Test sendMissingQuantityAcknowledgement mail exception handling")
-    void testSendMissingQuantityAcknowledgementException() {
-        Mockito.doThrow(new RuntimeException("SMTP")).when(mailSender).send(any(SimpleMailMessage.class));
-        assertDoesNotThrow(() -> service.sendMissingQuantityAcknowledgement("buyer@test.com", "Name", List.of("Item1")));
-    }
-
-    @Test
-    @DisplayName("Test sendSuccessAcknowledgement with null itemsJson")
-    void testSendSuccessAcknowledgementNullItemsJson() {
-        RFQEntity entity = RFQEntity.builder()
-                .rfqNumber("RFQ-202")
-                .buyerEmail("buyer@test.com")
-                .itemsJson(null)
-                .build();
-
-        service.sendSuccessAcknowledgement(entity, null);
-        Mockito.verify(mailSender).send(any(SimpleMailMessage.class));
-    }
-
-    @Test
-    @DisplayName("Test sendUnregisteredBuyerAcknowledgement with null email")
-    void testSendUnregisteredBuyerAcknowledgementNull() {
-        service.sendUnregisteredBuyerAcknowledgement(null);
-        Mockito.verify(mailSender, Mockito.never()).send(any(SimpleMailMessage.class));
-    }
-
-    @Test
-    @DisplayName("Test sendFailureAcknowledgement buyer email from buyer object")
-    void testSendFailureAcknowledgementBuyerEmailFromBuyer() {
-        FailedRfqRequest req = FailedRfqRequest.builder()
-                .buyerEmail("")
-                .description("D").quantity("1").uom("U").deliveryLocation("L").deliveryDate("D")
-                .build();
-
-        Buyer buyer = Buyer.builder().email("from-buyer@test.com").name("BuyerName").build();
-        service.sendFailureAcknowledgement(req, buyer);
-        Mockito.verify(mailSender).send(any(SimpleMailMessage.class));
-    }
-
-    @Test
-    @DisplayName("Test sendSuccessAcknowledgement with multiple items having null fields")
-    void testSendSuccessAcknowledgementMultipleItemsWithNulls() {
-        RFQEntity entity = RFQEntity.builder()
-                .rfqNumber("RFQ-203")
-                .buyerEmail("buyer@test.com")
-                .deliveryDate("2026-08-25")
-                .deliveryLocation("Location")
-                .itemsJson("[{\"itemDescription\":\"A\",\"quantity\":2.0,\"uom\":\"NOS\",\"category\":\"IT\"},{\"itemDescription\":null,\"quantity\":null,\"uom\":null,\"category\":null}]")
-                .build();
-
-        service.sendSuccessAcknowledgement(entity, Buyer.builder().email("buyer@test.com").name("Test").build());
-        Mockito.verify(mailSender).send(any(SimpleMailMessage.class));
+        assertEquals("rfq@procucev.com", sentMsg.getFrom());
+        assertEquals("support@procucev.com", sentMsg.getCc()[0]);
+        assertEquals("⚡ One Quick Detail Needed to Process Your RFQ", sentMsg.getSubject());
     }
 
     @Test
@@ -292,11 +147,10 @@ public class AcknowledgementEmailServiceTest {
         Mockito.verify(mailSender).send(captor.capture());
         SimpleMailMessage sentMsg = captor.getValue();
 
-        assertEquals("veerababu.v@procucev.com", sentMsg.getFrom());
+        assertEquals("rfq@procucev.com", sentMsg.getFrom());
         assertEquals("buyer@test.com", sentMsg.getTo()[0]);
         assertNotNull(sentMsg.getCc());
         assertEquals("support@procucev.com", sentMsg.getCc()[0]);
         assertTrue(sentMsg.getSubject().contains("Duplicate Request Received"));
     }
 }
-

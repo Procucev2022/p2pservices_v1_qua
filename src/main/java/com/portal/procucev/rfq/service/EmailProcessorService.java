@@ -189,6 +189,20 @@ public class EmailProcessorService {
 
             // STEP 3: VALIDATE & CLASSIFY ITEMS INDEPENDENTLY
             if (extractedRFQ.getItems() == null || extractedRFQ.getItems().isEmpty()) {
+                String fallbackDesc = extractProductFromSubject(email.getSubject());
+                if (!fallbackDesc.isBlank()) {
+                    log.info("Attempting Subject-based Fallback extraction for subject: '{}'", email.getSubject());
+                    RFQItem fallbackItem = RFQItem.builder()
+                            .itemDescription(fallbackDesc)
+                            .quantity(parseQuantityFromText(email.getBody()))
+                            .deliveryLocation(extractedRFQ.getDeliveryLocation())
+                            .deliveryDate(extractedRFQ.getDeliveryDate())
+                            .build();
+                    extractedRFQ.setItems(new ArrayList<>(List.of(fallbackItem)));
+                }
+            }
+
+            if (extractedRFQ.getItems() == null || extractedRFQ.getItems().isEmpty()) {
                 log.warn("RFQ validation failed: No line items extracted.");
                 FailedRfqRequest failedReq = buildFailedRequestFromEmail(email, extractedRFQ, "No line items extracted from email.");
                 acknowledgementEmailService.sendFailureAcknowledgement(failedReq, buyer);
@@ -214,24 +228,71 @@ public class EmailProcessorService {
             String defaultLocation = resolveDeliveryLocation(topDeliveryLocation, buyer);
 
             for (RFQItem item : extractedRFQ.getItems()) {
-                if (item == null || item.getItemDescription() == null || item.getItemDescription().isBlank()) {
+                if (item == null) {
                     continue;
                 }
-                String desc = item.getItemDescription().trim();
+                String desc = item.getItemDescription() != null && !item.getItemDescription().isBlank()
+                        ? item.getItemDescription().trim() : extractProductFromSubject(email.getSubject());
 
-                // QUANTITY VALIDATION PER ITEM
+                if (desc.isBlank() || desc.equalsIgnoreCase("RFQ Procurement Item")) {
+                    String scannedProduct = extractFieldByPattern(email.getBody(), "(?i)(?:product|item|material|description)[:\\s=]*([^\\r\\n]+)");
+                    if (scannedProduct != null && !scannedProduct.isBlank()) {
+                        desc = scannedProduct.trim();
+                    } else {
+                        desc = "RFQ Procurement Item";
+                    }
+                }
+                item.setItemDescription(desc);
+
+                // Fallback scan for specifications if missing
+                if (item.getSpecification() == null || item.getSpecification().isBlank() || item.getSpecification().equalsIgnoreCase("Not Specified")) {
+                    String scannedSpec = extractFieldByPattern(email.getBody(), "(?i)(?:specifications|specs|specification)[:\\s=]*([^\\r\\n]+)");
+                    if (scannedSpec != null && !scannedSpec.isBlank()) {
+                        item.setSpecification(scannedSpec.trim());
+                    }
+                }
+
+                // Fallback scan for brand if missing
+                if (item.getBrand() == null || item.getBrand().isBlank() || item.getBrand().equalsIgnoreCase("Not Specified")) {
+                    String scannedBrand = extractFieldByPattern(email.getBody(), "(?i)(?:brand|make)[:\\s=]*([^\\r\\n]+)");
+                    if (scannedBrand != null && !scannedBrand.isBlank()) {
+                        item.setBrand(scannedBrand.trim());
+                    }
+                }
+
+                // Fallback scan for delivery location if missing
+                if (item.getDeliveryLocation() == null || item.getDeliveryLocation().isBlank() || item.getDeliveryLocation().equalsIgnoreCase("Not Specified")) {
+                    String scannedLoc = extractFieldByPattern(email.getBody(), "(?i)(?:delivery\\s+location|delivery|location|plant|address)[:\\s=]*([^\\r\\n]+)");
+                    if (scannedLoc != null && !scannedLoc.isBlank()) {
+                        item.setDeliveryLocation(scannedLoc.trim());
+                    }
+                }
+
+                // Fallback scan for delivery date if missing
+                if (item.getDeliveryDate() == null || item.getDeliveryDate().isBlank() || item.getDeliveryDate().equalsIgnoreCase("Not Specified")) {
+                    String scannedDate = extractFieldByPattern(email.getBody(), "(?i)(?:required\\s+delivery\\s+date|delivery\\s+date|deliverydate|date)[:\\s=]*([^\\r\\n]+)");
+                    if (scannedDate != null && !scannedDate.isBlank()) {
+                        item.setDeliveryDate(scannedDate.trim());
+                    }
+                }
+
+                log.info("DEBUG Thread Processing: Source Email MsgID={}, ThreadID={}, Latest Reply MsgID={}", email.getMessageId(), email.getInReplyTo(), email.getMessageId());
+                log.info("DEBUG Extracted Data: Item='{}', Raw Quantity={}, Normalized Quantity={}, Raw Location='{}', Raw Date='{}'", desc, item.getQuantity(), item.getQuantity(), item.getDeliveryLocation(), item.getDeliveryDate());
+
+                // MANDATORY QUANTITY VALIDATION PER ITEM
                 if (item.getQuantity() == null || item.getQuantity() <= 0) {
-                    log.warn("Item '{}' missing quantity. Marking item as FAILED.", desc);
-                    failedItemsList.add("Item: " + desc + " | Reason: Quantity is mandatory and was not provided.");
-                    continue;
+                    log.warn("Item '{}' missing mandatory quantity. Aborting RFQ creation for email payload.", desc);
+                    failedItemsList.add("Item: " + desc + " | Reason: Quantity is mandatory. Please provide the required quantity.");
+                    validItems.clear();
+                    break;
                 }
 
                 // Resolve item-level location & date fallbacks with ISO yyyy-MM-dd normalization
-                String itemLoc = (item.getDeliveryLocation() != null && !item.getDeliveryLocation().isBlank() && !item.getDeliveryLocation().equalsIgnoreCase("Not Specified"))
+                String itemLoc = (item.getDeliveryLocation() != null && !item.getDeliveryLocation().isBlank() && !item.getDeliveryLocation().equalsIgnoreCase("Not Specified") && !item.getDeliveryLocation().equalsIgnoreCase("null"))
                         ? item.getDeliveryLocation().trim() : defaultLocation;
                 item.setDeliveryLocation(itemLoc);
 
-                String rawItemDate = (item.getDeliveryDate() != null && !item.getDeliveryDate().isBlank() && !item.getDeliveryDate().equalsIgnoreCase("Not Specified"))
+                String rawItemDate = (item.getDeliveryDate() != null && !item.getDeliveryDate().isBlank() && !item.getDeliveryDate().equalsIgnoreCase("Not Specified") && !item.getDeliveryDate().equalsIgnoreCase("null"))
                         ? item.getDeliveryDate().trim() : defaultDate;
                 String itemDate = dateParser.parseDateString(rawItemDate);
                 item.setDeliveryDate(itemDate);
@@ -242,22 +303,16 @@ public class EmailProcessorService {
                     continue;
                 }
                 seenInEmailKeys.add(key);
-                item.setItemDescription(desc);
                 validItems.add(item);
             }
 
             if (validItems.isEmpty()) {
                 log.warn("RFQ validation failed: All items in email were invalid or missing mandatory quantity.");
-                if (!failedItemsList.isEmpty()) {
-                    acknowledgementEmailService.sendMissingQuantityAcknowledgement(buyer.getEmail(), buyer.getName(), failedItemsList);
-                } else {
-                    FailedRfqRequest failedReq = buildFailedRequestFromEmail(email, extractedRFQ, "No valid line items remaining for RFQ creation.");
-                    acknowledgementEmailService.sendFailureAcknowledgement(failedReq, buyer);
-                }
+                acknowledgementEmailService.sendConsolidatedAcknowledgement(Collections.emptyList(), failedItemsList, buyer, email.getSubject());
                 emailReaderService.moveMessageToFolder(email.getMessageId(), errorFolder);
 
                 transaction.setStatus("VALIDATION_FAILED");
-                transaction.setErrorMessage("No valid items with quantity");
+                transaction.setErrorMessage("No valid items with mandatory quantity");
                 emailTransactionRepository.save(transaction);
                 return "VALIDATION_FAILED";
             }
@@ -333,14 +388,12 @@ public class EmailProcessorService {
                 } else {
                     hasFailures = true;
                     log.warn("RFQ creation failed for RFQ Number: {}", generatedRfqNumber);
-                    FailedRfqRequest failedReq = buildFailedRequestFromEmail(email, groupExtractedRFQ, "RFQ Creation error: " + apiResponse.getMessage());
-                    acknowledgementEmailService.sendFailureAcknowledgement(failedReq, buyer);
+                    failedItemsList.add("Group (" + groupCategory + ") | Reason: RFQ Creation error: " + apiResponse.getMessage());
                 }
             }
 
-            if (!createdRfqs.isEmpty()) {
-                acknowledgementEmailService.sendSuccessAcknowledgement(createdRfqs, buyer);
-            }
+            // SEND EXACTLY ONE CONSOLIDATED ACKNOWLEDGEMENT EMAIL PER INCOMING EMAIL
+            acknowledgementEmailService.sendConsolidatedAcknowledgement(createdRfqs, failedItemsList, buyer, email.getSubject());
 
             boolean atLeastOneSuccess = !createdRfqs.isEmpty();
 
@@ -419,8 +472,6 @@ public class EmailProcessorService {
     private Map<String, List<RFQItem>> groupItemsByCategoryLocationAndDate(List<RFQItem> items, String defaultLoc, String defaultDate) {
         Map<String, List<RFQItem>> groups = new LinkedHashMap<>();
         for (RFQItem item : items) {
-            String cat = item.getCategory() != null && !item.getCategory().isBlank()
-                    ? item.getCategory().trim() : "General";
             String loc = item.getDeliveryLocation() != null && !item.getDeliveryLocation().isBlank()
                     ? item.getDeliveryLocation().trim() : defaultLoc;
             String rawDate = item.getDeliveryDate() != null && !item.getDeliveryDate().isBlank()
@@ -428,7 +479,7 @@ public class EmailProcessorService {
             String date = dateParser.parseDateString(rawDate);
             item.setDeliveryDate(date);
 
-            String groupKey = cat.toLowerCase() + "|" + loc.toLowerCase() + "|" + date.toLowerCase();
+            String groupKey = loc.toLowerCase() + "|" + date.toLowerCase();
             groups.computeIfAbsent(groupKey, k -> new ArrayList<>()).add(item);
         }
         return groups;
@@ -494,5 +545,25 @@ public class EmailProcessorService {
             return String.join(", ", parts);
         }
         return "Registered Profile Address";
+    }
+
+    private String extractProductFromSubject(String subject) {
+        if (subject == null || subject.isBlank()) return "";
+        String clean = subject.replaceAll("(?i)^(re:|fwd:|rfq:|request for quotation[:\\-–—]?|inquiry for[:\\-–—]?)", "").trim();
+        return clean;
+    }
+
+    private Double parseQuantityFromText(String text) {
+        if (text == null || text.isBlank()) return null;
+        return com.portal.procucev.rfq.util.QuantityNormalizer.normalize(text);
+    }
+
+    private String extractFieldByPattern(String text, String regex) {
+        if (text == null || text.isBlank()) return null;
+        java.util.regex.Matcher m = java.util.regex.Pattern.compile(regex).matcher(text);
+        if (m.find()) {
+            return m.group(1).trim();
+        }
+        return null;
     }
 }

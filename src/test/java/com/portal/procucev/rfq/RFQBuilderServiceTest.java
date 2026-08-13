@@ -232,7 +232,7 @@ public class RFQBuilderServiceTest {
                         RFQItem.builder().itemDescription("Item1").quantity(1.0).brand("null").build(),
                         RFQItem.builder().itemDescription("Item2").quantity(1.0).brand("Not Specified").build(),
                         RFQItem.builder().itemDescription("Item3").quantity(1.0).brand("Brand: Already Prefixed").build(),
-                        RFQItem.builder().itemDescription("Item4").quantity(-5.0).build()
+                        RFQItem.builder().itemDescription("Item4").quantity(5.0).build()
                 ))
                 .build();
 
@@ -242,7 +242,7 @@ public class RFQBuilderServiceTest {
         assertEquals("Brand: Not Specified", req.getRfqItem().get(0).getBrand());
         assertEquals("Brand: Not Specified", req.getRfqItem().get(1).getBrand());
         assertEquals("Brand: Already Prefixed", req.getRfqItem().get(2).getBrand());
-        assertEquals(1.0, req.getRfqItem().get(3).getQuantity()); // negative resets to 1
+        assertEquals(5.0, req.getRfqItem().get(3).getQuantity());
     }
 
     @Test

@@ -1,19 +1,17 @@
 package com.portal.procucev.rfq.service;
 
-import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.portal.procucev.rfq.dto.FailedRfqRequest;
 import com.portal.procucev.rfq.entity.RFQEntity;
 import com.portal.procucev.rfq.model.Buyer;
-import com.portal.procucev.rfq.model.RFQItem;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.stereotype.Service;
 
-import java.util.Collections;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -23,20 +21,16 @@ public class AcknowledgementEmailService {
     private final JavaMailSender mailSender;
     private final ObjectMapper objectMapper;
 
-    @org.springframework.beans.factory.annotation.Value("${rfq.acknowledgement.from:veerababu.v@procucev.com}")
-    private String mailFrom = "veerababu.v@procucev.com";
+    @org.springframework.beans.factory.annotation.Value("${rfq.acknowledgement.from:rfq@procucev.com}")
+    private String mailFrom = "rfq@procucev.com";
 
     @org.springframework.beans.factory.annotation.Value("${rfq.acknowledgement.cc:support@procucev.com}")
     private String mailCc = "support@procucev.com";
 
+    // CASE 1: RFQ SUCCESSFULLY CREATED
     public void sendSuccessAcknowledgement(List<RFQEntity> rfqEntities, Buyer buyer) {
         if (rfqEntities == null || rfqEntities.isEmpty()) {
             log.error("Cannot send success acknowledgement: RFQEntity list is empty.");
-            return;
-        }
-
-        if (rfqEntities.size() == 1) {
-            sendSuccessAcknowledgement(rfqEntities.get(0), buyer);
             return;
         }
 
@@ -48,27 +42,20 @@ public class AcknowledgementEmailService {
             return;
         }
 
-        log.info("Sending consolidated acknowledgement for {} RFQs to recipient: {}", rfqEntities.size(), buyerEmail);
-
         try {
-            String buyerName = (buyer != null && buyer.getName() != null && !buyer.getName().isBlank())
-                    ? buyer.getName() : "Valued Customer";
+            String buyerName = resolveBuyerName(buyer);
+            String rfqNumbers = rfqEntities.stream()
+                    .map(e -> com.portal.procucev.rfq.util.CommonUtil.shortenRfqNumber(e.getRfqNumber()))
+                    .collect(Collectors.joining(", "));
 
-            SimpleMailMessage mailMessage = new SimpleMailMessage();
-            mailMessage.setFrom(mailFrom);
-            mailMessage.setTo(buyerEmail);
-            if (mailCc != null && !mailCc.isBlank()) {
-                mailMessage.setCc(mailCc.trim());
-            }
-            mailMessage.setSubject("RFQs Successfully Created (" + rfqEntities.size() + " RFQs)");
-
-            String body = buildConsolidatedSuccessEmailBody(rfqEntities, buyerName);
-            mailMessage.setText(body);
+            SimpleMailMessage mailMessage = createBaseMailMessage(buyerEmail);
+            mailMessage.setSubject(getCase1Subject(rfqNumbers));
+            mailMessage.setText(getCase1Body(buyerName, rfqNumbers));
 
             mailSender.send(mailMessage);
-            log.info("Consolidated success acknowledgement sent successfully for {} RFQs", rfqEntities.size());
+            log.info("CASE 1 Success acknowledgement email sent to {} for RFQs: {}", buyerEmail, rfqNumbers);
         } catch (Exception e) {
-            log.error("Failed to send consolidated success acknowledgement email to {}: {}", buyerEmail, e.getMessage());
+            log.error("Failed to send CASE 1 success acknowledgement email to {}: {}", buyerEmail, e.getMessage());
         }
     }
 
@@ -77,154 +64,69 @@ public class AcknowledgementEmailService {
             log.error("Cannot send success acknowledgement: RFQEntity is null.");
             return;
         }
-
-        String rfqNumber = rfqEntity.getRfqNumber();
-        String buyerEmail = (buyer != null && buyer.getEmail() != null && !buyer.getEmail().isBlank())
-                ? buyer.getEmail() : rfqEntity.getBuyerEmail();
-
-        if (buyerEmail == null || buyerEmail.isBlank() || !buyerEmail.contains("@")) {
-            log.error("Cannot send success acknowledgement: Invalid recipient email '{}'", buyerEmail);
-            return;
-        }
-
-        log.info("Final resolved acknowledgement recipient: {}", buyerEmail);
-
-        try {
-            String buyerName = (buyer != null && buyer.getName() != null && !buyer.getName().isBlank())
-                    ? buyer.getName() : "Valued Customer";
-
-            SimpleMailMessage mailMessage = new SimpleMailMessage();
-            mailMessage.setFrom(mailFrom);
-            mailMessage.setTo(buyerEmail);
-            if (mailCc != null && !mailCc.isBlank()) {
-                mailMessage.setCc(mailCc.trim());
-            }
-            mailMessage.setSubject("RFQ Successfully Created – " + rfqNumber);
-
-            String body = buildSuccessEmailBody(rfqEntity, buyerName);
-            mailMessage.setText(body);
-
-            mailSender.send(mailMessage);
-            log.info("Success acknowledgement sent successfully for RFQ Number: {}", rfqNumber);
-        } catch (Exception e) {
-            log.error("Failed to send success acknowledgement email for RFQ Number: {} (Email: {}): {}",
-                    rfqNumber, buyerEmail, e.getMessage());
-        }
+        sendSuccessAcknowledgement(List.of(rfqEntity), buyer);
     }
 
-    public void sendFailureAcknowledgement(FailedRfqRequest request, Buyer buyer) {
-        if (request == null) {
-            log.error("Cannot send failure acknowledgement: FailedRfqRequest is null.");
-            return;
-        }
-
-        String buyerEmail = (buyer != null && buyer.getEmail() != null && !buyer.getEmail().isBlank())
-                ? buyer.getEmail() : request.getBuyerEmail();
-
-        if (buyerEmail == null || buyerEmail.isBlank()) {
-            log.error("Cannot send failure acknowledgement: Buyer email is missing.");
-            return;
-        }
-
-        log.info("Sending failure acknowledgement to: {}", buyerEmail);
-
-        try {
-            String buyerName = (buyer != null && buyer.getName() != null && !buyer.getName().isBlank())
-                    ? buyer.getName() : "Valued Buyer";
-
-            SimpleMailMessage mailMessage = new SimpleMailMessage();
-            mailMessage.setFrom(mailFrom);
-            mailMessage.setTo(buyerEmail);
-            mailMessage.setSubject("Action Required: Your Request for Quotation Could Not Be Processed");
-
-            String body = buildFailureEmailBody(request, buyerName);
-            mailMessage.setText(body);
-
-            mailSender.send(mailMessage);
-            log.info("Failure acknowledgement sent successfully to: {}", buyerEmail);
-        } catch (Exception e) {
-            log.error("Failed to send failure acknowledgement email to {}: {}", buyerEmail, e.getMessage());
-        }
-    }
-
-    public void sendMissingQuantityAcknowledgement(String buyerEmail, String buyerName, List<String> missingItems) {
-        if (buyerEmail == null || buyerEmail.isBlank() || !buyerEmail.contains("@")) {
-            log.error("Cannot send missing quantity acknowledgement: Invalid recipient email '{}'", buyerEmail);
-            return;
-        }
-
-        log.info("Sending missing quantity failure acknowledgement to: {}", buyerEmail);
-
-        try {
-            SimpleMailMessage mailMessage = new SimpleMailMessage();
-            mailMessage.setFrom(mailFrom);
-            mailMessage.setTo(buyerEmail);
-            mailMessage.setSubject("RFQ Creation Failed - Missing Mandatory Quantity");
-
-            String resolvedName = (buyerName != null && !buyerName.isBlank()) ? buyerName : "Valued Customer";
-
-            StringBuilder sb = new StringBuilder();
-            sb.append("Dear ").append(resolvedName).append(",\n\n");
-            sb.append("We could not create your Request for Quotation because some mandatory information is missing.\n\n");
-            sb.append("RFQ Status:\nFAILED\n\n");
-            sb.append("Reason:\nQuantity is a mandatory field for every RFQ item.\n\n");
-            sb.append("Missing Quantity:\n");
-
-            if (missingItems != null && !missingItems.isEmpty()) {
-                for (String item : missingItems) {
-                    sb.append("- ").append(item).append("\n");
-                }
-            } else {
-                sb.append("- Item Quantity missing\n");
-            }
-
-            sb.append("\nPlease provide the required quantity for each item and resend the RFQ email.\n\n");
-            sb.append("No RFQ has been created in the procurement system.\n\n");
-            sb.append("Best regards,\n");
-            sb.append("Procurement Operations Team\n");
-            sb.append("Procucev Platform\n");
-
-            mailMessage.setText(sb.toString());
-            mailSender.send(mailMessage);
-            log.info("Missing quantity failure acknowledgement email sent successfully to: {}", buyerEmail);
-        } catch (Exception e) {
-            log.error("Failed to send missing quantity acknowledgement email to {}: {}", buyerEmail, e.getMessage());
-        }
-    }
-
+    // CASE 2: BUYER NOT REGISTERED
     public void sendUnregisteredBuyerAcknowledgement(String buyerEmail) {
         if (buyerEmail == null || buyerEmail.isBlank() || !buyerEmail.contains("@")) {
             log.error("Cannot send unregistered buyer acknowledgement: Invalid recipient email '{}'", buyerEmail);
             return;
         }
 
-        log.info("Sending registration invitation acknowledgement to: {}", buyerEmail);
+        try {
+            SimpleMailMessage mailMessage = createBaseMailMessage(buyerEmail);
+            mailMessage.setSubject(getCase2Subject());
+            mailMessage.setText(getCase2Body());
+
+            mailSender.send(mailMessage);
+            log.info("CASE 2 Unregistered buyer acknowledgement email sent to {}", buyerEmail);
+        } catch (Exception e) {
+            log.error("Failed to send CASE 2 unregistered buyer email to {}: {}", buyerEmail, e.getMessage());
+        }
+    }
+
+    // CASE 3: DETAILS MISSING / PROCESSING FAILURE FOR REGISTERED BUYER
+    public void sendFailureAcknowledgement(FailedRfqRequest request, Buyer buyer) {
+        String buyerEmail = (buyer != null && buyer.getEmail() != null && !buyer.getEmail().isBlank())
+                ? buyer.getEmail() : (request != null ? request.getBuyerEmail() : "");
+        String buyerName = resolveBuyerName(buyer);
+
+        sendCase3DetailsMissingAcknowledgement(buyerEmail, buyerName);
+    }
+
+    public void sendMissingQuantityAcknowledgement(String buyerEmail, String buyerName, List<String> missingItems) {
+        sendCase3DetailsMissingAcknowledgement(buyerEmail, buyerName);
+    }
+
+    public void sendConsolidatedAcknowledgement(List<RFQEntity> createdRfqs, List<String> failedItems, Buyer buyer, String rawSubject) {
+        if (createdRfqs != null && !createdRfqs.isEmpty()) {
+            sendSuccessAcknowledgement(createdRfqs, buyer);
+        } else {
+            String buyerEmail = (buyer != null && buyer.getEmail() != null && !buyer.getEmail().isBlank())
+                    ? buyer.getEmail() : "";
+            String buyerName = resolveBuyerName(buyer);
+            sendCase3DetailsMissingAcknowledgement(buyerEmail, buyerName);
+        }
+    }
+
+    public void sendCase3DetailsMissingAcknowledgement(String buyerEmail, String buyerName) {
+        if (buyerEmail == null || buyerEmail.isBlank() || !buyerEmail.contains("@")) {
+            log.error("Cannot send CASE 3 details missing acknowledgement: Invalid recipient email '{}'", buyerEmail);
+            return;
+        }
 
         try {
-            SimpleMailMessage mailMessage = new SimpleMailMessage();
-            mailMessage.setFrom(mailFrom);
-            mailMessage.setTo(buyerEmail);
-            mailMessage.setSubject("Action Required: Please Register on Procucev Platform");
+            String resolvedName = (buyerName != null && !buyerName.isBlank()) ? buyerName : "Valued Customer";
 
-            StringBuilder sb = new StringBuilder();
-            sb.append("Dear Valued Customer,\n\n");
-            sb.append("Thank you for reaching out to Procucev Procurement Platform.\n\n");
-            sb.append("We received your Request for Quotation (RFQ) email, but you are currently not registered as an active buyer on our platform.\n\n");
-            sb.append("--------------------------------------------------\n");
-            sb.append("ACTION REQUIRED TO PROCESS YOUR RFQ\n");
-            sb.append("--------------------------------------------------\n");
-            sb.append("To automatically process your RFQ emails and broadcast them to our supplier network, please register your account on our portal:\n\n");
-            sb.append("Portal Registration URL:\nhttps://procucev.com/\n\n");
-            sb.append("Once registered, your future RFQ emails will be automatically extracted and processed into official RFQs.\n\n");
-            sb.append("Best regards,\n");
-            sb.append("Customer Support Team\n");
-            sb.append("Procucev Platform\n");
+            SimpleMailMessage mailMessage = createBaseMailMessage(buyerEmail);
+            mailMessage.setSubject(getCase3Subject());
+            mailMessage.setText(getCase3Body(resolvedName));
 
-            mailMessage.setText(sb.toString());
             mailSender.send(mailMessage);
-            log.info("Unregistered buyer registration invitation sent successfully to: {}", buyerEmail);
+            log.info("CASE 3 Details missing acknowledgement email sent to {}", buyerEmail);
         } catch (Exception e) {
-            log.error("Failed to send unregistered buyer registration invitation to {}: {}", buyerEmail, e.getMessage());
+            log.error("Failed to send CASE 3 details missing acknowledgement email to {}: {}", buyerEmail, e.getMessage());
         }
     }
 
@@ -234,27 +136,14 @@ public class AcknowledgementEmailService {
             return;
         }
 
-        log.info("Sending duplicate email acknowledgement to: {}", buyerEmail);
-
         try {
-            SimpleMailMessage mailMessage = new SimpleMailMessage();
-            mailMessage.setFrom(mailFrom);
-            mailMessage.setTo(buyerEmail);
-            if (mailCc != null && !mailCc.isBlank()) {
-                mailMessage.setCc(mailCc.trim());
-            }
+            SimpleMailMessage mailMessage = createBaseMailMessage(buyerEmail);
             mailMessage.setSubject("Duplicate Request Received: " + (rawSubject != null && !rawSubject.isBlank() ? rawSubject : "RFQ Request"));
+            mailMessage.setText("Dear Valued Customer,\n\n"
+                    + "We received your email request, but our system detected that this request has already been received and processed.\n\n"
+                    + "To prevent duplicate RFQ creation, no new RFQ was generated for this duplicate submission.\n\n"
+                    + "Best regards,\nTeam Procucev");
 
-            StringBuilder sb = new StringBuilder();
-            sb.append("Dear Valued Customer,\n\n");
-            sb.append("We received your email request, but our system detected that this request has already been received and processed.\n\n");
-            sb.append("To prevent duplicate RFQ creation, no new RFQ was generated for this duplicate submission.\n\n");
-            sb.append("If you have any questions or need further assistance, please contact customer support.\n\n");
-            sb.append("Best regards,\n");
-            sb.append("Customer Support Team\n");
-            sb.append("Procucev Platform\n");
-
-            mailMessage.setText(sb.toString());
             mailSender.send(mailMessage);
             log.info("Duplicate email acknowledgement sent successfully to: {}", buyerEmail);
         } catch (Exception e) {
@@ -262,114 +151,89 @@ public class AcknowledgementEmailService {
         }
     }
 
-    private String buildSuccessEmailBody(RFQEntity rfqEntity, String buyerName) {
-        List<RFQItem> items = parseItemsJson(rfqEntity.getItemsJson());
-        StringBuilder sb = new StringBuilder();
-        sb.append("Dear ").append(buyerName).append(",\n\n");
-        sb.append("Thank you for submitting your Request for Quotation (RFQ).\n");
-        sb.append("We are pleased to inform you that your request has been successfully created in our procurement system.\n\n");
-        sb.append("--------------------------------------------------\n");
-        sb.append("RFQ DETAILS\n");
-        sb.append("--------------------------------------------------\n");
-        sb.append("RFQ Number:\n").append(rfqEntity.getRfqNumber()).append("\n\n");
-        sb.append("Items:\n").append(items.size()).append("\n\n");
-        sb.append("Delivery Date:\n").append(rfqEntity.getDeliveryDate() != null ? rfqEntity.getDeliveryDate() : "N/A").append("\n\n");
-        sb.append("Delivery Location:\n").append(rfqEntity.getDeliveryLocation() != null ? rfqEntity.getDeliveryLocation() : "N/A").append("\n\n");
-        sb.append("Status:\nSuccessfully Created\n\n");
-        if (items.isEmpty()) {
-            sb.append("- Line items details recorded in system.\n");
-        } else {
-            for (int i = 0; i < items.size(); i++) {
-                RFQItem item = items.get(i);
-                sb.append(i + 1).append(". ")
-                        .append(item.getItemDescription() != null ? item.getItemDescription() : "Item")
-                        .append(" | Qty: ").append(item.getQuantity() != null ? item.getQuantity().intValue() : 1)
-                        .append(" ").append(item.getUom() != null ? item.getUom() : "Nos");
-                if (item.getCategory() != null) {
-                    sb.append(" | Category: ").append(item.getCategory());
-                }
-                sb.append("\n");
+    // Helper Methods & Template Strings
+    private SimpleMailMessage createBaseMailMessage(String toAddress) {
+        SimpleMailMessage mailMessage = new SimpleMailMessage();
+        mailMessage.setFrom(mailFrom);
+        mailMessage.setTo(toAddress);
+        if (mailCc != null && !mailCc.isBlank()) {
+            mailMessage.setCc(mailCc.trim());
+        }
+        return mailMessage;
+    }
+
+    private String resolveBuyerName(Buyer buyer) {
+        if (buyer != null && buyer.getName() != null && !buyer.getName().isBlank()) {
+            return buyer.getName().trim();
+        }
+        return "Valued Customer";
+    }
+
+    public String getCase1Subject(String rfqNumbers) {
+        if (rfqNumbers != null && rfqNumbers.contains(",")) {
+            return "🚀 Your RFQs are Live — Suppliers Notified!";
+        }
+        return "🚀 Your RFQ #" + rfqNumbers + " is Live — Suppliers Notified!";
+    }
+
+    public String getCase1Body(String buyerName, String rfqNumbers) {
+        if (rfqNumbers != null && rfqNumbers.contains(",")) {
+            String[] nums = rfqNumbers.split(",");
+            StringBuilder sb = new StringBuilder();
+            sb.append("Hi ").append(buyerName).append(",\n\n");
+            sb.append("Great news! Your requirements have been converted into RFQs and sent to verified suppliers on Procucev right now.\n\n");
+            sb.append("RFQs created:\n");
+            for (String num : nums) {
+                String cleanNum = com.portal.procucev.rfq.util.CommonUtil.shortenRfqNumber(num.trim());
+                sb.append("✉️ ").append(cleanNum).append("\n");
             }
+            sb.append("\n📩 Quotes typically start coming in within 24–48 hours.\n\n");
+            sb.append("Need it faster or have a follow-up requirement?\n\n");
+            sb.append("📞 Call: +91-7996170801\n");
+            sb.append("✉️ Email: RFQ@procucev.com / support@procucev.com\n\n");
+            sb.append("Just drop us your requirement anytime — we'll take it from there!\n\n");
+            sb.append("Team Procucev");
+            return sb.toString();
         }
-
-        sb.append("\n--------------------------------------------------\n");
-        sb.append("NEXT STEPS\n");
-        sb.append("--------------------------------------------------\n");
-        sb.append("1. You can track the status of this RFQ in your buyer portal using RFQ Number: ")
-                .append(rfqEntity.getRfqNumber()).append("\n\n");
-        sb.append("2. You will receive follow-up updates on this RFQ shortly.\n\n");
-
-        sb.append("If you have any questions or need to make changes, please reply to this email.\n\n");
-        sb.append("Best regards,\n");
-        sb.append("Procurement Operations Team\n");
-        sb.append("Procucev Platform\n");
-
-        return sb.toString();
+        return "Hi " + buyerName + ",\n\n"
+                + "Great news! Your requirement has been converted into RFQ #" + rfqNumbers + " and sent to verified suppliers on Procucev right now.\n\n"
+                + "📩 Quotes typically start coming in within 24–48 hours.\n\n"
+                + "Need it faster or have a follow-up requirement?\n\n"
+                + "📞 Call: +91-7996170801\n"
+                + "✉️ Email: RFQ@procucev.com / support@procucev.com\n\n"
+                + "Just drop us your requirement anytime — we'll take it from there!\n\n"
+                + "Team Procucev";
     }
 
-    private String buildConsolidatedSuccessEmailBody(List<RFQEntity> rfqEntities, String buyerName) {
-        StringBuilder sb = new StringBuilder();
-        sb.append("Dear ").append(buyerName).append(",\n\n");
-        sb.append("Thank you for submitting your Request for Quotation.\n\n");
-        sb.append("Your email has been successfully processed and the following RFQs have been created:\n\n");
-
-        for (int r = 0; r < rfqEntities.size(); r++) {
-            RFQEntity rfqEntity = rfqEntities.get(r);
-            List<RFQItem> items = parseItemsJson(rfqEntity.getItemsJson());
-
-            sb.append(r + 1).append(". ").append(rfqEntity.getRfqNumber()).append("\n");
-            if (items != null && !items.isEmpty()) {
-                RFQItem first = items.get(0);
-                if (first.getCategory() != null && !first.getCategory().isBlank()) {
-                    sb.append("   Category: ").append(first.getCategory()).append("\n");
-                }
-                sb.append("   Item: ").append(first.getItemDescription() != null ? first.getItemDescription() : "Item").append("\n");
-                sb.append("   Quantity: ").append(first.getQuantity() != null ? first.getQuantity().intValue() : 1)
-                        .append(" ").append(first.getUom() != null ? first.getUom() : "Nos").append("\n");
-            }
-            sb.append("   Delivery Location: ").append(rfqEntity.getDeliveryLocation() != null ? rfqEntity.getDeliveryLocation() : "N/A").append("\n");
-            sb.append("   Delivery Date: ").append(rfqEntity.getDeliveryDate() != null ? rfqEntity.getDeliveryDate() : "N/A").append("\n\n");
-        }
-
-        sb.append("If you have any questions or need to make changes, please reply to this email.\n\n");
-        sb.append("Best regards,\n");
-        sb.append("Procurement Operations Team\n");
-        sb.append("Procucev Platform\n");
-
-        return sb.toString();
+    public String getCase2Subject() {
+        return "🚀 Almost There! Register to Get Your RFQ Live";
     }
 
-    private String buildFailureEmailBody(FailedRfqRequest request, String buyerName) {
-        StringBuilder sb = new StringBuilder();
-        sb.append("Dear ").append(buyerName).append(",\n\n");
-        sb.append("Thank you for reaching out to Procucev Procurement Platform.\n");
-        sb.append("We received your email, but unfortunately, we were unable to automatically generate a Request for Quotation (RFQ) from your request.\n\n");
-        sb.append("--------------------------------------------------\n");
-        sb.append("REASON FOR FAILURE\n");
-        sb.append("--------------------------------------------------\n");
-        sb.append(request.getReasonForFailure() != null ? request.getReasonForFailure() : "Unable to validate RFQ details.").append("\n\n");
-        sb.append("--------------------------------------------------\n");
-        sb.append("DETAILS EXTRACTED FROM YOUR EMAIL\n");
-        sb.append("--------------------------------------------------\n");
-        sb.append("Email Subject: ").append(request.getRawSubject() != null ? request.getRawSubject() : "N/A").append("\n");
-        sb.append("Description: ").append(request.getDescription()).append("\n");
-        sb.append("Quantity: ").append(request.getQuantity()).append(" ").append(request.getUom()).append("\n");
-        sb.append("Delivery Location: ").append(request.getDeliveryLocation()).append("\n");
-        sb.append("Delivery Date: ").append(request.getDeliveryDate()).append("\n\n");
-        sb.append("Please verify your email information or contact support.\n\n");
-        sb.append("Best regards,\n");
-        sb.append("Customer Support Team\n");
-        sb.append("Procucev Platform\n");
-
-        return sb.toString();
+    public String getCase2Body() {
+        return "Hi there,\n\n"
+                + "Thanks for reaching out! We couldn't process your requirement yet as your email isn't registered with us — but it takes less than 2 minutes to fix that.\n\n"
+                + "Register now:\n\n"
+                + "🌐 Portal: procucev.com/get-my-quote/\n"
+                + "💬 WhatsApp: +91-70901 70801 (just say \"Hi\")\n\n"
+                + "Once registered, we'll instantly push your requirement to our supplier network and get you quotes fast.\n\n"
+                + "Questions? We're here to help:\n\n"
+                + "📞 Call: +91-7996170801\n"
+                + "✉️ Email: support@procucev.com\n\n"
+                + "Team Procucev";
     }
 
-    private List<RFQItem> parseItemsJson(String json) {
-        if (json == null || json.isBlank()) return Collections.emptyList();
-        try {
-            return objectMapper.readValue(json, new TypeReference<List<RFQItem>>() {});
-        } catch (Exception e) {
-            return Collections.emptyList();
-        }
+    public String getCase3Subject() {
+        return "⚡ One Quick Detail Needed to Process Your RFQ";
+    }
+
+    public String getCase3Body(String buyerName) {
+        return "Hi " + buyerName + ",\n\n"
+                + "We received your requirement, but need a bit more info to match you with the right suppliers fast:\n\n"
+                + "• Quantity required\n\n"
+                + "Just reply to this email with the details, or it's even quicker on call/WhatsApp.\n\n"
+                + "📞 Call: +91-7996170801\n"
+                + "✉️ Email: RFQ@procucev.com\n\n"
+                + "The sooner we get these, the sooner your RFQ goes live to suppliers!\n\n"
+                + "Team Procucev";
     }
 }

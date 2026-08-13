@@ -232,8 +232,10 @@ public class RFQBuilderService {
                     brandVal = brandVal.substring(0, 50).trim();
                 }
 
-                double qty = item.getQuantity() != null ? item.getQuantity() : 1D;
-                if (qty <= 0) qty = 1D;
+                if (item.getQuantity() == null || item.getQuantity() <= 0) {
+                    throw new IllegalArgumentException("Quantity is mandatory for item: " + (item.getItemDescription() != null ? item.getItemDescription() : "RFQ Item"));
+                }
+                double qty = item.getQuantity();
                 String qtyDisplay = formatQuantity(qty);
 
                 String partCodeVal = sanitizeText(item.getEffectivePartNumber());

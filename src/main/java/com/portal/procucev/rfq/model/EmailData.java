@@ -22,4 +22,6 @@ public class EmailData {
     private String body;
     private List<File> attachments;
     private String attachmentText;
+    private String inReplyTo;
+    private String references;
 }
