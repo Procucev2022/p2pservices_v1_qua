@@ -135,7 +135,7 @@ public class AcknowledgementEmailServiceTest {
 
         assertEquals("rfq@procucev.com", sentMsg.getFrom());
         assertEquals("support@procucev.com", sentMsg.getCc()[0]);
-        assertEquals("⚡ One Quick Detail Needed to Process Your RFQ", sentMsg.getSubject());
+        assertEquals("⚠️ We Could Not Process Your RFQ", sentMsg.getSubject());
     }
 
     @Test

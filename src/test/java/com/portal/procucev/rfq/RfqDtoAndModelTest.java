@@ -285,7 +285,7 @@ public class RfqDtoAndModelTest {
         assertEquals("SUCCESS", t1.getStatus());
         assertNull(t1.getErrorMessage());
 
-        EmailTransaction t2 = new EmailTransaction(5L, "MSG-1", "Subject", "sender@test.com", "SUCCESS", null, now, now);
+        EmailTransaction t2 = new EmailTransaction(5L, "MSG-1", "Subject", "sender@test.com", "SUCCESS", null, null, now, now);
         assertEquals(t1, t2);
         assertEquals(t1.hashCode(), t2.hashCode());
         assertNotNull(t1.toString());

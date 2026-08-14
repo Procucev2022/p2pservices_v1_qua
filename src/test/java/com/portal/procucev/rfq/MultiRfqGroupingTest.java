@@ -183,7 +183,7 @@ public class MultiRfqGroupingTest {
 
         String status = emailProcessorService.processSingleEmail(email);
         assertEquals("RFQ_CREATED", status);
-        verify(rfqRepository, times(1)).save(any(RFQEntity.class));
+        verify(rfqRepository, times(2)).save(any(RFQEntity.class));
     }
 
     @Test

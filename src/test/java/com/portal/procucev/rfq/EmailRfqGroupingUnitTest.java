@@ -137,8 +137,8 @@ public class EmailRfqGroupingUnitTest {
         String result = emailProcessorService.processSingleEmail(email);
         assertEquals("RFQ_CREATED", result);
 
-        // Verify exactly 3 RFQs are saved (grouped by location & date)
-        verify(rfqRepository, times(3)).save(any(RFQEntity.class));
+        // Verify exactly 4 RFQs are saved (grouped by category, location & date)
+        verify(rfqRepository, times(4)).save(any(RFQEntity.class));
 
         // Verify ONLY 1 consolidated acknowledgement email is sent
         ArgumentCaptor<SimpleMailMessage> mailCaptor = ArgumentCaptor.forClass(SimpleMailMessage.class);
