@@ -212,18 +212,30 @@ public class RfqReplyProcessingTest {
 
     @Test
     @DisplayName("TEST 7: Initial email has Product + specs, Reply has Quantity + location + date -> Merge both emails and create ONE RFQ")
-    void test7_MergeInitialAndReplyEmails() {
+    void test7_MergeInitialAndReplyEmails() throws Exception {
         EmailData replyEmail = EmailData.builder()
                 .messageId("MSG-REPLY-003")
                 .senderEmail("buyer@procucev.com")
                 .subject("Re: Helical Gearbox Specs")
                 .body("Quantity: 1000\nDelivery Location: Bangalore Plant\nRequired Delivery Date: 2027-04-25")
+                .inReplyTo("MSG-INITIAL-003")
                 .attachments(new ArrayList<>())
                 .build();
 
+        ExtractedRFQ initial = ExtractedRFQ.builder()
+                .buyerEmail("buyer@procucev.com")
+                .items(new ArrayList<>(java.util.List.of(RFQItem.builder()
+                        .itemDescription("Helical Gearbox")
+                        .specification("Inline helical gearbox 15 HP")
+                        .build())))
+                .build();
+        when(emailTransactionRepository.findByMessageId("MSG-INITIAL-003"))
+                .thenReturn(java.util.Optional.of(com.portal.procucev.rfq.entity.EmailTransaction.builder()
+                        .messageId("MSG-INITIAL-003")
+                        .extractionJson(objectMapper.writeValueAsString(initial))
+                        .build()));
+
         RFQItem replyItem = RFQItem.builder()
-                .itemDescription("Helical Gearbox")
-                .specification("Inline helical gearbox 15 HP")
                 .quantity(1000.0)
                 .deliveryLocation("Bangalore Plant")
                 .deliveryDate("2027-04-25")

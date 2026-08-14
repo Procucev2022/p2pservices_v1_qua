@@ -112,12 +112,12 @@ public class QuantityNormalizer {
             return wordResult;
         }
 
-        private static boolean startsWithNumberWord(String input) {
-            String first = input.toLowerCase().split("[\\s-]+")[0];
-            return NUMBER_WORDS.containsKey(first);
-        }
-
         return null;
+    }
+
+    private static boolean startsWithNumberWord(String input) {
+        String first = input.toLowerCase().split("[\\s-]+")[0];
+        return NUMBER_WORDS.containsKey(first);
     }
 
     public static String extractUom(String text) {
