@@ -4,6 +4,7 @@
 package com.portal.procucev.dao;
 
 import java.util.List;
+import java.util.Optional;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
@@ -25,6 +26,7 @@ public interface RoleDao extends JpaRepository<Role, String> {
 	List<Role> findByOrgtype(OrgType type);
 
 	List<Role> findByActiveAndRoleNameIn(boolean b, List<String> rolename);
+
 
 
 }

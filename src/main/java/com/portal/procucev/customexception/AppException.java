@@ -8,9 +8,6 @@ public class AppException extends RuntimeException {
 		return this;
 	}
 
-	/**
-	 * 
-	 */
 	private static final long serialVersionUID = 1L;
 
 	private int errorCode;
@@ -18,7 +15,7 @@ public class AppException extends RuntimeException {
 	private String exceptiontype;
 	private String status;
 	private String statusCode;
-	 private LocalDateTime timestamp; 
+	private LocalDateTime timestamp; 
 
 	public String getStatusCode() {
 		return statusCode;
@@ -61,23 +58,24 @@ public class AppException extends RuntimeException {
 	}
 
 	public AppException(int errorCode, String errorMessage, String exceptiontype, String status) {
-		super();
+		super(errorMessage);
 		this.errorCode = errorCode;
 		this.errorMessage = errorMessage;
 		this.exceptiontype = exceptiontype;
 		this.status = status;
 	}
-	 public AppException(int errorCode, String errorMessage, String exceptiontype, String status,LocalDateTime timeStamp) {
-	        super(errorMessage);
-	        this.errorCode = errorCode;
-	        this.errorMessage = errorMessage;
-	        this.exceptiontype = exceptiontype;
-	        this.status = status;
-	        this.timestamp = LocalDateTime.now(); // ✅ capture exception time
-	    }
+
+	public AppException(int errorCode, String errorMessage, String exceptiontype, String status, LocalDateTime timeStamp) {
+		super(errorMessage);
+		this.errorCode = errorCode;
+		this.errorMessage = errorMessage;
+		this.exceptiontype = exceptiontype;
+		this.status = status;
+		this.timestamp = LocalDateTime.now();
+	}
 
 	public AppException(String statusCode, String msg, String exceptiontype, String status) {
-		super();
+		super(msg);
 		this.statusCode = statusCode;
 		this.errorMessage = msg;
 		this.exceptiontype = exceptiontype;
@@ -85,21 +83,19 @@ public class AppException extends RuntimeException {
 	}
 
 	public AppException(int value, String message, String bussinessexception) {
-		super();
+		super(message);
 		this.errorCode = value;
 		this.errorMessage = message;
 		this.exceptiontype = bussinessexception;
 	}
 
 	public AppException(String message) {
-		// TODO Auto-generated constructor stub
-		super();
+		super(message);
 		this.errorMessage = message;
 	}
 
 	public AppException(int value, String message) {
-		// TODO Auto-generated constructor stub
-		super();
+		super(message);
 		this.errorCode = value;
 		this.errorMessage = message;
 	}
@@ -109,5 +105,4 @@ public class AppException extends RuntimeException {
 		return "AppException [errorCode=" + errorCode + ", errorMessage=" + errorMessage + ", exceptiontype="
 				+ exceptiontype + ", status=" + status + "]";
 	}
-
 }

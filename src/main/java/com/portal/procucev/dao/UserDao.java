@@ -10,9 +10,10 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import com.portal.procucev.Dto.BuyerSellerReportDto;
+import com.portal.procucev.Dto.SellerSubscriptionReportDto;
 import com.portal.procucev.model.MasterStatus;
 import com.portal.procucev.model.Organization;
-import com.portal.procucev.model.Rfq;
 import com.portal.procucev.model.Role;
 import com.portal.procucev.model.User;
 
@@ -22,6 +23,9 @@ import jakarta.transaction.Transactional;
 public interface UserDao extends JpaRepository<User, String> {
 
 	User findByUsername(String username);
+	
+	@Query("SELECT u FROM User u WHERE u.username = :username ORDER BY u.createdTS DESC LIMIT 1")
+	User findByLatestUserName(@Param("username") String username);
 
 	User findByUsernameAndActive(String username, boolean active);
 
@@ -128,6 +132,12 @@ public interface UserDao extends JpaRepository<User, String> {
 	User findByUsernameAndPhoneAndActiveAndRole(@Param("email") String email,
 			@Param("normalizedPhone") String normalizedPhone, @Param("role") Role role);
 
+	@Query("select u from User u where u.username=:email and u.active = true and u.role =:role")
+	User findByUsernameAndActiveAndRole(@Param("email") String email, @Param("role") Role role);
+
+	@Query("select u from User u where u.username=:email and u.active = true and u.role.roleName in :roleNames order by u.createdTS desc")
+	List<User> findActiveUsersByUsernameAndRoleNames(@Param("email") String email, @Param("roleNames") List<String> roleNames);
+
 	@Query("SELECT  new User(u.username,u.phone,u.org.companyName,u.fullName) from User u where u.org.id=:id and u.active = true")
 	User findUserByOrgId(@Param("id") String id);
 
@@ -182,4 +192,87 @@ public interface UserDao extends JpaRepository<User, String> {
 		        @Param("startDate") Date startDate,
 		        @Param("endDate") Date endDate
 		);
+		
+		@Query(value = """
+			    SELECT 
+			        u.activity_ts,
+			       CASE WHEN ot.type_name = 'CLIENT' THEN 'Buyer' 
+             WHEN ot.type_name = 'VENDOR' THEN 'Seller'
+             WHEN ot.type_name = 'PROCUCEV' THEN 'Procucev'
+             ELSE 'Unknown' END,
+			        u.full_name,
+			        u.phone,
+			        o.organization_name,
+			        u.username,
+			        o.city,
+			        CASE WHEN u.is_web_app = 1 THEN 'GMT'
+			             WHEN u.is_whats_app = 1 THEN 'BFS'
+			             ELSE 'GMT' END,
+			        r.rfq_id,
+			        ri.category
+			    FROM user u
+			    JOIN organization o ON o.uuid = u.org_uuid
+			    JOIN org_types ot ON ot.uuid = o.org_type_uuid
+			    LEFT JOIN rfq_header r ON r.org_uuid = o.uuid
+			    LEFT JOIN rfq_items ri ON ri.rfq_uuid = r.uuid
+			    WHERE u.activity_ts >= :startDate
+			    AND u.activity_ts < :endDate
+			    ORDER BY u.activity_ts DESC
+			""", nativeQuery = true)
+			List<Object[]> getDailyBuyerSellerReport(
+			        @Param("startDate") Date startDate,
+			        @Param("endDate") Date endDate
+			);
+		
+			@Query(value = """
+				    SELECT
+				        u.activity_ts,
+				        u.full_name,
+				        u.phone,
+				        o.organization_name,
+				        u.username,
+				        o.city,
+				        CASE WHEN o.subscription_plan_uuid IS NOT NULL 
+				             THEN 'Yes' ELSE 'No' END,
+				        o.rfq_used_count,
+				        r.rfq_id
+				    FROM user u
+				    JOIN organization o ON o.uuid = u.org_uuid
+				    JOIN org_types ot ON ot.uuid = o.org_type_uuid
+				    LEFT JOIN rfq_header r ON r.org_uuid = o.uuid
+				    WHERE ot.type_name = 'VENDOR'
+				    AND u.activity_ts >= :startDate
+				    AND u.activity_ts < :endDate
+				    ORDER BY u.activity_ts DESC
+				""", nativeQuery = true)
+				List<Object[]> getDailySellerSubscriptionReport(
+				        @Param("startDate") Date startDate,
+				        @Param("endDate") Date endDate
+				);
+				
+				@Query("""
+						SELECT u
+						FROM User u
+						WHERE u.id IN :userIds
+						""")
+						List<User> findUsersByIds(@Param("userIds") List<String> userIds);
+				
+				// Search users by phone (contactNumber)
+				@Query("""
+				    SELECT u FROM User u
+				    WHERE LOWER(u.phone) LIKE LOWER(CONCAT('%', :searchValue, '%'))
+				    """)
+				List<User> findUsersByPhone(@Param("searchValue") String searchValue);
+				
+				// Search users by their org's company name
+				@Query("""
+				    SELECT u FROM User u
+				    WHERE LOWER(u.org.companyName) LIKE LOWER(CONCAT('%', :searchValue, '%'))
+				    """)
+				List<User> findUsersByOrgCompanyName(@Param("searchValue") String searchValue);
+
+				//@Query("select u From User u where u.userName=:email and  u.role=:initiatorRole and u.active = true and u.role=:role ")
+				Optional<User> findFirstByUsernameAndRoleAndActiveTrueOrderByCreatedTSDesc(
+				        String email,
+				        Role role);
 }

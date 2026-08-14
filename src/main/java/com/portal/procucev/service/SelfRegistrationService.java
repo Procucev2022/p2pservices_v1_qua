@@ -70,4 +70,6 @@ public interface SelfRegistrationService {
 
 	boolean validateUserApproval(String username, String phone);
 
+	List<Map<String, Object>> getPincodeDetails(String pincode);
+
 }

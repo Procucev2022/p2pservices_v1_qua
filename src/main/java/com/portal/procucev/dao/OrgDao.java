@@ -12,6 +12,7 @@ import org.springframework.data.repository.query.Param;
 
 import com.portal.procucev.Dto.BuyerSummaryDto;
 import com.portal.procucev.Dto.SellerSummaryDto;
+import com.portal.procucev.Dto.VendorRFQDto;
 import com.portal.procucev.model.MasterStatus;
 import com.portal.procucev.model.OrgType;
 import com.portal.procucev.model.Organization;
@@ -35,12 +36,77 @@ public interface OrgDao  extends JpaRepository<Organization, String> {
 
 	@Query("SELECT v.id,v.companyName,v.companyId,v.organizationPhonenumber,v.city,v.email from Organization v where v.orgType=:orgType Order By v.createdTS DESC")
 	List<Object[]> getAllVendor(@Param("orgType") OrgType orgType);
+	
+//	@Query("""
+//			SELECT new com.portal.procucev.Dto.VendorRFQDto(
+//			       v.id,
+//			       v.companyName,
+//			       v.companyId,
+//			       v.organizationPhonenumber,
+//			       v.city,
+//			       v.email
+//			)
+//			FROM Organization v
+//			WHERE v.orgType=:orgType
+//			ORDER BY v.createdTS DESC
+//			""")
+//			List<VendorRFQDto> getAllVendor(@Param("orgType") OrgType orgType);
+	
+	@Query("""
+			SELECT new com.portal.procucev.Dto.VendorRFQDto(
+			       v.id,
+			       v.companyName,
+			       v.companyId,
+			       v.organizationPhonenumber,
+			       v.city,
+			       v.email
+			)
+			FROM Organization v
+			WHERE v.orgType=:orgType
+			ORDER BY v.createdTS DESC
+			""")
+			Page<VendorRFQDto> getAllVendor(@Param("orgType") OrgType orgType,Pageable pageable);
+	
+	//getAllVendors Search
+	@Query("""
+	        SELECT new com.portal.procucev.Dto.VendorRFQDto(
+	               v.id,
+	               v.companyName,
+	               v.companyId,
+	               v.organizationPhonenumber,
+	               v.city,
+	               v.email
+	        )
+	        FROM Organization v
+	        WHERE v.orgType = :orgType
+	          AND (
+	            (:searchType = 'email'        AND LOWER(v.email)                    LIKE LOWER(CONCAT('%', :searchValue, '%')))
+	            OR
+	            (:searchType = 'mobileNumber' AND LOWER(v.organizationPhonenumber)  LIKE LOWER(CONCAT('%', :searchValue, '%')))
+	            OR
+	            (:searchType = 'sellerName'   AND LOWER(v.companyName)              LIKE LOWER(CONCAT('%', :searchValue, '%')))
+	            OR
+	            (:searchType = 'city'         AND LOWER(v.city)                     LIKE LOWER(CONCAT('%', :searchValue, '%')))
+	          )
+	        ORDER BY v.createdTS DESC
+	        """)
+	List<VendorRFQDto> searchVendorByType(
+	        @Param("orgType")     OrgType orgType,
+	        @Param("searchType")  String searchType,
+	        @Param("searchValue") String searchValue
+	);
 
+//	@Query("SELECT v.id, v.companyName, v.companyId, v.organizationPhonenumber, v.city, v.email " +
+//	        "FROM Organization v " +
+//	        "WHERE v.vendorcategory LIKE CONCAT('%', :category, '%') OR v.subCategory LIKE CONCAT('%', :category, '%') " +
+//	        "ORDER BY v.createdTS DESC")
+//	List<Object[]> getAllVendorByCategory(@Param("category") String category);
+	
 	@Query("SELECT v.id, v.companyName, v.companyId, v.organizationPhonenumber, v.city, v.email " +
 	        "FROM Organization v " +
 	        "WHERE v.vendorcategory LIKE CONCAT('%', :category, '%') OR v.subCategory LIKE CONCAT('%', :category, '%') " +
 	        "ORDER BY v.createdTS DESC")
-	List<Object[]> getAllVendorByCategory(@Param("category") String category);
+	List<VendorRFQDto> getAllVendorByCategory(@Param("category") String category);
 	
 	@Transactional
 	@Modifying
@@ -191,6 +257,54 @@ public interface OrgDao  extends JpaRepository<Organization, String> {
 	    	        @Param("startDate") Date startDate,
 	    	        @Param("endDate") Date endDate
 	    	);
-
+	   
+	    
+//	    @Query(value = """
+//	    	    SELECT o.*
+//	    	    FROM organization o
+//	    	    INNER JOIN org_types ot ON o.org_type_uuid = ot.uuid
+//	    	    WHERE ot.type_name = :orgTypeName
+//	    	      AND (
+//	    	            :searchValue IS NULL OR :searchValue = '' OR
+//	    	            (:searchType = 'companyName' AND LOWER(o.organization_name) LIKE LOWER(CONCAT('%', :searchValue, '%'))) OR
+//	    	            (:searchType = 'city' AND LOWER(o.city) LIKE LOWER(CONCAT('%', :searchValue, '%'))) OR
+//	    	            (:searchType = 'email' AND LOWER(o.email) LIKE LOWER(CONCAT('%', :searchValue, '%'))) OR
+//	    	            (:searchType = 'vendorcategory' AND LOWER(o.vendorcategory) LIKE LOWER(CONCAT('%', :searchValue, '%'))) OR
+//	    	            (:searchType = 'organizationPhonenumber' AND LOWER(o.organization_phonenumber) LIKE LOWER(CONCAT('%', :searchValue, '%')))
+//	    	          )
+//	    	    """, nativeQuery = true)
+//	    	List<Organization> findVendorsBySearchType(
+//	    	    @Param("orgTypeName") String orgTypeName,
+//	    	    @Param("searchType") String searchType,
+//	    	    @Param("searchValue") String searchValue
+//	    	);
+	    
+	    @Query(value = """
+	    	    SELECT DISTINCT o.*
+	    	    FROM organization o
+	    	    INNER JOIN org_types ot
+	    	        ON o.org_type_uuid = ot.uuid
+	    	    LEFT JOIN org_division_category odc
+	    	        ON odc.organization_id = o.uuid
+	    	    WHERE ot.type_name = :orgTypeName
+	    	      AND (
+	    	            :searchValue IS NULL OR :searchValue = '' OR
+	    	            (:searchType = 'companyName'
+	    	                AND LOWER(o.organization_name) LIKE LOWER(CONCAT('%', :searchValue, '%'))) OR
+	    	            (:searchType = 'city'
+	    	                AND LOWER(o.city) LIKE LOWER(CONCAT('%', :searchValue, '%'))) OR
+	    	            (:searchType = 'email'
+	    	                AND LOWER(o.email) LIKE LOWER(CONCAT('%', :searchValue, '%'))) OR
+	    	            (:searchType = 'vendorcategory'
+	    	                AND LOWER(odc.category) LIKE LOWER(CONCAT('%', :searchValue, '%'))) OR
+	    	            (:searchType = 'organizationPhonenumber'
+	    	                AND LOWER(o.organization_phonenumber) LIKE LOWER(CONCAT('%', :searchValue, '%')))
+	    	          )
+	    	    """, nativeQuery = true)
+	    	List<Organization> findVendorsBySearchType(
+	    	    @Param("orgTypeName") String orgTypeName,
+	    	    @Param("searchType") String searchType,
+	    	    @Param("searchValue") String searchValue
+	    	);
 
 }

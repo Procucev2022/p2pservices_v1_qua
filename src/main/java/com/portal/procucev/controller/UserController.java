@@ -1,15 +1,23 @@
 
 package com.portal.procucev.controller;
 
+import java.io.UnsupportedEncodingException;
+import java.net.http.HttpRequest;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.io.UnsupportedEncodingException;
-import java.util.*;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -21,7 +29,9 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.portal.procucev.Dto.SimplePageResponse;
+import com.portal.procucev.Dto.UserActivityDto;
 import com.portal.procucev.Dto.VendorSummaryResponse;
+import com.portal.procucev.config.JwtUtil;
 import com.portal.procucev.customexception.AppException;
 import com.portal.procucev.customexception.MessageResponse;
 import com.portal.procucev.dao.EmailUserRepo;
@@ -29,10 +39,10 @@ import com.portal.procucev.model.EmailUser;
 import com.portal.procucev.model.Organization;
 import com.portal.procucev.model.ResetPassword;
 import com.portal.procucev.model.User;
+import com.portal.procucev.model.UserActivity;
 import com.portal.procucev.service.UserService;
 import com.portal.procucev.utils.ApplicationConstants;
 import com.portal.procucev.utils.StatusCodes;
-import com.portal.procucev.utils.StatusConstants;
 
 import jakarta.servlet.http.HttpServletRequest;
 
@@ -46,6 +56,9 @@ public class UserController {
 
 	@Autowired
 	EmailUserRepo emailUserRepo;
+
+	@Autowired
+    JwtUtil jwtUtil;
 
 	@RequestMapping(value = "/user", method = RequestMethod.GET)
 	public List<User> listUser() {
@@ -343,29 +356,152 @@ public class UserController {
 	    @PostMapping("/getSellerByEmail")
 	    public ResponseEntity<?> getSellerByEmail(@RequestBody User user) {
 
-	        if (user.getUsername() == null || user.getPhone() == null) {
-	            // If email/phone missing, you can also return the same format
-	            return ResponseEntity.ok(
-	                Map.of(
-	                    "id", null,
-	                    "message", "User email and phone are required"
-	                )
-	            );
+	        if (user == null || user.getUsername() == null || user.getPhone() == null) {
+	            Map<String, Object> errResp = new HashMap<>();
+	            errResp.put("id", null);
+	            errResp.put("message", "User email and phone are required");
+	            return ResponseEntity.ok(errResp);
 	        }
 
 	        Organization org = userServices.getSellerByEmail(user);
 
 	        if (org == null) {
-	            return ResponseEntity.ok(
-	                Map.of(
-	                    "id", null,
-	                    "message", "Organization not found with given email / mobile number"
-	                )
-	            );
+	            Map<String, Object> errResp = new HashMap<>();
+	            errResp.put("id", null);
+	            errResp.put("message", "Organization not found with given email / mobile number");
+	            return ResponseEntity.ok(errResp);
 	        }
 
 	        // If found, return actual organization
 	        return ResponseEntity.ok(org);
 	    }
 
-}
+	    @PostMapping("/getBuyerByEmail")
+	    public ResponseEntity<?> getBuyerByEmail(@RequestBody User user) {
+
+	        String email = (user != null && user.getUsername() != null) ? user.getUsername() : (user != null ? user.getEmail() : null);
+
+	        if (email == null || email.trim().isEmpty()) {
+	            Map<String, Object> response = new LinkedHashMap<>();
+	            response.put("code", "01");
+	            response.put("name", null);
+	            response.put("description", "User email is required");
+	            response.put("userId", null);
+	            response.put("orgId", null);
+	            response.put("mobileNo", null);
+	            response.put("phone", null);
+	            response.put("status", "Failure");
+	            return ResponseEntity.ok(response);
+	        }
+
+	        User userData = userServices.getBuyerUserByEmail(user);
+
+	        if (userData == null) {
+	            Map<String, Object> response = new LinkedHashMap<>();
+	            response.put("code", "01");
+	            response.put("name", null);
+	            response.put("description", "User Not Found");
+	            response.put("userId", null);
+	            response.put("orgId", null);
+	            response.put("mobileNo", null);
+	            response.put("phone", null);
+	            response.put("status", "Failure");
+	            return ResponseEntity.ok(response);
+	        }
+
+	        String name = userData.getFullName() != null && !userData.getFullName().isEmpty() 
+	                ? userData.getFullName() 
+	                : (userData.getFirstName() != null ? userData.getFirstName() : userData.getUsername());
+
+	        String orgId = userData.getOrg() != null ? userData.getOrg().getId() : null;
+	        String phone = userData.getPhone() != null ? userData.getPhone() : null;
+
+	        Map<String, Object> response = new LinkedHashMap<>();
+	        response.put("code", "00");
+	        response.put("name", name);
+	        response.put("description", "User Fetched Successfully");
+	        response.put("userId", userData.getId());
+	        response.put("orgId", orgId);
+	        response.put("mobileNo", phone);
+	        response.put("phone", phone);
+	        response.put("status", "Success");
+
+	        return ResponseEntity.ok(response);
+	    }
+	    
+	    @GetMapping("/vendorSummarySearch")
+		public ResponseEntity<Map<String, Object>> getVendorSummarySearchResults(@RequestParam String searchType,@RequestParam String searchValue){
+	    	
+	    	 Map<String, Object> response = new HashMap<>();
+
+	 	    try {
+	 	    	List<VendorSummaryResponse> vendors = userServices.getVendorSummarySearchResults(searchType,searchValue);
+	 	        // ✅ Correct empty check
+	 	        if (vendors == null || vendors.isEmpty()) {
+
+	 	            response.put("statusCode", StatusCodes.OK_VENDOR_CODE);
+	 	            response.put("status", "Success");
+	 	            response.put("message", "No vendors found");
+	 	            response.put("totalRecords", 0);
+	 	            response.put("data", Collections.emptyList());
+
+	 	            return ResponseEntity.ok(response);
+	 	        }
+
+	 	        // ✅ Success response
+	 	        response.put("statusCode", StatusCodes.OK_VENDOR_CODE);
+	 	        response.put("status", "Success");
+	 	        response.put("totalRecords", vendors.size());
+	 	        response.put("data", vendors);
+
+	 	        return ResponseEntity.ok(response);
+
+	 	    } catch (Exception e) {
+
+	 	        response.put("statusCode", StatusCodes.SERVER_ERROR);
+	 	        response.put("status", "Failure");
+	 	        response.put("message", "Failed to fetch vendor summary");
+	 	        response.put("error", e.getMessage());
+
+	 	        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+	 	                .body(response);
+	 	    }
+	    }
+	    
+	    
+	    @PostMapping("/userActivity")
+	    public ResponseEntity<?> saveUserActivities(@RequestBody UserActivityDto userActivity,HttpServletRequest request){
+	    	logger.info("Entering into saveUserActivity controller.....");
+	    	try {
+	    		
+	    		 String authHeader = request.getHeader("Authorization");
+	    		    String token = authHeader.substring(7);
+
+	    		    String userName = jwtUtil.extractUsername(token);
+	    		    logger.info("Extracted UserName from Token : {}",userName);	    		    
+	    		    String mobileNum = jwtUtil.extractPhone(token);
+	    		    logger.info("Extracted MobNum from Token : {}",mobileNum);	   
+	
+
+	    		UserActivity savedDto = userServices.saveUserActivity(userActivity,userName,mobileNum);
+	    		logger.info("End of saveUserActivity controller.....");
+	    		return ResponseEntity.status(HttpStatus.CREATED).body(savedDto);
+	    		
+	    	}catch(Exception e){
+	    		logger.info(e.getMessage());	
+	    		 return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+	                     .body("Failed to create user activity: " + e.getMessage());
+	    		
+	    	}
+	    		
+	    	}
+	    	
+	    @PostMapping("/getBuyerMessageByEmail")
+	    public ResponseEntity<MessageResponse> getBuyerMessageByEmail(
+	            @RequestBody User request) {
+
+	        return userServices.getBuyerByEmail(request.getUsername());
+	    }
+	    }
+	    
+	    

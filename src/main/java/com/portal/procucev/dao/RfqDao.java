@@ -3,6 +3,7 @@ package com.portal.procucev.dao;
 import java.util.Date;
 import java.util.List;
 
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -31,6 +32,39 @@ public interface RfqDao extends JpaRepository<Rfq, String>{
 
 	@Query("SELECT r FROM Rfq r WHERE  r.byClient = true and r.noPrFlag = true Order By r.createdTS DESC")
 	List<Rfq> findAllClientRfqNoPr();
+
+	@Query("SELECT r FROM Rfq r WHERE r.byClient = true AND r.noPrFlag = true ORDER BY r.createdTS DESC")
+	Page<Rfq> findAllClientRfqNoPr(Pageable pageable);
+	
+	//Search for CategoryManager for Client RFQ with no PR
+	// For rfqId and description search
+	@Query("""
+	    SELECT r FROM Rfq r
+	    WHERE r.byClient = true
+	      AND r.noPrFlag = true
+	      AND (
+	        (:searchType = 'rfqId'       AND LOWER(r.rfqId)       LIKE LOWER(CONCAT('%', :searchValue, '%')))
+	        OR
+	        (:searchType = 'description' AND LOWER(r.projectDesc) LIKE LOWER(CONCAT('%', :searchValue, '%')))
+	      )
+	    ORDER BY r.createdTS DESC
+	    """)
+	List<Rfq> findAllClientRfqByRfqIdOrDescription(
+	    @Param("searchType")  String searchType,
+	    @Param("searchValue") String searchValue
+	);
+
+	// For companyName and contactNumber — fetch RFQs by matching user IDs
+	@Query("""
+	    SELECT r FROM Rfq r
+	    WHERE r.byClient = true
+	      AND r.noPrFlag = true
+	      AND r.user IN :userIds
+	    ORDER BY r.createdTS DESC
+	    """)
+	List<Rfq> findAllClientRfqByUserIds(
+	    @Param("userIds") List<String> userIds
+	);
 
 	@Modifying
 	@Transactional

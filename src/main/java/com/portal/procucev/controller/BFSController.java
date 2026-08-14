@@ -1,12 +1,11 @@
 package com.portal.procucev.controller;
 
 import java.io.IOException;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Date;
+import java.util.List;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -21,13 +20,13 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
-import com.portal.procucev.customexception.AppException;
-import com.portal.procucev.customexception.MessageResponse;
 import com.portal.procucev.Dto.BFSItemDto;
 import com.portal.procucev.Dto.BFSItemMainDetailsDTO;
 import com.portal.procucev.Dto.BfsDTO;
 import com.portal.procucev.Dto.VendorInfoBean;
 import com.portal.procucev.customexception.ApiResponse;
+import com.portal.procucev.customexception.AppException;
+import com.portal.procucev.customexception.MessageResponse;
 import com.portal.procucev.model.BFSDocuments;
 import com.portal.procucev.model.BFSImages;
 import com.portal.procucev.model.BFSItems;
@@ -80,6 +79,7 @@ public class BFSController {
 		List<BFSItems> itemsList = bfsService.getItemsByOrgAndUser(user);
 		return new ResponseEntity<>(itemsList, HttpStatus.OK);
 	}
+	
 
 	@PostMapping("/getAllBfsItems")
 	public ResponseEntity<?> getAllItems(@RequestBody User user) {
@@ -152,13 +152,13 @@ public class BFSController {
 		List<BfsDTO> usersList = bfsService.getRequestedItems();
 		return new ResponseEntity<>(usersList, HttpStatus.OK);
 	}
-
+    
 	@PostMapping("/geApprovedItemsByUser")
 	public ResponseEntity<?> geApprovedItems(@RequestBody User user) throws AppException {
 		List<BfsDTO> usersList = bfsService.getApprovedItems(user);
 		return new ResponseEntity<>(usersList, HttpStatus.OK);
 	}
-
+	
 	@PostMapping("/getBidsByBuyerAndItems")
 	public ResponseEntity<?> getBidsByBuyerAndItem(@RequestBody BFSUsers user) throws AppException {
 		List<BfsDTO> usersList = bfsService.getBidsByBuyer(user);

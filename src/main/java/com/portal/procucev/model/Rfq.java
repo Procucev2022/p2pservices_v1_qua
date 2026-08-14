@@ -68,8 +68,13 @@ public class Rfq extends Procucev {
 	@Transient
 	private boolean fromClient;
 
+//	@OrderBy("serialNo ASC")
+//	@OneToMany(fetch = FetchType.EAGER, cascade = CascadeType.ALL, orphanRemoval = true)
+//	@JoinColumn(name = "rfq_uuid")
+//	private List<RfqItem> rfqItem = new ArrayList<RfqItem>();
+	
 	@OrderBy("serialNo ASC")
-	@OneToMany(fetch = FetchType.EAGER, cascade = CascadeType.ALL, orphanRemoval = true)
+	@OneToMany(fetch = FetchType.LAZY, cascade = CascadeType.ALL, orphanRemoval = true)
 	@JoinColumn(name = "rfq_uuid")
 	private List<RfqItem> rfqItem = new ArrayList<RfqItem>();
 
@@ -136,6 +141,14 @@ public class Rfq extends Procucev {
 	
 	@Transient
 	private String requestType;
-	
 
+	@com.fasterxml.jackson.annotation.JsonProperty("displayRfqId")
+	public String getDisplayRfqId() {
+		return com.portal.procucev.rfq.util.CommonUtil.formatRfqDisplayNumber(this.rfqId);
+	}
+
+	@com.fasterxml.jackson.annotation.JsonProperty("displayRfqNumber")
+	public String getDisplayRfqNumber() {
+		return com.portal.procucev.rfq.util.CommonUtil.formatRfqDisplayNumber(this.rfqId);
+	}
 }

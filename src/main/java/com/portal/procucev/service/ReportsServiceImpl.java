@@ -94,7 +94,7 @@ public class ReportsServiceImpl  implements ReportsService {
 	                    (String) row[4], // seller person
 	                    (Date) row[5]    // last login
 	            );
-
+                      
 	            map.put(orgId, dto);
 	        }
 
@@ -128,6 +128,7 @@ public class ReportsServiceImpl  implements ReportsService {
 	                                String requestType) throws ParseException {
 		logger.info("Entering into buyerReports Service...");
 		logger.info("RequestType : {}",requestType);
+		
 
 	    Date fromDate = new SimpleDateFormat("yyyy-MM-dd").parse(startDate);
 	    SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
