@@ -37,7 +37,7 @@ public class GeminiApiClientTest {
 
         client = new GeminiApiClient(restTemplateBuilder, objectMapper);
         ReflectionTestUtils.setField(client, "primaryModel", "gemini-3.5-flash-lite");
-        ReflectionTestUtils.setField(client, "fallbackModel", "gemini-3.1-flash-lite");
+        ReflectionTestUtils.setField(client, "fallbackModel", "gemini-3.6-flash");
         ReflectionTestUtils.setField(client, "baseUrl", "https://generativelanguage.googleapis.com/v1beta/models");
         ReflectionTestUtils.setField(client, "apiKey", "test-key");
 
@@ -86,7 +86,7 @@ public class GeminiApiClientTest {
                 "  ]\n" +
                 "}";
 
-        Mockito.when(restTemplate.postForEntity(contains("gemini-3.1-flash-lite"), any(), eq(String.class)))
+        Mockito.when(restTemplate.postForEntity(contains("gemini-3.6-flash"), any(), eq(String.class)))
                 .thenReturn(new ResponseEntity<>(fallbackResponseBody, HttpStatus.OK));
 
         String result = client.generateContent("Test Prompt");
@@ -154,4 +154,3 @@ public class GeminiApiClientTest {
         assertThrows(ApplicationException.class, () -> client.generateContent("Test Prompt"));
     }
 }
-

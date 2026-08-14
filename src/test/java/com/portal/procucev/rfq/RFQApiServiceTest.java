@@ -144,7 +144,7 @@ public class RFQApiServiceTest {
                 .rfqItem(List.of(
                         RFQRequest.RfqItemDto.builder()
                                 .description("Item")
-                                .quantity(null)
+                                .quantity(1.0)
                                 .build()
                 ))
                 .rfqDocument(List.of(

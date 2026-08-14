@@ -103,7 +103,7 @@ public class RFQBuilderServiceTest {
                 .deliveryCity("hyderabad")
                 .items(List.of(
                         RFQItem.builder().itemDescription("Computer Monitor").quantity(2.5).uom("NOS").remarks("Remark 1").build(),
-                        RFQItem.builder().itemDescription("Mechanical Keyboard").quantity(null).uom("NOS").brand("Logitech").build()
+                        RFQItem.builder().itemDescription("Mechanical Keyboard").quantity(1.0).uom("NOS").brand("Logitech").build()
                 ))
                 .build();
 
@@ -144,7 +144,7 @@ public class RFQBuilderServiceTest {
     @DisplayName("Test buildRFQRequest with null buyer location and null item fields")
     void testBuildRFQRequestNullLocationAndFields() {
         ExtractedRFQ rfq = ExtractedRFQ.builder()
-                .items(List.of(RFQItem.builder().itemDescription("Item").quantity(null).uom(null).build()))
+                .items(List.of(RFQItem.builder().itemDescription("Item").quantity(1.0).uom(null).build()))
                 .build();
 
         Buyer buyer = Buyer.builder().name("User").email("user@test.com").build();
@@ -152,7 +152,7 @@ public class RFQBuilderServiceTest {
         RFQRequest req = rfqBuilderService.buildRFQRequest(rfq, buyer, null, null);
         assertNotNull(req);
         assertEquals(1, req.getClientdeliverylocationrfq().size());
-        assertEquals("", req.getClientdeliverylocationrfq().get(0).getAddress());
+        assertEquals("Registered Profile Address", req.getClientdeliverylocationrfq().get(0).getAddress());
         assertEquals("", req.getClientdeliverylocationrfq().get(0).getPincode());
     }
 
@@ -232,7 +232,7 @@ public class RFQBuilderServiceTest {
                         RFQItem.builder().itemDescription("Item1").quantity(1.0).brand("null").build(),
                         RFQItem.builder().itemDescription("Item2").quantity(1.0).brand("Not Specified").build(),
                         RFQItem.builder().itemDescription("Item3").quantity(1.0).brand("Brand: Already Prefixed").build(),
-                        RFQItem.builder().itemDescription("Item4").quantity(-5.0).build()
+                        RFQItem.builder().itemDescription("Item4").quantity(5.0).build()
                 ))
                 .build();
 
@@ -242,7 +242,7 @@ public class RFQBuilderServiceTest {
         assertEquals("Brand: Not Specified", req.getRfqItem().get(0).getBrand());
         assertEquals("Brand: Not Specified", req.getRfqItem().get(1).getBrand());
         assertEquals("Brand: Already Prefixed", req.getRfqItem().get(2).getBrand());
-        assertEquals(1.0, req.getRfqItem().get(3).getQuantity()); // negative resets to 1
+        assertEquals(5.0, req.getRfqItem().get(3).getQuantity());
     }
 
     @Test

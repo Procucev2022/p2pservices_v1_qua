@@ -141,6 +141,14 @@ public class Rfq extends Procucev {
 	
 	@Transient
 	private String requestType;
-	
 
+	@com.fasterxml.jackson.annotation.JsonProperty("displayRfqId")
+	public String getDisplayRfqId() {
+		return com.portal.procucev.rfq.util.CommonUtil.formatRfqDisplayNumber(this.rfqId);
+	}
+
+	@com.fasterxml.jackson.annotation.JsonProperty("displayRfqNumber")
+	public String getDisplayRfqNumber() {
+		return com.portal.procucev.rfq.util.CommonUtil.formatRfqDisplayNumber(this.rfqId);
+	}
 }

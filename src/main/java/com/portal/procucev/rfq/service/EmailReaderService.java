@@ -3,7 +3,14 @@ package com.portal.procucev.rfq.service;
 import com.portal.procucev.rfq.exception.ApplicationException;
 import com.portal.procucev.rfq.model.EmailData;
 import com.portal.procucev.rfq.util.FileUtil;
-import jakarta.mail.*;
+import jakarta.mail.Address;
+import jakarta.mail.BodyPart;
+import jakarta.mail.Flags;
+import jakarta.mail.Folder;
+import jakarta.mail.Message;
+import jakarta.mail.Part;
+import jakarta.mail.Session;
+import jakarta.mail.Store;
 import jakarta.mail.internet.InternetAddress;
 import jakarta.mail.internet.MimeMultipart;
 import lombok.RequiredArgsConstructor;
@@ -17,7 +24,10 @@ import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Properties;
+import java.util.UUID;
 
 @Slf4j
 @Service
@@ -27,14 +37,14 @@ public class EmailReaderService {
     @Value("${app.mail.host:imap.gmail.com}")
     private String mailHost;
 
+    @Value("${app.mail.port:993}")
+    private int mailPort;
+
     @Value("${app.mail.username:rfq@procucev.com}")
     private String mailUsername;
 
     @Value("${app.mail.password:}")
     private String mailPassword;
-
-    @Value("${app.mail.port:993}")
-    private int mailPort = 993;
 
     @Value("${app.mail.inbox-folder:INBOX}")
     private String inboxFolder;
@@ -62,8 +72,7 @@ public class EmailReaderService {
             props.put("mail.imaps.host", mailHost);
             props.put("mail.imaps.port", String.valueOf(mailPort));
             props.put("mail.imaps.ssl.enable", "true");
-            // Bounded waits: an unreachable mail host must not pin a scheduler
-            // thread indefinitely.
+            // Bounded waits: an unreachable mail host must not pin a scheduler thread indefinitely.
             props.put("mail.imaps.connectiontimeout", "15000");
             props.put("mail.imaps.timeout", "30000");
             props.put("mail.imaps.writetimeout", "30000");
@@ -73,7 +82,7 @@ public class EmailReaderService {
             store.connect(mailHost, mailUsername, mailPassword);
 
             folder = store.getFolder(inboxFolder);
-            folder.open(Folder.READ_ONLY);
+            folder.open(Folder.READ_WRITE);
 
             Message[] messages = folder.search(new jakarta.mail.search.FlagTerm(new Flags(Flags.Flag.SEEN), false));
             int unreadCount = folder.getUnreadMessageCount();
@@ -99,6 +108,7 @@ public class EmailReaderService {
             for (Message msg : messages) {
                 try {
                     EmailData data = parseMessage(msg);
+                    msg.setFlag(Flags.Flag.SEEN, true);
                     log.info("Parsed unread email: Subject='{}', From='{}', ReceivedDate='{}'",
                             data.getSubject(), data.getSenderEmail(), data.getReceivedDate());
                     emailsList.add(data);
@@ -127,6 +137,10 @@ public class EmailReaderService {
             props.put("mail.imaps.host", mailHost);
             props.put("mail.imaps.port", String.valueOf(mailPort));
             props.put("mail.imaps.ssl.enable", "true");
+            props.put("mail.imaps.connectiontimeout", "15000");
+            props.put("mail.imaps.timeout", "30000");
+            props.put("mail.imaps.writetimeout", "30000");
+
             Session session = Session.getInstance(props);
             store = session.getStore("imaps");
             store.connect(mailHost, mailUsername, mailPassword);
@@ -140,20 +154,40 @@ public class EmailReaderService {
             }
 
             Message[] messages = srcFolder.getMessages();
+            boolean messageFoundAndMoved = false;
+            String normalizedTargetId = normalizeMessageId(messageId);
+
             for (Message msg : messages) {
                 String[] headers = msg.getHeader("Message-ID");
-                if (headers != null && headers.length > 0 && headers[0].equals(messageId)) {
-                    srcFolder.copyMessages(new Message[]{msg}, targetFolder);
-                    msg.setFlag(Flags.Flag.DELETED, true);
-                    log.info("Successfully moved message [{}] to '{}'", messageId, targetFolderName);
-                    break;
+                if (headers != null && headers.length > 0) {
+                    String currentMsgId = normalizeMessageId(headers[0]);
+                    if (!normalizedTargetId.isEmpty() && currentMsgId.equalsIgnoreCase(normalizedTargetId)) {
+                        msg.setFlag(Flags.Flag.SEEN, true);
+                        srcFolder.copyMessages(new Message[]{msg}, targetFolder);
+                        msg.setFlag(Flags.Flag.DELETED, true);
+                        messageFoundAndMoved = true;
+                        log.info("Successfully marked SEEN and moved message [{}] to folder '{}'", messageId, targetFolderName);
+                        break;
+                    }
                 }
             }
+
+            if (messageFoundAndMoved) {
+                srcFolder.expunge();
+            } else {
+                log.warn("Could not find message [{}] in folder '{}' to move to '{}'", messageId, inboxFolder, targetFolderName);
+            }
+
         } catch (Exception e) {
-            log.error("Error moving message [{}] to folder '{}': {}", messageId, targetFolderName, e.getMessage());
+            log.error("Error moving message [{}] to folder '{}': {}", messageId, targetFolderName, e.getMessage(), e);
         } finally {
             closeFolderAndStore(srcFolder, store);
         }
+    }
+
+    private String normalizeMessageId(String raw) {
+        if (raw == null) return "";
+        return raw.replaceAll("[<>]", "").trim();
     }
 
     private EmailData parseMessage(Message msg) throws Exception {
@@ -188,7 +222,22 @@ public class EmailReaderService {
 
         if (bodyBuilder.length() == 0 && htmlFallbackBuilder.length() > 0) {
             bodyBuilder.append(htmlFallbackBuilder);
+        } else if (htmlFallbackBuilder.length() > 0 && htmlFallbackBuilder.toString().contains("|") && !bodyBuilder.toString().contains("|")) {
+            bodyBuilder.append("\n--- Structured HTML Content ---\n").append(htmlFallbackBuilder);
         }
+
+        String inReplyTo = null;
+        String references = null;
+        try {
+            String[] inReplyToHeaders = msg.getHeader("In-Reply-To");
+            if (inReplyToHeaders != null && inReplyToHeaders.length > 0) {
+                inReplyTo = inReplyToHeaders[0];
+            }
+            String[] refHeaders = msg.getHeader("References");
+            if (refHeaders != null && refHeaders.length > 0) {
+                references = refHeaders[0];
+            }
+        } catch (Exception ignored) {}
 
         return EmailData.builder()
                 .messageId(messageId)
@@ -196,9 +245,11 @@ public class EmailReaderService {
                 .senderEmail(senderEmail)
                 .senderName(senderName)
                 .receivedDate(msg.getReceivedDate())
-                .body(bodyBuilder.toString())
+                .body(bodyBuilder.toString().trim())
                 .attachments(attachments)
                 .attachmentText(attachmentTextBuilder.toString())
+                .inReplyTo(inReplyTo)
+                .references(references)
                 .build();
     }
 
@@ -267,17 +318,38 @@ public class EmailReaderService {
         return savedPath.toFile();
     }
 
-    private String htmlToText(String html) {
+    public String htmlToText(String html) {
         if (html == null || html.isBlank()) {
             return "";
         }
-        return html.replaceAll("(?i)<br\\s*/?>", "\n")
-                .replaceAll("(?i)</p>", "\n")
-                .replaceAll("(?i)<[^>]+>", " ")
-                .replace("&nbsp;", " ")
-                .replaceAll("[ \\t\\x0B\\f\\r]+", " ")
-                .replaceAll("\\n\\s+", "\n")
-                .trim();
+        String text = html;
+        text = text.replaceAll("(?i)<tr[^>]*>", "\n| ");
+        text = text.replaceAll("(?i)</tr>", " |");
+        text = text.replaceAll("(?i)</th[^>]*>", " |");
+        text = text.replaceAll("(?i)<th[^>]*>", " ");
+        text = text.replaceAll("(?i)</td[^>]*>", " |");
+        text = text.replaceAll("(?i)<td[^>]*>", " ");
+        text = text.replaceAll("(?i)<br\\s*/?>", "\n");
+        text = text.replaceAll("(?i)</p>", "\n");
+        text = text.replaceAll("(?i)</div>", "\n");
+        text = text.replaceAll("(?i)</li>", "\n");
+        text = text.replaceAll("(?i)<li[^>]*>", "\n- ");
+        text = text.replaceAll("(?i)<[^>]+>", " ");
+        text = text.replace("&nbsp;", " ")
+                .replace("&amp;", "&")
+                .replace("&lt;", "<")
+                .replace("&gt;", ">")
+                .replace("&quot;", "\"");
+
+        String[] lines = text.split("\\r?\\n");
+        StringBuilder sb = new StringBuilder();
+        for (String line : lines) {
+            String trimmed = line.replaceAll("[ \\t\\x0B\\f]+", " ").trim();
+            if (!trimmed.isEmpty()) {
+                sb.append(trimmed).append("\n");
+            }
+        }
+        return sb.toString().trim();
     }
 
     private void closeFolderAndStore(Folder folder, Store store) {

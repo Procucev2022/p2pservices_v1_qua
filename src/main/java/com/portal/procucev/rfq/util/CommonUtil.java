@@ -14,6 +14,29 @@ public final class CommonUtil {
         return "RFQ-" + timestamp + "-" + UUID.randomUUID().toString().substring(0, 8);
     }
 
+    public static String shortenRfqNumber(String fullRfqNumber) {
+        if (fullRfqNumber == null || fullRfqNumber.isBlank()) {
+            return "";
+        }
+        String clean = fullRfqNumber.trim().replaceAll("^[✉️🌐\\s]+", "").trim();
+        if (clean.matches("(?i)^RFQ-\\d{14}-[a-z0-9_-]{1,12}$")) {
+            return clean.substring(0, clean.lastIndexOf('-'));
+        }
+        return clean;
+    }
+
+    public static String formatRfqDisplayNumber(String fullRfqNumber) {
+        String shortened = shortenRfqNumber(fullRfqNumber);
+        if (shortened.isBlank()) {
+            return "";
+        }
+        return "✉️ " + shortened;
+    }
+
+    public static String formatRfqDisplayId(String fullRfqNumber) {
+        return formatRfqDisplayNumber(fullRfqNumber);
+    }
+
     public static boolean isNullOrBlank(String str) {
         return str == null || str.trim().isEmpty();
     }

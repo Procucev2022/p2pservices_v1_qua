@@ -4,20 +4,23 @@ Analyze the following email content and extract structured RFQ details into a SI
 
 {
   "buyerEmail": "String (the sender's email or extracted email)",
-  "deliveryLocation": "String (full delivery address/location, e.g., 'Raipur, Chhattisgarh')",
+  "deliveryLocation": "String (default top-level delivery location if item-level location is not specified, e.g., 'Raipur, Chhattisgarh')",
   "deliveryCity": "String (city name ONLY, e.g., 'Raipur')",
   "deliveryState": "String (state name ONLY, e.g., 'Chhattisgarh')",
   "deliveryPincode": "String (6-digit Indian pincode if mentioned or null)",
-  "deliveryDate": "String (requested delivery date in ISO YYYY-MM-DD format e.g. '2026-08-20'. Convert dates like '20-August-2026', '20-Aug-2026', '20/08/2026', '20-08-2026', 'August 20, 2026' into YYYY-MM-DD. If missing, return null)",
-  "category": "String (explicit product/project category if mentioned in email e.g. 'Construction', 'Electrical', or null if not mentioned)",
+  "deliveryDate": "String (default top-level delivery date in ISO YYYY-MM-DD format e.g. '2026-08-20'. If missing, return null)",
+  "category": "String (general email category or null)",
   "items": [
     {
-      "itemDescription": "String (main product/material name ONLY, e.g., 'Conveyor Belt'. DO NOT use part numbers like 'CB-800-EP315' as itemDescription if the material name is available)",
+      "itemDescription": "String (main product/material name ONLY, e.g., 'Dell Latitude 5450 Laptop' or 'Conveyor Belt')",
+      "category": "String (item-specific category if mentioned e.g., 'Laptop', 'Medical', 'Electrical', 'Construction', 'Pipes', or null if missing)",
       "partCode": "String (part number or model/item code if present, e.g., 'CB-800-EP315')",
-      "specification": "String (complete detailed technical specifications comma-separated, e.g., '800 mm Width, EP315/3, Heat Resistant, 6 mm Top Cover')",
-      "quantity": Double (numeric quantity only, e.g., 250.0. If quantity is NOT explicitly mentioned as a number in the email, set to null. DO NOT guess, invent, or assume a quantity),
-      "uom": "String (Unit of Measure, e.g., 'tons', 'NOS', 'MTR', 'KG', 'PCS')",
-      "brand": "String (preferred brand/make or 'Not Specified' if missing)"
+      "specification": "String (complete detailed technical specifications comma-separated)",
+      "quantity": Number (numeric value e.g. 7, 25, 500, 1000, 2000, 5000, 100000, 1000000. Convert number words like 'seven', 'twenty five', 'five hundred', 'one thousand', 'one lakh', 'ten lakh' to numeric digits. Remove commas. Do NOT include UOM in quantity. If missing, set to null),
+      "uom": "String (Unit of Measure, e.g., 'Units', 'Bags', 'NOS', 'MTR', 'KG', 'PCS', 'Meters', 'Sheets')",
+      "brand": "String (preferred brand/make or 'Not Specified' if missing)",
+      "deliveryDate": "String (item-specific requested delivery date e.g. '2026-09-30' or '30-Sep-2026' or null if missing)",
+      "deliveryLocation": "String (item-specific delivery location e.g. 'Bengaluru, Karnataka' or null if missing)"
     }
   ]
 }
@@ -30,7 +33,8 @@ STRICT EXTRACTION RULES:
 5. deliveryDate MUST be converted to YYYY-MM-DD ISO format (e.g. "2026-08-20"). If missing, return null.
 6. category MUST be extracted if explicitly mentioned in the email text. Do NOT invent broad category names if not explicitly mentioned.
 7. IGNORE footers, disclaimers, email signatures, commercial/payment terms, and social links.
-8. IF Quantity is not explicitly present as a number in the text/attachment for an item, set quantity = null. DO NOT invent or assume quantity.
+8. QUANTITY EXTRACTION & NORMALIZATION: Extract quantity accurately for every item. Always convert number words (e.g., 'seven' -> 7, 'twenty five' -> 25, 'five hundred' -> 500, 'one thousand' -> 1000, 'one lakh' -> 100000, 'ten lakh' -> 1000000). Remove commas from numeric quantities (e.g., '5,000' -> 5000). Do NOT include UOM (Units, Nos, Pieces, Bags, Meters, Kg, etc.) in the quantity field. Store quantity as a numeric value and preserve UOM separately in the "uom" field. Never return number words as quantity. If quantity cannot be identified, set quantity = null. DO NOT guess or invent a quantity.
+9. Check BOTH Email Subject and Body. If the body lacks an explicit product name or description, use product names or item details mentioned in the EMAIL SUBJECT as the itemDescription.
 
 EMAIL SUBJECT:
 ${subject}

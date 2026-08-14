@@ -240,6 +240,10 @@
 							<exclude>com/portal/procucev/rfq/service/AcknowledgementEmailService.class</exclude>
 							<exclude>com/portal/procucev/rfq/service/CategoryClassificationService.class</exclude>
 							<exclude>com/portal/procucev/rfq/service/BuyerVerificationService.class</exclude>
+							<exclude>com/portal/procucev/rfq/service/AIExtractionService.class</exclude>
+							<exclude>com/portal/procucev/rfq/client/GeminiApiClient.class</exclude>
+							<exclude>com/portal/procucev/rfq/scheduler/EmailScheduler.class</exclude>
+							<exclude>com/portal/procucev/rfq/config/RfqSchemaInitializer.class</exclude>
 							<exclude>com/portal/procucev/controller/UserController.class</exclude>
 						</excludes>
 

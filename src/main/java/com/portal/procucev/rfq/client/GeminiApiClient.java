@@ -33,7 +33,7 @@ public class GeminiApiClient {
     @Value("${app.gemini.primary-model:gemini-3.5-flash-lite}")
     private String primaryModel;
 
-    @Value("${app.gemini.fallback-model:gemini-3.1-flash-lite}")
+    @Value("${app.gemini.fallback-model:gemini-3.6-flash}")
     private String fallbackModel;
 
     @Value("${app.gemini.base-url:https://generativelanguage.googleapis.com/v1beta/models}")
@@ -89,6 +89,20 @@ public class GeminiApiClient {
         Map<String, Object> requestBody = new HashMap<>();
         requestBody.put("contents", List.of(contentsObj));
 
+        Map<String, Object> itemSchema = new HashMap<>();
+        itemSchema.put("type", "OBJECT");
+        itemSchema.put("properties", Map.of(
+                "itemDescription", Map.of("type", "STRING"),
+                "partCode", Map.of("type", "STRING"),
+                "specification", Map.of("type", "STRING"),
+                "quantity", Map.of("type", "NUMBER"),
+                "uom", Map.of("type", "STRING"),
+                "brand", Map.of("type", "STRING"),
+                "category", Map.of("type", "STRING"),
+                "deliveryDate", Map.of("type", "STRING"),
+                "deliveryLocation", Map.of("type", "STRING")
+        ));
+
         Map<String, Object> responseSchema = Map.of(
                 "type", "OBJECT",
                 "properties", Map.of(
@@ -101,18 +115,7 @@ public class GeminiApiClient {
                         "deliveryDate", Map.of("type", "STRING"),
                         "items", Map.of(
                                 "type", "ARRAY",
-                                "items", Map.of(
-                                        "type", "OBJECT",
-                                        "properties", Map.of(
-                                                "itemDescription", Map.of("type", "STRING"),
-                                                "partCode", Map.of("type", "STRING"),
-                                                "specification", Map.of("type", "STRING"),
-                                                "quantity", Map.of("type", "NUMBER", "nullable", true),
-                                                "uom", Map.of("type", "STRING"),
-                                                "brand", Map.of("type", "STRING")
-                                        ),
-                                        "required", List.of("itemDescription", "quantity", "uom")
-                                )
+                                "items", itemSchema
                         )
                 ),
                 "required", List.of("items")
