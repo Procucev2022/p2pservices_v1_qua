@@ -83,7 +83,7 @@ public class RfqSchemaInitializer {
                     "category_confidence DOUBLE, " +
                     "classification_status VARCHAR(255), " +
                     "created_at DATETIME NOT NULL, " +
-                    "INDEX idx_rfq_item_lookup (buyer_email, item_description, delivery_date)" +
+                    "INDEX idx_rfq_item_lookup (buyer_email, item_description(150), delivery_date)" +
                     ")");
 
             log.info("Email RFQ module database tables verified/created successfully.");
