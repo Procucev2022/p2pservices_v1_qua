@@ -160,6 +160,8 @@ public class EmailProcessorService {
             ExtractedRFQ extractedRFQ;
             try {
                 extractedRFQ = aiExtractionService.extractRFQFromEmail(email);
+                extractedRFQ = mergeThreadContext(email, extractedRFQ);
+                transaction.setExtractionJson(objectMapper.writeValueAsString(extractedRFQ));
                 log.info("AI extraction successful");
             } catch (Exception e) {
                 log.error("AI extraction failed for validated buyer {}: {}", buyer.getEmail(), e.getMessage());
@@ -479,10 +481,52 @@ public class EmailProcessorService {
             String date = dateParser.parseDateString(rawDate);
             item.setDeliveryDate(date);
 
-            String groupKey = loc.toLowerCase() + "|" + date.toLowerCase();
+            String category = normalizeValue(item.getCategory());
+            String groupKey = category + "|" + loc.toLowerCase() + "|" + date.toLowerCase();
             groups.computeIfAbsent(groupKey, k -> new ArrayList<>()).add(item);
         }
         return groups;
+    }
+
+    private ExtractedRFQ mergeThreadContext(EmailData email, ExtractedRFQ extracted) {
+        if (extracted == null || (email.getInReplyTo() == null && email.getReferences() == null)) {
+            return extracted;
+        }
+        List<String> messageIds = new ArrayList<>();
+        if (email.getInReplyTo() != null) {
+            messageIds.add(email.getInReplyTo().trim());
+        }
+        if (email.getReferences() != null) {
+            messageIds.addAll(Arrays.asList(email.getReferences().trim().split("\\s+")));
+        }
+        for (String messageId : messageIds) {
+            Optional<EmailTransaction> prior = emailTransactionRepository.findByMessageId(messageId);
+            if (prior.isEmpty() || prior.get().getExtractionJson() == null) {
+                continue;
+            }
+            try {
+                ExtractedRFQ historical = objectMapper.readValue(prior.get().getExtractionJson(), ExtractedRFQ.class);
+                if (historical.getItems() != null && !historical.getItems().isEmpty()
+                        && extracted.getItems() != null && !extracted.getItems().isEmpty()) {
+                    RFQItem current = extracted.getItems().get(0);
+                    RFQItem original = historical.getItems().get(0);
+                    if (current.getItemDescription() == null || current.getItemDescription().isBlank()) current.setItemDescription(original.getItemDescription());
+                    if (current.getSpecification() == null || current.getSpecification().isBlank()) current.setSpecification(original.getSpecification());
+                    if (current.getBrand() == null || current.getBrand().isBlank()) current.setBrand(original.getBrand());
+                    if (current.getCategory() == null || current.getCategory().isBlank()) current.setCategory(original.getCategory());
+                }
+                if (isBlank(extracted.getDeliveryLocation())) extracted.setDeliveryLocation(historical.getDeliveryLocation());
+                if (isBlank(extracted.getDeliveryDate())) extracted.setDeliveryDate(historical.getDeliveryDate());
+            } catch (Exception e) {
+                log.warn("Could not merge historical thread extraction for message {}: {}", messageId, e.getMessage());
+            }
+            break;
+        }
+        return extracted;
+    }
+
+    private boolean isBlank(String value) {
+        return value == null || value.isBlank() || value.equalsIgnoreCase("Not Specified");
     }
 
     private FailedRfqRequest buildFailedRequestFromEmail(EmailData email, ExtractedRFQ extractedRFQ, String reason) {

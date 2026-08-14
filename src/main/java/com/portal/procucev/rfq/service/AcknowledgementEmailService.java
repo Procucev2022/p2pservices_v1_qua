@@ -96,7 +96,11 @@ public class AcknowledgementEmailService {
                 ? buyer.getEmail() : (request != null ? request.getBuyerEmail() : "");
         String buyerName = resolveBuyerName(buyer);
 
-        sendCase3DetailsMissingAcknowledgement(buyerEmail, buyerName);
+        String reason = request != null ? request.getReasonForFailure() : null;
+        if (reason == null || reason.isBlank()) {
+            reason = "We need a little more information to process your requirement.";
+        }
+        sendProcessingFailureAcknowledgement(buyerEmail, buyerName, reason);
     }
 
     public void sendMissingQuantityAcknowledgement(String buyerEmail, String buyerName, List<String> missingItems) {
@@ -104,8 +108,11 @@ public class AcknowledgementEmailService {
     }
 
     public void sendConsolidatedAcknowledgement(List<RFQEntity> createdRfqs, List<String> failedItems, Buyer buyer, String rawSubject) {
-        if (createdRfqs != null && !createdRfqs.isEmpty()) {
+        if (createdRfqs != null && !createdRfqs.isEmpty() && (failedItems == null || failedItems.isEmpty())) {
             sendSuccessAcknowledgement(createdRfqs, buyer);
+        } else if (createdRfqs != null && !createdRfqs.isEmpty()) {
+            String buyerEmail = (buyer != null && buyer.getEmail() != null && !buyer.getEmail().isBlank()) ? buyer.getEmail() : "";
+            sendPartialSuccessAcknowledgement(buyerEmail, resolveBuyerName(buyer), createdRfqs, failedItems);
         } else {
             String buyerEmail = (buyer != null && buyer.getEmail() != null && !buyer.getEmail().isBlank())
                     ? buyer.getEmail() : "";
@@ -118,6 +125,46 @@ public class AcknowledgementEmailService {
         if (buyerEmail == null || buyerEmail.isBlank() || !buyerEmail.contains("@")) {
             log.error("Cannot send CASE 3 details missing acknowledgement: Invalid recipient email '{}'", buyerEmail);
             return;
+        }
+
+        private void sendProcessingFailureAcknowledgement(String buyerEmail, String buyerName, String reason) {
+            if (buyerEmail == null || buyerEmail.isBlank() || !buyerEmail.contains("@")) {
+                log.error("Cannot send processing failure acknowledgement: Invalid recipient email '{}'", buyerEmail);
+                return;
+            }
+            try {
+                SimpleMailMessage mailMessage = createBaseMailMessage(buyerEmail);
+                mailMessage.setSubject("⚠️ We Could Not Process Your RFQ");
+                mailMessage.setText("Hi " + (buyerName == null || buyerName.isBlank() ? "Valued Customer" : buyerName) + ",\n\n"
+                        + "We received your requirement, but could not process it.\n\nReason: " + reason + "\n\n"
+                        + "Please reply with the missing details and we will try again.\n\nTeam Procucev");
+                mailSender.send(mailMessage);
+            } catch (Exception e) {
+                log.error("Failed to send processing failure acknowledgement to {}: {}", buyerEmail, e.getMessage());
+            }
+        }
+
+        private void sendPartialSuccessAcknowledgement(String buyerEmail, String buyerName,
+                                                       List<RFQEntity> createdRfqs, List<String> failedItems) {
+            if (buyerEmail == null || buyerEmail.isBlank() || !buyerEmail.contains("@")) {
+                log.error("Cannot send partial success acknowledgement: Invalid recipient email '{}'", buyerEmail);
+                return;
+            }
+            try {
+                String created = createdRfqs.stream()
+                        .map(e -> com.portal.procucev.rfq.util.CommonUtil.formatRfqDisplayNumber(e.getRfqNumber()))
+                        .collect(Collectors.joining(", "));
+                String failed = failedItems == null ? "" : String.join("\n", failedItems);
+                SimpleMailMessage mailMessage = createBaseMailMessage(buyerEmail);
+                mailMessage.setSubject("⚠️ Some RFQs Were Created, Some Need Attention");
+                mailMessage.setText("Hi " + buyerName + ",\n\n"
+                        + "We created these RFQs: " + created + "\n\n"
+                        + "The following groups could not be created:\n" + failed
+                        + "\n\nPlease review the failed groups and reply with any corrections.\n\nTeam Procucev");
+                mailSender.send(mailMessage);
+            } catch (Exception e) {
+                log.error("Failed to send partial success acknowledgement to {}: {}", buyerEmail, e.getMessage());
+            }
         }
 
         try {

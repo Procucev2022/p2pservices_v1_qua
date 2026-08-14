@@ -44,7 +44,7 @@ public class QuantityNormalizer {
     }
 
     private static final Pattern EXPLICIT_KEYWORD_PATTERN = Pattern.compile("(?i)(?:required\\s+)?(?:quantity|qty)\\s*[:=]\\s*([a-z0-9,\\-\\s\\.]+)");
-    private static final Pattern DIGIT_UNIT_PATTERN = Pattern.compile("(?i)\\b([0-9,]+(?:\\.[0-9]+)?)\\s*(?:nos|units|pieces|pcs|bags|meters|mtr|kg|sheets|items|boxes|sets|rolls|liters|ltr|tons)?\\b");
+    private static final Pattern DIGIT_UNIT_PATTERN = Pattern.compile("(?i)\\b([0-9,]+(?:\\.[0-9]+)?)\\s+(?:nos|units|pieces|pcs|bags|meters|mtr|kg|sheets|items|boxes|sets|rolls|liters|ltr|tons)\\b");
     private static final Pattern DIRECT_DIGIT_PATTERN = Pattern.compile("^\\s*([0-9,]+(?:\\.[0-9]+)?)\\s*$");
 
     public static Double normalize(Object raw) {
@@ -76,6 +76,13 @@ public class QuantityNormalizer {
         Matcher keywordMatcher = EXPLICIT_KEYWORD_PATTERN.matcher(input);
         if (keywordMatcher.find()) {
             String extractedValue = keywordMatcher.group(1).trim();
+            Matcher directInValue = DIRECT_DIGIT_PATTERN.matcher(extractedValue);
+            if (directInValue.matches()) {
+                try {
+                    double val = Double.parseDouble(directInValue.group(1).replace(",", ""));
+                    if (val > 0) return val;
+                } catch (Exception ignored) {}
+            }
             Matcher digitInVal = DIGIT_UNIT_PATTERN.matcher(extractedValue);
             if (digitInVal.find()) {
                 try {
@@ -99,9 +106,15 @@ public class QuantityNormalizer {
         }
 
         // 4. Parse English number words from full text (e.g. "seven", "twenty-five", "one lakh", "ten lakh", "five hundred bags", "two thousand meters")
-        Double wordResult = parseWords(input);
+        Double wordResult = input.matches("(?i)^[a-z]+(?:[\\s-]+[a-z]+)*$") && startsWithNumberWord(input)
+                ? parseWords(input) : null;
         if (wordResult != null && wordResult > 0) {
             return wordResult;
+        }
+
+        private static boolean startsWithNumberWord(String input) {
+            String first = input.toLowerCase().split("[\\s-]+")[0];
+            return NUMBER_WORDS.containsKey(first);
         }
 
         return null;
@@ -214,4 +227,3 @@ public class QuantityNormalizer {
         return null;
     }
 }
-

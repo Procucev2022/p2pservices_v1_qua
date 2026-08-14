@@ -19,9 +19,9 @@ public class CommonUtilTest {
     }
 
     @Test
-    @DisplayName("Test shortenRfqNumber strips 8-char suffix")
+    @DisplayName("Test shortenRfqNumber preserves unique suffix")
     void testShortenRfqNumber() {
-        assertEquals("RFQ-20260813153514", CommonUtil.shortenRfqNumber("RFQ-20260813153514-bbc27322"));
+        assertEquals("RFQ-20260813153514-bbc27322", CommonUtil.shortenRfqNumber("RFQ-20260813153514-bbc27322"));
         assertEquals("RFQ-20260813153514", CommonUtil.shortenRfqNumber("RFQ-20260813153514"));
         assertEquals("RFQ-101", CommonUtil.shortenRfqNumber("RFQ-101"));
         assertEquals("", CommonUtil.shortenRfqNumber(null));

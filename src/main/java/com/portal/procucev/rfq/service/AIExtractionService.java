@@ -29,8 +29,7 @@ public class AIExtractionService {
         log.info("========== AI EXTRACTION START ==========");
         log.info("EMAIL SUBJECT: {}", subj);
         log.info("EMAIL BODY LENGTH: {}", body.length());
-        String snippet = body.length() > 300 ? body.substring(0, 300) + "..." : body;
-        log.info("EXTRACTION INPUT SNIPPET: {}", snippet);
+        log.info("EXTRACTION INPUT ATTACHMENT TEXT LENGTH: {}", attText.length());
 
         String prompt;
         try {

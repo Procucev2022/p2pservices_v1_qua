@@ -108,7 +108,6 @@ public class EmailReaderService {
             for (Message msg : messages) {
                 try {
                     EmailData data = parseMessage(msg);
-                    msg.setFlag(Flags.Flag.SEEN, true);
                     log.info("Parsed unread email: Subject='{}', From='{}', ReceivedDate='{}'",
                             data.getSubject(), data.getSenderEmail(), data.getReceivedDate());
                     emailsList.add(data);
