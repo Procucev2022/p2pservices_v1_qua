@@ -539,6 +539,7 @@ class GMTServiceImplCoverageTest {
 
         assertEquals(3, result.size());
         assertEquals("OPEN", result.get(0).getClientStatusName());
+        assertEquals(status, result.get(0).getClientStatus());
         assertEquals("Company1", result.get(0).getCompanyName());
         assertEquals(4L, result.get(0).getNoOfVendors());
         assertNull(result.get(1).getPhoneNumber());

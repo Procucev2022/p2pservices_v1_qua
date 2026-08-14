@@ -29,9 +29,9 @@ public class RfqDTO {
 	
 	private int count;
 
-//	private MasterStatus clientStatus;
-	 private String clientStatusId;
-     private String clientStatusName;
+	private MasterStatus clientStatus;
+	private String clientStatusId;
+	private String clientStatusName;
 	
 	private String division;
 
@@ -58,10 +58,10 @@ public class RfqDTO {
 	
 	
 	public RfqDTO(String id, String rfqId, String projectDesc, String category, String createdBy, String companyName,
-			String companyId, String phoneNumber, boolean quotationReceived, int count, String clientStatusId,
-			String clientStatusName, String division, Date createdTs, boolean byClient, Date deliveryDate,
-			int noOfQuotes, long noOfVendors, Date quoteSubmittedDate, boolean newCommentAvailableVendor,
-			String sourceType) {
+			String companyId, String phoneNumber, boolean quotationReceived, int count, MasterStatus clientStatus,
+			String clientStatusId, String clientStatusName, String division, Date createdTs, boolean byClient,
+			Date deliveryDate, int noOfQuotes, long noOfVendors, Date quoteSubmittedDate,
+			boolean newCommentAvailableVendor, String sourceType) {
 		super();
 		this.id = id;
 		this.rfqId = rfqId;
@@ -73,6 +73,7 @@ public class RfqDTO {
 		this.phoneNumber = phoneNumber;
 		this.quotationReceived = quotationReceived;
 		this.count = count;
+		this.clientStatus = clientStatus;
 		this.clientStatusId = clientStatusId;
 		this.clientStatusName = clientStatusName;
 		this.division = division;

@@ -1101,12 +1101,11 @@ public class GMTServiceImpl implements GMTService {
 		//rfqDto.setNoOfVendors(rfqVendorDao.findByVendorsByRfq(rfq.getId()));
 		rfqDto.setNoOfVendors(gmtRfqVendorDao.findByVendorsByRfq(rfq.getId()));
 		rfqDto.setQuoteSubmittedDate(rfq.getQuoteSubmittedDate());
-	//	rfqDto.setClientStatusName(rfq.getClientStatus().getStatus());
-		rfqDto.setClientStatusName(
-			    rfq.getClientStatus() != null
-			        ? rfq.getClientStatus().getStatus()
-			        : null
-			);
+		if (rfq.getClientStatus() != null) {
+			rfqDto.setClientStatus(rfq.getClientStatus());
+			rfqDto.setClientStatusId(rfq.getClientStatus().getId());
+			rfqDto.setClientStatusName(rfq.getClientStatus().getStatus());
+		}
 		rfqDto.setNewCommentAvailableVendor(rfq.isNewCommentAvailableVendor());
 
 		String companyName = userDao.findByUser(rfq.getUser());
@@ -1203,7 +1202,11 @@ public class GMTServiceImpl implements GMTService {
 		rfqDto.setCreatedTs(rfq.getCreatedTS());
 		rfqDto.setProjectDesc(rfq.getProjectDesc());
 		rfqDto.setDivision(rfq.getDivision());
-		rfqDto.setClientStatusName(rfq.getClientStatus().getStatus());
+		if (rfq.getClientStatus() != null) {
+			rfqDto.setClientStatus(rfq.getClientStatus());
+			rfqDto.setClientStatusId(rfq.getClientStatus().getId());
+			rfqDto.setClientStatusName(rfq.getClientStatus().getStatus());
+		}
 		rfqDto.setRfqId(rfq.getRfqId());
 		rfqDto.setNoOfQuotes(rfq.getQuoteCount());
 		rfqDto.setNoOfVendors(gmtRfqVendorDao.findByVendorsByRfq(rfq.getId()));
@@ -1255,7 +1258,7 @@ public class GMTServiceImpl implements GMTService {
 
 	    // client status
 	    if (rfq.getClientStatus() != null) {
-
+	        dto.setClientStatus(rfq.getClientStatus());
 	        dto.setClientStatusId(
 	                rfq.getClientStatus().getId());
 
@@ -1590,6 +1593,11 @@ public class GMTServiceImpl implements GMTService {
 				rfqDto.setCategory(rfq.getCategory());
 				rfqDto.setRfqId(rfq.getRfqId());
 				rfqDto.setSourceType(rfq.getSourceType());
+				if (rfq.getClientStatus() != null) {
+					rfqDto.setClientStatus(rfq.getClientStatus());
+					rfqDto.setClientStatusId(rfq.getClientStatus().getId());
+					rfqDto.setClientStatusName(rfq.getClientStatus().getStatus());
+				}
 				logger.info("RfqID--", rfq.getRfqId());
 				//long vendorsCount = rfqVendorDao.findByVendorsByRfq(rfq.getId());
 				rfqDto.setNoOfVendors(gmtRfqVendorDao.findByVendorsByRfq(rfq.getId()));
