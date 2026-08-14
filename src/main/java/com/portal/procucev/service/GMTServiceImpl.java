@@ -3831,6 +3831,12 @@ public class GMTServiceImpl implements GMTService {
 	    props.put("mail.imaps.port", "993");
 	    props.put("mail.imaps.ssl.enable", "true");
 	    props.put("mail.imaps.ssl.trust", "imap.gmail.com");
+	    // Without these, jakarta.mail waits forever on connect/read. Spring's
+	    // default scheduler pool holds a single thread, so one stalled IMAP call
+	    // would silently stop every other @Scheduled job in the application.
+	    props.put("mail.imaps.connectiontimeout", "15000");
+	    props.put("mail.imaps.timeout", "30000");
+	    props.put("mail.imaps.writetimeout", "30000");
 
 	    Session session = Session.getInstance(props);
 

@@ -3,7 +3,14 @@ package com.portal.procucev.rfq.service;
 import com.portal.procucev.rfq.exception.ApplicationException;
 import com.portal.procucev.rfq.model.EmailData;
 import com.portal.procucev.rfq.util.FileUtil;
-import jakarta.mail.*;
+import jakarta.mail.Address;
+import jakarta.mail.BodyPart;
+import jakarta.mail.Flags;
+import jakarta.mail.Folder;
+import jakarta.mail.Message;
+import jakarta.mail.Part;
+import jakarta.mail.Session;
+import jakarta.mail.Store;
 import jakarta.mail.internet.InternetAddress;
 import jakarta.mail.internet.MimeMultipart;
 import lombok.RequiredArgsConstructor;
@@ -17,7 +24,10 @@ import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Properties;
+import java.util.UUID;
 
 @Slf4j
 @Service
@@ -27,14 +37,14 @@ public class EmailReaderService {
     @Value("${app.mail.host:imap.gmail.com}")
     private String mailHost;
 
+    @Value("${app.mail.port:993}")
+    private int mailPort;
+
     @Value("${app.mail.username:rfq@procucev.com}")
     private String mailUsername;
 
-    @Value("${app.mail.password}")
+    @Value("${app.mail.password:}")
     private String mailPassword;
-
-    @Value("${app.mail.port:993}")
-    private int mailPort = 993;
 
     @Value("${app.mail.inbox-folder:INBOX}")
     private String inboxFolder;
@@ -46,6 +56,11 @@ public class EmailReaderService {
     private long maxAttachmentBytes = 26214400L;
 
     public List<EmailData> fetchUnreadEmails() {
+        if (mailPassword == null || mailPassword.isBlank()) {
+            throw new ApplicationException(
+                    "Mailbox password is not configured. Set the EMAIL_PASSWORD environment variable "
+                            + "(or the app.mail.password property) to enable email-to-RFQ processing.");
+        }
         log.info("Connecting to IMAP server ({}) for user: {}", mailHost, mailUsername);
         List<EmailData> emailsList = new ArrayList<>();
         Store store = null;
@@ -57,6 +72,10 @@ public class EmailReaderService {
             props.put("mail.imaps.host", mailHost);
             props.put("mail.imaps.port", String.valueOf(mailPort));
             props.put("mail.imaps.ssl.enable", "true");
+            // Bounded waits: an unreachable mail host must not pin a scheduler thread indefinitely.
+            props.put("mail.imaps.connectiontimeout", "15000");
+            props.put("mail.imaps.timeout", "30000");
+            props.put("mail.imaps.writetimeout", "30000");
 
             Session session = Session.getInstance(props);
             store = session.getStore("imaps");
@@ -118,6 +137,10 @@ public class EmailReaderService {
             props.put("mail.imaps.host", mailHost);
             props.put("mail.imaps.port", String.valueOf(mailPort));
             props.put("mail.imaps.ssl.enable", "true");
+            props.put("mail.imaps.connectiontimeout", "15000");
+            props.put("mail.imaps.timeout", "30000");
+            props.put("mail.imaps.writetimeout", "30000");
+
             Session session = Session.getInstance(props);
             store = session.getStore("imaps");
             store.connect(mailHost, mailUsername, mailPassword);

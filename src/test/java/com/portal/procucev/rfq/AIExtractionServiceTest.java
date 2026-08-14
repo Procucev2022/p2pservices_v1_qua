@@ -116,8 +116,6 @@ public class AIExtractionServiceTest {
         Mockito.when(geminiApiClient.generateContent(anyString())).thenReturn(null);
 
         EmailData email = EmailData.builder().senderEmail("sender@test.com").build();
-        ExtractedRFQ rfq = aiExtractionService.extractRFQFromEmail(email);
-        assertNotNull(rfq);
-        assertEquals("sender@test.com", rfq.getBuyerEmail());
+        assertThrows(ApplicationException.class, () -> aiExtractionService.extractRFQFromEmail(email));
     }
 }

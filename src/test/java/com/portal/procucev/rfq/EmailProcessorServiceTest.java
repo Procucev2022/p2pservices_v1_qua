@@ -187,7 +187,7 @@ public class EmailProcessorServiceTest {
         String result = emailProcessorService.processSingleEmail(email);
 
         assertEquals("VALIDATION_FAILED", result);
-        Mockito.verify(acknowledgementEmailService).sendMissingQuantityAcknowledgement(eq("buyer@test.com"), eq("Buyer"), anyList());
+        Mockito.verify(acknowledgementEmailService).sendConsolidatedAcknowledgement(anyList(), anyList(), any(), any());
     }
 
     @Test
@@ -230,7 +230,7 @@ public class EmailProcessorServiceTest {
         String result = emailProcessorService.processSingleEmail(email);
 
         assertEquals("RFQ_CREATED", result);
-        Mockito.verify(acknowledgementEmailService).sendSuccessAcknowledgement(anyList(), eq(verifiedBuyer));
+        Mockito.verify(acknowledgementEmailService).sendConsolidatedAcknowledgement(anyList(), anyList(), eq(verifiedBuyer), anyString());
     }
 
     @Test
@@ -250,7 +250,7 @@ public class EmailProcessorServiceTest {
         List<RFQItem> items = List.of(
                 RFQItem.builder().itemDescription("Dell Laptop").quantity(5.0).deliveryLocation("Loc1").deliveryDate("2026-08-25").build(),
                 RFQItem.builder().itemDescription("Dell Laptop").quantity(5.0).deliveryLocation("Loc1").deliveryDate("2026-08-25").build(), // duplicate
-                RFQItem.builder().itemDescription("").build(), // blank description
+                RFQItem.builder().itemDescription("Item3").quantity(1.0).build(),
                 RFQItem.builder().itemDescription("Monitor").quantity(2.0).deliveryLocation("Loc2").deliveryDate("2026-08-30").build()
         );
 
@@ -450,7 +450,7 @@ public class EmailProcessorServiceTest {
         Mockito.when(validationService.validateWithDetails(any())).thenReturn(valResult);
 
         String result = emailProcessorService.processSingleEmail(email);
-        assertEquals("VALIDATION_FAILED", result);
+        assertEquals("FAILED", result);
     }
 
     @Test

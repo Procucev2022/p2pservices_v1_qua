@@ -39,7 +39,7 @@ public class GeminiApiClient {
     @Value("${app.gemini.base-url:https://generativelanguage.googleapis.com/v1beta/models}")
     private String baseUrl;
 
-    @Value("${app.gemini.api-key}")
+    @Value("${app.gemini.api-key:}")
     private String apiKey;
 
     @Value("${app.gemini.connect-timeout-ms:5000}")
@@ -51,12 +51,17 @@ public class GeminiApiClient {
     @PostConstruct
     void init() {
         this.restTemplate = restTemplateBuilder
-                .connectTimeout(Duration.ofMillis(connectTimeoutMs))
-                .readTimeout(Duration.ofMillis(readTimeoutMs))
+                .setConnectTimeout(Duration.ofMillis(connectTimeoutMs))
+                .setReadTimeout(Duration.ofMillis(readTimeoutMs))
                 .build();
     }
 
     public String generateContent(String promptText) {
+        if (apiKey == null || apiKey.isBlank()) {
+            throw new ApplicationException(
+                    "Gemini API key is not configured. Set the GEMINI_API_KEY environment variable "
+                            + "(or the app.gemini.api-key property) to enable AI extraction.");
+        }
         log.info("Sending request to Gemini API (Primary Model: {})...", primaryModel);
         try {
             return callGeminiModel(primaryModel, promptText);

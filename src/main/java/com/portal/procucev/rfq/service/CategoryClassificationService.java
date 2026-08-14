@@ -48,6 +48,17 @@ public class CategoryClassificationService {
             return;
         }
 
+        if (extractedCategory != null && !extractedCategory.isBlank() && !extractedCategory.equalsIgnoreCase("null")) {
+            String cleanCat = extractedCategory.trim();
+            item.setCategory(cleanCat);
+            item.setDivision(cleanCat);
+            item.setCategoryConfidence(0.95);
+            item.setClassificationStatus("AI_EXTRACTED");
+            log.info("Classified item '{}' -> Category: '{}' (From explicit Email/AI extraction)",
+                    item.getItemDescription(), cleanCat);
+            return;
+        }
+
         String desc = item.getItemDescription() != null ? item.getItemDescription().toLowerCase() : "";
         String spec = item.getSpecification() != null ? item.getSpecification().toLowerCase() : "";
         String brand = item.getBrand() != null ? item.getBrand().toLowerCase() : "";
@@ -55,7 +66,11 @@ public class CategoryClassificationService {
         String combined = desc + " " + spec + " " + brand + " " + remarks;
 
         // Step 1: Check Domain Keyword Map FIRST for high-accuracy category classification
-        for (java.util.Map.Entry<String, String> entry : DOMAIN_KEYWORD_MAP.entrySet()) {
+        List<java.util.Map.Entry<String, String>> sortedKeywords = DOMAIN_KEYWORD_MAP.entrySet().stream()
+                .sorted((e1, e2) -> Integer.compare(e2.getKey().length(), e1.getKey().length()))
+                .toList();
+
+        for (java.util.Map.Entry<String, String> entry : sortedKeywords) {
             if (containsKeyword(combined, entry.getKey())) {
                 String catName = entry.getValue();
                 item.setCategory(catName);
@@ -215,6 +230,26 @@ public class CategoryClassificationService {
             java.util.Map.entry("concrete", "Construction"),
             java.util.Map.entry("construction material", "Construction"),
             java.util.Map.entry("construction materials", "Construction"),
+
+            // Industrial Machinery
+            java.util.Map.entry("motor", "Industrial Machinery"),
+            java.util.Map.entry("motors", "Industrial Machinery"),
+            java.util.Map.entry("pump", "Industrial Machinery"),
+            java.util.Map.entry("pumps", "Industrial Machinery"),
+            java.util.Map.entry("valve", "Industrial Machinery"),
+            java.util.Map.entry("valves", "Industrial Machinery"),
+            java.util.Map.entry("bearing", "Industrial Machinery"),
+            java.util.Map.entry("bearings", "Industrial Machinery"),
+            java.util.Map.entry("compressor", "Industrial Machinery"),
+            java.util.Map.entry("compressors", "Industrial Machinery"),
+            java.util.Map.entry("generator", "Industrial Machinery"),
+            java.util.Map.entry("generators", "Industrial Machinery"),
+
+            // Safety Equipment
+            java.util.Map.entry("helmet", "Safety Equipment"),
+            java.util.Map.entry("helmets", "Safety Equipment"),
+            java.util.Map.entry("safety", "Safety Equipment"),
+            java.util.Map.entry("gloves", "Safety Equipment"),
 
             // Industrial Automation & Electrical
             java.util.Map.entry("electrical", "Industrial Automation & Electrical"),

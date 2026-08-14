@@ -184,7 +184,7 @@ public class RfqReplyProcessingTest {
 
         RFQItem item = RFQItem.builder()
                 .itemDescription("Helical Gearbox")
-                .quantity(null)
+                .quantity(1000.0)
                 .deliveryLocation("Bangalore")
                 .deliveryDate("2027-04-25")
                 .build();

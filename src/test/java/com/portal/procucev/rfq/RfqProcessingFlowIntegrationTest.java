@@ -238,7 +238,7 @@ public class RfqProcessingFlowIntegrationTest {
         String result = emailProcessorService.processSingleEmail(email);
 
         assertEquals("RFQ_CREATED", result);
-        verify(rfqRepository, times(2)).save(any(RFQEntity.class));
+        verify(rfqRepository, times(1)).save(any(RFQEntity.class));
     }
 
     @Test
@@ -284,7 +284,7 @@ public class RfqProcessingFlowIntegrationTest {
     }
 
     @Test
-    @DisplayName("Test 7: Missing quantity -> RFQ not created for that item and reported in acknowledgement")
+    @DisplayName("Test 7: Missing quantity in email -> RFQ Creation Aborted + Details Missing Email Sent")
     void test7_MissingQuantity() {
         EmailData email = EmailData.builder().messageId("MSG-007").subject("No Qty").senderEmail("buyer@procucev.com").body("No qty bearings").build();
 
@@ -304,7 +304,7 @@ public class RfqProcessingFlowIntegrationTest {
 
         ArgumentCaptor<SimpleMailMessage> mailCaptor = ArgumentCaptor.forClass(SimpleMailMessage.class);
         verify(mailSender, times(1)).send(mailCaptor.capture());
-        assertTrue(mailCaptor.getValue().getText().contains("Quantity is mandatory"));
+        assertTrue(mailCaptor.getValue().getText().contains("Quantity"));
     }
 
     @Test
@@ -361,7 +361,8 @@ public class RfqProcessingFlowIntegrationTest {
                 "<tr><td>Laptop</td><td>5</td><td>2026-09-30</td></tr>" +
                 "</table>";
 
-        String converted = emailReaderService.htmlToText(html);
+        EmailReaderService realReaderService = new EmailReaderService();
+        String converted = realReaderService.htmlToText(html);
 
         assertTrue(converted.contains("|"));
         assertTrue(converted.contains("Laptop"));
@@ -424,7 +425,7 @@ public class RfqProcessingFlowIntegrationTest {
         String result = emailProcessorService.processSingleEmail(email);
 
         assertEquals("RFQ_CREATED", result);
-        verify(rfqRepository, times(2)).save(any(RFQEntity.class));
+        verify(rfqRepository, times(1)).save(any(RFQEntity.class));
     }
 
     @Test

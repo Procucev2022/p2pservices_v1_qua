@@ -28,8 +28,6 @@ class SecurityConfigTest {
 
     @Mock
     private JwtRequestFilter jwtRequestFilter;
-    @Mock
-    private CorsConfigurationSource corsConfigurationSource;
 
     @InjectMocks
     private SecurityConfig securityConfig;

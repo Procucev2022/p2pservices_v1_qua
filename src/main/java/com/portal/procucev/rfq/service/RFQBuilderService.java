@@ -97,7 +97,6 @@ public class RFQBuilderService {
         if (locStr.equalsIgnoreCase("Not Specified") || locStr.equalsIgnoreCase("NotSpecified") || locStr.equalsIgnoreCase("N/A")) {
             locStr = "";
         }
-
         if (!locStr.isBlank()) {
             java.util.regex.Matcher m = java.util.regex.Pattern.compile("\\b(\\d{6})\\b").matcher(locStr);
             if (m.find()) {
