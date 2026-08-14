@@ -19,9 +19,9 @@ public class CommonUtilTest {
     }
 
     @Test
-    @DisplayName("Test shortenRfqNumber strips 8-char suffix")
+    @DisplayName("Test shortenRfqNumber preserves unique suffix")
     void testShortenRfqNumber() {
-        assertEquals("RFQ-20260813153514", CommonUtil.shortenRfqNumber("RFQ-20260813153514-bbc27322"));
+        assertEquals("RFQ-20260813153514-bbc27322", CommonUtil.shortenRfqNumber("RFQ-20260813153514-bbc27322"));
         assertEquals("RFQ-20260813153514", CommonUtil.shortenRfqNumber("RFQ-20260813153514"));
         assertEquals("RFQ-101", CommonUtil.shortenRfqNumber("RFQ-101"));
         assertEquals("", CommonUtil.shortenRfqNumber(null));
@@ -29,19 +29,19 @@ public class CommonUtilTest {
     }
 
     @Test
-    @DisplayName("Test formatRfqDisplayNumber adds email icon and strips 8-char suffix")
+    @DisplayName("Test formatRfqDisplayNumber adds email icon and preserves unique suffix")
     void testFormatRfqDisplayNumber() {
-        assertEquals("✉️ RFQ-20260813162614", CommonUtil.formatRfqDisplayNumber("RFQ-20260813162614-5ababe44"));
-        assertEquals("✉️ RFQ-20260813162547", CommonUtil.formatRfqDisplayNumber("RFQ-20260813162547-ffe67f9f"));
-        assertEquals("✉️ RFQ-20260813153514", CommonUtil.formatRfqDisplayNumber("RFQ-20260813153514-bbc27322"));
+        assertEquals("✉️ RFQ-20260813162614-5ababe44", CommonUtil.formatRfqDisplayNumber("RFQ-20260813162614-5ababe44"));
+        assertEquals("✉️ RFQ-20260813162547-ffe67f9f", CommonUtil.formatRfqDisplayNumber("RFQ-20260813162547-ffe67f9f"));
+        assertEquals("✉️ RFQ-20260813153514-bbc27322", CommonUtil.formatRfqDisplayNumber("RFQ-20260813153514-bbc27322"));
         assertEquals("✉️ RFQ-101", CommonUtil.formatRfqDisplayNumber("RFQ-101"));
         assertEquals("", CommonUtil.formatRfqDisplayNumber(null));
         assertEquals("", CommonUtil.formatRfqDisplayNumber("   "));
 
         // Also verify formatRfqDisplayId
-        assertEquals("✉️ RFQ-20260813162614", CommonUtil.formatRfqDisplayId("RFQ-20260813162614-5ababe44"));
-        assertEquals("✉️ RFQ-20260813162547", CommonUtil.formatRfqDisplayId("RFQ-20260813162547-ffe67f9f"));
-        assertEquals("✉️ RFQ-20260813153514", CommonUtil.formatRfqDisplayId("RFQ-20260813153514-bbc27322"));
+        assertEquals("✉️ RFQ-20260813162614-5ababe44", CommonUtil.formatRfqDisplayId("RFQ-20260813162614-5ababe44"));
+        assertEquals("✉️ RFQ-20260813162547-ffe67f9f", CommonUtil.formatRfqDisplayId("RFQ-20260813162547-ffe67f9f"));
+        assertEquals("✉️ RFQ-20260813153514-bbc27322", CommonUtil.formatRfqDisplayId("RFQ-20260813153514-bbc27322"));
     }
 
     @Test

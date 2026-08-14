@@ -35,6 +35,10 @@ public class EmailTransaction {
     @Column(name = "error_message", length = 1000)
     private String errorMessage;
 
+    @Lob
+    @Column(name = "extraction_json", columnDefinition = "TEXT")
+    private String extractionJson;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 

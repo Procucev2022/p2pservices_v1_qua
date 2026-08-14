@@ -49,9 +49,15 @@ public class RfqSchemaInitializer {
                     "sender_email VARCHAR(255), " +
                     "status VARCHAR(255), " +
                     "error_message VARCHAR(1000), " +
+                    "extraction_json TEXT, " +
                     "created_at DATETIME NOT NULL, " +
                     "updated_at DATETIME" +
                     ")");
+            try {
+                jdbcTemplate.execute("ALTER TABLE rfq_email_transactions ADD COLUMN extraction_json TEXT");
+            } catch (Exception ignored) {
+                // Column already exists or table was newly created
+            }
 
             jdbcTemplate.execute("CREATE TABLE IF NOT EXISTS rfq_records (" +
                     "id BIGINT AUTO_INCREMENT PRIMARY KEY, " +

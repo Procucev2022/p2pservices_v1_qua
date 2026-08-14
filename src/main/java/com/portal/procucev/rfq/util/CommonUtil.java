@@ -19,9 +19,6 @@ public final class CommonUtil {
             return "";
         }
         String clean = fullRfqNumber.trim().replaceAll("^[✉️🌐\\s]+", "").trim();
-        if (clean.matches("(?i)^RFQ-\\d{14}-[a-z0-9_-]{1,12}$")) {
-            return clean.substring(0, clean.lastIndexOf('-'));
-        }
         return clean;
     }
 

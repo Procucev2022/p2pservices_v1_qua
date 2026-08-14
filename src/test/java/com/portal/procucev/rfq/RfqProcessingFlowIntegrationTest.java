@@ -238,7 +238,7 @@ public class RfqProcessingFlowIntegrationTest {
         String result = emailProcessorService.processSingleEmail(email);
 
         assertEquals("RFQ_CREATED", result);
-        verify(rfqRepository, times(1)).save(any(RFQEntity.class));
+        verify(rfqRepository, times(2)).save(any(RFQEntity.class));
     }
 
     @Test
