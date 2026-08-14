@@ -2,23 +2,34 @@ package com.portal.procucev.config;
 
 import java.io.IOException;
 
-import org.springframework.stereotype.Component;
-
-import jakarta.servlet.Filter;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
-import jakarta.servlet.ServletRequest;
-import jakarta.servlet.ServletResponse;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Component;
+import org.springframework.web.filter.OncePerRequestFilter;
 
-
+/**
+ * Traces the method and path of inbound requests.
+ *
+ * <p>Previously this wrote to {@code System.out} on every request. That is a synchronized,
+ * unbuffered sink, so concurrent request threads contended on the console lock before any
+ * application code ran. It now logs through SLF4J at DEBUG, which is a no-op in deployed
+ * environments unless explicitly enabled.
+ *
+ * <p>Extends {@link OncePerRequestFilter} so FORWARD and ERROR dispatches are not logged twice.
+ */
 @Component
-public class LoggingFilter implements Filter {
+@Slf4j
+public class LoggingFilter extends OncePerRequestFilter {
+
     @Override
-    public void doFilter(ServletRequest request, ServletResponse response, FilterChain chain)
+    protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
             throws IOException, ServletException {
-        HttpServletRequest req = (HttpServletRequest) request;
-        System.out.println("Incoming request: " + req.getMethod() + " " + req.getRequestURI());
+        // Parameterised call: SLF4J skips the formatting entirely when DEBUG is off, so no
+        // isDebugEnabled() guard is needed.
+        log.debug("Incoming request: {} {}", request.getMethod(), request.getRequestURI());
         chain.doFilter(request, response);
     }
 }

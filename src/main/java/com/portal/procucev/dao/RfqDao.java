@@ -24,22 +24,30 @@ public interface RfqDao extends JpaRepository<Rfq, String>{
 	@Query("SELECT r.rfqId FROM Rfq r WHERE  r.user=:user and r.noPrFlag = true Order By r.createdTS DESC")
 	List<String> findRFQIdsNoPrRfqByClient(@Param("user") String  user);
 
-	@Query("SELECT r FROM Rfq r WHERE  r.user=:user and r.noPrFlag = true Order By r.createdTS DESC")
+	// clientStatus is fetched eagerly here because every caller maps it into the response.
+	// Left lazy, it produced one master_status SELECT per row.
+	@Query("SELECT r FROM Rfq r LEFT JOIN FETCH r.clientStatus"
+			+ " WHERE r.user=:user and r.noPrFlag = true Order By r.createdTS DESC")
 	List<Rfq> findNoPrRfqByClient(@Param("user") String user);
 
 	@Query("SELECT r FROM Rfq r WHERE  (r.noPrFlag = true and r.byClient = false)or (r.byClient = true and r.clientStatus =:status )Order By r.createdTS DESC")
 	List<Rfq> findAllRfqNoPrByCM(MasterStatus status);
 
-	@Query("SELECT r FROM Rfq r WHERE  r.byClient = true and r.noPrFlag = true Order By r.createdTS DESC")
+	@Query("SELECT r FROM Rfq r LEFT JOIN FETCH r.clientStatus"
+			+ " WHERE r.byClient = true and r.noPrFlag = true Order By r.createdTS DESC")
 	List<Rfq> findAllClientRfqNoPr();
 
-	@Query("SELECT r FROM Rfq r WHERE r.byClient = true AND r.noPrFlag = true ORDER BY r.createdTS DESC")
+	// Explicit countQuery: the derived count cannot be built from a query containing a fetch join.
+	@Query(value = "SELECT r FROM Rfq r LEFT JOIN FETCH r.clientStatus"
+			+ " WHERE r.byClient = true AND r.noPrFlag = true ORDER BY r.createdTS DESC",
+			countQuery = "SELECT count(r) FROM Rfq r WHERE r.byClient = true AND r.noPrFlag = true")
 	Page<Rfq> findAllClientRfqNoPr(Pageable pageable);
 	
 	//Search for CategoryManager for Client RFQ with no PR
 	// For rfqId and description search
 	@Query("""
 	    SELECT r FROM Rfq r
+	    LEFT JOIN FETCH r.clientStatus
 	    WHERE r.byClient = true
 	      AND r.noPrFlag = true
 	      AND (
@@ -57,6 +65,7 @@ public interface RfqDao extends JpaRepository<Rfq, String>{
 	// For companyName and contactNumber — fetch RFQs by matching user IDs
 	@Query("""
 	    SELECT r FROM Rfq r
+	    LEFT JOIN FETCH r.clientStatus
 	    WHERE r.byClient = true
 	      AND r.noPrFlag = true
 	      AND r.user IN :userIds

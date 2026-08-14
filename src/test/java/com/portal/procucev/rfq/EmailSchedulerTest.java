@@ -22,6 +22,9 @@ public class EmailSchedulerTest {
     void setUp() {
         emailProcessorService = Mockito.mock(EmailProcessorService.class);
         scheduler = new EmailScheduler(emailProcessorService);
+        // Stands in for the @Lazy self-injected proxy Spring supplies at runtime, which the
+        // startup trigger uses so that it passes through the ShedLock advice.
+        ReflectionTestUtils.setField(scheduler, "self", scheduler);
     }
 
     @Test

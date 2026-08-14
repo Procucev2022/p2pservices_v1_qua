@@ -1,10 +1,8 @@
 package com.portal.procucev.config;
 
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.core.Ordered;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -50,12 +48,8 @@ public class SecurityConfig {
         return NoOpPasswordEncoder.getInstance();
     }
 
-    @Bean
-    public FilterRegistrationBean<RequestBodyCacheFilter> cacheFilter() {
-        FilterRegistrationBean<RequestBodyCacheFilter> bean = new FilterRegistrationBean<>();
-        bean.setFilter(new RequestBodyCacheFilter());
-        bean.setOrder(Ordered.HIGHEST_PRECEDENCE);
-        return bean;
-    }
+    // RequestBodyCacheFilter is annotated @Component, so Spring Boot already registers it for
+    // every request. The explicit FilterRegistrationBean that used to live here registered a
+    // second, hand-constructed instance of the same filter.
 
 }

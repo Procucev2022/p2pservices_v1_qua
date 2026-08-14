@@ -1189,46 +1189,6 @@ public class GMTServiceImpl implements GMTService {
 	    }
 	}
 
-	/**
-	 * Maps an RFQ entity to its corresponding DTO.
-	 * 
-	 * @param rfq The RFQ entity.
-	 * @return The RFQ DTO.
-	 */
-	private RfqDTO mapToClientDto(Rfq rfq) {
-		RfqDTO rfqDto = new RfqDTO();
-		rfqDto.setId(rfq.getId());
-		rfqDto.setCreatedBy(rfq.getCreatedBy());
-		rfqDto.setCreatedTs(rfq.getCreatedTS());
-		rfqDto.setProjectDesc(rfq.getProjectDesc());
-		rfqDto.setDivision(rfq.getDivision());
-		if (rfq.getClientStatus() != null) {
-			rfqDto.setClientStatus(rfq.getClientStatus());
-			rfqDto.setClientStatusId(rfq.getClientStatus().getId());
-			rfqDto.setClientStatusName(rfq.getClientStatus().getStatus());
-		}
-		rfqDto.setRfqId(rfq.getRfqId());
-		rfqDto.setNoOfQuotes(rfq.getQuoteCount());
-		rfqDto.setNoOfVendors(gmtRfqVendorDao.findByVendorsByRfq(rfq.getId()));
-		rfqDto.setQuoteSubmittedDate(rfq.getQuoteSubmittedDate());
-		rfqDto.setNewCommentAvailableVendor(rfq.isNewCommentAvailableVendor());
-		rfqDto.setSourceType(rfq.getSourceType());
-		String phone = userDao.findPhoneByUser(rfq.getUser());
-		if (phone != null) {
-			rfqDto.setPhoneNumber(phone);
-		}
-
-		String compantName = userDao.findByUser(rfq.getUser());
-		if (compantName != null) {
-			rfqDto.setCompanyName(compantName);
-		}
-		String companyId = userDao.findOrgIdByUser(rfq.getUser());
-		if (companyId != null) {
-			rfqDto.setCompanyId(companyId);
-		}
-		return rfqDto;
-	}
-	
 	private RfqDTO mapToClientDto(
 	        Rfq rfq,
 	        Map<String, User> userMap,
@@ -1293,6 +1253,39 @@ public class GMTServiceImpl implements GMTService {
 	    return dto;
 	}
 
+	/**
+	 * Maps a batch of client RFQs to DTOs using a fixed number of queries.
+	 *
+	 * <p>The per-row alternative issued one vendor-count query plus three user lookups (phone,
+	 * company name, org id) for every RFQ, so a 788-row result produced roughly 3,900 statements.
+	 * Here the user rows and the vendor counts are each fetched once for the whole batch and the
+	 * mapping itself touches no repository, which keeps the cost at two queries regardless of how
+	 * many RFQs are returned.
+	 *
+	 * @param rfqs the RFQs to map; must already be loaded
+	 * @return the mapped DTOs, in the order of {@code rfqs}
+	 */
+	private List<RfqDTO> mapClientRfqsInBatch(List<Rfq> rfqs) {
+		if (rfqs.isEmpty()) {
+			return Collections.emptyList();
+		}
+
+		List<String> userIds = rfqs.stream().map(Rfq::getUser).filter(Objects::nonNull).distinct().toList();
+
+		List<String> rfqIds = rfqs.stream().map(Rfq::getId).toList();
+
+		Map<String, User> userMap = userIds.isEmpty() ? Collections.emptyMap()
+				: userDao.findUsersByIds(userIds).stream()
+						.collect(Collectors.toMap(User::getId, Function.identity(), (first, second) -> first));
+
+		Map<String, Long> vendorCountMap = new HashMap<>();
+		for (Object[] row : gmtRfqVendorDao.countVendorsByRfqIds(rfqIds)) {
+			vendorCountMap.put((String) row[0], (Long) row[1]);
+		}
+
+		return rfqs.stream().map(rfq -> mapToClientDto(rfq, userMap, vendorCountMap)).collect(Collectors.toList());
+	}
+
 	@Override
 	public List<RfqDTO> fetchAllClientGMTRfqsForCM() {
 		logger.info("Entered to fetch all client GMT RFQ for  CM");
@@ -1306,7 +1299,7 @@ public class GMTServiceImpl implements GMTService {
 
 		logger.info("Found {} RFQs for PR Flag True", rfqsList.size());
 
-		return rfqsList.stream().map(this::mapToClientDto).collect(Collectors.toList());
+		return mapClientRfqsInBatch(rfqsList);
 
 	}
 	
@@ -1328,55 +1321,9 @@ public class GMTServiceImpl implements GMTService {
 	        );
 	    }
 
-	    // STEP 1 -> collect user ids
-	    List<String> userIds = rfqs.stream()
-	            .map(Rfq::getUser)
-	            .filter(Objects::nonNull)
-	            .distinct()
-	            .toList();
-
-	    // STEP 2 -> collect rfq ids
-	    List<String> rfqIds = rfqs.stream()
-	            .map(Rfq::getId)
-	            .toList();
-
-	    // STEP 3 -> batch fetch users
-	    List<User> users =
-	            userDao.findUsersByIds(userIds);
-
-	    Map<String, User> userMap =
-	            users.stream()
-	                    .collect(Collectors.toMap(
-	                            User::getId,
-	                            Function.identity()
-	                    ));
-
-	    // STEP 4 -> batch fetch vendor counts
-	    List<Object[]> vendorCounts =
-	            gmtRfqVendorDao.countVendorsByRfqIds(rfqIds);
-
-	    Map<String, Long> vendorCountMap =
-	            new HashMap<>();
-
-	    for (Object[] row : vendorCounts) {
-	        vendorCountMap.put(
-	                (String) row[0],
-	                (Long) row[1]
-	        );
-	    }
-
-	    // STEP 5 -> map WITHOUT db calls
-	    List<RfqDTO> dtoList = rfqs.stream()
-	            .map(rfq -> mapToClientDto(
-	                    rfq,
-	                    userMap,
-	                    vendorCountMap
-	            ))
-	            .toList();
-
 	    return new SimplePageResponse<>(
 	    		rfqPage.getTotalElements(),
-	            dtoList
+	            mapClientRfqsInBatch(rfqs)
 	    );
 	}
 	
@@ -1429,44 +1376,7 @@ public class GMTServiceImpl implements GMTService {
 
 	    logger.info("RFQs found: {}", rfqList.size());
 
-	    if (rfqList.isEmpty()) {
-	        return Collections.emptyList();
-	    }
-
-	    // STEP 1 -> collect user ids from rfq list
-	    List<String> userIds = rfqList.stream()
-	            .map(Rfq::getUser)
-	            .filter(Objects::nonNull)
-	            .distinct()
-	            .toList();
-
-	    // STEP 2 -> collect rfq ids
-	    List<String> rfqIds = rfqList.stream()
-	            .map(Rfq::getId)
-	            .toList();
-
-	    // STEP 3 -> batch fetch users
-	    List<User> users = userDao.findUsersByIds(userIds);
-
-	    Map<String, User> userMap = users.stream()
-	            .collect(Collectors.toMap(
-	                    User::getId,
-	                    Function.identity()
-	            ));
-
-	    // STEP 4 -> batch fetch vendor counts
-	    List<Object[]> vendorCounts =
-	            gmtRfqVendorDao.countVendorsByRfqIds(rfqIds);
-
-	    Map<String, Long> vendorCountMap = new HashMap<>();
-	    for (Object[] row : vendorCounts) {
-	        vendorCountMap.put((String) row[0], (Long) row[1]);
-	    }
-
-	    // STEP 5 -> map WITHOUT db calls
-	    return rfqList.stream()
-	            .map(rfq -> mapToClientDto(rfq, userMap, vendorCountMap))
-	            .toList();
+	    return mapClientRfqsInBatch(rfqList);
 	}
 	
 	@Override

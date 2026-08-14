@@ -10,6 +10,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import com.portal.procucev.Dto.AuthUserView;
 import com.portal.procucev.Dto.BuyerSellerReportDto;
 import com.portal.procucev.Dto.SellerSubscriptionReportDto;
 import com.portal.procucev.model.MasterStatus;
@@ -79,6 +80,15 @@ public interface UserDao extends JpaRepository<User, String> {
 	List<User> findByUsernameAndPhone(String email, String organizationPhonenumber);
 
 	User findByUsernameAndPhoneAndActive(String username, String phoneNumber, boolean b);
+
+	/**
+	 * Authentication-path lookup. Returns only the columns needed to build the Spring Security
+	 * principal, so it costs one SELECT instead of the three that loading the {@code User}
+	 * entity triggers via its eager {@code role} and {@code clientStatus} associations.
+	 */
+	@Query("select u.username as username, u.password as password, u.phone as phone "
+			+ "from User u where u.username=:username and u.phone=:phone and u.active = true")
+	AuthUserView findAuthViewByUsernameAndPhone(@Param("username") String username, @Param("phone") String phone);
 
 	@Query("SELECT  new User(u.id,u.username,u.phone,u.org.companyName,u.fullName,u.org.id,u.uniqueId,u.activityTs,u.isWebApp,u.isWhatsApp,u.isBot,u.org.city,u.isApproved,u.selfClient,u.active,u.sourceType,u.verificationStatus) from User u where u.phone=:phone and u.active = true")
 	List<User> findByPhone(@Param("phone") String phone);
@@ -250,9 +260,12 @@ public interface UserDao extends JpaRepository<User, String> {
 				        @Param("endDate") Date endDate
 				);
 				
+				// org is fetched eagerly because callers read companyName/org id straight after.
+				// Left lazy, it produced one organization SELECT per distinct user in the batch.
 				@Query("""
 						SELECT u
 						FROM User u
+						LEFT JOIN FETCH u.org
 						WHERE u.id IN :userIds
 						""")
 						List<User> findUsersByIds(@Param("userIds") List<String> userIds);

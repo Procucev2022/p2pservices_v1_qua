@@ -165,8 +165,10 @@ public class ProcUserServiceImpl implements UserService {
 					}
 				});
 			}
-			// To update last activity
-			userDao.updateActivityTs(user.getUsername(), user.getPhone());
+			// To update last activity. Must use the normalized phone: the lookup above matched on
+			// the normalized value, so passing the raw request value made this UPDATE silently
+			// affect zero rows whenever the caller sent a differently formatted number.
+			userDao.updateActivityTs(user.getUsername(), normalizedPhone);
 			EmailUser res = emailUserRepo.findByEmail(user.getUsername());
 			if (res != null) {
 				userObject.setAuth(true);

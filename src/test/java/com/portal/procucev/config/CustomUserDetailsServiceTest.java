@@ -1,7 +1,7 @@
 package com.portal.procucev.config;
 
+import com.portal.procucev.Dto.AuthUserView;
 import com.portal.procucev.dao.UserDao;
-import com.portal.procucev.model.User;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -26,23 +26,47 @@ class CustomUserDetailsServiceTest {
         service = new CustomUserDetailsService(userDao);
     }
 
+    private AuthUserView authView(String username, String phone, String password) {
+        return new AuthUserView() {
+            @Override
+            public String getUsername() {
+                return username;
+            }
+
+            @Override
+            public String getPassword() {
+                return password;
+            }
+
+            @Override
+            public String getPhone() {
+                return phone;
+            }
+        };
+    }
+
     @Test
     void testLoadUserByUsernameAndPhone_Success() {
-        User user = new User();
-        user.setUsername("testuser");
-        user.setPhone("9876543210");
-        user.setPassword("pass");
-
-        when(userDao.findByUsernameAndPhoneAndActive("testuser", "9876543210", true)).thenReturn(user);
+        when(userDao.findAuthViewByUsernameAndPhone("testuser", "9876543210"))
+                .thenReturn(authView("testuser", "9876543210", "pass"));
 
         UserDetails userDetails = service.loadUserByUsernameAndPhone("testuser", "9876543210");
         assertNotNull(userDetails);
         assertEquals("testuser", userDetails.getUsername());
+        assertEquals("pass", userDetails.getPassword());
     }
 
     @Test
     void testLoadUserByUsernameAndPhone_NotFound() {
-        when(userDao.findByUsernameAndPhoneAndActive("testuser", "9876543210", true)).thenReturn(null);
+        when(userDao.findAuthViewByUsernameAndPhone("testuser", "9876543210")).thenReturn(null);
+
+        assertThrows(UsernameNotFoundException.class, () -> service.loadUserByUsernameAndPhone("testuser", "9876543210"));
+    }
+
+    @Test
+    void testLoadUserByUsernameAndPhone_NullPasswordIsAnAuthenticationFailure() {
+        when(userDao.findAuthViewByUsernameAndPhone("testuser", "9876543210"))
+                .thenReturn(authView("testuser", "9876543210", null));
 
         assertThrows(UsernameNotFoundException.class, () -> service.loadUserByUsernameAndPhone("testuser", "9876543210"));
     }

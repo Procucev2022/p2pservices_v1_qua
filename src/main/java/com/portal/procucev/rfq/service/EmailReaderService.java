@@ -5,6 +5,7 @@ import com.portal.procucev.rfq.model.EmailData;
 import com.portal.procucev.rfq.util.FileUtil;
 import jakarta.mail.Address;
 import jakarta.mail.BodyPart;
+import jakarta.mail.FetchProfile;
 import jakarta.mail.Flags;
 import jakarta.mail.Folder;
 import jakarta.mail.Message;
@@ -90,9 +91,20 @@ public class EmailReaderService {
             log.info("IMAP status for folder '{}': TotalMessages={}, UnreadMessages={}, SearchUnseenFound={}",
                     inboxFolder, totalCount, unreadCount, messages.length);
 
-            if (messages.length == 0 && totalCount > 0) {
+            // The fallback exists to cover servers whose SEARCH disagrees with their unread
+            // counter, so it is only worth running when the counter actually reports unread mail.
+            // Gating it on totalCount > 0 instead meant it ran on every idle poll: it walked the
+            // last 51 messages and, with no FetchProfile, each isSet(SEEN) was its own IMAP round
+            // trip. That cost 13-175 seconds per run to establish there was nothing to process.
+            if (messages.length == 0 && unreadCount > 0) {
                 int start = Math.max(1, totalCount - 50);
                 Message[] recentMessages = folder.getMessages(start, totalCount);
+
+                // Prefetch all flags in one FETCH so the loop below is served from local state.
+                FetchProfile flagsOnly = new FetchProfile();
+                flagsOnly.add(FetchProfile.Item.FLAGS);
+                folder.fetch(recentMessages, flagsOnly);
+
                 List<Message> unreadList = new ArrayList<>();
                 for (Message msg : recentMessages) {
                     if (!msg.isSet(Flags.Flag.SEEN)) {

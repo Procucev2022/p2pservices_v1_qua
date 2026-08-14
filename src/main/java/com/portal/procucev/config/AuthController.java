@@ -19,10 +19,12 @@ import com.portal.procucev.model.User;
 import com.portal.procucev.service.SelfRegistrationService;
 import com.portal.procucev.service.UserService;
 
+import lombok.extern.slf4j.Slf4j;
 
 
 @CrossOrigin
 @RestController
+@Slf4j
 public class AuthController {
 
     @Autowired
@@ -149,7 +151,9 @@ public class AuthController {
             // 4. Generate JWT Token
             //final UserDetails userDetails = userDetailsService.loadUserByUsername(authRequest.getUsername());
             //UserDetails userDetails = customDetailService.loadUserByUsernameAndPhone(authRequest.getUsername(), authRequest.getPhone());
-           System.out.println("User Details ==> "+userDetails);
+            // Log the identity only. Printing the whole UserDetails leaked the account's
+            // enabled/locked/expiry state and authorities to stdout on every login.
+            log.debug("Issuing token for authenticated user: {}", userDetails.getUsername());
             final String jwt = jwtUtil.generateToken(userDetails,authRequest.getPhone());
             response.put("status", "success");
             response.put("access_token", jwt);
