@@ -137,8 +137,8 @@ public class EmailRfqGroupingUnitTest {
         String result = emailProcessorService.processSingleEmail(email);
         assertEquals("RFQ_CREATED", result);
 
-        // Verify exactly 4 RFQs are saved (grouped by category, location & date)
-        verify(rfqRepository, times(4)).save(any(RFQEntity.class));
+        // Verify exactly 3 RFQs are saved (grouped by location & date)
+        verify(rfqRepository, times(3)).save(any(RFQEntity.class));
 
         // Verify ONLY 1 consolidated acknowledgement email is sent
         ArgumentCaptor<SimpleMailMessage> mailCaptor = ArgumentCaptor.forClass(SimpleMailMessage.class);
@@ -147,5 +147,28 @@ public class EmailRfqGroupingUnitTest {
         assertEquals("rfq@procucev.com", mail.getFrom());
         assertEquals("buyer@company.com", mail.getTo()[0]);
         assertEquals("support@procucev.com", mail.getCc()[0]);
+    }
+
+    @Test
+    @DisplayName("TEST: Email missing location aborts RFQ creation and sends Case 3 Details Missing email")
+    void testMissingLocationAbortsRfqAndSendsCase3Email() {
+        EmailData email = EmailData.builder().messageId("MSG-TEST-NO-LOC").subject("Procurement Request").senderEmail("buyer@company.com").body("Product: Laptops, Quantity: 10 Units").build();
+        RFQItem i1 = RFQItem.builder().itemDescription("Laptops").quantity(10.0).build();
+
+        ExtractedRFQ extracted = ExtractedRFQ.builder().buyerEmail("buyer@company.com").items(new ArrayList<>(List.of(i1))).build();
+        when(aiExtractionService.extractRFQFromEmail(email)).thenReturn(extracted);
+
+        String result = emailProcessorService.processSingleEmail(email);
+        assertEquals("VALIDATION_FAILED", result);
+
+        // Verify NO RFQ was created in the database
+        verify(rfqRepository, never()).save(any(RFQEntity.class));
+
+        // Verify Case 3 email sent with 'Delivery location' bullet
+        ArgumentCaptor<SimpleMailMessage> mailCaptor = ArgumentCaptor.forClass(SimpleMailMessage.class);
+        verify(mailSender, times(1)).send(mailCaptor.capture());
+        SimpleMailMessage mail = mailCaptor.getValue();
+        assertEquals("⚡ One Quick Detail Needed to Process Your RFQ", mail.getSubject());
+        assertTrue(mail.getText().contains("• Delivery location"), "Email text must contain '• Delivery location'");
     }
 }

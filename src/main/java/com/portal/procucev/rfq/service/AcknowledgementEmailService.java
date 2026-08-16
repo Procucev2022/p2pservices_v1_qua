@@ -117,11 +117,15 @@ public class AcknowledgementEmailService {
             String buyerEmail = (buyer != null && buyer.getEmail() != null && !buyer.getEmail().isBlank())
                     ? buyer.getEmail() : "";
             String buyerName = resolveBuyerName(buyer);
-            sendCase3DetailsMissingAcknowledgement(buyerEmail, buyerName);
+            sendCase3DetailsMissingAcknowledgement(buyerEmail, buyerName, failedItems);
         }
     }
 
     public void sendCase3DetailsMissingAcknowledgement(String buyerEmail, String buyerName) {
+        sendCase3DetailsMissingAcknowledgement(buyerEmail, buyerName, null);
+    }
+
+    public void sendCase3DetailsMissingAcknowledgement(String buyerEmail, String buyerName, List<String> failedItems) {
         if (buyerEmail == null || buyerEmail.isBlank() || !buyerEmail.contains("@")) {
             log.error("Cannot send CASE 3 details missing acknowledgement: Invalid recipient email '{}'", buyerEmail);
             return;
@@ -132,7 +136,7 @@ public class AcknowledgementEmailService {
 
             SimpleMailMessage mailMessage = createBaseMailMessage(buyerEmail);
             mailMessage.setSubject(getCase3Subject());
-            mailMessage.setText(getCase3Body(resolvedName));
+            mailMessage.setText(getCase3Body(resolvedName, failedItems));
 
             mailSender.send(mailMessage);
             log.info("CASE 3 Details missing acknowledgement email sent to {}", buyerEmail);
@@ -278,9 +282,36 @@ public class AcknowledgementEmailService {
     }
 
     public String getCase3Body(String buyerName) {
+        return getCase3Body(buyerName, null);
+    }
+
+    public String getCase3Body(String buyerName, List<String> failedItems) {
+        java.util.Set<String> missingBullets = new java.util.LinkedHashSet<>();
+        if (failedItems != null && !failedItems.isEmpty()) {
+            for (String itemStr : failedItems) {
+                if (itemStr == null) continue;
+                String lower = itemStr.toLowerCase();
+                if (lower.contains("quantity")) {
+                    missingBullets.add("Quantity required");
+                }
+                if (lower.contains("location")) {
+                    missingBullets.add("Delivery location");
+                }
+            }
+        }
+
+        if (missingBullets.isEmpty()) {
+            missingBullets.add("Quantity required");
+        }
+
+        StringBuilder bulletsSb = new StringBuilder();
+        for (String bullet : missingBullets) {
+            bulletsSb.append("• ").append(bullet).append("\n");
+        }
+
         return "Hi " + buyerName + ",\n\n"
                 + "We received your requirement, but need a bit more info to match you with the right suppliers fast:\n\n"
-                + "• Quantity required\n\n"
+                + bulletsSb.toString() + "\n"
                 + "Just reply to this email with the details, or it's even quicker on call/WhatsApp.\n\n"
                 + "📞 Call: +91-7996170801\n"
                 + "✉️ Email: RFQ@procucev.com\n\n"

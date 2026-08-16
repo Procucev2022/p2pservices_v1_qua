@@ -44,8 +44,9 @@ public class QuantityNormalizer {
     }
 
     private static final Pattern EXPLICIT_KEYWORD_PATTERN = Pattern.compile("(?i)(?:required\\s+)?(?:quantity|qty)\\s*[:=]\\s*([a-z0-9,\\-\\s\\.]+)");
-    private static final Pattern DIGIT_UNIT_PATTERN = Pattern.compile("(?i)\\b([0-9,]+(?:\\.[0-9]+)?)\\s+(?:nos|units|pieces|pcs|bags|meters|mtr|kg|sheets|items|boxes|sets|rolls|liters|ltr|tons)\\b");
+    private static final Pattern DIGIT_UNIT_PATTERN = Pattern.compile("(?i)\\b([0-9,]+(?:\\.[0-9]+)?)\\s+(?:nos|units|pieces|pcs|bags|items|boxes|sets|rolls|laptops|systems|machines)\\b");
     private static final Pattern DIRECT_DIGIT_PATTERN = Pattern.compile("^\\s*([0-9,]+(?:\\.[0-9]+)?)\\s*$");
+    private static final Pattern SPECIFICATION_INDICATOR_PATTERN = Pattern.compile("(?i)\\b(?:lph|liters?\\s*(?:per|/)\\s*hour|liters?\\s+capacity|capacity|ton|tons|w|watt|watts|hp|gb|tb|mb|ram|ssd|inch|inches|mm|cm|diameter|pn\\d+|bar|psi|v|kv|kva|rpm|hz|star|rating|display|screen|reduction\\s+ratio|per\\s+bag|ratio)\\b");
 
     public static Double normalize(Object raw) {
         if (raw == null) {
@@ -59,6 +60,12 @@ public class QuantityNormalizer {
 
         String input = raw.toString().trim();
         if (input.isBlank()) {
+            return null;
+        }
+
+        // 0. Specification Number Guard: If input contains capacity/spec indicators without explicit quantity keywords, return null.
+        boolean hasExplicitKeyword = EXPLICIT_KEYWORD_PATTERN.matcher(input).find();
+        if (!hasExplicitKeyword && SPECIFICATION_INDICATOR_PATTERN.matcher(input).find()) {
             return null;
         }
 

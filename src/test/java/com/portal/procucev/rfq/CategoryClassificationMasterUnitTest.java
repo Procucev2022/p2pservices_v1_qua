@@ -157,4 +157,27 @@ public class CategoryClassificationMasterUnitTest {
 
         assertNotEquals(saved.get(0).getCategory(), saved.get(1).getCategory());
     }
+
+    @Test
+    @DisplayName("Test: Cable, Light, and Distribution Board classified distinctly into 3 separate RFQs for same location")
+    void testCableLightAndDistributionBoardGrouping() {
+        RFQItem i1 = RFQItem.builder().itemDescription("Copper Power Cable").quantity(1000.0).deliveryLocation("Kakinada").deliveryDate("2026-09-30").build();
+        RFQItem i2 = RFQItem.builder().itemDescription("LED Panel Light").quantity(100.0).deliveryLocation("Kakinada").deliveryDate("2026-09-30").build();
+        RFQItem i3 = RFQItem.builder().itemDescription("Distribution Board").quantity(20.0).deliveryLocation("Kakinada").deliveryDate("2026-09-30").build();
+
+        categoryClassificationService.classifyItems(List.of(i1, i2, i3));
+
+        assertEquals("Cables & Wires", i1.getCategory());
+        assertEquals("Lighting & Luminaires", i2.getCategory());
+        assertEquals("Switchgear & Distribution Panels", i3.getCategory());
+
+        EmailData email = EmailData.builder().messageId("MSG-CABLE-LIGHT-DB").subject("Electrical Procurement").senderEmail("buyer@company.com").build();
+        when(aiExtractionService.extractRFQFromEmail(email)).thenReturn(ExtractedRFQ.builder().buyerEmail("buyer@company.com").items(new ArrayList<>(List.of(i1, i2, i3))).build());
+
+        String result = emailProcessorService.processSingleEmail(email);
+        assertEquals("RFQ_CREATED", result);
+
+        // Verify exactly 3 separate RFQs are created and saved (one for each distinct category)
+        verify(rfqRepository, times(3)).save(any(RFQEntity.class));
+    }
 }

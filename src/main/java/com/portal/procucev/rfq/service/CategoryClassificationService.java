@@ -267,6 +267,33 @@ public class CategoryClassificationService {
             java.util.Map.entry("circuit breaker", "Industrial Automation & Electrical"),
             java.util.Map.entry("circuit breakers", "Industrial Automation & Electrical"),
 
+            // Cables & Wires
+            java.util.Map.entry("cable", "Cables & Wires"),
+            java.util.Map.entry("cables", "Cables & Wires"),
+            java.util.Map.entry("power cable", "Cables & Wires"),
+            java.util.Map.entry("copper cable", "Cables & Wires"),
+            java.util.Map.entry("copper power cable", "Cables & Wires"),
+            java.util.Map.entry("wire", "Cables & Wires"),
+            java.util.Map.entry("wires", "Cables & Wires"),
+
+            // Lighting & Luminaires
+            java.util.Map.entry("light", "Lighting & Luminaires"),
+            java.util.Map.entry("lights", "Lighting & Luminaires"),
+            java.util.Map.entry("led light", "Lighting & Luminaires"),
+            java.util.Map.entry("panel light", "Lighting & Luminaires"),
+            java.util.Map.entry("led panel light", "Lighting & Luminaires"),
+            java.util.Map.entry("lighting", "Lighting & Luminaires"),
+            java.util.Map.entry("fixture", "Lighting & Luminaires"),
+            java.util.Map.entry("luminaires", "Lighting & Luminaires"),
+
+            // Switchgear & Distribution Panels
+            java.util.Map.entry("distribution board", "Switchgear & Distribution Panels"),
+            java.util.Map.entry("panel board", "Switchgear & Distribution Panels"),
+            java.util.Map.entry("db board", "Switchgear & Distribution Panels"),
+            java.util.Map.entry("switchboard", "Switchgear & Distribution Panels"),
+            java.util.Map.entry("distribution panel", "Switchgear & Distribution Panels"),
+            java.util.Map.entry("switchgear", "Switchgear & Distribution Panels"),
+
             // Instrumentation & Process Control
             java.util.Map.entry("pressure gauge", "Instrumentation & Process Control"),
             java.util.Map.entry("pressure gauges", "Instrumentation & Process Control"),

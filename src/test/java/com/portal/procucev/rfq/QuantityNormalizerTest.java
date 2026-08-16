@@ -164,4 +164,27 @@ public class QuantityNormalizerTest {
         assertNull(QuantityNormalizer.normalize("   "));
         assertNull(QuantityNormalizer.normalize("please provide quotation"));
     }
+
+    @Test
+    @DisplayName("Test Specification Numbers Exclusion (capacity, power, size, memory, etc. MUST NOT be treated as quantity)")
+    void testSpecificationNumbersExclusion() {
+        assertNull(QuantityNormalizer.normalize("10,000 liters per hour capacity"));
+        assertNull(QuantityNormalizer.normalize("2 Ton air conditioner"));
+        assertNull(QuantityNormalizer.normalize("500 kg capacity"));
+        assertNull(QuantityNormalizer.normalize("110 mm diameter pipe"));
+        assertNull(QuantityNormalizer.normalize("PN10 pressure rating"));
+        assertNull(QuantityNormalizer.normalize("150W LED light"));
+        assertNull(QuantityNormalizer.normalize("24-inch monitor"));
+        assertNull(QuantityNormalizer.normalize("15 HP motor"));
+        assertNull(QuantityNormalizer.normalize("20:1 reduction ratio"));
+        assertNull(QuantityNormalizer.normalize("100 LPH capacity"));
+        assertNull(QuantityNormalizer.normalize("50 kg per bag"));
+        assertNull(QuantityNormalizer.normalize("12-inch display"));
+        assertNull(QuantityNormalizer.normalize("16GB RAM"));
+        assertNull(QuantityNormalizer.normalize("512GB SSD"));
+        assertNull(QuantityNormalizer.normalize("5-star rating"));
+
+        // Explicit purchase quantity combined with spec capacity should still extract purchase quantity (5.0)
+        assertEquals(5.0, QuantityNormalizer.normalize("Quantity: 5 Units, 10,000 LPH capacity"));
+    }
 }

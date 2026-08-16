@@ -157,7 +157,7 @@ public class RFQBuilderServiceTest {
     }
 
     @Test
-    @DisplayName("Test buildRFQRequest with 560xxx pincode triggers Bangalore detection")
+    @DisplayName("Test buildRFQRequest with pincode in location text extracts pincode without hallucinating city/state")
     void testBuildRFQRequestBangalorePincode() {
         ExtractedRFQ rfq = ExtractedRFQ.builder()
                 .deliveryLocation("Office in 560037 area")
@@ -167,8 +167,6 @@ public class RFQBuilderServiceTest {
         Buyer buyer = Buyer.builder().name("User").email("user@test.com").build();
 
         RFQRequest req = rfqBuilderService.buildRFQRequest(rfq, buyer, "Sub", null);
-        assertEquals("Bangalore", req.getClientdeliverylocationrfq().get(0).getCity());
-        assertEquals("Karnataka", req.getClientdeliverylocationrfq().get(0).getState());
         assertEquals("560037", req.getClientdeliverylocationrfq().get(0).getPincode());
     }
 
@@ -187,22 +185,20 @@ public class RFQBuilderServiceTest {
     }
 
     @Test
-    @DisplayName("Test buildRFQRequest with pincode DAO lookup for state")
-    void testBuildRFQRequestPincodeDaoLookup() {
-        PincodeData pinData = new PincodeData();
-        pinData.setState("Telangana");
-        pinData.setCity("Hyderabad");
-        Mockito.when(pincodeDao.findByPincode("500001")).thenReturn(pinData);
-
+    @DisplayName("Test buildRFQRequest with pincode only keeps city and state unspecified")
+    void testBuildRFQRequestPincodeOnly() {
         ExtractedRFQ rfq = ExtractedRFQ.builder()
                 .deliveryPincode("500001")
+                .deliveryLocation("500001")
                 .items(List.of(RFQItem.builder().itemDescription("Item").quantity(1.0).build()))
                 .build();
 
         Buyer buyer = Buyer.builder().name("User").email("user@test.com").build();
 
         RFQRequest req = rfqBuilderService.buildRFQRequest(rfq, buyer, "Sub", null);
-        assertEquals("Telangana", req.getClientdeliverylocationrfq().get(0).getState());
+        assertEquals("500001", req.getClientdeliverylocationrfq().get(0).getPincode());
+        assertEquals("", req.getClientdeliverylocationrfq().get(0).getCity());
+        assertEquals("", req.getClientdeliverylocationrfq().get(0).getState());
     }
 
     @Test
@@ -383,6 +379,145 @@ public class RFQBuilderServiceTest {
 
         RFQRequest req = rfqBuilderService.buildRFQRequest(rfq, buyer, "Sub", null);
         assertEquals("RFQ Requirement", req.getProjectDesc());
+    }
+
+    @Test
+    @DisplayName("STRICT LOCATION RULE 1: No location -> complete buyer default location")
+    void testLocationRule1_NoLocation_CompleteBuyerDefaultLocation() {
+        ExtractedRFQ rfq = ExtractedRFQ.builder()
+                .deliveryLocation("Not Specified")
+                .items(List.of(RFQItem.builder().itemDescription("Laptop").quantity(5.0).build()))
+                .build();
+
+        Buyer buyer = Buyer.builder()
+                .name("John").email("john@test.com")
+                .city("Kakinada").state("Andhra Pradesh").pincode("533431").address("Main Street")
+                .build();
+
+        RFQRequest req = rfqBuilderService.buildRFQRequest(rfq, buyer, "Sub", null);
+        assertEquals("Kakinada", req.getClientdeliverylocationrfq().get(0).getCity());
+        assertEquals("Andhra Pradesh", req.getClientdeliverylocationrfq().get(0).getState());
+        assertEquals("533431", req.getClientdeliverylocationrfq().get(0).getPincode());
+        assertEquals("Main Street", req.getClientdeliverylocationrfq().get(0).getAddress());
+    }
+
+    @Test
+    @DisplayName("STRICT LOCATION RULE 2: Only city -> city only; no buyer-default state/pincode")
+    void testLocationRule2_OnlyCity_NoBuyerDefaultStateOrPincode() {
+        ExtractedRFQ rfq = ExtractedRFQ.builder()
+                .deliveryCity("Whitefield")
+                .deliveryLocation("Whitefield")
+                .items(List.of(RFQItem.builder().itemDescription("Laptop").quantity(5.0).build()))
+                .build();
+
+        Buyer buyer = Buyer.builder()
+                .name("John").email("john@test.com")
+                .city("Kakinada").state("Andhra Pradesh").pincode("533431")
+                .build();
+
+        RFQRequest req = rfqBuilderService.buildRFQRequest(rfq, buyer, "Sub", null);
+        assertEquals("Whitefield", req.getClientdeliverylocationrfq().get(0).getCity());
+        assertEquals("", req.getClientdeliverylocationrfq().get(0).getState());
+        assertEquals("", req.getClientdeliverylocationrfq().get(0).getPincode());
+    }
+
+    @Test
+    @DisplayName("STRICT LOCATION RULE 3: Only state -> state only; no buyer-default city/pincode")
+    void testLocationRule3_OnlyState_NoBuyerDefaultCityOrPincode() {
+        ExtractedRFQ rfq = ExtractedRFQ.builder()
+                .deliveryState("Karnataka")
+                .deliveryLocation("Karnataka")
+                .items(List.of(RFQItem.builder().itemDescription("Laptop").quantity(5.0).build()))
+                .build();
+
+        Buyer buyer = Buyer.builder()
+                .name("John").email("john@test.com")
+                .city("Kakinada").state("Andhra Pradesh").pincode("533431")
+                .build();
+
+        RFQRequest req = rfqBuilderService.buildRFQRequest(rfq, buyer, "Sub", null);
+        assertEquals("", req.getClientdeliverylocationrfq().get(0).getCity());
+        assertEquals("Karnataka", req.getClientdeliverylocationrfq().get(0).getState());
+        assertEquals("", req.getClientdeliverylocationrfq().get(0).getPincode());
+    }
+
+    @Test
+    @DisplayName("STRICT LOCATION RULE 4: Only pincode -> pincode only; no buyer-default city/state")
+    void testLocationRule4_OnlyPincode_NoBuyerDefaultCityOrState() {
+        ExtractedRFQ rfq = ExtractedRFQ.builder()
+                .deliveryPincode("560066")
+                .deliveryLocation("560066")
+                .items(List.of(RFQItem.builder().itemDescription("Laptop").quantity(5.0).build()))
+                .build();
+
+        Buyer buyer = Buyer.builder()
+                .name("John").email("john@test.com")
+                .city("Kakinada").state("Andhra Pradesh").pincode("533431")
+                .build();
+
+        RFQRequest req = rfqBuilderService.buildRFQRequest(rfq, buyer, "Sub", null);
+        assertEquals("", req.getClientdeliverylocationrfq().get(0).getCity());
+        assertEquals("", req.getClientdeliverylocationrfq().get(0).getState());
+        assertEquals("560066", req.getClientdeliverylocationrfq().get(0).getPincode());
+    }
+
+    @Test
+    @DisplayName("STRICT LOCATION RULE 5: City + state -> preserve both; pincode remains unspecified")
+    void testLocationRule5_CityAndState_PincodeUnspecified() {
+        ExtractedRFQ rfq = ExtractedRFQ.builder()
+                .deliveryCity("Whitefield")
+                .deliveryState("Karnataka")
+                .deliveryLocation("Whitefield, Karnataka")
+                .items(List.of(RFQItem.builder().itemDescription("Laptop").quantity(5.0).build()))
+                .build();
+
+        Buyer buyer = Buyer.builder()
+                .name("John").email("john@test.com")
+                .city("Kakinada").state("Andhra Pradesh").pincode("533431")
+                .build();
+
+        RFQRequest req = rfqBuilderService.buildRFQRequest(rfq, buyer, "Sub", null);
+        assertEquals("Whitefield", req.getClientdeliverylocationrfq().get(0).getCity());
+        assertEquals("Karnataka", req.getClientdeliverylocationrfq().get(0).getState());
+        assertEquals("", req.getClientdeliverylocationrfq().get(0).getPincode());
+    }
+
+    @Test
+    @DisplayName("STRICT LOCATION RULE 6: Complete location -> use email location")
+    void testLocationRule6_CompleteLocation_UseEmailLocation() {
+        ExtractedRFQ rfq = ExtractedRFQ.builder()
+                .deliveryLocation("Whitefield Industrial Area, Bangalore, Karnataka - 560066")
+                .items(List.of(RFQItem.builder().itemDescription("Laptop").quantity(5.0).build()))
+                .build();
+
+        Buyer buyer = Buyer.builder()
+                .name("John").email("john@test.com")
+                .city("Kakinada").state("Andhra Pradesh").pincode("533431")
+                .build();
+
+        RFQRequest req = rfqBuilderService.buildRFQRequest(rfq, buyer, "Sub", null);
+        assertEquals("Bangalore", req.getClientdeliverylocationrfq().get(0).getCity());
+        assertEquals("Karnataka", req.getClientdeliverylocationrfq().get(0).getState());
+        assertEquals("560066", req.getClientdeliverylocationrfq().get(0).getPincode());
+    }
+
+    @Test
+    @DisplayName("STRICT LOCATION RULE 7: Email location different from buyer default -> email location wins")
+    void testLocationRule7_EmailLocationDifferentFromBuyerDefault_EmailWins() {
+        ExtractedRFQ rfq = ExtractedRFQ.builder()
+                .deliveryLocation("Peenya, Bangalore, Karnataka - 560058")
+                .items(List.of(RFQItem.builder().itemDescription("Laptop").quantity(5.0).build()))
+                .build();
+
+        Buyer buyer = Buyer.builder()
+                .name("John").email("john@test.com")
+                .city("Kakinada").state("Andhra Pradesh").pincode("533431")
+                .build();
+
+        RFQRequest req = rfqBuilderService.buildRFQRequest(rfq, buyer, "Sub", null);
+        assertEquals("Bangalore", req.getClientdeliverylocationrfq().get(0).getCity());
+        assertEquals("Karnataka", req.getClientdeliverylocationrfq().get(0).getState());
+        assertEquals("560058", req.getClientdeliverylocationrfq().get(0).getPincode());
     }
 }
 

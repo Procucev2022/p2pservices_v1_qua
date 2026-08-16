@@ -51,7 +51,7 @@ public class EmailScheduler {
      * the same schedule and can process one email more than once. {@code lockAtLeastFor} holds the
      * lock briefly after a fast run so a second instance cannot pick up the same tick.
      */
-    @Scheduled(cron = "${app.scheduler.cron:0 */5 * * * ?}")
+    @Scheduled(cron = "${app.scheduler.cron:0 */1 * * * ?}")
     @SchedulerLock(name = "emailRfqProcessingJob", lockAtMostFor = "9m", lockAtLeastFor = "30s")
     public void runEmailProcessingJob() {
         if (!schedulerEnabled) {

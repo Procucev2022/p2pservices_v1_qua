@@ -103,6 +103,7 @@ public class EmailProcessorService {
 
         if (normalizedSender.contains("notification")
                 || normalizedSender.equalsIgnoreCase("rfq@procucev.com")
+                || normalizedSender.equalsIgnoreCase("rfqprocucev@gmail.com")
                 || normalizedSender.equalsIgnoreCase("veerababu.v@procucev.com")
                 || normalizedSender.contains("invitations@procucev.com")
                 || normalizedSender.contains("gmtrfq@procucev.com")
@@ -229,6 +230,13 @@ public class EmailProcessorService {
 
             String defaultLocation = resolveDeliveryLocation(topDeliveryLocation, buyer);
 
+            // MANDATORY DELIVERY LOCATION VALIDATION AT PAYLOAD LEVEL
+            boolean hasLocationInEmail = hasExplicitLocationInPayload(extractedRFQ, email);
+            if (!hasLocationInEmail) {
+                log.warn("Email payload missing mandatory delivery location. Aborting RFQ creation.");
+                failedItemsList.add("Delivery location");
+            }
+
             for (RFQItem item : extractedRFQ.getItems()) {
                 if (item == null) {
                     continue;
@@ -246,19 +254,25 @@ public class EmailProcessorService {
                 }
                 item.setItemDescription(desc);
 
-                // Fallback scan for specifications if missing
+                boolean isMultiItemPayload = extractedRFQ.getItems().size() > 1;
+
+                // Fallback scan for specifications if missing (only for single item or item-specific text)
                 if (item.getSpecification() == null || item.getSpecification().isBlank() || item.getSpecification().equalsIgnoreCase("Not Specified")) {
-                    String scannedSpec = extractFieldByPattern(email.getBody(), "(?i)(?:specifications|specs|specification)[:\\s=]*([^\\r\\n]+)");
-                    if (scannedSpec != null && !scannedSpec.isBlank()) {
-                        item.setSpecification(scannedSpec.trim());
+                    if (!isMultiItemPayload) {
+                        String scannedSpec = extractFieldByPattern(email.getBody(), "(?i)(?:specifications|specs|specification)[:\\s=]*([^\\r\\n]+)");
+                        if (scannedSpec != null && !scannedSpec.isBlank()) {
+                            item.setSpecification(scannedSpec.trim());
+                        }
                     }
                 }
 
-                // Fallback scan for brand if missing
+                // Fallback scan for brand if missing (only for single item or item-specific text)
                 if (item.getBrand() == null || item.getBrand().isBlank() || item.getBrand().equalsIgnoreCase("Not Specified")) {
-                    String scannedBrand = extractFieldByPattern(email.getBody(), "(?i)(?:brand|make)[:\\s=]*([^\\r\\n]+)");
-                    if (scannedBrand != null && !scannedBrand.isBlank()) {
-                        item.setBrand(scannedBrand.trim());
+                    if (!isMultiItemPayload) {
+                        String scannedBrand = extractFieldByPattern(email.getBody(), "(?i)(?:brand|make)[:\\s=]*([^\\r\\n]+)");
+                        if (scannedBrand != null && !scannedBrand.isBlank()) {
+                            item.setBrand(scannedBrand.trim());
+                        }
                     }
                 }
 
@@ -280,6 +294,15 @@ public class EmailProcessorService {
 
                 log.info("DEBUG Thread Processing: Source Email MsgID={}, ThreadID={}, Latest Reply MsgID={}", email.getMessageId(), email.getInReplyTo(), email.getMessageId());
                 log.info("DEBUG Extracted Data: Item='{}', Raw Quantity={}, Normalized Quantity={}, Raw Location='{}', Raw Date='{}'", desc, item.getQuantity(), item.getQuantity(), item.getDeliveryLocation(), item.getDeliveryDate());
+
+                // Verify if quantity was inferred as 1.0 without explicit purchasing quantity statement in email text
+                if (item.getQuantity() == null || item.getQuantity() == 1.0) {
+                    boolean hasExplicitQuantityInText = hasExplicitPurchaseQuantityInText(email.getSubject(), email.getBody());
+                    if (!hasExplicitQuantityInText) {
+                        log.warn("No explicit purchase quantity stated in email text for item '{}'. Resetting quantity to null.", desc);
+                        item.setQuantity(null);
+                    }
+                }
 
                 // MANDATORY QUANTITY VALIDATION PER ITEM
                 if (item.getQuantity() == null || item.getQuantity() <= 0) {
@@ -308,8 +331,12 @@ public class EmailProcessorService {
                 validItems.add(item);
             }
 
+            if (!hasLocationInEmail) {
+                validItems.clear();
+            }
+
             if (validItems.isEmpty()) {
-                log.warn("RFQ validation failed: All items in email were invalid or missing mandatory quantity.");
+                log.warn("RFQ validation failed: All items in email were invalid or missing mandatory quantity/location.");
                 acknowledgementEmailService.sendConsolidatedAcknowledgement(Collections.emptyList(), failedItemsList, buyer, email.getSubject());
                 emailReaderService.moveMessageToFolder(email.getMessageId(), errorFolder);
 
@@ -337,12 +364,14 @@ public class EmailProcessorService {
                 String groupLocation = groupItems.get(0).getDeliveryLocation();
                 String groupDate = groupItems.get(0).getDeliveryDate();
 
+                String[] parsedLoc = parseCityStatePincodeFromLocation(groupLocation, extractedRFQ.getDeliveryCity(), extractedRFQ.getDeliveryState(), extractedRFQ.getDeliveryPincode(), buyer);
+
                 ExtractedRFQ groupExtractedRFQ = ExtractedRFQ.builder()
                         .buyerEmail(buyer.getEmail())
                         .deliveryLocation(groupLocation)
-                        .deliveryCity(extractedRFQ.getDeliveryCity())
-                        .deliveryState(extractedRFQ.getDeliveryState())
-                        .deliveryPincode(extractedRFQ.getDeliveryPincode())
+                        .deliveryCity(parsedLoc[0])
+                        .deliveryState(parsedLoc[1])
+                        .deliveryPincode(parsedLoc[2])
                         .deliveryDate(groupDate)
                         .category(groupCategory)
                         .items(groupItems)
@@ -481,8 +510,7 @@ public class EmailProcessorService {
             String date = dateParser.parseDateString(rawDate);
             item.setDeliveryDate(date);
 
-            String category = normalizeValue(item.getCategory());
-            String groupKey = category + "|" + loc.toLowerCase() + "|" + date.toLowerCase();
+            String groupKey = loc.toLowerCase() + "|" + date.toLowerCase();
             groups.computeIfAbsent(groupKey, k -> new ArrayList<>()).add(item);
         }
         return groups;
@@ -508,12 +536,14 @@ public class EmailProcessorService {
                 ExtractedRFQ historical = objectMapper.readValue(prior.get().getExtractionJson(), ExtractedRFQ.class);
                 if (historical.getItems() != null && !historical.getItems().isEmpty()
                         && extracted.getItems() != null && !extracted.getItems().isEmpty()) {
-                    RFQItem current = extracted.getItems().get(0);
-                    RFQItem original = historical.getItems().get(0);
-                    if (current.getItemDescription() == null || current.getItemDescription().isBlank()) current.setItemDescription(original.getItemDescription());
-                    if (current.getSpecification() == null || current.getSpecification().isBlank()) current.setSpecification(original.getSpecification());
-                    if (current.getBrand() == null || current.getBrand().isBlank()) current.setBrand(original.getBrand());
-                    if (current.getCategory() == null || current.getCategory().isBlank()) current.setCategory(original.getCategory());
+                    for (int i = 0; i < extracted.getItems().size(); i++) {
+                        RFQItem current = extracted.getItems().get(i);
+                        RFQItem original = i < historical.getItems().size() ? historical.getItems().get(i) : historical.getItems().get(0);
+                        if (current.getItemDescription() == null || current.getItemDescription().isBlank()) current.setItemDescription(original.getItemDescription());
+                        if (current.getSpecification() == null || current.getSpecification().isBlank()) current.setSpecification(original.getSpecification());
+                        if (current.getBrand() == null || current.getBrand().isBlank()) current.setBrand(original.getBrand());
+                        if (current.getCategory() == null || current.getCategory().isBlank()) current.setCategory(original.getCategory());
+                    }
                 }
                 if (isBlank(extracted.getDeliveryLocation())) extracted.setDeliveryLocation(historical.getDeliveryLocation());
                 if (isBlank(extracted.getDeliveryDate())) extracted.setDeliveryDate(historical.getDeliveryDate());
@@ -609,5 +639,129 @@ public class EmailProcessorService {
             return m.group(1).trim();
         }
         return null;
+    }
+
+    private boolean hasExplicitPurchaseQuantityInText(String subject, String body) {
+        String combined = ((subject != null ? subject : "") + " " + (body != null ? body : "")).toLowerCase();
+        
+        if (java.util.regex.Pattern.compile("(?i)(?:quantity|qty|required\\s+quantity|required\\s+units|units\\s+required|pieces\\s+required|nos\\s+required|number\\s+of\\s+units)\\s*[:=]?\\s*([a-z0-9,\\-\\s]+)").matcher(combined).find()) {
+            return true;
+        }
+        if (java.util.regex.Pattern.compile("(?i)\\b(?:we\\s+require|require|we\\s+need|need|please\\s+quote|quote\\s+for|purchase)\\s+(?:\\d+|one|two|three|four|five|six|seven|eight|nine|ten|twenty|fifty|hundred|thousand|lakh|lacs)\\b").matcher(combined).find()) {
+            return true;
+        }
+        if (java.util.regex.Pattern.compile("(?i)\\b\\d+\\s*(?:units|nos|pieces|pcs|laptops|machines|systems|sets|bags|meters|mtr|kg|boxes|rolls|sheets)\\b").matcher(combined).find()) {
+            return true;
+        }
+        return false;
+    }
+
+    private String[] parseCityStatePincodeFromLocation(String locationStr, String defaultCity, String defaultState, String defaultPincode, Buyer buyer) {
+        String city = defaultCity != null ? defaultCity : "";
+        String state = defaultState != null ? defaultState : "";
+        String pincode = defaultPincode != null ? defaultPincode : "";
+
+        if (locationStr != null && !locationStr.isBlank() && !locationStr.equalsIgnoreCase("Not Specified") && !locationStr.equalsIgnoreCase("Registered Profile Address")) {
+            String cleanLoc = locationStr.replaceAll("[^\\x00-\\x7F]", " ");
+            
+            java.util.regex.Matcher pinMatcher = java.util.regex.Pattern.compile("\\b(\\d{6})\\b").matcher(cleanLoc);
+            if (pinMatcher.find()) {
+                pincode = pinMatcher.group(1);
+            }
+
+            String lower = cleanLoc.toLowerCase();
+            if (lower.contains("bangalore") || lower.contains("bengaluru")) {
+                city = "Bangalore";
+                state = "Karnataka";
+            } else if (lower.contains("hyderabad")) {
+                city = "Hyderabad";
+                state = "Telangana";
+            } else if (lower.contains("chennai")) {
+                city = "Chennai";
+                state = "Tamil Nadu";
+            } else if (lower.contains("mumbai")) {
+                city = "Mumbai";
+                state = "Maharashtra";
+            } else if (lower.contains("delhi")) {
+                city = "Delhi";
+                state = "Delhi";
+            } else if (lower.contains("kolkata")) {
+                city = "Kolkata";
+                state = "West Bengal";
+            } else if (lower.contains("pune")) {
+                city = "Pune";
+                state = "Maharashtra";
+            } else if (lower.contains("ahmedabad")) {
+                city = "Ahmedabad";
+                state = "Gujarat";
+            } else if (lower.contains("kakinada")) {
+                city = "Kakinada";
+                state = "Andhra Pradesh";
+            }
+
+            if (state.isBlank()) {
+                if (lower.contains("karnataka")) state = "Karnataka";
+                else if (lower.contains("telangana")) state = "Telangana";
+                else if (lower.contains("andhra")) state = "Andhra Pradesh";
+                else if (lower.contains("maharashtra")) state = "Maharashtra";
+                else if (lower.contains("tamil nadu") || lower.contains("tamilnadu")) state = "Tamil Nadu";
+                else if (lower.contains("west bengal")) state = "West Bengal";
+                else if (lower.contains("gujarat")) state = "Gujarat";
+                else if (lower.contains("rajasthan")) state = "Rajasthan";
+            }
+        }
+
+        if (buyer != null) {
+            if (city.isBlank() && buyer.getCity() != null && !buyer.getCity().isBlank()) {
+                city = buyer.getCity().trim();
+            }
+            if (state.isBlank() && buyer.getState() != null && !buyer.getState().isBlank()) {
+                state = buyer.getState().trim();
+            }
+            if (pincode.isBlank() && buyer.getPincode() != null && !buyer.getPincode().isBlank()) {
+                pincode = buyer.getPincode().trim();
+            }
+        }
+
+        return new String[]{city, state, pincode};
+    }
+
+    private boolean hasExplicitLocationInPayload(ExtractedRFQ extractedRFQ, EmailData email) {
+        if (extractedRFQ != null) {
+            if (extractedRFQ.getDeliveryLocation() != null 
+                    && !extractedRFQ.getDeliveryLocation().isBlank() 
+                    && !extractedRFQ.getDeliveryLocation().equalsIgnoreCase("Not Specified")
+                    && !extractedRFQ.getDeliveryLocation().equalsIgnoreCase("null")
+                    && !extractedRFQ.getDeliveryLocation().equalsIgnoreCase("Registered Profile Address")) {
+                return true;
+            }
+            if (extractedRFQ.getDeliveryCity() != null && !extractedRFQ.getDeliveryCity().isBlank() && !extractedRFQ.getDeliveryCity().equalsIgnoreCase("Not Specified")) {
+                return true;
+            }
+            if (extractedRFQ.getDeliveryState() != null && !extractedRFQ.getDeliveryState().isBlank() && !extractedRFQ.getDeliveryState().equalsIgnoreCase("Not Specified")) {
+                return true;
+            }
+            if (extractedRFQ.getDeliveryPincode() != null && !extractedRFQ.getDeliveryPincode().isBlank() && !extractedRFQ.getDeliveryPincode().equalsIgnoreCase("Not Specified")) {
+                return true;
+            }
+            if (extractedRFQ.getItems() != null) {
+                for (RFQItem item : extractedRFQ.getItems()) {
+                    if (item != null && item.getDeliveryLocation() != null 
+                            && !item.getDeliveryLocation().isBlank() 
+                            && !item.getDeliveryLocation().equalsIgnoreCase("Not Specified")
+                            && !item.getDeliveryLocation().equalsIgnoreCase("null")
+                            && !item.getDeliveryLocation().equalsIgnoreCase("Registered Profile Address")) {
+                        return true;
+                    }
+                }
+            }
+        }
+        
+        String combined = ((email != null && email.getSubject() != null ? email.getSubject() : "") + " " + (email != null && email.getBody() != null ? email.getBody() : "")).toLowerCase();
+        if (java.util.regex.Pattern.compile("(?i)(?:delivery\\s+location|delivery\\s+address|location|plant|warehouse|address|ship\\s+to|deliver\\s+to|destination|pincode|zipcode)\\s*[:=]?\\s*([a-z0-9,\\-\\s]+)").matcher(combined).find()) {
+            return true;
+        }
+        
+        return false;
     }
 }

@@ -56,6 +56,7 @@ public class RFQApiService {
                     del.setCity(loc.getCity());
                     del.setState(loc.getState());
                     del.setPincode(loc.getPincode());
+                    del.setRfq(rfq);
                     locList.add(del);
                 }
                 rfq.setClientdeliverylocationrfq(locList);

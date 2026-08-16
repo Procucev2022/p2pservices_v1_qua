@@ -83,13 +83,13 @@ public class RFQBuilderService {
         String state = "";
         String pincode = "";
 
-        if (extractedRFQ.getDeliveryCity() != null && !extractedRFQ.getDeliveryCity().isBlank()) {
+        if (extractedRFQ.getDeliveryCity() != null && !extractedRFQ.getDeliveryCity().isBlank() && !extractedRFQ.getDeliveryCity().equalsIgnoreCase("Not Specified")) {
             city = extractedRFQ.getDeliveryCity().trim();
         }
-        if (extractedRFQ.getDeliveryState() != null && !extractedRFQ.getDeliveryState().isBlank()) {
+        if (extractedRFQ.getDeliveryState() != null && !extractedRFQ.getDeliveryState().isBlank() && !extractedRFQ.getDeliveryState().equalsIgnoreCase("Not Specified")) {
             state = extractedRFQ.getDeliveryState().trim();
         }
-        if (extractedRFQ.getDeliveryPincode() != null && !extractedRFQ.getDeliveryPincode().isBlank()) {
+        if (extractedRFQ.getDeliveryPincode() != null && !extractedRFQ.getDeliveryPincode().isBlank() && !extractedRFQ.getDeliveryPincode().equalsIgnoreCase("Not Specified")) {
             pincode = extractedRFQ.getDeliveryPincode().trim();
         }
 
@@ -97,94 +97,101 @@ public class RFQBuilderService {
         if (locStr.equalsIgnoreCase("Not Specified") || locStr.equalsIgnoreCase("NotSpecified") || locStr.equalsIgnoreCase("N/A")) {
             locStr = "";
         }
-        if (!locStr.isBlank()) {
-            java.util.regex.Matcher m = java.util.regex.Pattern.compile("\\b(\\d{6})\\b").matcher(locStr);
-            if (m.find()) {
-                pincode = m.group(1);
-            }
-        }
 
-        if (locStr.contains("560037") || pincode.startsWith("560")) {
-            city = "Bangalore";
-            state = "Karnataka";
-            if (pincode.isBlank()) pincode = "560037";
-        } else if (!locStr.isBlank()) {
-            String lowerLoc = locStr.toLowerCase();
-            for (String knownCity : CITY_PIN_MAP.keySet()) {
-                if (lowerLoc.contains(knownCity)) {
-                    city = knownCity.substring(0, 1).toUpperCase() + knownCity.substring(1);
-                    if (pincode.isBlank()) {
-                        pincode = CITY_PIN_MAP.get(knownCity);
-                    }
-                    break;
-                }
-            }
+        boolean isRegisteredAddressFallback = locStr.isBlank()
+                || locStr.equalsIgnoreCase("Registered Profile Address")
+                || locStr.equalsIgnoreCase("Email Delivery Location")
+                || (buyer != null && buyer.getAddress() != null && locStr.equalsIgnoreCase(buyer.getAddress().trim()));
 
-            if (lowerLoc.contains("chhattisgarh")) state = "Chhattisgarh";
-            else if (lowerLoc.contains("karnataka")) state = "Karnataka";
-            else if (lowerLoc.contains("telangana")) state = "Telangana";
-            else if (lowerLoc.contains("andhra")) state = "Andhra Pradesh";
-            else if (lowerLoc.contains("maharashtra")) state = "Maharashtra";
-            else if (lowerLoc.contains("tamil nadu") || lowerLoc.contains("tamilnadu")) state = "Tamil Nadu";
-            else if (lowerLoc.contains("delhi")) state = "Delhi";
-            else if (lowerLoc.contains("gujarat")) state = "Gujarat";
-            else if (lowerLoc.contains("west bengal") || lowerLoc.contains("bengal")) state = "West Bengal";
-            else if (lowerLoc.contains("rajasthan")) state = "Rajasthan";
-            else if (lowerLoc.contains("madhya pradesh")) state = "Madhya Pradesh";
-            else if (lowerLoc.contains("uttar pradesh")) state = "Uttar Pradesh";
-        }
-
-        if (pincode.isBlank() && !city.isBlank()) {
-            pincode = CITY_PIN_MAP.getOrDefault(city.toLowerCase(), "");
-        }
-
-        if (!city.isBlank() && (state.isBlank() || pincode.isBlank())) {
-            try {
-                PincodeData pinData = pincodeDao.findByCityIgnoreCase(city);
-                if (pinData != null) {
-                    if (state.isBlank() && pinData.getState() != null && !pinData.getState().isBlank()) {
-                        state = pinData.getState().trim();
-                    }
-                    if (pincode.isBlank() && pinData.getPincode() != null && !pinData.getPincode().isBlank()) {
-                        pincode = pinData.getPincode().trim();
-                    }
-                }
-            } catch (Exception e) {
-                log.warn("Could not query pincodeDao for city {}: {}", city, e.getMessage());
-            }
-        }
-
-        if (state.isBlank() && !pincode.isBlank()) {
-            try {
-                PincodeData pinData = pincodeDao.findByPincode(pincode);
-                if (pinData != null && pinData.getState() != null && !pinData.getState().isBlank()) {
-                    state = pinData.getState().trim();
-                    if (city.isBlank() && pinData.getCity() != null) {
-                        city = pinData.getCity().trim();
-                    }
-                }
-            } catch (Exception e) {
-                log.warn("Could not query pincodeDao for pincode {}: {}", pincode, e.getMessage());
-            }
-        }
+        boolean hasEmailLocation = !isRegisteredAddressFallback && (
+                !locStr.isBlank()
+                || !city.isBlank()
+                || !state.isBlank()
+                || !pincode.isBlank()
+        );
 
         String address = locStr;
-        if ((address.isBlank() || address.equalsIgnoreCase("Not Specified")) && buyer != null && buyer.getAddress() != null && !buyer.getAddress().isBlank()) {
-            address = buyer.getAddress().trim();
-        }
 
-        // Fallback to Buyer's Registered Profile Address if still missing
-        if ((city.isBlank() || city.equalsIgnoreCase("Not Specified")) && buyer != null && buyer.getCity() != null && !buyer.getCity().isBlank()) {
-            city = buyer.getCity().trim();
-        }
-        if ((state.isBlank() || state.equalsIgnoreCase("Not Specified")) && buyer != null && buyer.getState() != null && !buyer.getState().isBlank()) {
-            state = buyer.getState().trim();
-        }
-        if ((pincode.isBlank() || pincode.equalsIgnoreCase("Not Specified")) && buyer != null && buyer.getPincode() != null && !buyer.getPincode().isBlank()) {
-            pincode = buyer.getPincode().trim();
-        }
-        if (address.isBlank() || address.equalsIgnoreCase("Not Specified")) {
-            address = "Registered Profile Address";
+        if (hasEmailLocation) {
+            // Email contains location information: ONLY extract fields present in email text!
+            // DO NOT fallback to buyer default profile!
+            if (!locStr.isBlank()) {
+                String cleanLoc = locStr.replaceAll("[^\\x00-\\x7F]", " ");
+                
+                // Extract 6-digit Indian pincode if explicitly present in email location text
+                if (pincode.isBlank()) {
+                    java.util.regex.Matcher m = java.util.regex.Pattern.compile("\\b(\\d{6})\\b").matcher(cleanLoc);
+                    if (m.find()) {
+                        pincode = m.group(1);
+                    }
+                }
+
+                // Scan known city names in locStr if city is blank
+                if (city.isBlank()) {
+                    String lowerLoc = cleanLoc.toLowerCase();
+                    for (String knownCity : CITY_PIN_MAP.keySet()) {
+                        if (lowerLoc.contains(knownCity)) {
+                            city = knownCity.substring(0, 1).toUpperCase() + knownCity.substring(1);
+                            break;
+                        }
+                    }
+                }
+
+                // Extract state if explicitly present in email location text
+                if (state.isBlank()) {
+                    String lowerLoc = cleanLoc.toLowerCase();
+                    if (lowerLoc.contains("chhattisgarh")) state = "Chhattisgarh";
+                    else if (lowerLoc.contains("karnataka")) state = "Karnataka";
+                    else if (lowerLoc.contains("telangana")) state = "Telangana";
+                    else if (lowerLoc.contains("andhra")) state = "Andhra Pradesh";
+                    else if (lowerLoc.contains("maharashtra")) state = "Maharashtra";
+                    else if (lowerLoc.contains("tamil nadu") || lowerLoc.contains("tamilnadu")) state = "Tamil Nadu";
+                    else if (lowerLoc.contains("delhi")) state = "Delhi";
+                    else if (lowerLoc.contains("gujarat")) state = "Gujarat";
+                    else if (lowerLoc.contains("west bengal") || lowerLoc.contains("bengal")) state = "West Bengal";
+                    else if (lowerLoc.contains("rajasthan")) state = "Rajasthan";
+                    else if (lowerLoc.contains("madhya pradesh")) state = "Madhya Pradesh";
+                    else if (lowerLoc.contains("uttar pradesh")) state = "Uttar Pradesh";
+                    else if (lowerLoc.contains("kerala")) state = "Kerala";
+                    else if (lowerLoc.contains("punjab")) state = "Punjab";
+                    else if (lowerLoc.contains("haryana")) state = "Haryana";
+                    else if (lowerLoc.contains("bihar")) state = "Bihar";
+                    else if (lowerLoc.contains("odisha")) state = "Odisha";
+                    else if (lowerLoc.contains("assam")) state = "Assam";
+                    else if (lowerLoc.contains("jharkhand")) state = "Jharkhand";
+                }
+
+                // Extract city from location text if city not explicitly provided by AI or known city scan
+                if (city.isBlank()) {
+                    String[] tokens = locStr.split("[,\\-–—\\n]");
+                    if (tokens.length > 0 && !tokens[0].trim().isBlank()) {
+                        String firstToken = tokens[0].trim();
+                        boolean isStateName = state != null && firstToken.equalsIgnoreCase(state);
+                        if (!firstToken.matches("^\\d+$") && !isStateName) {
+                            city = firstToken;
+                        }
+                    }
+                }
+            }
+        } else {
+            // CASE 1: ALL location fields missing from email -> Complete Buyer default location
+            if (buyer != null) {
+                if (city.isBlank() && buyer.getCity() != null && !buyer.getCity().isBlank()) {
+                    city = buyer.getCity().trim();
+                }
+                if (state.isBlank() && buyer.getState() != null && !buyer.getState().isBlank()) {
+                    state = buyer.getState().trim();
+                }
+                if (pincode.isBlank() && buyer.getPincode() != null && !buyer.getPincode().isBlank()) {
+                    pincode = buyer.getPincode().trim();
+                }
+                if ((address.isBlank() || isRegisteredAddressFallback) && buyer.getAddress() != null && !buyer.getAddress().isBlank()) {
+                    address = buyer.getAddress().trim();
+                }
+            }
+            if (address.isBlank() || address.equalsIgnoreCase("Not Specified")) {
+                address = "Registered Profile Address";
+            }
         }
 
         List<RFQRequest.LocationDto> locations = List.of(

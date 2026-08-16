@@ -183,7 +183,7 @@ public class MultiRfqGroupingTest {
 
         String status = emailProcessorService.processSingleEmail(email);
         assertEquals("RFQ_CREATED", status);
-        verify(rfqRepository, times(2)).save(any(RFQEntity.class));
+        verify(rfqRepository, times(1)).save(any(RFQEntity.class));
     }
 
     @Test
@@ -244,20 +244,23 @@ public class MultiRfqGroupingTest {
     }
 
     @Test
-    @DisplayName("Test 11: Missing location -> defaults to buyer registration address")
-    void test11_MissingLocationDefaultsToBuyerAddress() {
+    @DisplayName("Test 11: Missing location -> aborts RFQ creation and sends Case 3 email")
+    void test11_MissingLocation_AbortsRfqAndSendsCase3Email() {
         EmailData email = EmailData.builder().messageId("M11").senderEmail("buyer@procucev.com").subject("RFQ 11").build();
         RFQItem i1 = RFQItem.builder().itemDescription("Laptop").quantity(10.0).category("IT").deliveryLocation(null).deliveryDate("2026-09-30").build();
         ExtractedRFQ extracted = ExtractedRFQ.builder().buyerEmail("buyer@procucev.com").items(List.of(i1)).build();
 
         when(aiExtractionService.extractRFQFromEmail(email)).thenReturn(extracted);
-        when(rfqBuilderService.buildRFQRequest(any(), any(), any(), any())).thenReturn(RFQRequest.builder().rfqNumber("RFQ-11").build());
 
-        emailProcessorService.processSingleEmail(email);
+        String result = emailProcessorService.processSingleEmail(email);
+        assertEquals("VALIDATION_FAILED", result);
 
-        ArgumentCaptor<RFQEntity> entityCaptor = ArgumentCaptor.forClass(RFQEntity.class);
-        verify(rfqRepository).save(entityCaptor.capture());
-        assertTrue(entityCaptor.getValue().getDeliveryLocation().contains("100 Tech Park"));
+        verify(rfqRepository, never()).save(any());
+
+        ArgumentCaptor<SimpleMailMessage> mailCaptor = ArgumentCaptor.forClass(SimpleMailMessage.class);
+        verify(mailSender).send(mailCaptor.capture());
+        assertEquals("⚡ One Quick Detail Needed to Process Your RFQ", mailCaptor.getValue().getSubject());
+        assertTrue(mailCaptor.getValue().getText().contains("• Delivery location"));
     }
 
     @Test

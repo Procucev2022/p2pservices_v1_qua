@@ -180,7 +180,7 @@
 				<configuration>
 					<!-- Keep JaCoCo's late-bound agent argument and allow Mockito/Byte Buddy
 					     to run on newer local JDKs used for coverage verification. -->
-					<argLine>@{argLine} -Dnet.bytebuddy.experimental=true</argLine>
+					<argLine>@{argLine} -Dnet.bytebuddy.experimental=true -XX:+EnableDynamicAgentLoading</argLine>
 				</configuration>
 			</plugin>
 
