@@ -242,7 +242,6 @@ public class RFQBuilderService {
                     throw new IllegalArgumentException("Quantity is mandatory for item: " + (item.getItemDescription() != null ? item.getItemDescription() : "RFQ Item"));
                 }
                 double qty = item.getQuantity();
-                String qtyDisplay = formatQuantity(qty);
 
                 String partCodeVal = sanitizeText(item.getEffectivePartNumber());
 
@@ -250,41 +249,45 @@ public class RFQBuilderService {
                         ? sanitizeText(item.getItemDescription())
                         : primaryDescription;
 
+                // Technical detail only. The brand is deliberately NOT folded in here: this value
+                // is surfaced to buyers and vendors as the "Specification" column, so a brand name
+                // appearing in it is the defect this block exists to prevent.
                 String specs;
-                if (isMultipleItems) {
-                    if (item.getSpecification() != null && !item.getSpecification().isBlank()) {
-                        specs = sanitizeText(item.getSpecification());
-                    } else if (item.getRemarks() != null && !item.getRemarks().isBlank()) {
-                        specs = sanitizeText(item.getRemarks());
-                    } else {
-                        String bStr = item.getBrand() != null && !item.getBrand().equalsIgnoreCase("null") ? item.getBrand().trim() : "";
-                        String dStr = item.getItemDescription() != null ? item.getItemDescription().trim() : primaryDescription;
-                        specs = sanitizeText(bStr + " " + dStr + " - " + qtyDisplay + " Units");
-                    }
+                if (item.getSpecification() != null && !item.getSpecification().isBlank()
+                        && !item.getSpecification().equalsIgnoreCase("Not Specified")
+                        && !item.getSpecification().equalsIgnoreCase("null")) {
+                    specs = sanitizeText(item.getSpecification());
+                } else if (item.getRemarks() != null && !item.getRemarks().isBlank()) {
+                    specs = sanitizeText(item.getRemarks());
                 } else {
-                    // The remarks guard must test isBlank(), not just null. A blank-but-present
-                    // remarks value previously produced an empty specification on the item.
-                    if (item.getSpecification() != null && !item.getSpecification().isBlank()) {
-                        specs = sanitizeText(item.getSpecification());
-                    } else if (item.getRemarks() != null && !item.getRemarks().isBlank()) {
-                        specs = sanitizeText(item.getRemarks());
-                    } else {
-                        specs = primaryDescription;
-                    }
+                    // The description carries the identifying size/dimension token, so it is the
+                    // best available technical fallback. Never leave the specification blank.
+                    specs = cleanItemDesc;
                 }
 
-                // Never persist an empty specification: fall back to the item description so the
-                // buyer's own wording (including any size token) is always retained somewhere.
+                // Surface the part / model number in the specification too when it is not already
+                // present. It stays in itemcode as well; buyers asked to see it as a spec detail.
+                if (!partCodeVal.isBlank()
+                        && !specs.toLowerCase().contains(partCodeVal.toLowerCase())) {
+                    specs = specs.isBlank() ? "P/N: " + partCodeVal : "P/N: " + partCodeVal + ", " + specs;
+                }
+
                 if (specs.isBlank()) {
-                    specs = !cleanItemDesc.isBlank() ? cleanItemDesc : primaryDescription;
+                    specs = primaryDescription;
                 }
 
                 if (specs.length() > 200) {
                     specs = specs.substring(0, 200).replaceAll("[,.-]+$", "").trim();
                 }
 
+                // Legacy column naming: the rfq_items table has no "specification" column. The
+                // platform presents rfq_items.brand as "Specification" and rfq_items.remarks as
+                // "Remarks" - see the RFQ tables in MailUtility and the Specification/Remarks
+                // column mapping in GMTServiceImpl's manual Excel upload. The DTO field names
+                // mirror the columns, not the labels, so the technical detail goes to brand() and
+                // the brand name goes to remarks().
                 rfqItemsList.add(RFQRequest.RfqItemDto.builder()
-                        .brand(brandVal)
+                        .brand(specs)
                         .unitofMeasures(item.getUom() != null && !item.getUom().isBlank() ? sanitizeText(item.getUom()) : "Nos")
                         .quantity(qty)
                         .description(cleanItemDesc)
@@ -293,7 +296,7 @@ public class RFQBuilderService {
                         .createdTS(nowIso)
                         .itemcode(partCodeVal)
                         .serialNo(serialNo++)
-                        .remarks(specs)
+                        .remarks(brandVal)
                         .build());
             }
         }
@@ -352,9 +355,5 @@ public class RFQBuilderService {
         return transliterated.replaceAll("[^\\x00-\\x7F]", "-").replaceAll("\\s+", " ").trim();
     }
 
-    private String formatQuantity(double quantity) {
-        return quantity == Math.rint(quantity)
-                ? String.valueOf((long) quantity)
-                : String.valueOf(quantity);
-    }
+
 }

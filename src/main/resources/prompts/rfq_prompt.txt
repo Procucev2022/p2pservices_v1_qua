@@ -23,10 +23,10 @@ Analyze the following email content and extract structured RFQ details into a SI
       "itemDescription": "String (product/material name INCLUDING any size, dimension or model token that identifies it, e.g., 'Network Server', 'HDPE Water Pipe 110 mm', 'Gear Box Seal 40x52x7'. Never return an empty string)",
       "category": "String (item-specific category if mentioned e.g., 'IT Equipment', 'Plumbing Material', 'Laptop', 'Medical', 'Electrical', or null if missing)",
       "partCode": "String (part number or model/item code if present, e.g., 'CB-800-EP315')",
-      "specification": "String (complete detailed technical specifications comma-separated, INCLUDING all sizes and dimensions, e.g. 'Intel Xeon processor, 64GB RAM, 2TB SSD' or '40x52x7 mm'. If the item has no separate specifications, repeat the identifying size/dimension here rather than returning null)",
+      "specification": "String (TECHNICAL details ONLY, comma-separated: part/model number, dimensions, size, material, grade, capacity, rating, colour, finish and similar. e.g. 'Intel Xeon processor, 64GB RAM, 2TB SSD' or '40x52x7 mm, Nitrile rubber'. NEVER put the brand or make in this field - that belongs in \"brand\". If the item has no separate specifications, repeat the identifying size/dimension/material here rather than returning null)",
       "quantity": Number (numeric purchase quantity value e.g. 4, 3000, 5, 7, 20, 50, 100, 500, 1000. If purchase quantity is missing, set to null),
       "uom": "String (Unit of Measure, e.g., 'Units', 'Meters', 'Bags', 'NOS', 'MTR', 'KG', 'PCS', 'Sheets')",
-      "brand": "String (preferred brand/make e.g. 'Dell / HP / Lenovo' or 'Supreme / Astral / Finolex', or 'Not Specified' if missing)",
+      "brand": "String (preferred brand/make/manufacturer NAME ONLY e.g. 'Dell / HP / Lenovo' or 'Supreme / Astral / Finolex', or 'Not Specified' if missing. Put ONLY the brand name here - no dimensions, part numbers or other technical detail)",
       "deliveryDate": "String (item-specific requested delivery date in YYYY-MM-DD ISO format e.g. '2028-02-25' or '2028-03-05', or null if missing)",
       "deliveryLocation": "String (item-specific delivery location e.g. 'Whitefield' or 'Gachibowli, Hyderabad', or null if missing)"
     }
@@ -111,6 +111,10 @@ But:
 CRITICAL RULE #6 — ITEM-LEVEL BRAND, SPECIFICATION, LOCATION & DATE ISOLATION
 ========================================================
 Extract itemDescription, brand, specification, partCode, quantity, uom, deliveryLocation, and deliveryDate independently for EACH item listed in the "items" array.
+Keep "brand" and "specification" strictly separate. "brand" holds the make/manufacturer name and nothing else.
+"specification" holds technical detail (part/model number, dimensions, size, material, grade, capacity, rating) and must never repeat the brand.
+Example: "Oil Seal 25x47x7, Nitrile, make: SKF, 50 nos"
+  → itemDescription = "Oil Seal 25x47x7", specification = "25x47x7, Nitrile", brand = "SKF", quantity = 50
 If an email contains multiple items with DIFFERENT delivery locations (e.g. Item 1: Whitefield, Bangalore, Karnataka - 560066, Item 2: Gachibowli, Hyderabad, Telangana - 500032) or DIFFERENT delivery dates (e.g. Item 1: 25-Feb-2028, Item 2: 05-Mar-2028), YOU MUST EXTRACT the specific deliveryLocation and deliveryDate for EACH item independently under that item object!
 Do NOT copy Item 1's brand, specs, quantity, deliveryLocation, or deliveryDate to Item 2.
 

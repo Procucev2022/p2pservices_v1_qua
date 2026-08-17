@@ -73,7 +73,8 @@ class EmailRfqExtractionRegressionTest {
 
         RFQRequest.RfqItemDto item = req.getRfqItem().get(0);
         assertEquals("Gear Box Seal 40x52x7", item.getDescription());
-        assertEquals("40x52x7", item.getRemarks());
+        // brand carries the Specification column (see RFQBuilderService for the legacy mapping).
+        assertEquals("40x52x7", item.getBrand());
     }
 
     @Test
@@ -87,13 +88,12 @@ class EmailRfqExtractionRegressionTest {
 
         RFQRequest.RfqItemDto item = req.getRfqItem().get(0);
         assertEquals("Gear Box Seal 40x52x7", item.getDescription(), "x separator must survive sanitisation");
-        assertEquals("40x52x7", item.getRemarks());
+        assertEquals("40x52x7", item.getBrand());
         assertFalse(item.getDescription().contains("-"), "must not degrade into 40-52-7");
     }
 
     @Test
     void blankRemarksNoLongerYieldsEmptySpecification() {
-        // Single-item branch previously only null-checked remarks, so "" produced an empty spec.
         RFQRequest req = build(RFQItem.builder()
                 .itemDescription("Gear Box Seal 40x52x7")
                 .specification(null)
@@ -101,10 +101,97 @@ class EmailRfqExtractionRegressionTest {
                 .quantity(12.0)
                 .build());
 
-        String remarks = req.getRfqItem().get(0).getRemarks();
-        assertNotNull(remarks);
-        assertFalse(remarks.isBlank(), "specification must never be persisted blank");
-        assertEquals("Gear Box Seal 40x52x7", remarks);
+        String specification = req.getRfqItem().get(0).getBrand();
+        assertNotNull(specification);
+        assertFalse(specification.isBlank(), "specification must never be persisted blank");
+        assertEquals("Gear Box Seal 40x52x7", specification);
+    }
+
+    // ---------- Field placement: Specification vs Remarks ----------
+
+    @Test
+    void brandGoesToRemarksAndTechnicalDetailGoesToSpecification() {
+        RFQRequest req = build(RFQItem.builder()
+                .itemDescription("Oil Seal 25x47x7")
+                .specification("25x47x7, Nitrile rubber")
+                .brand("SKF")
+                .quantity(50.0)
+                .build());
+
+        RFQRequest.RfqItemDto item = req.getRfqItem().get(0);
+        assertEquals("25x47x7, Nitrile rubber", item.getBrand(), "Specification column must hold technical detail");
+        assertEquals("Brand: SKF", item.getRemarks(), "Remarks column must hold the brand");
+        assertFalse(item.getBrand().contains("SKF"), "brand must not leak into the Specification column");
+    }
+
+    @Test
+    void multiItemWithoutSpecificationDoesNotLeakBrandIntoSpecification() {
+        // The old multi-item fallback built the spec as "<brand> <description> - <qty> Units".
+        RFQRequest req = build(
+                RFQItem.builder().itemDescription("Badminton Racket").brand("Yonex").quantity(10.0).build(),
+                RFQItem.builder().itemDescription("Shuttlecock").brand("Li-Ning").quantity(24.0).build());
+
+        RFQRequest.RfqItemDto racket = req.getRfqItem().get(0);
+        assertFalse(racket.getBrand().contains("Yonex"), "Specification must not contain the brand");
+        assertFalse(racket.getBrand().contains("Units"), "Specification must not contain a quantity blurb");
+        assertEquals("Badminton Racket", racket.getBrand());
+        assertEquals("Brand: Yonex", racket.getRemarks());
+
+        RFQRequest.RfqItemDto shuttle = req.getRfqItem().get(1);
+        assertEquals("Brand: Li-Ning", shuttle.getRemarks());
+        assertFalse(shuttle.getBrand().contains("Li-Ning"));
+    }
+
+    @Test
+    void partNumberIsSurfacedInSpecificationAndKeptInItemCode() {
+        RFQRequest req = build(RFQItem.builder()
+                .itemDescription("Bearing")
+                .partCode("6205ZZ")
+                .specification("Deep groove, 25x52x15")
+                .brand("SKF")
+                .quantity(24.0)
+                .build());
+
+        RFQRequest.RfqItemDto item = req.getRfqItem().get(0);
+        assertEquals("6205ZZ", item.getItemcode());
+        assertTrue(item.getBrand().contains("6205ZZ"), "part number should appear in Specification: " + item.getBrand());
+        assertTrue(item.getBrand().contains("Deep groove"));
+        assertEquals("Brand: SKF", item.getRemarks());
+    }
+
+    @Test
+    void partNumberIsNotDuplicatedWhenAlreadyInSpecification() {
+        RFQRequest req = build(RFQItem.builder()
+                .itemDescription("Bearing")
+                .partCode("6205ZZ")
+                .specification("6205ZZ deep groove")
+                .quantity(24.0)
+                .build());
+
+        String specification = req.getRfqItem().get(0).getBrand();
+        assertEquals("6205ZZ deep groove", specification);
+        assertEquals(1, countOccurrences(specification, "6205ZZ"));
+    }
+
+    @Test
+    void missingBrandStillLabelsRemarksExplicitly() {
+        RFQRequest req = build(RFQItem.builder()
+                .itemDescription("Gear Box Seal 40x52x7")
+                .specification("40x52x7")
+                .quantity(12.0)
+                .build());
+
+        assertEquals("Brand: Not Specified", req.getRfqItem().get(0).getRemarks());
+    }
+
+    private int countOccurrences(String haystack, String needle) {
+        int count = 0;
+        int idx = haystack.indexOf(needle);
+        while (idx >= 0) {
+            count++;
+            idx = haystack.indexOf(needle, idx + needle.length());
+        }
+        return count;
     }
 
     @Test

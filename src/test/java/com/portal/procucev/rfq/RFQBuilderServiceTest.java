@@ -81,13 +81,14 @@ public class RFQBuilderServiceTest {
 
         assertEquals(1, req.getRfqItem().size());
         RFQRequest.RfqItemDto itemDto = req.getRfqItem().get(0);
-        assertEquals("Brand: Dell", itemDto.getBrand());
+        // rfq_items.brand is presented as "Specification" and rfq_items.remarks as "Remarks".
+        assertEquals("P/N: P123, 16GB RAM", itemDto.getBrand());
         assertEquals("NOS", itemDto.getUnitofMeasures());
         assertEquals(1.0, itemDto.getQuantity());
         assertEquals("Dell Laptop", itemDto.getDescription());
         assertEquals("IT Hardware", itemDto.getCategory());
         assertEquals("P123", itemDto.getItemcode());
-        assertEquals("16GB RAM", itemDto.getRemarks());
+        assertEquals("Brand: Dell", itemDto.getRemarks());
     }
 
     @Test
@@ -116,7 +117,8 @@ public class RFQBuilderServiceTest {
         assertEquals(2, req.getRfqItem().size());
         assertEquals(2.5, req.getRfqItem().get(0).getQuantity());
         assertEquals(1.0, req.getRfqItem().get(1).getQuantity());
-        assertEquals("Brand: Logitech", req.getRfqItem().get(1).getBrand());
+        assertEquals("Brand: Logitech", req.getRfqItem().get(1).getRemarks());
+        assertEquals("Mechanical Keyboard", req.getRfqItem().get(1).getBrand());
     }
 
     @Test
@@ -235,9 +237,13 @@ public class RFQBuilderServiceTest {
         Buyer buyer = Buyer.builder().name("User").email("user@test.com").build();
 
         RFQRequest req = rfqBuilderService.buildRFQRequest(rfq, buyer, "Sub", null);
-        assertEquals("Brand: Not Specified", req.getRfqItem().get(0).getBrand());
-        assertEquals("Brand: Not Specified", req.getRfqItem().get(1).getBrand());
-        assertEquals("Brand: Already Prefixed", req.getRfqItem().get(2).getBrand());
+        // Brand normalisation now lands in remarks, which is presented as "Remarks".
+        assertEquals("Brand: Not Specified", req.getRfqItem().get(0).getRemarks());
+        assertEquals("Brand: Not Specified", req.getRfqItem().get(1).getRemarks());
+        assertEquals("Brand: Already Prefixed", req.getRfqItem().get(2).getRemarks());
+        // Specification falls back to the description and must never contain the brand.
+        assertEquals("Item1", req.getRfqItem().get(0).getBrand());
+        assertEquals("Item3", req.getRfqItem().get(2).getBrand());
         assertEquals(5.0, req.getRfqItem().get(3).getQuantity());
     }
 
@@ -255,8 +261,8 @@ public class RFQBuilderServiceTest {
         Buyer buyer = Buyer.builder().name("User").email("user@test.com").orgId(null).userId(null).build();
 
         RFQRequest req = rfqBuilderService.buildRFQRequest(rfq, buyer, "Sub", null);
-        assertEquals("Spec1", req.getRfqItem().get(0).getRemarks());
-        assertEquals("Remark2", req.getRfqItem().get(1).getRemarks());
+        assertEquals("Spec1", req.getRfqItem().get(0).getBrand());
+        assertEquals("Remark2", req.getRfqItem().get(1).getBrand());
         assertEquals("1", req.getOrg().getId());
         assertEquals("1", req.getUser());
     }
@@ -271,7 +277,7 @@ public class RFQBuilderServiceTest {
         Buyer buyer = Buyer.builder().name("User").email("user@test.com").build();
 
         RFQRequest req = rfqBuilderService.buildRFQRequest(rfq, buyer, "Sub", null);
-        assertEquals("SingleRemark", req.getRfqItem().get(0).getRemarks());
+        assertEquals("SingleRemark", req.getRfqItem().get(0).getBrand());
     }
 
     @Test
