@@ -20,10 +20,10 @@ Analyze the following email content and extract structured RFQ details into a SI
   "category": "String (general email category or null)",
   "items": [
     {
-      "itemDescription": "String (main product/material name ONLY, e.g., 'Network Server' or 'HDPE Water Pipe')",
+      "itemDescription": "String (product/material name INCLUDING any size, dimension or model token that identifies it, e.g., 'Network Server', 'HDPE Water Pipe 110 mm', 'Gear Box Seal 40x52x7'. Never return an empty string)",
       "category": "String (item-specific category if mentioned e.g., 'IT Equipment', 'Plumbing Material', 'Laptop', 'Medical', 'Electrical', or null if missing)",
       "partCode": "String (part number or model/item code if present, e.g., 'CB-800-EP315')",
-      "specification": "String (complete detailed technical specifications comma-separated, e.g. 'Intel Xeon processor, 64GB RAM, 2TB SSD')",
+      "specification": "String (complete detailed technical specifications comma-separated, INCLUDING all sizes and dimensions, e.g. 'Intel Xeon processor, 64GB RAM, 2TB SSD' or '40x52x7 mm'. If the item has no separate specifications, repeat the identifying size/dimension here rather than returning null)",
       "quantity": Number (numeric purchase quantity value e.g. 4, 3000, 5, 7, 20, 50, 100, 500, 1000. If purchase quantity is missing, set to null),
       "uom": "String (Unit of Measure, e.g., 'Units', 'Meters', 'Bags', 'NOS', 'MTR', 'KG', 'PCS', 'Sheets')",
       "brand": "String (preferred brand/make e.g. 'Dell / HP / Lenovo' or 'Supreme / Astral / Finolex', or 'Not Specified' if missing)",
@@ -113,6 +113,25 @@ CRITICAL RULE #6 — ITEM-LEVEL BRAND, SPECIFICATION, LOCATION & DATE ISOLATION
 Extract itemDescription, brand, specification, partCode, quantity, uom, deliveryLocation, and deliveryDate independently for EACH item listed in the "items" array.
 If an email contains multiple items with DIFFERENT delivery locations (e.g. Item 1: Whitefield, Bangalore, Karnataka - 560066, Item 2: Gachibowli, Hyderabad, Telangana - 500032) or DIFFERENT delivery dates (e.g. Item 1: 25-Feb-2028, Item 2: 05-Mar-2028), YOU MUST EXTRACT the specific deliveryLocation and deliveryDate for EACH item independently under that item object!
 Do NOT copy Item 1's brand, specs, quantity, deliveryLocation, or deliveryDate to Item 2.
+
+========================================================
+CRITICAL RULE #6A — NEVER DISCARD SIZES OR DIMENSIONS
+========================================================
+Sizes, dimensions and model tokens identify the product. They are NOT purchase quantities, but they
+MUST NOT be thrown away either. Keep them in "itemDescription" AND repeat them in "specification".
+
+Examples:
+"Gear Box Seal 40x52x7, Qty: 12"
+  → itemDescription = "Gear Box Seal 40x52x7", specification = "40x52x7", quantity = 12
+"Oil Seal 25×47×7 - 50 nos"
+  → itemDescription = "Oil Seal 25x47x7", specification = "25x47x7", quantity = 50
+"HDPE Water Pipe 110 mm PN10, Quantity: 3000 Meters"
+  → itemDescription = "HDPE Water Pipe 110 mm", specification = "110 mm diameter, PN10 pressure rating", quantity = 3000
+"Bearing 6205ZZ, required 24 pieces"
+  → itemDescription = "Bearing 6205ZZ", partCode = "6205ZZ", specification = "6205ZZ", quantity = 24
+
+Write dimension separators as the ASCII letter x (40x52x7), never as the × symbol.
+NEVER return itemDescription as null, an empty string, or a generic placeholder when the email names a product.
 
 ========================================================
 CRITICAL RULE #7 — STRICT LOCATION EXTRACTION & FALLBACK RULES

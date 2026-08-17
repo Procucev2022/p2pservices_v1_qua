@@ -246,6 +246,10 @@ public class RFQBuilderService {
 
                 String partCodeVal = sanitizeText(item.getEffectivePartNumber());
 
+                String cleanItemDesc = item.getItemDescription() != null && !item.getItemDescription().isBlank()
+                        ? sanitizeText(item.getItemDescription())
+                        : primaryDescription;
+
                 String specs;
                 if (isMultipleItems) {
                     if (item.getSpecification() != null && !item.getSpecification().isBlank()) {
@@ -258,24 +262,32 @@ public class RFQBuilderService {
                         specs = sanitizeText(bStr + " " + dStr + " - " + qtyDisplay + " Units");
                     }
                 } else {
-                    specs = item.getSpecification() != null && !item.getSpecification().isBlank()
-                            ? sanitizeText(item.getSpecification())
-                            : (item.getRemarks() != null ? sanitizeText(item.getRemarks()) : primaryDescription);
+                    // The remarks guard must test isBlank(), not just null. A blank-but-present
+                    // remarks value previously produced an empty specification on the item.
+                    if (item.getSpecification() != null && !item.getSpecification().isBlank()) {
+                        specs = sanitizeText(item.getSpecification());
+                    } else if (item.getRemarks() != null && !item.getRemarks().isBlank()) {
+                        specs = sanitizeText(item.getRemarks());
+                    } else {
+                        specs = primaryDescription;
+                    }
+                }
+
+                // Never persist an empty specification: fall back to the item description so the
+                // buyer's own wording (including any size token) is always retained somewhere.
+                if (specs.isBlank()) {
+                    specs = !cleanItemDesc.isBlank() ? cleanItemDesc : primaryDescription;
                 }
 
                 if (specs.length() > 200) {
                     specs = specs.substring(0, 200).replaceAll("[,.-]+$", "").trim();
                 }
 
-                String cleanDesc = item.getItemDescription() != null && !item.getItemDescription().isBlank()
-                        ? sanitizeText(item.getItemDescription())
-                        : primaryDescription;
-
                 rfqItemsList.add(RFQRequest.RfqItemDto.builder()
                         .brand(brandVal)
                         .unitofMeasures(item.getUom() != null && !item.getUom().isBlank() ? sanitizeText(item.getUom()) : "Nos")
                         .quantity(qty)
-                        .description(cleanDesc)
+                        .description(cleanItemDesc)
                         .category(item.getCategory())
                         .createdBy(buyer.getName())
                         .createdTS(nowIso)
@@ -313,9 +325,31 @@ public class RFQBuilderService {
         return request;
     }
 
+    /**
+     * Strips text down to ASCII for downstream storage.
+     *
+     * <p>Common typographic characters are transliterated first. Without this, the blanket
+     * non-ASCII replacement turned a dimension typed as {@code 40×52×7} (U+00D7, which is what
+     * Word, Excel and most mail clients autocorrect {@code x} into) into {@code 40-52-7}, and
+     * curly quotes or dashes in a specification into a run of hyphens.
+     */
     private String sanitizeText(String input) {
         if (input == null) return "";
-        return input.replaceAll("[^\\x00-\\x7F]", "-").replaceAll("\\s+", " ").trim();
+        String transliterated = input
+                .replace('\u00D7', 'x')   // × multiplication sign
+                .replace('\u2715', 'x')   // ✕ multiplication x
+                .replace('\u2716', 'x')   // ✖ heavy multiplication x
+                .replace('\u00A0', ' ')   // non-breaking space
+                .replace('\u2013', '-')   // – en dash
+                .replace('\u2014', '-')   // — em dash
+                .replace('\u2018', '\'')  // ' left single quote
+                .replace('\u2019', '\'')  // ' right single quote
+                .replace('\u201C', '"')   // " left double quote
+                .replace('\u201D', '"')   // " right double quote
+                .replace("\u00B5", "u")   // µ micro
+                .replace("\u2032", "'")   // ′ prime
+                .replace("\u2033", "\""); // ″ double prime
+        return transliterated.replaceAll("[^\\x00-\\x7F]", "-").replaceAll("\\s+", " ").trim();
     }
 
     private String formatQuantity(double quantity) {

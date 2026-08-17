@@ -285,14 +285,25 @@ public class AcknowledgementEmailService {
         return getCase3Body(buyerName, null);
     }
 
+    /** Cap on the number of individual line items named in the reply, to keep it readable. */
+    private static final int MAX_LISTED_ITEMS = 15;
+
     public String getCase3Body(String buyerName, List<String> failedItems) {
         java.util.Set<String> missingBullets = new java.util.LinkedHashSet<>();
+        // Item names whose quantity is missing, so a buyer with a long requirement sheet can see
+        // exactly which rows to correct instead of a bare "Quantity required".
+        java.util.List<String> quantityItems = new java.util.ArrayList<>();
+
         if (failedItems != null && !failedItems.isEmpty()) {
             for (String itemStr : failedItems) {
                 if (itemStr == null) continue;
                 String lower = itemStr.toLowerCase();
                 if (lower.contains("quantity")) {
                     missingBullets.add("Quantity required");
+                    String name = extractItemName(itemStr);
+                    if (name != null && !quantityItems.contains(name)) {
+                        quantityItems.add(name);
+                    }
                 }
                 if (lower.contains("location")) {
                     missingBullets.add("Delivery location");
@@ -309,6 +320,19 @@ public class AcknowledgementEmailService {
             bulletsSb.append("• ").append(bullet).append("\n");
         }
 
+        if (!quantityItems.isEmpty()) {
+            bulletsSb.append("\nQuantity is missing for ")
+                    .append(quantityItems.size())
+                    .append(quantityItems.size() == 1 ? " item:\n" : " items:\n");
+            int shown = Math.min(quantityItems.size(), MAX_LISTED_ITEMS);
+            for (int i = 0; i < shown; i++) {
+                bulletsSb.append("   ").append(i + 1).append(". ").append(quantityItems.get(i)).append("\n");
+            }
+            if (quantityItems.size() > shown) {
+                bulletsSb.append("   ...and ").append(quantityItems.size() - shown).append(" more.\n");
+            }
+        }
+
         return "Hi " + buyerName + ",\n\n"
                 + "We received your requirement, but need a bit more info to match you with the right suppliers fast:\n\n"
                 + bulletsSb.toString() + "\n"
@@ -317,5 +341,23 @@ public class AcknowledgementEmailService {
                 + "✉️ Email: RFQ@procucev.com\n\n"
                 + "The sooner we get these, the sooner your RFQ goes live to suppliers!\n\n"
                 + "Team Procucev";
+    }
+
+    /**
+     * Pulls the item name out of a failure entry formatted as
+     * {@code "Item: <name> | Reason: <reason>"}. Returns null for entries that are not item-scoped.
+     */
+    private String extractItemName(String failedItemEntry) {
+        if (failedItemEntry == null) {
+            return null;
+        }
+        if (!failedItemEntry.startsWith("Item: ")) {
+            return null;
+        }
+        String remainder = failedItemEntry.substring("Item: ".length());
+        int pipeIdx = remainder.indexOf(" | ");
+        String name = pipeIdx >= 0 ? remainder.substring(0, pipeIdx) : remainder;
+        name = name.trim();
+        return name.isEmpty() ? null : name;
     }
 }

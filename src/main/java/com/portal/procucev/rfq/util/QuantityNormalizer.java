@@ -44,7 +44,13 @@ public class QuantityNormalizer {
     }
 
     private static final Pattern EXPLICIT_KEYWORD_PATTERN = Pattern.compile("(?i)(?:required\\s+)?(?:quantity|qty)\\s*[:=]\\s*([a-z0-9,\\-\\s\\.]+)");
-    private static final Pattern DIGIT_UNIT_PATTERN = Pattern.compile("(?i)\\b([0-9,]+(?:\\.[0-9]+)?)\\s+(?:nos|units|pieces|pcs|bags|items|boxes|sets|rolls|laptops|systems|machines)\\b");
+    // Singular forms and common trade units were previously absent, so legitimate quantities such
+    // as "1 Set", "10 Pairs", "2 Dozen" or "24 Packets" normalised to null and the item was
+    // rejected as quantity-less.
+    private static final Pattern DIGIT_UNIT_PATTERN = Pattern.compile("(?i)\\b([0-9,]+(?:\\.[0-9]+)?)\\s*"
+            + "(?:nos?|no\\.|units?|pieces?|pcs?|bags?|items?|boxes|box|sets?|rolls?|pairs?|dozens?|dzn?|"
+            + "packets?|pkts?|pkt|packs?|bundles?|cartons?|ctns?|reams?|sheets?|tubes?|cans?|drums?|"
+            + "coils?|lengths?|laptops?|systems?|machines?|numbers?)\\b");
     private static final Pattern DIRECT_DIGIT_PATTERN = Pattern.compile("^\\s*([0-9,]+(?:\\.[0-9]+)?)\\s*$");
     private static final Pattern SPECIFICATION_INDICATOR_PATTERN = Pattern.compile("(?i)\\b(?:lph|liters?\\s*(?:per|/)\\s*hour|liters?\\s+capacity|capacity|ton|tons|w|watt|watts|hp|gb|tb|mb|ram|ssd|inch|inches|mm|cm|diameter|pn\\d+|bar|psi|v|kv|kva|rpm|hz|star|rating|display|screen|reduction\\s+ratio|per\\s+bag|ratio)\\b");
 

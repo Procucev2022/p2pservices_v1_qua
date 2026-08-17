@@ -220,6 +220,7 @@ public class EmailProcessorService {
             List<RFQItem> validItems = new ArrayList<>();
             List<String> failedItemsList = new ArrayList<>();
             Set<String> seenInEmailKeys = new HashSet<>();
+            boolean hasItemMissingQuantity = false;
             String topDeliveryDate = extractedRFQ.getDeliveryDate() != null ? extractedRFQ.getDeliveryDate().trim() : "";
             String topDeliveryLocation = extractedRFQ.getDeliveryLocation() != null ? extractedRFQ.getDeliveryLocation().trim() : "";
 
@@ -293,11 +294,13 @@ public class EmailProcessorService {
                 }
 
                 log.info("DEBUG Thread Processing: Source Email MsgID={}, ThreadID={}, Latest Reply MsgID={}", email.getMessageId(), email.getInReplyTo(), email.getMessageId());
-                log.info("DEBUG Extracted Data: Item='{}', Raw Quantity={}, Normalized Quantity={}, Raw Location='{}', Raw Date='{}'", desc, item.getQuantity(), item.getQuantity(), item.getDeliveryLocation(), item.getDeliveryDate());
+                log.info("DEBUG Extracted Data: Item='{}', Quantity={}, UOM='{}', Specification='{}', Brand='{}', PartCode='{}', Raw Location='{}', Raw Date='{}'",
+                        desc, item.getQuantity(), item.getUom(), item.getSpecification(), item.getBrand(),
+                        item.getEffectivePartNumber(), item.getDeliveryLocation(), item.getDeliveryDate());
 
                 // Verify if quantity was inferred as 1.0 without explicit purchasing quantity statement in email text
                 if (item.getQuantity() == null || item.getQuantity() == 1.0) {
-                    boolean hasExplicitQuantityInText = hasExplicitPurchaseQuantityInText(email.getSubject(), email.getBody());
+                    boolean hasExplicitQuantityInText = hasExplicitPurchaseQuantityInText(email.getSubject(), email.getBody(), email.getAttachmentText());
                     if (!hasExplicitQuantityInText) {
                         log.warn("No explicit purchase quantity stated in email text for item '{}'. Resetting quantity to null.", desc);
                         item.setQuantity(null);
@@ -305,11 +308,14 @@ public class EmailProcessorService {
                 }
 
                 // MANDATORY QUANTITY VALIDATION PER ITEM
+                // Every offending row is recorded before the payload is rejected. Breaking out on the
+                // first one discarded the already-validated items and told the buyer about a single
+                // line, which is unusable feedback on a requirement sheet with many rows.
                 if (item.getQuantity() == null || item.getQuantity() <= 0) {
-                    log.warn("Item '{}' missing mandatory quantity. Aborting RFQ creation for email payload.", desc);
+                    log.warn("Item '{}' missing mandatory quantity.", desc);
                     failedItemsList.add("Item: " + desc + " | Reason: Quantity is mandatory. Please provide the required quantity.");
-                    validItems.clear();
-                    break;
+                    hasItemMissingQuantity = true;
+                    continue;
                 }
 
                 // Resolve item-level location & date fallbacks with ISO yyyy-MM-dd normalization
@@ -331,7 +337,11 @@ public class EmailProcessorService {
                 validItems.add(item);
             }
 
-            if (!hasLocationInEmail) {
+            if (!hasLocationInEmail || hasItemMissingQuantity) {
+                if (hasItemMissingQuantity) {
+                    log.warn("Rejecting email payload: {} of {} item(s) are missing a mandatory quantity.",
+                            failedItemsList.size(), extractedRFQ.getItems().size());
+                }
                 validItems.clear();
             }
 
@@ -641,8 +651,18 @@ public class EmailProcessorService {
         return null;
     }
 
-    private boolean hasExplicitPurchaseQuantityInText(String subject, String body) {
-        String combined = ((subject != null ? subject : "") + " " + (body != null ? body : "")).toLowerCase();
+    /**
+     * Detects whether the buyer stated a purchase quantity anywhere in the request.
+     *
+     * <p>Attachment text is included deliberately. When it was omitted, an RFQ whose line items
+     * live in a spreadsheet and whose body only says something like "PFA our requirement" had no
+     * quantity keyword in subject or body, so every item was treated as quantity-less and the
+     * whole email was rejected even though the attachment listed quantities for every row.
+     */
+    private boolean hasExplicitPurchaseQuantityInText(String subject, String body, String attachmentText) {
+        String combined = ((subject != null ? subject : "") + " "
+                + (body != null ? body : "") + " "
+                + (attachmentText != null ? attachmentText : "")).toLowerCase();
         
         if (java.util.regex.Pattern.compile("(?i)(?:quantity|qty|required\\s+quantity|required\\s+units|units\\s+required|pieces\\s+required|nos\\s+required|number\\s+of\\s+units)\\s*[:=]?\\s*([a-z0-9,\\-\\s]+)").matcher(combined).find()) {
             return true;
@@ -650,7 +670,7 @@ public class EmailProcessorService {
         if (java.util.regex.Pattern.compile("(?i)\\b(?:we\\s+require|require|we\\s+need|need|please\\s+quote|quote\\s+for|purchase)\\s+(?:\\d+|one|two|three|four|five|six|seven|eight|nine|ten|twenty|fifty|hundred|thousand|lakh|lacs)\\b").matcher(combined).find()) {
             return true;
         }
-        if (java.util.regex.Pattern.compile("(?i)\\b\\d+\\s*(?:units|nos|pieces|pcs|laptops|machines|systems|sets|bags|meters|mtr|kg|boxes|rolls|sheets)\\b").matcher(combined).find()) {
+        if (java.util.regex.Pattern.compile("(?i)\\b\\d+\\s*(?:units?|nos?|pieces?|pcs?|laptops?|machines?|systems?|sets?|bags?|meters?|mtr|kgs?|boxes|box|rolls?|sheets?|pairs?|dozens?|packets?|pkts?|packs?|bundles?|cartons?|reams?|tubes?|cans?|drums?|coils?)\\b").matcher(combined).find()) {
             return true;
         }
         return false;

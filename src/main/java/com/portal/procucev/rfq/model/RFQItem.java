@@ -12,13 +12,31 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class RFQItem {
+
+    // This class is annotated @JsonIgnoreProperties(ignoreUnknown = true), so any key the model
+    // emits under a name we do not recognise is dropped with no error and no log line. The aliases
+    // below cover the plausible name drift for the fields whose loss is not otherwise detectable.
+    @com.fasterxml.jackson.annotation.JsonAlias({"item_description", "itemName", "item_name", "productName", "product_name", "material", "materialDescription"})
     private String itemDescription;
+
+    @com.fasterxml.jackson.annotation.JsonAlias({"part_code", "partcode", "itemCode", "item_code", "materialCode", "material_code"})
     private String partCode;
+
+    @com.fasterxml.jackson.annotation.JsonAlias({"part_number", "partNo", "part_no"})
     private String partNumber;
+
+    @com.fasterxml.jackson.annotation.JsonAlias({"model_number", "modelNo", "model_no", "model"})
     private String modelNumber;
+
+    @com.fasterxml.jackson.annotation.JsonAlias({"specifications", "specs", "spec", "technicalSpecification", "technical_specification", "specificationDetails", "size", "dimensions", "dimension"})
     private String specification;
+
     private Double quantity;
+
+    @com.fasterxml.jackson.annotation.JsonAlias({"unitOfMeasure", "unit_of_measure", "unitofMeasures", "unit"})
     private String uom;
+
+    @com.fasterxml.jackson.annotation.JsonAlias({"make", "manufacturer"})
     private String brand;
     private String remarks;
     private String deliveryLocation;
@@ -30,6 +48,7 @@ public class RFQItem {
     private String classificationStatus;
 
     @com.fasterxml.jackson.annotation.JsonSetter("quantity")
+    @com.fasterxml.jackson.annotation.JsonAlias({"qty", "quantityRequired", "quantity_required", "requiredQuantity", "required_quantity", "orderQuantity", "order_quantity"})
     public void setQuantity(Object rawQty) {
         this.quantity = com.portal.procucev.rfq.util.QuantityNormalizer.normalize(rawQty);
         if ((this.uom == null || this.uom.isBlank()) && rawQty != null) {

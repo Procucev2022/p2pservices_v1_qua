@@ -48,6 +48,9 @@ public class GeminiApiClient {
     @Value("${app.gemini.read-timeout-ms:60000}")
     private int readTimeoutMs = 60000;
 
+    @Value("${app.gemini.max-output-tokens:65536}")
+    private int maxOutputTokens = 65536;
+
     @PostConstruct
     void init() {
         this.restTemplate = restTemplateBuilder
@@ -125,6 +128,9 @@ public class GeminiApiClient {
         generationConfig.put("temperature", 0.1);
         generationConfig.put("responseMimeType", "application/json");
         generationConfig.put("responseSchema", responseSchema);
+        // A requirement sheet with a hundred-plus line items needs far more output budget than the
+        // model default. Without this the response is cut mid-array and the JSON fails to parse.
+        generationConfig.put("maxOutputTokens", maxOutputTokens);
 
         requestBody.put("generationConfig", generationConfig);
 
@@ -139,7 +145,23 @@ public class GeminiApiClient {
             JsonNode rootNode = objectMapper.readTree(response.getBody());
             JsonNode candidates = rootNode.path("candidates");
             if (candidates.isArray() && candidates.size() > 0) {
-                JsonNode partsNode = candidates.get(0).path("content").path("parts");
+                JsonNode candidate = candidates.get(0);
+
+                // finishReason was previously ignored, so a truncated or filtered generation was
+                // handed back as though it were complete. Surfacing it turns a silent partial
+                // extraction into a diagnosable failure.
+                String finishReason = candidate.path("finishReason").asText("");
+                if (!finishReason.isEmpty() && !"STOP".equalsIgnoreCase(finishReason)) {
+                    log.warn("Gemini model {} stopped with finishReason={} (maxOutputTokens={}). The extraction may be incomplete.",
+                            model, finishReason, maxOutputTokens);
+                    if ("MAX_TOKENS".equalsIgnoreCase(finishReason)) {
+                        throw new ApplicationException("Gemini response was truncated (finishReason=MAX_TOKENS). "
+                                + "The request likely exceeded the output budget of " + maxOutputTokens
+                                + " tokens; raise app.gemini.max-output-tokens or split the attachment.");
+                    }
+                }
+
+                JsonNode partsNode = candidate.path("content").path("parts");
                 if (partsNode.isArray() && partsNode.size() > 0) {
                     return partsNode.get(0).path("text").asText();
                 }
