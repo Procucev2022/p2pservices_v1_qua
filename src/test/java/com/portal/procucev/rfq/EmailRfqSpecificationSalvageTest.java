@@ -152,6 +152,122 @@ class EmailRfqSpecificationSalvageTest {
     }
 
     @Test
+    @DisplayName("Missing delivery location falls back to the buyer profile and still creates the RFQ")
+    void missingDeliveryLocationFallsBackToBuyerProfile() {
+        EmailData email = EmailData.builder()
+                .messageId("MSG-NO-LOCATION")
+                .senderEmail("buyer@test.com")
+                .subject("Laptop")
+                .body("We require 10 laptops. Quantity: 10 units.")
+                .build();
+
+        Buyer buyerWithProfileAddress = Buyer.builder()
+                .email("buyer@test.com")
+                .name("Buyer")
+                .verified(true)
+                .address("12 MG Road")
+                .city("Bangalore")
+                .state("Karnataka")
+                .pincode("560001")
+                .build();
+
+        // No location anywhere: no top-level, no item-level, none in the body.
+        ExtractedRFQ aiResult = ExtractedRFQ.builder()
+                .buyerEmail("buyer@test.com")
+                .deliveryLocation(null)
+                .deliveryCity(null)
+                .deliveryState(null)
+                .deliveryPincode(null)
+                .deliveryDate("2026-08-25")
+                .items(List.of(RFQItem.builder()
+                        .itemDescription("Laptop")
+                        .specification("16 GB RAM, 512 GB SSD")
+                        .quantity(10.0)
+                        .uom("Nos")
+                        .build()))
+                .build();
+
+        Mockito.when(buyerVerificationService.verifyAndGetBuyer("buyer@test.com")).thenReturn(buyerWithProfileAddress);
+        Mockito.when(aiExtractionService.extractRFQFromEmail(email)).thenReturn(aiResult);
+        RFQRequest request = RFQRequest.builder().rfqNumber("RFQ-NOLOC").deliveryDate("2026-08-25").build();
+        Mockito.when(rfqBuilderService.buildRFQRequest(any(), any(), any(), any())).thenReturn(request);
+        Mockito.when(rfqApiService.submitRFQ(any()))
+                .thenReturn(RFQResponse.builder().status("SUCCESS").rfqNumber("RFQ-NOLOC").build());
+
+        String outcome = emailProcessorService.processSingleEmail(email);
+
+        assertEquals("RFQ_CREATED", outcome, "a missing delivery location must no longer block RFQ creation");
+
+        ArgumentCaptor<ExtractedRFQ> captor = ArgumentCaptor.forClass(ExtractedRFQ.class);
+        Mockito.verify(rfqBuilderService).buildRFQRequest(captor.capture(), any(), any(), any());
+        ExtractedRFQ built = captor.getValue();
+
+        String location = built.getDeliveryLocation();
+        assertNotNull(location);
+        assertTrue(location.contains("12 MG Road"), "profile address should be used: " + location);
+        assertTrue(location.contains("Bangalore"), "profile city should be used: " + location);
+        assertEquals("Bangalore", built.getDeliveryCity());
+        assertEquals("Karnataka", built.getDeliveryState());
+        assertEquals("560001", built.getDeliveryPincode());
+        assertEquals("12 MG Road, Bangalore, Karnataka, 560001", built.getItems().get(0).getDeliveryLocation());
+    }
+
+    @Test
+    @DisplayName("An email-provided delivery location still wins over the buyer profile")
+    void emailProvidedLocationOverridesBuyerProfile() {
+        EmailData email = EmailData.builder()
+                .messageId("MSG-EMAIL-LOCATION")
+                .senderEmail("buyer@test.com")
+                .subject("Laptop")
+                .body("Quantity: 10 units. Delivery Location: Gachibowli, Hyderabad, Telangana - 500032")
+                .build();
+
+        Buyer buyerWithProfileAddress = Buyer.builder()
+                .email("buyer@test.com")
+                .name("Buyer")
+                .verified(true)
+                .address("12 MG Road")
+                .city("Bangalore")
+                .state("Karnataka")
+                .pincode("560001")
+                .build();
+
+        ExtractedRFQ aiResult = ExtractedRFQ.builder()
+                .buyerEmail("buyer@test.com")
+                .deliveryLocation("Gachibowli, Hyderabad, Telangana - 500032")
+                .deliveryCity("Hyderabad")
+                .deliveryState("Telangana")
+                .deliveryPincode("500032")
+                .deliveryDate("2026-08-25")
+                .items(List.of(RFQItem.builder()
+                        .itemDescription("Laptop")
+                        .specification("16 GB RAM")
+                        .quantity(10.0)
+                        .build()))
+                .build();
+
+        Mockito.when(buyerVerificationService.verifyAndGetBuyer("buyer@test.com")).thenReturn(buyerWithProfileAddress);
+        Mockito.when(aiExtractionService.extractRFQFromEmail(email)).thenReturn(aiResult);
+        RFQRequest request = RFQRequest.builder().rfqNumber("RFQ-LOC").deliveryDate("2026-08-25").build();
+        Mockito.when(rfqBuilderService.buildRFQRequest(any(), any(), any(), any())).thenReturn(request);
+        Mockito.when(rfqApiService.submitRFQ(any()))
+                .thenReturn(RFQResponse.builder().status("SUCCESS").rfqNumber("RFQ-LOC").build());
+
+        assertEquals("RFQ_CREATED", emailProcessorService.processSingleEmail(email));
+
+        ArgumentCaptor<ExtractedRFQ> captor = ArgumentCaptor.forClass(ExtractedRFQ.class);
+        Mockito.verify(rfqBuilderService).buildRFQRequest(captor.capture(), any(), any(), any());
+        ExtractedRFQ built = captor.getValue();
+
+        assertTrue(built.getDeliveryLocation().contains("Gachibowli"), built.getDeliveryLocation());
+        assertEquals("Hyderabad", built.getDeliveryCity());
+        assertEquals("Telangana", built.getDeliveryState());
+        assertEquals("500032", built.getDeliveryPincode());
+        assertFalse(built.getDeliveryLocation().contains("MG Road"), "profile address must not be used");
+        assertFalse(built.getDeliveryLocation().contains("Bangalore"), "profile city must not be used");
+    }
+
+    @Test
     @DisplayName("Non-brand text is discarded when a specification already exists")
     void proseInBrandIsDiscardedWhenSpecificationAlreadyPresent() {
         EmailData email = EmailData.builder()

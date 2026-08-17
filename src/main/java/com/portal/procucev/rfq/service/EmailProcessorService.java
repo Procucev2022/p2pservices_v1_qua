@@ -244,13 +244,16 @@ public class EmailProcessorService {
             }
 
             String defaultLocation = resolveDeliveryLocation(topDeliveryLocation, buyer);
-            log.info("Resolved delivery location: top-level='{}', effective default='{}'", topDeliveryLocation, defaultLocation);
+            log.info("Resolved delivery location: source={}, top-level='{}', effective default='{}'",
+                    topDeliveryLocation.isBlank() ? "BUYER_PROFILE" : "EMAIL", topDeliveryLocation, defaultLocation);
 
-            // MANDATORY DELIVERY LOCATION VALIDATION AT PAYLOAD LEVEL
+            // Delivery location is NOT mandatory. When the buyer states one we use it; when they
+            // do not, the RFQ is still created against their registered profile location, which
+            // resolveDeliveryLocation and RFQBuilderService fall back to. This is recorded only so
+            // the log shows which source supplied the location.
             boolean hasLocationInEmail = hasExplicitLocationInPayload(extractedRFQ, email);
             if (!hasLocationInEmail) {
-                log.warn("Email payload missing mandatory delivery location. Aborting RFQ creation.");
-                failedItemsList.add("Delivery location");
+                log.info("No delivery location stated in the email; falling back to the buyer's registered profile location.");
             }
 
             for (RFQItem item : extractedRFQ.getItems()) {
@@ -365,11 +368,9 @@ public class EmailProcessorService {
                 validItems.add(item);
             }
 
-            if (!hasLocationInEmail || hasItemMissingQuantity) {
-                if (hasItemMissingQuantity) {
-                    log.warn("Rejecting email payload: {} of {} item(s) are missing a mandatory quantity.",
-                            failedItemsList.size(), extractedRFQ.getItems().size());
-                }
+            if (hasItemMissingQuantity) {
+                log.warn("Rejecting email payload: {} of {} item(s) are missing a mandatory quantity.",
+                        failedItemsList.size(), extractedRFQ.getItems().size());
                 validItems.clear();
             }
 

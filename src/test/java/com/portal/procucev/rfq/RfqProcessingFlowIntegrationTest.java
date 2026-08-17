@@ -331,8 +331,8 @@ public class RfqProcessingFlowIntegrationTest {
     }
 
     @Test
-    @DisplayName("Test 9: Missing delivery location -> validation failed + abort RFQ creation")
-    void test9_MissingDeliveryLocationDefault() {
+    @DisplayName("Test 9: Missing delivery location -> RFQ created using the buyer's registered profile location")
+    void test9_MissingDeliveryLocationUsesBuyerProfile() {
         EmailData email = EmailData.builder().messageId("MSG-009").subject("No loc").senderEmail("buyer@procucev.com").body("Laptops").build();
 
         ExtractedRFQ extracted = ExtractedRFQ.builder()
@@ -346,8 +346,16 @@ public class RfqProcessingFlowIntegrationTest {
 
         String result = emailProcessorService.processSingleEmail(email);
 
-        assertEquals("VALIDATION_FAILED", result);
-        verify(rfqRepository, never()).save(any(RFQEntity.class));
+        // Delivery location is optional; the buyer's profile location is used instead of aborting.
+        assertEquals("RFQ_CREATED", result);
+        verify(rfqRepository, times(1)).save(any(RFQEntity.class));
+
+        ArgumentCaptor<ExtractedRFQ> builderCaptor = ArgumentCaptor.forClass(ExtractedRFQ.class);
+        verify(rfqBuilderService).buildRFQRequest(builderCaptor.capture(), any(), any(), any());
+        String resolvedLocation = builderCaptor.getValue().getDeliveryLocation();
+        assertNotNull(resolvedLocation);
+        assertTrue(resolvedLocation.contains("123 Industrial Area"), "expected profile address, got: " + resolvedLocation);
+        assertTrue(resolvedLocation.contains("Bengaluru"), "expected profile city, got: " + resolvedLocation);
     }
 
     @Test

@@ -244,23 +244,33 @@ public class MultiRfqGroupingTest {
     }
 
     @Test
-    @DisplayName("Test 11: Missing location -> aborts RFQ creation and sends Case 3 email")
-    void test11_MissingLocation_AbortsRfqAndSendsCase3Email() {
+    @DisplayName("Test 11: Missing location -> creates the RFQ against the buyer's registered profile location")
+    void test11_MissingLocation_FallsBackToBuyerProfile() {
         EmailData email = EmailData.builder().messageId("M11").senderEmail("buyer@procucev.com").subject("RFQ 11").build();
         RFQItem i1 = RFQItem.builder().itemDescription("Laptop").quantity(10.0).category("IT").deliveryLocation(null).deliveryDate("2026-09-30").build();
         ExtractedRFQ extracted = ExtractedRFQ.builder().buyerEmail("buyer@procucev.com").items(List.of(i1)).build();
 
         when(aiExtractionService.extractRFQFromEmail(email)).thenReturn(extracted);
+        when(rfqBuilderService.buildRFQRequest(any(), any(), any(), any()))
+                .thenReturn(RFQRequest.builder().rfqNumber("RFQ-11").build());
 
         String result = emailProcessorService.processSingleEmail(email);
-        assertEquals("VALIDATION_FAILED", result);
 
-        verify(rfqRepository, never()).save(any());
+        // Delivery location is optional; the buyer's profile location is used instead of aborting.
+        assertEquals("RFQ_CREATED", result);
+        verify(rfqRepository, times(1)).save(any());
+
+        ArgumentCaptor<ExtractedRFQ> builderCaptor = ArgumentCaptor.forClass(ExtractedRFQ.class);
+        verify(rfqBuilderService).buildRFQRequest(builderCaptor.capture(), any(), any(), any());
+        String resolvedLocation = builderCaptor.getValue().getDeliveryLocation();
+        assertNotNull(resolvedLocation);
+        assertTrue(resolvedLocation.contains("100 Tech Park"), "expected profile address, got: " + resolvedLocation);
+        assertTrue(resolvedLocation.contains("Bengaluru"), "expected profile city, got: " + resolvedLocation);
 
         ArgumentCaptor<SimpleMailMessage> mailCaptor = ArgumentCaptor.forClass(SimpleMailMessage.class);
         verify(mailSender).send(mailCaptor.capture());
-        assertEquals("⚡ One Quick Detail Needed to Process Your RFQ", mailCaptor.getValue().getSubject());
-        assertTrue(mailCaptor.getValue().getText().contains("• Delivery location"));
+        assertNotEquals("⚡ One Quick Detail Needed to Process Your RFQ", mailCaptor.getValue().getSubject());
+        assertFalse(mailCaptor.getValue().getText().contains("• Delivery location"));
     }
 
     @Test
