@@ -281,6 +281,44 @@ class EmailRfqExtractionRegressionTest {
     }
 
     @Test
+    void excelDeliveryLocationRowSurvivesFlattening() throws Exception {
+        File xlsx = tempDir.resolve("with-location.xlsx").toFile();
+        try (Workbook wb = new XSSFWorkbook()) {
+            Sheet sheet = wb.createSheet("RFQ");
+            Row meta = sheet.createRow(0);
+            meta.createCell(0).setCellValue("Delivery Location:");
+            meta.createCell(1).setCellValue("Plot 14, Hinjewadi, Pune, Maharashtra - 411057");
+
+            Row header = sheet.createRow(2);
+            header.createCell(0).setCellValue("Item");
+            header.createCell(1).setCellValue("Qty");
+            Row r1 = sheet.createRow(3);
+            r1.createCell(0).setCellValue("Gear Box Seal 40x52x7");
+            r1.createCell(1).setCellValue(12);
+
+            try (FileOutputStream out = new FileOutputStream(xlsx)) {
+                wb.write(out);
+            }
+        }
+
+        String text = FileUtil.extractTextFromFile(xlsx);
+        assertTrue(text.contains("Delivery Location:"), "label must survive: " + text);
+        assertTrue(text.contains("Plot 14, Hinjewadi, Pune, Maharashtra - 411057"),
+                "location value must survive: " + text);
+
+        // The label and its value must land on the same line so a line-tail scan can recover it.
+        String locationLine = null;
+        for (String line : text.split("\\R")) {
+            if (line.contains("Delivery Location")) {
+                locationLine = line;
+            }
+        }
+        assertNotNull(locationLine);
+        assertTrue(locationLine.contains("Hinjewadi"),
+                "value must be on the same line as the label: " + locationLine);
+    }
+
+    @Test
     void unsupportedAttachmentTypeReturnsEmptyWithoutThrowing() throws Exception {
         File odt = tempDir.resolve("spec.odt").toFile();
         java.nio.file.Files.writeString(odt.toPath(), "irrelevant");

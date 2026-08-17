@@ -229,7 +229,22 @@ public class EmailProcessorService {
                     ? topDeliveryDate
                     : java.time.LocalDate.now().plusDays(5).format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd"));
 
+            // Recover a stated delivery location before falling back to the buyer's registered
+            // address. Without this, a location supplied only in an attachment was silently
+            // replaced by the profile address whenever the model returned no top-level value.
+            if (topDeliveryLocation.isBlank() || topDeliveryLocation.equalsIgnoreCase("Not Specified")
+                    || topDeliveryLocation.equalsIgnoreCase("null")
+                    || topDeliveryLocation.equalsIgnoreCase("Registered Profile Address")) {
+                String scannedTopLoc = scanFieldFromEmail(email, "(?i)(?:delivery\\s+location|delivery\\s+address|ship\\s+to|deliver\\s+to|destination)[:\\s=]*([^\\r\\n]+)");
+                if (scannedTopLoc != null && !scannedTopLoc.isBlank()) {
+                    log.info("Top-level delivery location recovered by fallback scan: '{}'", scannedTopLoc);
+                    topDeliveryLocation = scannedTopLoc;
+                    extractedRFQ.setDeliveryLocation(scannedTopLoc);
+                }
+            }
+
             String defaultLocation = resolveDeliveryLocation(topDeliveryLocation, buyer);
+            log.info("Resolved delivery location: top-level='{}', effective default='{}'", topDeliveryLocation, defaultLocation);
 
             // MANDATORY DELIVERY LOCATION VALIDATION AT PAYLOAD LEVEL
             boolean hasLocationInEmail = hasExplicitLocationInPayload(extractedRFQ, email);
@@ -246,7 +261,7 @@ public class EmailProcessorService {
                         ? item.getItemDescription().trim() : extractProductFromSubject(email.getSubject());
 
                 if (desc.isBlank() || desc.equalsIgnoreCase("RFQ Procurement Item")) {
-                    String scannedProduct = extractFieldByPattern(email.getBody(), "(?i)(?:product|item|material|description)[:\\s=]*([^\\r\\n]+)");
+                    String scannedProduct = scanFieldFromEmail(email, "(?i)(?:product|item|material|description)[:\\s=]*([^\\r\\n]+)");
                     if (scannedProduct != null && !scannedProduct.isBlank()) {
                         desc = scannedProduct.trim();
                     } else {
@@ -260,7 +275,7 @@ public class EmailProcessorService {
                 // Fallback scan for specifications if missing (only for single item or item-specific text)
                 if (item.getSpecification() == null || item.getSpecification().isBlank() || item.getSpecification().equalsIgnoreCase("Not Specified")) {
                     if (!isMultiItemPayload) {
-                        String scannedSpec = extractFieldByPattern(email.getBody(), "(?i)(?:specifications|specs|specification)[:\\s=]*([^\\r\\n]+)");
+                        String scannedSpec = scanFieldFromEmail(email, "(?i)(?:specifications|specs|specification)[:\\s=]*([^\\r\\n]+)");
                         if (scannedSpec != null && !scannedSpec.isBlank()) {
                             item.setSpecification(scannedSpec.trim());
                         }
@@ -270,7 +285,7 @@ public class EmailProcessorService {
                 // Fallback scan for brand if missing (only for single item or item-specific text)
                 if (item.getBrand() == null || item.getBrand().isBlank() || item.getBrand().equalsIgnoreCase("Not Specified")) {
                     if (!isMultiItemPayload) {
-                        String scannedBrand = extractFieldByPattern(email.getBody(), "(?i)(?:brand|make)[:\\s=]*([^\\r\\n]+)");
+                        String scannedBrand = scanFieldFromEmail(email, "(?i)(?:brand|make)[:\\s=]*([^\\r\\n]+)");
                         if (scannedBrand != null && !scannedBrand.isBlank()) {
                             item.setBrand(scannedBrand.trim());
                         }
@@ -278,16 +293,19 @@ public class EmailProcessorService {
                 }
 
                 // Fallback scan for delivery location if missing
-                if (item.getDeliveryLocation() == null || item.getDeliveryLocation().isBlank() || item.getDeliveryLocation().equalsIgnoreCase("Not Specified")) {
-                    String scannedLoc = extractFieldByPattern(email.getBody(), "(?i)(?:delivery\\s+location|delivery|location|plant|address)[:\\s=]*([^\\r\\n]+)");
+                if (item.getDeliveryLocation() == null || item.getDeliveryLocation().isBlank()
+                        || item.getDeliveryLocation().equalsIgnoreCase("Not Specified")
+                        || item.getDeliveryLocation().equalsIgnoreCase("null")) {
+                    String scannedLoc = scanFieldFromEmail(email, "(?i)(?:delivery\\s+location|delivery\\s+address|ship\\s+to|deliver\\s+to|location|plant|warehouse|address)[:\\s=]*([^\\r\\n]+)");
                     if (scannedLoc != null && !scannedLoc.isBlank()) {
-                        item.setDeliveryLocation(scannedLoc.trim());
+                        log.info("Delivery location recovered by fallback scan for item '{}': '{}'", desc, scannedLoc);
+                        item.setDeliveryLocation(scannedLoc);
                     }
                 }
 
                 // Fallback scan for delivery date if missing
                 if (item.getDeliveryDate() == null || item.getDeliveryDate().isBlank() || item.getDeliveryDate().equalsIgnoreCase("Not Specified")) {
-                    String scannedDate = extractFieldByPattern(email.getBody(), "(?i)(?:required\\s+delivery\\s+date|delivery\\s+date|deliverydate|date)[:\\s=]*([^\\r\\n]+)");
+                    String scannedDate = scanFieldFromEmail(email, "(?i)(?:required\\s+delivery\\s+date|delivery\\s+date|deliverydate|date)[:\\s=]*([^\\r\\n]+)");
                     if (scannedDate != null && !scannedDate.isBlank()) {
                         item.setDeliveryDate(scannedDate.trim());
                     }
@@ -652,6 +670,44 @@ public class EmailProcessorService {
     }
 
     /**
+     * Regex safety net for a labelled field, searching the body first and then the attachment text.
+     *
+     * <p>These scans previously read only {@code email.getBody()}. For a requirement supplied as a
+     * spreadsheet the body is often just a covering note, so a "Delivery Location" stated inside
+     * the attachment could not be recovered when the model failed to pick it up.
+     */
+    private String scanFieldFromEmail(EmailData email, String regex) {
+        if (email == null) {
+            return null;
+        }
+        String fromBody = cleanScannedValue(extractFieldByPattern(email.getBody(), regex));
+        if (fromBody != null && !fromBody.isBlank()) {
+            return fromBody;
+        }
+        return cleanScannedValue(extractFieldByPattern(email.getAttachmentText(), regex));
+    }
+
+    /**
+     * Trims delimiter noise off a scanned value. Flattened spreadsheet rows are pipe-delimited and
+     * the HTML-to-text conversion also emits pipes for tag boundaries, so a line-tail capture can
+     * pick up neighbouring cells.
+     */
+    private String cleanScannedValue(String raw) {
+        if (raw == null) {
+            return null;
+        }
+        String value = raw.trim();
+        // Keep only the first populated field after the label.
+        for (String segment : value.split("\\|")) {
+            String candidate = segment.replaceAll("\\s+", " ").trim();
+            if (!candidate.isEmpty()) {
+                return candidate;
+            }
+        }
+        return null;
+    }
+
+    /**
      * Detects whether the buyer stated a purchase quantity anywhere in the request.
      *
      * <p>Attachment text is included deliberately. When it was omitted, an RFQ whose line items
@@ -777,7 +833,11 @@ public class EmailProcessorService {
             }
         }
         
-        String combined = ((email != null && email.getSubject() != null ? email.getSubject() : "") + " " + (email != null && email.getBody() != null ? email.getBody() : "")).toLowerCase();
+        // Attachment text is included: a delivery location stated only inside a spreadsheet is
+        // still an explicitly stated location, and excluding it rejected valid requirements.
+        String combined = ((email != null && email.getSubject() != null ? email.getSubject() : "") + " "
+                + (email != null && email.getBody() != null ? email.getBody() : "") + " "
+                + (email != null && email.getAttachmentText() != null ? email.getAttachmentText() : "")).toLowerCase();
         if (java.util.regex.Pattern.compile("(?i)(?:delivery\\s+location|delivery\\s+address|location|plant|warehouse|address|ship\\s+to|deliver\\s+to|destination|pincode|zipcode)\\s*[:=]?\\s*([a-z0-9,\\-\\s]+)").matcher(combined).find()) {
             return true;
         }

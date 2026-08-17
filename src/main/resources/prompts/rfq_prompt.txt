@@ -8,6 +8,22 @@ DO NOT INFER A PURCHASE QUANTITY FROM PRODUCT SPECIFICATIONS.
 DO NOT DEFAULT QUANTITY TO 1.
 DO NOT USE A NUMBER FROM THE SPECIFICATIONS AS THE PURCHASE QUANTITY.
 
+========================================================
+SCOPE — WHAT COUNTS AS "THE EMAIL"
+========================================================
+The request is supplied to you in THREE sections at the end of this prompt: EMAIL SUBJECT,
+EMAIL BODY and EMAIL ATTACHMENT TEXT. Together they are "the email".
+
+Treat all three as equally authoritative. EVERY field below - including deliveryLocation,
+deliveryCity, deliveryState, deliveryPincode and deliveryDate - must be extracted from whichever
+section states it. A detail that appears ONLY in the attachment is still explicitly stated by the
+buyer and MUST be extracted. Requirements are frequently sent as a spreadsheet whose body is only
+a short covering note such as "PFA our requirement".
+
+Attachment text may be a flattened spreadsheet where cells are separated by " | " and each row is
+one line. A label such as "Delivery Location" may sit in one cell with its value in the next cell
+on the same line, or as a column header with the value in the rows beneath it. Read both layouts.
+
 Analyze the following email content and extract structured RFQ details into a SINGLE JSON object with EXACTLY this structure:
 
 {
@@ -140,17 +156,27 @@ NEVER return itemDescription as null, an empty string, or a generic placeholder 
 ========================================================
 CRITICAL RULE #7 — STRICT LOCATION EXTRACTION & FALLBACK RULES
 ========================================================
-1. Extract ONLY location information explicitly mentioned or reliably determined from the email text.
+1. Extract ONLY location information explicitly mentioned or reliably determined from the email -
+   that means the SUBJECT, the BODY **or the ATTACHMENT TEXT**. Search all three before concluding
+   that a location is missing.
 2. Extract these fields separately:
-   - deliveryCity (city name ONLY if mentioned in email e.g. 'Whitefield' or 'Bangalore', or null if missing)
-   - deliveryState (state name ONLY if mentioned in email e.g. 'Karnataka', or null if missing)
-   - deliveryPincode (6-digit Indian pincode ONLY if mentioned in email e.g. '560066', or null if missing)
-   - deliveryLocation (full delivery location text as mentioned in email, or null if missing)
-3. If only one field is present in email (e.g. "Delivery Location: Whitefield"), extract ONLY that field ("deliveryCity": "Whitefield", "deliveryState": null, "deliveryPincode": null).
+   - deliveryCity (city name ONLY if stated e.g. 'Whitefield' or 'Bangalore', or null if missing)
+   - deliveryState (state name ONLY if stated e.g. 'Karnataka', or null if missing)
+   - deliveryPincode (6-digit Indian pincode ONLY if stated e.g. '560066', or null if missing)
+   - deliveryLocation (full delivery location text as stated, or null if missing)
+3. If only one field is present (e.g. "Delivery Location: Whitefield"), extract ONLY that field ("deliveryCity": "Whitefield", "deliveryState": null, "deliveryPincode": null).
 4. Do NOT guess, infer, or hallucinate missing location fields.
 5. Do NOT use external knowledge to infer a state or pincode from a city name.
-6. Do NOT fill missing fields using any buyer default location when ANY email location field is present.
-7. If a location field is not available in the email, return null.
+6. Do NOT fill missing fields using any buyer default location when ANY stated location field is present.
+7. If a location field is genuinely absent from the subject, the body AND the attachment text, return null.
+8. A delivery location found in an attachment MUST be returned in the top-level "deliveryLocation"
+   field (and its city/state/pincode parts) so it applies to every item, unless the attachment
+   states a DIFFERENT location per row - in which case set it on each item instead.
+
+Examples of attachment layouts that DO state a delivery location:
+  "Delivery Location: | Plot 14, Hinjewadi, Pune, Maharashtra - 411057"
+  "Ship To | Unit 2 Warehouse, Whitefield, Bangalore 560066"
+  a column headed "Delivery Location" with "Gachibowli, Hyderabad" in the rows below it
 
 Convert deliveryDate to YYYY-MM-DD ISO format (e.g., '2028-02-25', '2028-03-05').
 
