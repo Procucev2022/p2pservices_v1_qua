@@ -217,6 +217,10 @@ public class CategoryClassificationService {
             java.util.Map.entry("medical equipment", "Medical Equipment"),
             java.util.Map.entry("healthcare", "Medical Equipment"),
             java.util.Map.entry("patient monitor", "Medical Equipment"),
+            java.util.Map.entry("ventilator", "Medical Equipment"),
+            java.util.Map.entry("patient ventilator", "Medical Equipment"),
+            java.util.Map.entry("icu patient ventilator", "Medical Equipment"),
+            java.util.Map.entry("icu ventilator", "Medical Equipment"),
 
             // Construction
             java.util.Map.entry("cement", "Construction"),

@@ -276,16 +276,16 @@ public class EmailProcessorService {
                     }
                 }
 
-                // Fallback scan for delivery location if missing
-                if (item.getDeliveryLocation() == null || item.getDeliveryLocation().isBlank() || item.getDeliveryLocation().equalsIgnoreCase("Not Specified")) {
+                // Fallback scan for delivery location if missing (only for single item payloads to prevent cross-item location pollution)
+                if ((item.getDeliveryLocation() == null || item.getDeliveryLocation().isBlank() || item.getDeliveryLocation().equalsIgnoreCase("Not Specified")) && !isMultiItemPayload) {
                     String scannedLoc = extractFieldByPattern(email.getBody(), "(?i)(?:delivery\\s+location|delivery|location|plant|address)[:\\s=]*([^\\r\\n]+)");
                     if (scannedLoc != null && !scannedLoc.isBlank()) {
                         item.setDeliveryLocation(scannedLoc.trim());
                     }
                 }
 
-                // Fallback scan for delivery date if missing
-                if (item.getDeliveryDate() == null || item.getDeliveryDate().isBlank() || item.getDeliveryDate().equalsIgnoreCase("Not Specified")) {
+                // Fallback scan for delivery date if missing (only for single item payloads to prevent cross-item date pollution)
+                if ((item.getDeliveryDate() == null || item.getDeliveryDate().isBlank() || item.getDeliveryDate().equalsIgnoreCase("Not Specified")) && !isMultiItemPayload) {
                     String scannedDate = extractFieldByPattern(email.getBody(), "(?i)(?:required\\s+delivery\\s+date|delivery\\s+date|deliverydate|date)[:\\s=]*([^\\r\\n]+)");
                     if (scannedDate != null && !scannedDate.isBlank()) {
                         item.setDeliveryDate(scannedDate.trim());
@@ -503,6 +503,7 @@ public class EmailProcessorService {
     private Map<String, List<RFQItem>> groupItemsByCategoryLocationAndDate(List<RFQItem> items, String defaultLoc, String defaultDate) {
         Map<String, List<RFQItem>> groups = new LinkedHashMap<>();
         for (RFQItem item : items) {
+            String cat = item.getCategory() != null ? item.getCategory().trim() : "";
             String loc = item.getDeliveryLocation() != null && !item.getDeliveryLocation().isBlank()
                     ? item.getDeliveryLocation().trim() : defaultLoc;
             String rawDate = item.getDeliveryDate() != null && !item.getDeliveryDate().isBlank()
@@ -510,7 +511,7 @@ public class EmailProcessorService {
             String date = dateParser.parseDateString(rawDate);
             item.setDeliveryDate(date);
 
-            String groupKey = loc.toLowerCase() + "|" + date.toLowerCase();
+            String groupKey = cat.toLowerCase() + "|" + loc.toLowerCase() + "|" + date.toLowerCase();
             groups.computeIfAbsent(groupKey, k -> new ArrayList<>()).add(item);
         }
         return groups;
@@ -657,9 +658,9 @@ public class EmailProcessorService {
     }
 
     private String[] parseCityStatePincodeFromLocation(String locationStr, String defaultCity, String defaultState, String defaultPincode, Buyer buyer) {
-        String city = defaultCity != null ? defaultCity : "";
-        String state = defaultState != null ? defaultState : "";
-        String pincode = defaultPincode != null ? defaultPincode : "";
+        String city = "";
+        String state = "";
+        String pincode = "";
 
         if (locationStr != null && !locationStr.isBlank() && !locationStr.equalsIgnoreCase("Not Specified") && !locationStr.equalsIgnoreCase("Registered Profile Address")) {
             String cleanLoc = locationStr.replaceAll("[^\\x00-\\x7F]", " ");
@@ -710,6 +711,10 @@ public class EmailProcessorService {
                 else if (lower.contains("rajasthan")) state = "Rajasthan";
             }
         }
+
+        if (city.isBlank() && defaultCity != null && !defaultCity.isBlank()) city = defaultCity;
+        if (state.isBlank() && defaultState != null && !defaultState.isBlank()) state = defaultState;
+        if (pincode.isBlank() && defaultPincode != null && !defaultPincode.isBlank()) pincode = defaultPincode;
 
         if (buyer != null) {
             if (city.isBlank() && buyer.getCity() != null && !buyer.getCity().isBlank()) {
