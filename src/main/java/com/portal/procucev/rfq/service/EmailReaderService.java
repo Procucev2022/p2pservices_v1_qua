@@ -73,6 +73,8 @@ public class EmailReaderService {
             props.put("mail.imaps.host", mailHost);
             props.put("mail.imaps.port", String.valueOf(mailPort));
             props.put("mail.imaps.ssl.enable", "true");
+            props.put("mail.imaps.ssl.trust", "*");
+            props.put("mail.imaps.ssl.protocols", "TLSv1.2 TLSv1.3");
             // Bounded waits: an unreachable mail host must not pin a scheduler thread indefinitely.
             props.put("mail.imaps.connectiontimeout", "15000");
             props.put("mail.imaps.timeout", "30000");
@@ -148,6 +150,8 @@ public class EmailReaderService {
             props.put("mail.imaps.host", mailHost);
             props.put("mail.imaps.port", String.valueOf(mailPort));
             props.put("mail.imaps.ssl.enable", "true");
+            props.put("mail.imaps.ssl.trust", "*");
+            props.put("mail.imaps.ssl.protocols", "TLSv1.2 TLSv1.3");
             props.put("mail.imaps.connectiontimeout", "15000");
             props.put("mail.imaps.timeout", "30000");
             props.put("mail.imaps.writetimeout", "30000");
