@@ -1282,6 +1282,14 @@ public class MailUtility {
 		props.put("mail.smtp.auth", "true");
 		props.put("mail.smtp.starttls.enable", "true");
 		props.put("mail.debug", "false");
+		// This sender is built by hand, so it does not inherit the
+		// spring.mail.properties.mail.smtp.* timeouts that the auto-configured bean gets.
+		// Without them jakarta.mail waits indefinitely, and callers such as the GMT quotation
+		// forwarder run on a scheduler thread: one unreachable SMTP host would pin that thread
+		// and stall the other cron jobs sharing the pool.
+		props.put("mail.smtp.connectiontimeout", "15000");
+		props.put("mail.smtp.timeout", "30000");
+		props.put("mail.smtp.writetimeout", "30000");
 
 		return mailSender;
 	}
@@ -1460,7 +1468,9 @@ public class MailUtility {
 	    try {
 	        LOGGER.info("Forwarding message to {}", forwardAddress);
 
-	        // Use provided JavaMailSender so we don't rebuild SMTP config every time
+	        // Deliberately not the injected javaMailSender: that bean authenticates as
+	        // spring.mail.username, while this forward has to be sent from the GMT mailbox
+	        // (mailFrom) so the From header matches the authenticated account.
 	        JavaMailSender sender = getJavaMailSender(mailFrom, emailPassword);
 
             MimeMessage forward = sender.createMimeMessage();
