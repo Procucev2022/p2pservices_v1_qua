@@ -19,6 +19,7 @@ import jakarta.persistence.OrderBy;
 import jakarta.persistence.Table;
 import jakarta.persistence.Transient;
 import lombok.Data;
+import lombok.ToString;
 
 /**
  * The persistent class for the rfq database table.
@@ -117,6 +118,7 @@ public class Rfq extends Procucev {
 
 	@Basic(fetch = FetchType.LAZY)
 	@Lob
+	@ToString.Exclude
 	private byte[] boqfile;
 	
 	@Transient

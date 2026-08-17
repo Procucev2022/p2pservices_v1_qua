@@ -299,7 +299,9 @@ public class GMTServiceImpl implements GMTService {
 
 	@Override
 	public boolean createRFQForNoPrByClient(Rfq rfq) throws Exception {
-		logger.info("Request received for RFQ creation with No PR by client {}", rfq);
+		logger.info("Request received for RFQ creation with No PR by client: rfqId={}, projectDesc='{}', category='{}', itemCount={}",
+				rfq.getRfqId(), rfq.getProjectDesc(), rfq.getCategory(),
+				rfq.getRfqItem() != null ? rfq.getRfqItem().size() : 0);
 
 		try {
 			MasterStatus resultStatus = masterStatusDao.findByStatus(StatusConstants.pcprinprogress);
@@ -2614,7 +2616,9 @@ public class GMTServiceImpl implements GMTService {
 
 	@Override
 	public Map<String, Object> createRFQByClient(Rfq rfq) throws Exception {
-		logger.info("Request received for RFQ creation with No PR by client {}", rfq);
+		logger.info("Request received for RFQ creation by client: rfqId={}, projectDesc='{}', category='{}', itemCount={}",
+				rfq.getRfqId(), rfq.getProjectDesc(), rfq.getCategory(),
+				rfq.getRfqItem() != null ? rfq.getRfqItem().size() : 0);
 
 		Map<String, Object> result = new HashMap<>();
 

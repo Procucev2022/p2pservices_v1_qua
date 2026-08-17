@@ -9,6 +9,8 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
+import lombok.ToString;
 
 @Data
 @Entity
@@ -24,9 +26,15 @@ public class OrgBranches extends Procucev{/**
     private String contactPerson;
     private String email;
     private String address;
+    /**
+     * Owning side back-reference. Excluded from toString/equals/hashCode to avoid
+     * infinite recursion with {@link Organization#getBranches()}.
+     */
     @JsonBackReference
     @ManyToOne
     @JoinColumn(name = "organization_id")
+    @ToString.Exclude
+    @EqualsAndHashCode.Exclude
     private Organization organization;
 
 }

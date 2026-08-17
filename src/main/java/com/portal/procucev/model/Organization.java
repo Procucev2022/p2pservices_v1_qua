@@ -17,6 +17,7 @@ import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
 import jakarta.persistence.Transient;
 import lombok.Data;
+import lombok.ToString;
 
 /**
  * The persistent class for the organization database table.
@@ -35,6 +36,7 @@ public class Organization extends Procucev {
 	@Transient
 	@Basic(fetch = FetchType.LAZY)
 	@Lob
+	@ToString.Exclude
 	private byte[] boqfile;
 
 	@Transient
@@ -123,6 +125,7 @@ public class Organization extends Procucev {
 
 	@Basic(fetch = FetchType.LAZY)
 	@Lob
+	@ToString.Exclude
 	private byte[] files;
 
 	@Column(name = "accepted_terms")

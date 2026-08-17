@@ -50,7 +50,9 @@ OrgDao orgDao;
 	@Override
 	public boolean raiseRfq(Rfq rfq) {
 		
-		logger.info("Request received for RFQ creation with No PR by client {}", rfq);
+		logger.info("Request received for RFQ creation with No PR by client: rfqId={}, projectDesc='{}', category='{}', itemCount={}",
+				rfq.getRfqId(), rfq.getProjectDesc(), rfq.getCategory(),
+				rfq.getRfqItem() != null ? rfq.getRfqItem().size() : 0);
 
 		try {
 			MasterStatus resultStatus = masterStatusDao.findByStatus(StatusConstants.pcprinprogress);

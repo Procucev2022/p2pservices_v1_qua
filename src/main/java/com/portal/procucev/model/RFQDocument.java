@@ -8,6 +8,7 @@ import jakarta.persistence.Lob;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import lombok.Data;
+import lombok.ToString;
 import lombok.NoArgsConstructor;
 
 import com.fasterxml.jackson.annotation.JsonBackReference;
@@ -23,18 +24,25 @@ public class RFQDocument extends Procucev {
 	 */
 	private static final long serialVersionUID = 1L;
 
+	/**
+	 * Owning side back-reference. Excluded from toString to avoid infinite
+	 * recursion with {@link Rfq#getRfqDocument()}.
+	 */
 	@ManyToOne
 	@JsonBackReference(value = "rfq_rfqDocuments")
+	@ToString.Exclude
 	private Rfq rfq;
 
 	@Lob
 	@Column(name = "file_details", columnDefinition = "BLOB")
+	@ToString.Exclude
 	private byte[] fileDetails;
 
 	private String fileName;
 
 	@Basic(fetch = FetchType.LAZY)
 	@Lob
+	@ToString.Exclude
 	private byte[] file;
 
 	private Integer version;

@@ -8,6 +8,8 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
+import lombok.ToString;
 
 @Data
 @Entity
@@ -19,9 +21,15 @@ public class OrgDivisionCategory extends Procucev{/**
 	private String division;   // e.g., "Electronics Division"
     private String category;   // e.g., "Mobile Phones"
 
+    /**
+     * Owning side back-reference. Excluded from toString/equals/hashCode to avoid
+     * infinite recursion with {@link Organization#getDivisionCategories()}.
+     */
     @JsonBackReference(value = "org-division-org")
     @ManyToOne
     @JoinColumn(name = "organization_id")
+    @ToString.Exclude
+    @EqualsAndHashCode.Exclude
     private Organization organization;
    
     @Column(name = "user_id")

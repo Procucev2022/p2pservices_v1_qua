@@ -8,7 +8,9 @@ import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OrderBy;
 import jakarta.persistence.Table;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
+import lombok.ToString;
 
 /**
  * The persistent class for the rfq_items database table.
@@ -21,8 +23,14 @@ import lombok.NoArgsConstructor;
 public class RfqItem extends Procucev {
 	private static final long serialVersionUID = 1L;
 
+	/**
+	 * Owning side back-reference. Excluded from toString/equals/hashCode to avoid
+	 * infinite recursion with {@link Rfq#getRfqItem()}.
+	 */
 	@ManyToOne
 	@JsonBackReference(value = "rfq")
+	@ToString.Exclude
+	@EqualsAndHashCode.Exclude
 	private Rfq rfq;
 	private String category;
 	private String division;

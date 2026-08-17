@@ -13,7 +13,9 @@ import jakarta.persistence.Transient;
 import com.fasterxml.jackson.annotation.JsonBackReference;
 
 import lombok.Data;
+import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
+import lombok.ToString;
 
 /**
  * The persistent class for the rfq_vendors database table.
@@ -35,7 +37,13 @@ public class RfqVendor extends Procucev {
 	@Column(name="quotation_received")
 	private boolean quotationReceived;
 
+	/**
+	 * Owning side back-reference. Excluded from toString/equals/hashCode to avoid
+	 * infinite recursion with {@link Rfq#getRfqVendor()}.
+	 */
 	@ManyToOne
+	@ToString.Exclude
+	@EqualsAndHashCode.Exclude
 	private Rfq rfq;
 	
 	@Transient

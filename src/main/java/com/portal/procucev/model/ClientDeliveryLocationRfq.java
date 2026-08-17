@@ -4,7 +4,9 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
+import lombok.ToString;
 
 import com.fasterxml.jackson.annotation.JsonBackReference;
 
@@ -23,7 +25,13 @@ public class ClientDeliveryLocationRfq extends Procucev {
 	
 	private String pincode;
 
+	/**
+	 * Owning side back-reference. Excluded from toString/equals/hashCode to avoid
+	 * infinite recursion with {@link Rfq#getClientdeliverylocationrfq()}.
+	 */
 	@ManyToOne
 	@JsonBackReference
+	@ToString.Exclude
+	@EqualsAndHashCode.Exclude
 	private Rfq rfq;
 }
