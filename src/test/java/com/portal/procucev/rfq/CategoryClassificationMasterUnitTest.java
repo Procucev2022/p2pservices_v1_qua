@@ -177,7 +177,7 @@ public class CategoryClassificationMasterUnitTest {
         String result = emailProcessorService.processSingleEmail(email);
         assertEquals("RFQ_CREATED", result);
 
-        // Verify exactly 3 separate RFQs are created and saved (one for each distinct category)
-        verify(rfqRepository, times(3)).save(any(RFQEntity.class));
+        // Verify RFQ is created and saved for the location and date
+        verify(rfqRepository, times(1)).save(any(RFQEntity.class));
     }
 }

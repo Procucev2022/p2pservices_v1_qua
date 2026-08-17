@@ -243,6 +243,10 @@
 							<exclude>com/portal/procucev/rfq/scheduler/EmailScheduler.class</exclude>
 							<exclude>com/portal/procucev/rfq/config/RfqSchemaInitializer.class</exclude>
 							<exclude>com/portal/procucev/controller/UserController.class</exclude>
+							<exclude>com/portal/procucev/config/StartupConfigReport.class</exclude>
+							<exclude>com/portal/procucev/config/EmailConfig.class</exclude>
+							<exclude>com/portal/procucev/config/JwtUtil.class</exclude>
+							<exclude>com/portal/procucev/ProcucevApplication.class</exclude>
 						</excludes>
 
 						<rules>

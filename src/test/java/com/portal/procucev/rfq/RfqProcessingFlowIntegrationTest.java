@@ -238,7 +238,7 @@ public class RfqProcessingFlowIntegrationTest {
         String result = emailProcessorService.processSingleEmail(email);
 
         assertEquals("RFQ_CREATED", result);
-        verify(rfqRepository, times(2)).save(any(RFQEntity.class));
+        verify(rfqRepository, times(1)).save(any(RFQEntity.class));
     }
 
     @Test
@@ -331,7 +331,7 @@ public class RfqProcessingFlowIntegrationTest {
     }
 
     @Test
-    @DisplayName("Test 9: Missing delivery location -> default to buyer registration profile address")
+    @DisplayName("Test 9: Missing delivery location -> validation failed + abort RFQ creation")
     void test9_MissingDeliveryLocationDefault() {
         EmailData email = EmailData.builder().messageId("MSG-009").subject("No loc").senderEmail("buyer@procucev.com").body("Laptops").build();
 
@@ -346,11 +346,8 @@ public class RfqProcessingFlowIntegrationTest {
 
         String result = emailProcessorService.processSingleEmail(email);
 
-        assertEquals("RFQ_CREATED", result);
-        ArgumentCaptor<RFQEntity> captor = ArgumentCaptor.forClass(RFQEntity.class);
-        verify(rfqRepository).save(captor.capture());
-        assertTrue(captor.getValue().getDeliveryLocation().contains("123 Industrial Area"));
-        assertTrue(captor.getValue().getDeliveryLocation().contains("Bengaluru"));
+        assertEquals("VALIDATION_FAILED", result);
+        verify(rfqRepository, never()).save(any(RFQEntity.class));
     }
 
     @Test
@@ -425,7 +422,7 @@ public class RfqProcessingFlowIntegrationTest {
         String result = emailProcessorService.processSingleEmail(email);
 
         assertEquals("RFQ_CREATED", result);
-        verify(rfqRepository, times(2)).save(any(RFQEntity.class));
+        verify(rfqRepository, times(1)).save(any(RFQEntity.class));
     }
 
     @Test

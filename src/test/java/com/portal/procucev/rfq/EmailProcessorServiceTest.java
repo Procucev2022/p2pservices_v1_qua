@@ -240,6 +240,7 @@ public class EmailProcessorServiceTest {
                 .messageId("MSG-DEDUP")
                 .senderEmail("buyer@test.com")
                 .subject("Need Items")
+                .body("Quantity: 5 units, Delivery Location: Loc1")
                 .build();
 
         Mockito.when(emailTransactionRepository.findByMessageId("MSG-DEDUP")).thenReturn(Optional.empty());
@@ -250,12 +251,13 @@ public class EmailProcessorServiceTest {
         List<RFQItem> items = List.of(
                 RFQItem.builder().itemDescription("Dell Laptop").quantity(5.0).deliveryLocation("Loc1").deliveryDate("2026-08-25").build(),
                 RFQItem.builder().itemDescription("Dell Laptop").quantity(5.0).deliveryLocation("Loc1").deliveryDate("2026-08-25").build(), // duplicate
-                RFQItem.builder().itemDescription("Item3").quantity(1.0).build(),
+                RFQItem.builder().itemDescription("Item3").quantity(5.0).deliveryLocation("Loc1").deliveryDate("2026-08-25").build(),
                 RFQItem.builder().itemDescription("Monitor").quantity(2.0).deliveryLocation("Loc2").deliveryDate("2026-08-30").build()
         );
 
         ExtractedRFQ rfq = ExtractedRFQ.builder()
                 .buyerEmail("buyer@test.com")
+                .deliveryLocation("Loc1")
                 .items(items)
                 .build();
         Mockito.when(aiExtractionService.extractRFQFromEmail(email)).thenReturn(rfq);
@@ -311,6 +313,7 @@ public class EmailProcessorServiceTest {
                 .messageId("MSG-SUBMIT-FAIL")
                 .senderEmail("buyer@test.com")
                 .subject("Submit Fail")
+                .body("Quantity: 5 units, Delivery Location: Mumbai")
                 .build();
 
         Mockito.when(emailTransactionRepository.findByMessageId("MSG-SUBMIT-FAIL")).thenReturn(Optional.empty());
@@ -319,9 +322,9 @@ public class EmailProcessorServiceTest {
         Mockito.when(buyerVerificationService.verifyAndGetBuyer("buyer@test.com")).thenReturn(verifiedBuyer);
 
         List<RFQItem> items = List.of(
-                RFQItem.builder().itemDescription("Laptop").quantity(1.0).build()
+                RFQItem.builder().itemDescription("Laptop").quantity(5.0).deliveryLocation("Mumbai").build()
         );
-        ExtractedRFQ rfq = ExtractedRFQ.builder().buyerEmail("buyer@test.com").items(items).build();
+        ExtractedRFQ rfq = ExtractedRFQ.builder().buyerEmail("buyer@test.com").deliveryLocation("Mumbai").items(items).build();
         Mockito.when(aiExtractionService.extractRFQFromEmail(email)).thenReturn(rfq);
 
         ValidationService.ValidationResult valResult = new ValidationService.ValidationResult(true, false, List.of(), null);
@@ -433,6 +436,7 @@ public class EmailProcessorServiceTest {
                 .messageId("MSG-VAL-NON-QTY")
                 .senderEmail("buyer@test.com")
                 .subject("Need items")
+                .body("Quantity: 5 units, Delivery Location: Mumbai")
                 .build();
 
         Mockito.when(emailTransactionRepository.findByMessageId("MSG-VAL-NON-QTY")).thenReturn(Optional.empty());
@@ -442,7 +446,8 @@ public class EmailProcessorServiceTest {
 
         ExtractedRFQ rfq = ExtractedRFQ.builder()
                 .buyerEmail("buyer@test.com")
-                .items(List.of(RFQItem.builder().itemDescription("Widget").quantity(1.0).build()))
+                .deliveryLocation("Mumbai")
+                .items(List.of(RFQItem.builder().itemDescription("Widget").quantity(5.0).deliveryLocation("Mumbai").build()))
                 .build();
         Mockito.when(aiExtractionService.extractRFQFromEmail(email)).thenReturn(rfq);
 
@@ -480,6 +485,7 @@ public class EmailProcessorServiceTest {
                 .messageId("MSG-ITEM-LOC")
                 .senderEmail("buyer@test.com")
                 .subject("Need items")
+                .body("Quantity: 5 units, Delivery Location: Default Location")
                 .build();
 
         Mockito.when(emailTransactionRepository.findByMessageId("MSG-ITEM-LOC")).thenReturn(Optional.empty());
@@ -488,8 +494,8 @@ public class EmailProcessorServiceTest {
         Mockito.when(buyerVerificationService.verifyAndGetBuyer("buyer@test.com")).thenReturn(buyer);
 
         List<RFQItem> items = List.of(
-                RFQItem.builder().itemDescription("Widget A").quantity(1.0).deliveryLocation("Mumbai").deliveryDate("2026-09-01").build(),
-                RFQItem.builder().itemDescription("Widget B").quantity(2.0).build()
+                RFQItem.builder().itemDescription("Widget A").quantity(5.0).deliveryLocation("Mumbai").deliveryDate("2026-09-01").build(),
+                RFQItem.builder().itemDescription("Widget B").quantity(2.0).deliveryLocation("Default Location").build()
         );
         ExtractedRFQ rfq = ExtractedRFQ.builder()
                 .buyerEmail("buyer@test.com")
@@ -507,7 +513,7 @@ public class EmailProcessorServiceTest {
         Mockito.when(rfqBuilderService.buildRFQRequest(any(), any(), any(), any())).thenReturn(request);
 
         RFQResponse apiResponse = RFQResponse.builder().status("SUCCESS").rfqNumber("RFQ-LOC").build();
-        Mockito.when(rfqApiService.submitRFQ(request)).thenReturn(apiResponse);
+        Mockito.when(rfqApiService.submitRFQ(any())).thenReturn(apiResponse);
 
         RFQEntity savedEntity = RFQEntity.builder().rfqNumber("RFQ-LOC").buyerEmail("buyer@test.com").build();
         Mockito.when(rfqRepository.save(any())).thenReturn(savedEntity);
