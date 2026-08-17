@@ -131,6 +131,21 @@ Keep "brand" and "specification" strictly separate. "brand" holds the make/manuf
 "specification" holds technical detail (part/model number, dimensions, size, material, grade, capacity, rating) and must never repeat the brand.
 Example: "Oil Seal 25x47x7, Nitrile, make: SKF, 50 nos"
   → itemDescription = "Oil Seal 25x47x7", specification = "25x47x7, Nitrile", brand = "SKF", quantity = 50
+
+"brand" accepts ONLY a short make name such as "Dell", "SKF" or "Dell / HP / Lenovo".
+If the email names no make, set brand = "Not Specified". NEVER put a sentence, a configuration
+list or any technical detail into "brand" - all of that belongs in "specification".
+
+Worked example - a configuration list with no make named:
+"We require 10 new laptops with the following specification:
+ - Intel Core i5 / equivalent processor, 16 GB RAM, 512 GB SSD, 15.6-inch Full HD display,
+   Wi-Fi, Bluetooth, integrated webcam, USB ports, HDMI port, and Windows 11 operating system"
+  → itemDescription = "Laptop"
+  → specification = "Intel Core i5 / equivalent processor, 16 GB RAM, 512 GB SSD, 15.6-inch Full HD display, Wi-Fi, Bluetooth, integrated webcam, USB ports, HDMI port, Windows 11 operating system"
+  → brand = "Not Specified"
+  → quantity = 10, uom = "Nos"
+Note what must NOT happen here: brand = "new laptops with Intel Core i5..." and specification = null.
+The configuration list is the specification. Capture ALL of it, not just the first clause.
 If an email contains multiple items with DIFFERENT delivery locations (e.g. Item 1: Whitefield, Bangalore, Karnataka - 560066, Item 2: Gachibowli, Hyderabad, Telangana - 500032) or DIFFERENT delivery dates (e.g. Item 1: 25-Feb-2028, Item 2: 05-Mar-2028), YOU MUST EXTRACT the specific deliveryLocation and deliveryDate for EACH item independently under that item object!
 Do NOT copy Item 1's brand, specs, quantity, deliveryLocation, or deliveryDate to Item 2.
 

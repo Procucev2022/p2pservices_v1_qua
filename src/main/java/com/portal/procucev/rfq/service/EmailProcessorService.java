@@ -272,11 +272,19 @@ public class EmailProcessorService {
 
                 boolean isMultiItemPayload = extractedRFQ.getItems().size() > 1;
 
+                // Repair mis-filed extraction: the model sometimes drops the whole requirement
+                // sentence into "brand" and leaves "specification" empty. Run this before the
+                // fallback scans so the salvaged text counts as a present specification.
+                salvageSpecificationFromBrand(item, desc);
+
                 // Fallback scan for specifications if missing (only for single item or item-specific text)
                 if (item.getSpecification() == null || item.getSpecification().isBlank() || item.getSpecification().equalsIgnoreCase("Not Specified")) {
                     if (!isMultiItemPayload) {
-                        String scannedSpec = scanFieldFromEmail(email, "(?i)(?:specifications|specs|specification)[:\\s=]*([^\\r\\n]+)");
-                        if (scannedSpec != null && !scannedSpec.isBlank()) {
+                        String scannedSpec = scanFieldFromEmail(email, "(?i)\\b(?:technical\\s+specifications?|specifications?|specs|configuration|config)\\b[:\\s=]*([^\\r\\n]+)");
+                        // A line-tail capture after the label often runs straight into the next
+                        // field, e.g. "specification. Delivery Location: Bangalore". Reject that
+                        // rather than persist another field's label as the specification.
+                        if (scannedSpec != null && !scannedSpec.isBlank() && isPlausibleSpecification(scannedSpec)) {
                             item.setSpecification(scannedSpec.trim());
                         }
                     }
@@ -285,8 +293,10 @@ public class EmailProcessorService {
                 // Fallback scan for brand if missing (only for single item or item-specific text)
                 if (item.getBrand() == null || item.getBrand().isBlank() || item.getBrand().equalsIgnoreCase("Not Specified")) {
                     if (!isMultiItemPayload) {
-                        String scannedBrand = scanFieldFromEmail(email, "(?i)(?:brand|make)[:\\s=]*([^\\r\\n]+)");
-                        if (scannedBrand != null && !scannedBrand.isBlank()) {
+                        String scannedBrand = scanFieldFromEmail(email, "(?i)\\b(?:brand|make|manufacturer)\\b[:\\s=]*([^\\r\\n]+)");
+                        // Only accept a scanned value that actually reads like a brand name; the
+                        // line-tail capture otherwise pulls in whole sentences.
+                        if (scannedBrand != null && !scannedBrand.isBlank() && looksLikeBrandName(scannedBrand)) {
                             item.setBrand(scannedBrand.trim());
                         }
                     }
@@ -660,6 +670,105 @@ public class EmailProcessorService {
         return com.portal.procucev.rfq.util.QuantityNormalizer.normalize(text);
     }
 
+    /** Tokens that mark a string as technical detail rather than a brand or make name. */
+    private static final java.util.regex.Pattern SPEC_PROSE_PATTERN = java.util.regex.Pattern.compile(
+            "(?i)\\b(?:processor|ram|ssd|hdd|display|screen|webcam|bluetooth|wi-?fi|hdmi|usb|"
+            + "windows|operating\\s+system|resolution|battery|warranty|graphics|ethernet|"
+            + "keyboard|touchpad|capacity|voltage|material|grade|thickness|diameter|"
+            + "\\d+\\s*(?:gb|tb|mb|ghz|mhz|inch|inches|mm|cm|kg|w|watt|volt|v))\\b");
+
+    /** Filler openers that a real brand name never starts with. */
+    private static final java.util.regex.Pattern BRAND_FILLER_START_PATTERN = java.util.regex.Pattern.compile(
+            "(?i)^(?:new|with|the|and|for|our|we|please|require|required|need|needed|"
+            + "quote|quotation|supply|following|below|above|as\\s+per)\\b");
+
+    private static final int MAX_BRAND_NAME_LENGTH = 60;
+    private static final int MAX_BRAND_NAME_TOKENS = 6;
+
+    /**
+     * Decides whether a value is plausibly a brand / make name rather than requirement prose.
+     *
+     * <p>A brand is a short proper noun, optionally a slash-separated list such as
+     * "Dell / HP / Lenovo". Requirement text like "new laptops with Intel Core i5, 16 GB RAM,
+     * 512 GB SSD" is not, and must not be persisted as the brand.
+     */
+    private boolean looksLikeBrandName(String value) {
+        if (value == null) {
+            return false;
+        }
+        String trimmed = value.trim();
+        if (trimmed.isEmpty() || trimmed.length() > MAX_BRAND_NAME_LENGTH) {
+            return false;
+        }
+        if (SPEC_PROSE_PATTERN.matcher(trimmed).find()) {
+            return false;
+        }
+        if (BRAND_FILLER_START_PATTERN.matcher(trimmed).find()) {
+            return false;
+        }
+        // Count real words, treating slashes and commas as brand separators.
+        String[] tokens = trimmed.split("[\\s/,&+]+");
+        int words = 0;
+        for (String token : tokens) {
+            if (!token.isBlank()) {
+                words++;
+            }
+        }
+        return words <= MAX_BRAND_NAME_TOKENS;
+    }
+
+    /** Field labels that must never be accepted as the body of a specification. */
+    private static final java.util.regex.Pattern OTHER_FIELD_LABEL_START_PATTERN = java.util.regex.Pattern.compile(
+            "(?i)^(?:delivery|location|address|ship\\s+to|deliver\\s+to|destination|plant|warehouse|"
+            + "quantity|qty|date|due|brand|make|manufacturer|uom|unit|category|pincode|zipcode)\\b");
+
+    /**
+     * Rejects a scanned specification that is really the next field's label, or too short to carry
+     * any technical meaning.
+     */
+    private boolean isPlausibleSpecification(String value) {
+        if (value == null) {
+            return false;
+        }
+        String trimmed = value.trim();
+        if (trimmed.length() < 4) {
+            return false;
+        }
+        return !OTHER_FIELD_LABEL_START_PATTERN.matcher(trimmed).find();
+    }
+
+    /**
+     * Moves requirement prose out of the brand field. If the specification is empty the prose is
+     * used as the specification, since that is what the buyer actually wrote; otherwise it is
+     * discarded so the brand falls back to "Not Specified".
+     */
+    private void salvageSpecificationFromBrand(RFQItem item, String desc) {
+        String rawBrand = item.getBrand();
+        if (rawBrand == null || rawBrand.isBlank()
+                || rawBrand.equalsIgnoreCase("null")
+                || rawBrand.equalsIgnoreCase("Not Specified")) {
+            return;
+        }
+        if (looksLikeBrandName(rawBrand)) {
+            return;
+        }
+
+        boolean specMissing = item.getSpecification() == null
+                || item.getSpecification().isBlank()
+                || item.getSpecification().equalsIgnoreCase("Not Specified")
+                || item.getSpecification().equalsIgnoreCase("null");
+
+        if (specMissing) {
+            String salvaged = rawBrand.trim();
+            log.warn("Brand field for item '{}' held requirement text, not a brand name. Moving it to specification: '{}'",
+                    desc, salvaged);
+            item.setSpecification(salvaged);
+        } else {
+            log.warn("Discarding non-brand text from the brand field for item '{}': '{}'", desc, rawBrand.trim());
+        }
+        item.setBrand(null);
+    }
+
     private String extractFieldByPattern(String text, String regex) {
         if (text == null || text.isBlank()) return null;
         java.util.regex.Matcher m = java.util.regex.Pattern.compile(regex).matcher(text);
@@ -688,23 +797,31 @@ public class EmailProcessorService {
     }
 
     /**
-     * Trims delimiter noise off a scanned value. Flattened spreadsheet rows are pipe-delimited and
-     * the HTML-to-text conversion also emits pipes for tag boundaries, so a line-tail capture can
-     * pick up neighbouring cells.
+     * Normalises delimiter noise in a scanned value.
+     *
+     * <p>Pipes arrive from two places: flattened spreadsheet cells, and the HTML-to-text
+     * conversion in {@code EmailReaderService}, which emits a pipe per tag boundary. Segments are
+     * joined with ", " rather than truncated at the first pipe, because a specification written as
+     * an HTML bullet list becomes one pipe-separated segment per bullet and keeping only the first
+     * would drop most of the buyer's detail.
      */
     private String cleanScannedValue(String raw) {
         if (raw == null) {
             return null;
         }
-        String value = raw.trim();
-        // Keep only the first populated field after the label.
-        for (String segment : value.split("\\|")) {
+        List<String> segments = new ArrayList<>();
+        for (String segment : raw.split("\\|")) {
             String candidate = segment.replaceAll("\\s+", " ").trim();
+            // Drop separator-only fragments left behind by empty cells or adjacent tags.
+            candidate = candidate.replaceAll("^[,;:.\\-\\u2013\\u2014]+", "").replaceAll("[,;:]+$", "").trim();
             if (!candidate.isEmpty()) {
-                return candidate;
+                segments.add(candidate);
             }
         }
-        return null;
+        if (segments.isEmpty()) {
+            return null;
+        }
+        return String.join(", ", segments);
     }
 
     /**
