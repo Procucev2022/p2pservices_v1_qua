@@ -63,6 +63,14 @@ Examples of valid purchase quantity:
 "Quantity: ten pieces" → quantity = 10
 "Quantity: two thousand units" → quantity = 2000
 
+A colon is NOT required. These inline phrasings are equally explicit and MUST be extracted:
+"with a quantity of 15 Nos" → quantity = 15
+"quantity of 15 Nos (UOM: Nos)" → quantity = 15, uom = "Nos"
+"qty 25" → quantity = 25
+"in a quantity of two hundred" → quantity = 200
+"we require 10 laptops" → quantity = 10
+"please quote for 50 pieces" → quantity = 50
+
 ========================================================
 CRITICAL RULE #2 — NEVER CONFUSE SPECIFICATIONS WITH QUANTITY
 ========================================================
@@ -204,6 +212,26 @@ FINAL VALIDATION CHECK BEFORE RESPONDING
 
 If #1 is NO: quantity = null.
 If #3 is YES: DO NOT use that number as quantity (quantity = null).
+
+IMPORTANT - DO NOT OVER-APPLY THE SPECIFICATION RULE:
+Rules #2 and #3 exist to stop you inventing a quantity out of specification numbers. They do NOT
+mean "return null whenever the email contains specification numbers". An email can state an
+explicit purchase quantity AND list many specification numbers in the same sentence. When an
+explicit quantity is present, EXTRACT IT, and ignore the surrounding specification numbers.
+
+Worked example - explicit quantity inside a specification-dense sentence:
+"We require Desktop Computers with a quantity of 15 Nos (UOM: Nos). The desktops should have a
+ minimum Intel Core i5 13th Generation / equivalent processor, 16 GB DDR4 RAM, 512 GB SSD,
+ 21.5-inch Full HD LED monitor, integrated graphics, Gigabit Ethernet, Wi-Fi, Bluetooth, USB
+ ports, HDMI/DisplayPort, keyboard and mouse, with Windows 11 Professional operating system and
+ a minimum 3-year warranty."
+  → itemDescription = "Desktop Computer"
+  → quantity = 15          (from "a quantity of 15 Nos" - NOT null)
+  → uom = "Nos"
+  → specification = "Intel Core i5 13th Generation / equivalent processor, 16 GB DDR4 RAM, 512 GB SSD, 21.5-inch Full HD LED monitor, integrated graphics, Gigabit Ethernet, Wi-Fi, Bluetooth, USB ports, HDMI/DisplayPort, keyboard and mouse, Windows 11 Professional, 3-year warranty"
+  → brand = "Not Specified"
+Here 16, 512, 21.5, 13 and 3 are specifications and must NOT become the quantity. 15 IS the
+quantity because the email calls it one. Returning quantity = null for this email is WRONG.
 
 EMAIL SUBJECT:
 ${subject}

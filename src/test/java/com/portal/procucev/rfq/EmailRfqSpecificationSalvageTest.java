@@ -151,6 +151,81 @@ class EmailRfqSpecificationSalvageTest {
         }
     }
 
+    private static final String DESKTOP_BODY =
+            "We require Desktop Computers with a quantity of 15 Nos (UOM: Nos). The desktops should have a "
+            + "minimum Intel Core i5 13th Generation / equivalent processor, 16 GB DDR4 RAM, 512 GB SSD, "
+            + "21.5-inch Full HD LED monitor, integrated graphics, Gigabit Ethernet, Wi-Fi, Bluetooth, "
+            + "USB ports, HDMI/DisplayPort, keyboard and mouse, with Windows 11 Professional operating "
+            + "system and a minimum 3-year warranty. Remarks: delivery to Bangalore office.";
+
+    @Test
+    @DisplayName("An explicitly stated quantity is recovered when the model returns null")
+    void explicitQuantityIsRecoveredWhenModelReturnsNull() {
+        EmailData email = EmailData.builder()
+                .messageId("MSG-DESKTOP-QTY")
+                .senderEmail("buyer@test.com")
+                .subject("Desktop Computers")
+                .body(DESKTOP_BODY)
+                .build();
+
+        // Exactly what production returned: description extracted, quantity null.
+        ExtractedRFQ aiResult = ExtractedRFQ.builder()
+                .buyerEmail("buyer@test.com")
+                .deliveryLocation("Bangalore")
+                .deliveryDate("2026-08-25")
+                .items(List.of(RFQItem.builder()
+                        .itemDescription("Desktop Computers")
+                        .quantity(null)
+                        .build()))
+                .build();
+
+        Mockito.when(buyerVerificationService.verifyAndGetBuyer("buyer@test.com"))
+                .thenReturn(Buyer.builder().email("buyer@test.com").name("Buyer").verified(true).build());
+        Mockito.when(aiExtractionService.extractRFQFromEmail(email)).thenReturn(aiResult);
+        Mockito.when(rfqBuilderService.buildRFQRequest(any(), any(), any(), any()))
+                .thenReturn(RFQRequest.builder().rfqNumber("RFQ-DESKTOP").deliveryDate("2026-08-25").build());
+        Mockito.when(rfqApiService.submitRFQ(any()))
+                .thenReturn(RFQResponse.builder().status("SUCCESS").rfqNumber("RFQ-DESKTOP").build());
+
+        String outcome = emailProcessorService.processSingleEmail(email);
+        assertEquals("RFQ_CREATED", outcome, "an explicitly stated quantity must not be reported missing");
+
+        ArgumentCaptor<ExtractedRFQ> captor = ArgumentCaptor.forClass(ExtractedRFQ.class);
+        Mockito.verify(rfqBuilderService).buildRFQRequest(captor.capture(), any(), any(), any());
+        assertEquals(15.0, captor.getValue().getItems().get(0).getQuantity());
+    }
+
+    @Test
+    @DisplayName("Specification numbers alone never produce a quantity")
+    void specificationNumbersDoNotProduceAQuantity() {
+        // Same spec-dense text with the explicit quantity statement removed.
+        String noQuantityBody = "We require Desktop Computers. Intel Core i5 13th Generation processor, "
+                + "16 GB DDR4 RAM, 512 GB SSD, 21.5-inch Full HD LED monitor, 3-year warranty.";
+
+        EmailData email = EmailData.builder()
+                .messageId("MSG-DESKTOP-NOQTY")
+                .senderEmail("buyer@test.com")
+                .subject("Desktop Computers")
+                .body(noQuantityBody)
+                .build();
+
+        ExtractedRFQ aiResult = ExtractedRFQ.builder()
+                .buyerEmail("buyer@test.com")
+                .deliveryLocation("Bangalore")
+                .deliveryDate("2026-08-25")
+                .items(List.of(RFQItem.builder().itemDescription("Desktop Computers").quantity(null).build()))
+                .build();
+
+        Mockito.when(buyerVerificationService.verifyAndGetBuyer("buyer@test.com"))
+                .thenReturn(Buyer.builder().email("buyer@test.com").name("Buyer").verified(true).build());
+        Mockito.when(aiExtractionService.extractRFQFromEmail(email)).thenReturn(aiResult);
+
+        String outcome = emailProcessorService.processSingleEmail(email);
+        assertEquals("VALIDATION_FAILED", outcome,
+                "with no explicit quantity the payload must still be rejected, not guessed from 16/512/21.5/3");
+        Mockito.verify(rfqBuilderService, Mockito.never()).buildRFQRequest(any(), any(), any(), any());
+    }
+
     @Test
     @DisplayName("Missing delivery location falls back to the buyer profile and still creates the RFQ")
     void missingDeliveryLocationFallsBackToBuyerProfile() {

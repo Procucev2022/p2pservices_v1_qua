@@ -329,6 +329,19 @@ public class EmailProcessorService {
                         desc, item.getQuantity(), item.getUom(), item.getSpecification(), item.getBrand(),
                         item.getEffectivePartNumber(), item.getDeliveryLocation(), item.getDeliveryDate());
 
+                // Recover an explicitly stated quantity the model failed to return. A spec-dense
+                // email ("16 GB RAM, 512 GB SSD, 21.5-inch monitor") can push the model into
+                // returning null even when the buyer wrote "a quantity of 15 Nos". Single-item
+                // payloads only: one quantity in the covering note must not be applied to every
+                // row of a multi-item requirement sheet.
+                if ((item.getQuantity() == null || item.getQuantity() <= 0) && !isMultiItemPayload) {
+                    Double scannedQty = scanQuantityFromEmail(email);
+                    if (scannedQty != null && scannedQty > 0) {
+                        log.info("Quantity recovered by fallback scan for item '{}': {}", desc, scannedQty);
+                        item.setQuantity(scannedQty);
+                    }
+                }
+
                 // Verify if quantity was inferred as 1.0 without explicit purchasing quantity statement in email text
                 if (item.getQuantity() == null || item.getQuantity() == 1.0) {
                     boolean hasExplicitQuantityInText = hasExplicitPurchaseQuantityInText(email.getSubject(), email.getBody(), email.getAttachmentText());
@@ -768,6 +781,43 @@ public class EmailProcessorService {
             log.warn("Discarding non-brand text from the brand field for item '{}': '{}'", desc, rawBrand.trim());
         }
         item.setBrand(null);
+    }
+
+    /**
+     * An explicit quantity statement: the word quantity or qty, optionally followed by "of", then
+     * the value. Requiring the keyword is what keeps specification numbers such as "16 GB RAM" or
+     * "21.5-inch monitor" out of the match.
+     */
+    private static final java.util.regex.Pattern QUANTITY_STATEMENT_PATTERN = java.util.regex.Pattern.compile(
+            "(?i)\\b(?:required\\s+)?(?:quantity|qty)\\b\\s*(?:of\\s+)?[:=]?\\s*([^\\r\\n]{1,40})");
+
+    /**
+     * Last-resort recovery of a quantity the model failed to return, scanning body, attachment and
+     * subject. The captured tail is handed to {@link QuantityNormalizer} behind a "Quantity:"
+     * prefix so it reuses the existing digit, digit-plus-unit and number-word parsing.
+     */
+    private Double scanQuantityFromEmail(EmailData email) {
+        if (email == null) {
+            return null;
+        }
+        String[] sources = {email.getBody(), email.getAttachmentText(), email.getSubject()};
+        for (String source : sources) {
+            if (source == null || source.isBlank()) {
+                continue;
+            }
+            java.util.regex.Matcher matcher = QUANTITY_STATEMENT_PATTERN.matcher(source);
+            while (matcher.find()) {
+                String tail = matcher.group(1).trim();
+                if (tail.isEmpty()) {
+                    continue;
+                }
+                Double parsed = com.portal.procucev.rfq.util.QuantityNormalizer.normalize("Quantity: " + tail);
+                if (parsed != null && parsed > 0) {
+                    return parsed;
+                }
+            }
+        }
+        return null;
     }
 
     private String extractFieldByPattern(String text, String regex) {
