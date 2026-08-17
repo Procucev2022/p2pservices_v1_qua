@@ -187,4 +187,27 @@ public class QuantityNormalizerTest {
         // Explicit purchase quantity combined with spec capacity should still extract purchase quantity (5.0)
         assertEquals(5.0, QuantityNormalizer.normalize("Quantity: 5 Units, 10,000 LPH capacity"));
     }
+
+    @Test
+    @DisplayName("Test Number object inputs, negative/zero numbers, Millions, Crores, and UOM edge cases")
+    void testNumberInputsAndLargeWords() {
+        assertEquals(50.0, QuantityNormalizer.normalize(50));
+        assertEquals(50.5, QuantityNormalizer.normalize(50.5));
+        assertNull(QuantityNormalizer.normalize(0));
+        assertNull(QuantityNormalizer.normalize(-10));
+
+        assertEquals(1000000.0, QuantityNormalizer.normalize("one million"));
+        assertEquals(2000000.0, QuantityNormalizer.normalize("two millions"));
+        assertEquals(10000000.0, QuantityNormalizer.normalize("one crore"));
+        assertEquals(20000000.0, QuantityNormalizer.normalize("two crores"));
+
+        assertEquals(1000.0, QuantityNormalizer.normalize("Quantity: 1,000"));
+        assertEquals(500.0, QuantityNormalizer.normalize("Quantity: 500.0"));
+        assertEquals(500.0, QuantityNormalizer.normalize("Quantity: five hundred"));
+
+        assertNull(QuantityNormalizer.extractUom(null));
+        assertNull(QuantityNormalizer.extractUom(""));
+        assertEquals("Bags", QuantityNormalizer.extractUom("Quantity: 500 bags"));
+        assertEquals("X", QuantityNormalizer.extractUom("10 x"));
+    }
 }
