@@ -103,11 +103,13 @@ public class EmailReaderService {
         List<EmailData> emailsList = new ArrayList<>();
         Store store = null;
         Folder folder = null;
+        long pollStart = System.currentTimeMillis();
 
         try {
             Session session = Session.getInstance(buildImapProperties());
             store = session.getStore("imaps");
             store.connect(mailHost, mailUsername, mailPassword);
+            long connectedAt = System.currentTimeMillis();
 
             folder = store.getFolder(inboxFolder);
             folder.open(Folder.READ_WRITE);
@@ -115,8 +117,13 @@ public class EmailReaderService {
             Message[] messages = folder.search(new jakarta.mail.search.FlagTerm(new Flags(Flags.Flag.SEEN), false));
             int unreadCount = folder.getUnreadMessageCount();
             int totalCount = folder.getMessageCount();
-            log.info("IMAP status for folder '{}': TotalMessages={}, UnreadMessages={}, SearchUnseenFound={}",
-                    inboxFolder, totalCount, unreadCount, messages.length);
+            // Phase timings are logged because an idle poll was taking 13-63 seconds to establish
+            // there was nothing to do, and the log only showed the total. Without the split there
+            // is no way to tell a slow connect apart from a slow mailbox scan.
+            log.info("IMAP status for folder '{}': TotalMessages={}, UnreadMessages={}, SearchUnseenFound={}"
+                            + " (connect={} ms, select+search={} ms)",
+                    inboxFolder, totalCount, unreadCount, messages.length,
+                    connectedAt - pollStart, System.currentTimeMillis() - connectedAt);
 
             // The fallback exists to cover servers whose SEARCH disagrees with their unread
             // counter, so it is only worth running when the counter actually reports unread mail.
@@ -158,7 +165,12 @@ public class EmailReaderService {
         } catch (Exception e) {
             log.error("Error fetching unread emails from IMAP: {}", e.getMessage(), e);
         } finally {
-            closeFolderAndStore(folder, store);
+            // No message is ever flagged DELETED on this path, so there is nothing to expunge.
+            long closeStart = System.currentTimeMillis();
+            closeFolderAndStore(folder, store, false);
+            log.info("IMAP poll finished: parsed={} email(s), close={} ms, total={} ms",
+                    emailsList.size(), System.currentTimeMillis() - closeStart,
+                    System.currentTimeMillis() - pollStart);
         }
 
         return emailsList;
@@ -235,7 +247,9 @@ public class EmailReaderService {
             srcFolder.expunge();
             log.info("Successfully marked SEEN and moved message [{}] to folder '{}'", messageId, targetFolderName);
         } finally {
-            closeFolderAndStore(srcFolder, store);
+            // Expunge on close here: this path does flag the moved message DELETED, and closing
+            // with expunge re-attempts the removal if the explicit expunge above did not land.
+            closeFolderAndStore(srcFolder, store, true);
         }
     }
 
@@ -460,9 +474,17 @@ public class EmailReaderService {
         return sb.toString().trim();
     }
 
-    private void closeFolderAndStore(Folder folder, Store store) {
+    /**
+     * Closes the folder and store.
+     *
+     * <p>{@code expunge} must only be true where the operation actually flagged a message DELETED.
+     * Closing with expunge asks the server to permanently remove flagged messages, and Gmail
+     * charges real latency for that round trip: on the read-only poll, where nothing is ever
+     * flagged, it was costing 8-21 seconds per minute to expunge an empty set.
+     */
+    private void closeFolderAndStore(Folder folder, Store store, boolean expunge) {
         if (folder != null && folder.isOpen()) {
-            try { folder.close(true); } catch (Exception ignored) {}
+            try { folder.close(expunge); } catch (Exception ignored) {}
         }
         if (store != null && store.isConnected()) {
             try { store.close(); } catch (Exception ignored) {}

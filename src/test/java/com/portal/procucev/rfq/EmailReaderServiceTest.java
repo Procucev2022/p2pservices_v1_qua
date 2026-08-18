@@ -334,7 +334,40 @@ public class EmailReaderServiceTest {
         Mockito.when(store.isConnected()).thenReturn(true);
         Mockito.doThrow(new RuntimeException("Store close err")).when(store).close();
 
-        assertDoesNotThrow(() -> ReflectionTestUtils.invokeMethod(service, "closeFolderAndStore", folder, store));
+        assertDoesNotThrow(() -> ReflectionTestUtils.invokeMethod(
+                service, "closeFolderAndStore", folder, store, true));
+    }
+
+    @Test
+    @DisplayName("The read-only poll closes the folder without asking the server to expunge")
+    void pollClosesWithoutExpunge() throws Exception {
+        jakarta.mail.Folder folder = Mockito.mock(jakarta.mail.Folder.class);
+        Mockito.when(folder.isOpen()).thenReturn(true);
+        jakarta.mail.Store store = Mockito.mock(jakarta.mail.Store.class);
+        Mockito.when(store.isConnected()).thenReturn(true);
+
+        ReflectionTestUtils.invokeMethod(service, "closeFolderAndStore", folder, store, false);
+
+        // Expunging on a folder where nothing was flagged DELETED is a pure round trip to Gmail,
+        // and it was costing 8-21 seconds on every idle poll.
+        Mockito.verify(folder).close(false);
+        Mockito.verify(folder, Mockito.never()).close(true);
+        Mockito.verify(store).close();
+    }
+
+    @Test
+    @DisplayName("A closed folder and a disconnected store are left alone")
+    void alreadyClosedResourcesAreNotTouched() {
+        jakarta.mail.Folder folder = Mockito.mock(jakarta.mail.Folder.class);
+        Mockito.when(folder.isOpen()).thenReturn(false);
+        jakarta.mail.Store store = Mockito.mock(jakarta.mail.Store.class);
+        Mockito.when(store.isConnected()).thenReturn(false);
+
+        assertDoesNotThrow(() -> ReflectionTestUtils.invokeMethod(
+                service, "closeFolderAndStore", folder, store, false));
+
+        assertDoesNotThrow(() -> ReflectionTestUtils.invokeMethod(
+                service, "closeFolderAndStore", null, null, false));
     }
 }
 
