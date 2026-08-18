@@ -322,8 +322,10 @@ public class RFQBuilderService {
                 .token(buyer != null ? buyer.getToken() : null)
                 .build();
 
-        log.info("Built RFQ Request Payload: RFQ Number={}, createdBy={}, projectDesc='{}'",
-                request.getRfqNumber(), request.getCreatedBy(), request.getProjectDesc());
+        // The line-item count is logged because nothing between extraction and persistence recorded
+        // it, which made "the RFQ only has one line" impossible to attribute from the logs alone.
+        log.info("Built RFQ Request Payload: RFQ Number={}, createdBy={}, projectDesc='{}', lineItems={}",
+                request.getRfqNumber(), request.getCreatedBy(), request.getProjectDesc(), rfqItemsList.size());
 
         return request;
     }

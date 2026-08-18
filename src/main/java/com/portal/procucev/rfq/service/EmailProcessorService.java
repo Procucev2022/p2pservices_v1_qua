@@ -374,7 +374,15 @@ public class EmailProcessorService {
                 // first one discarded the already-validated items and told the buyer about a single
                 // line, which is unusable feedback on a requirement sheet with many rows.
                 if (item.getQuantity() == null || item.getQuantity() <= 0) {
-                    log.warn("Item '{}' missing mandatory quantity.", desc);
+                    // Spell out everything that was tried, so the log distinguishes "the buyer did
+                    // not state a quantity" from "we failed to read one that was there".
+                    log.warn("REJECTING item '{}': no usable quantity after all recovery steps. "
+                            + "Model returned null, per-item name-anchored scan found nothing"
+                            + "{}, and the email text {} an explicit quantity keyword.",
+                            desc,
+                            isMultiItemPayload ? " (whole-email scan skipped: multi-item payload)" : " and the whole-email scan found nothing",
+                            hasExplicitPurchaseQuantityInText(email.getSubject(), email.getBody(), email.getAttachmentText())
+                                    ? "DOES contain" : "does NOT contain");
                     failedItemsList.add("Item: " + desc + " | Reason: Quantity is mandatory. Please provide the required quantity.");
                     hasItemMissingQuantity = true;
                     continue;
@@ -392,12 +400,22 @@ public class EmailProcessorService {
 
                 String key = buildDeduplicationKey(item, buyer.getEmail(), defaultDate, defaultLocation);
                 if (seenInEmailKeys.contains(key)) {
-                    log.info("Duplicate RFQ Item within same email payload detected, skipping line: {}", desc);
+                    log.info("Duplicate RFQ Item within same email payload detected, skipping line: {} (dedup key='{}')",
+                            desc, key);
                     continue;
                 }
                 seenInEmailKeys.add(key);
+
+                // The values that will actually reach the RFQ, after every fallback and recovery.
+                // Compare this against the AI FINAL item[..] line to see what this service changed.
+                log.info("RESOLVED item '{}': qty={}, uom='{}', spec='{}', brand='{}', partCode='{}', location='{}', date='{}'",
+                        desc, item.getQuantity(), item.getUom(), item.getSpecification(), item.getBrand(),
+                        item.getEffectivePartNumber(), item.getDeliveryLocation(), item.getDeliveryDate());
                 validItems.add(item);
             }
+
+            log.info("Item validation complete: {} of {} extracted item(s) are valid, {} rejected.",
+                    validItems.size(), extractedRFQ.getItems().size(), failedItemsList.size());
 
             if (hasItemMissingQuantity) {
                 log.warn("Rejecting email payload: {} of {} item(s) are missing a mandatory quantity.",
@@ -425,6 +443,21 @@ public class EmailProcessorService {
 
             // STEP 5: GROUP ITEMS BY CATEGORY, LOCATION & DATE
             Map<String, List<RFQItem>> itemGroups = groupItemsByCategoryLocationAndDate(validItems, defaultLocation, defaultDate);
+
+            // One RFQ is created per group, so a group split is the difference between "one RFQ with
+            // four lines" and "four RFQs with one line each". Log the split explicitly: it is the
+            // only way to tell a grouping split apart from a downstream loss of line items.
+            log.info("Grouped {} valid item(s) into {} RFQ group(s) by delivery location and date: {}",
+                    validItems.size(), itemGroups.size(),
+                    itemGroups.entrySet().stream()
+                            .map(e -> "[" + e.getKey() + "] = " + e.getValue().size() + " item(s)")
+                            .collect(java.util.stream.Collectors.joining(", ")));
+            if (itemGroups.size() > 1) {
+                log.warn("This email will produce {} separate RFQs because its items do not share one "
+                        + "delivery location and date. Items expected on a single RFQ must agree on both.",
+                        itemGroups.size());
+            }
+
             List<RFQEntity> createdRfqs = new ArrayList<>();
             boolean hasFailures = false;
 

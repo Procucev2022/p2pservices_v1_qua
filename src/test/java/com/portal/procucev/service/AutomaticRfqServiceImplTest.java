@@ -58,7 +58,42 @@ class AutomaticRfqServiceImplTest {
 
         boolean result = service.raiseRfq(rfq);
         assertTrue(result);
-        verify(rfqDao).save(rfq);
+
+        // The RFQ must be written and flushed BEFORE the GMT items are built, because building them
+        // reads each RfqItem's UUID and that is only assigned once the cascaded insert has run.
+        // Building them first wrote every gmt_items row with rfq_item_id = NULL.
+        org.mockito.InOrder inOrder = org.mockito.Mockito.inOrder(rfqDao, gmtItemsDao);
+        inOrder.verify(rfqDao).saveAndFlush(rfq);
+        inOrder.verify(gmtItemsDao).saveAll(org.mockito.ArgumentMatchers.anyList());
+    }
+
+    @Test
+    void testRaiseRfq_LinksEveryGmtItemToItsRfqItem() {
+        Rfq rfq = new Rfq();
+        List<RfqItem> items = new ArrayList<>();
+        for (int i = 1; i <= 4; i++) {
+            RfqItem item = new RfqItem();
+            item.setId("ITEM" + i);
+            item.setDescription("Item " + i);
+            item.setQuantity(i * 100.0);
+            items.add(item);
+        }
+        rfq.setRfqItem(items);
+        when(masterStatusDao.findByStatus(anyString())).thenReturn(new MasterStatus());
+
+        assertTrue(service.raiseRfq(rfq));
+
+        @SuppressWarnings("unchecked")
+        org.mockito.ArgumentCaptor<List<com.portal.procucev.model.GmtItems>> captor =
+                org.mockito.ArgumentCaptor.forClass(List.class);
+        verify(gmtItemsDao).saveAll(captor.capture());
+
+        List<com.portal.procucev.model.GmtItems> saved = captor.getValue();
+        assertEquals(4, saved.size(), "every line item must get its own GMT row");
+        for (int i = 0; i < saved.size(); i++) {
+            assertEquals("ITEM" + (i + 1), saved.get(i).getRfqItemId(),
+                    "each GMT row must be linked to the RFQ item it describes");
+        }
     }
 
     @Test
@@ -148,7 +183,7 @@ class AutomaticRfqServiceImplTest {
         boolean result = service.raiseRfq(rfq);
         assertTrue(result);
         assertEquals("EXISTING-ID-001", rfq.getRfqId());
-        verify(rfqDao).save(rfq);
+        verify(rfqDao).saveAndFlush(rfq);
     }
 
     @Test

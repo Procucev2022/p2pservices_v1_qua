@@ -156,6 +156,7 @@ public class EmailReaderService {
                     EmailData data = parseMessage(msg);
                     log.info("Parsed unread email: Subject='{}', From='{}', ReceivedDate='{}'",
                             data.getSubject(), data.getSenderEmail(), data.getReceivedDate());
+                    logParsedEmailContext(data);
                     emailsList.add(data);
                 } catch (Exception e) {
                     log.error("Failed to parse message subject '{}': {}", msg.getSubject(), e.getMessage());
@@ -413,6 +414,37 @@ public class EmailReaderService {
                 htmlFallbackBuilder.append(htmlToText(bodyPart.getContent().toString()));
             } else if (bodyPart.isMimeType("multipart/*")) {
                 processMultipart((MimeMultipart) bodyPart.getContent(), bodyBuilder, htmlFallbackBuilder, attTextBuilder, attachments);
+            }
+        }
+    }
+
+    /**
+     * Records everything about a parsed email that later stages branch on.
+     *
+     * <p>The thread headers matter most. {@code References} decides whether item identity gets
+     * inherited from an earlier RFQ, and it was never logged: an email that silently picked up a
+     * previous thread's product looked identical in the log to one that did not.
+     */
+    private void logParsedEmailContext(EmailData data) {
+        String body = data.getBody() != null ? data.getBody() : "";
+        String attachmentText = data.getAttachmentText() != null ? data.getAttachmentText() : "";
+        log.info("EMAIL CONTEXT [{}]: bodyChars={}, attachmentTextChars={}, attachments={}, inReplyTo={}, references={}",
+                data.getMessageId(), body.length(), attachmentText.length(),
+                data.getAttachments() != null ? data.getAttachments().size() : 0,
+                data.getInReplyTo(), data.getReferences());
+
+        if (data.getInReplyTo() != null || data.getReferences() != null) {
+            log.info("EMAIL CONTEXT [{}]: this email is part of an existing thread, so item identity may be "
+                    + "inherited from an earlier message unless it names its own product.", data.getMessageId());
+        }
+
+        if (data.getAttachments() != null) {
+            for (File attachment : data.getAttachments()) {
+                // Deliberately does not re-extract the text: that would re-parse every PDF and
+                // spreadsheet a second time purely to produce a log line.
+                log.info("EMAIL CONTEXT [{}]: attachment '{}' ({} bytes), sentToVisionModel={}",
+                        data.getMessageId(), attachment.getName(), attachment.length(),
+                        FileUtil.isVisionImage(attachment));
             }
         }
     }

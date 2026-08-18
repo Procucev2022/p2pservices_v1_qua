@@ -32,10 +32,14 @@ public class GeminiApiClient {
 
     private RestTemplate restTemplate;
 
-    @Value("${app.gemini.primary-model:gemini-3.5-flash-lite}")
+    @Value("${app.gemini.primary-model:gemini-3.6-flash}")
     private String primaryModel;
 
-    @Value("${app.gemini.fallback-model:gemini-3.6-flash}")
+    /**
+     * Availability fallback, used only when the primary model call throws. A response that parses
+     * but reads the email wrongly never gets here, which is why the stronger model extracts first.
+     */
+    @Value("${app.gemini.fallback-model:gemini-3.5-flash-lite}")
     private String fallbackModel;
 
     @Value("${app.gemini.base-url:https://generativelanguage.googleapis.com/v1beta/models}")

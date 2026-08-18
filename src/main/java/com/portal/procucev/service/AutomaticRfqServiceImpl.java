@@ -47,7 +47,15 @@ UserDao userDao;
 @Autowired
 OrgDao orgDao;
 
+	/**
+	 * Creates a client RFQ and its line items.
+	 *
+	 * <p>Transactional because it writes two tables: the RFQ with its cascaded {@code rfq_items},
+	 * and the matching {@code gmt_items} rows. Without a transaction a failure on the second write
+	 * left the first committed, so an RFQ could exist with no GMT items or vice versa.
+	 */
 	@Override
+	@org.springframework.transaction.annotation.Transactional
 	public boolean raiseRfq(Rfq rfq) {
 		
 		logger.info("Request received for RFQ creation with No PR by client: rfqId={}, projectDesc='{}', category='{}', itemCount={}",
@@ -71,12 +79,17 @@ OrgDao orgDao;
 			logger.info("Using RFQ Id: {}", rfqId);
 			rfq.setRfqId(rfqId);
 
+			// Save the RFQ first. Its line items are cascaded here, which is what assigns each
+			// RfqItem its UUID. mapRfqItemToGmtItem reads that UUID for rfq_item_id, so building
+			// the GMT rows before this point wrote every one of them with rfq_item_id = NULL,
+			// leaving the per-item GMT records unlinked from the RFQ line they describe.
+			rfqDao.saveAndFlush(rfq);
+			logger.info("Completed Saving RFQ");
+
 			List<RfqItem> rfqItems = rfq.getRfqItem();
 			List<GmtItems> gmtItems = rfqItems.stream().map(this::mapRfqItemToGmtItem).collect(Collectors.toList());
 			gmtItemsDao.saveAll(gmtItems);
-			logger.info("Saved RFQ items in GMT Items"); 
-			rfqDao.save(rfq);
-			logger.info("Completed Saving RFQ");
+			logger.info("Saved {} RFQ item(s) in GMT Items for rfqId={}", gmtItems.size(), rfq.getRfqId());
 			return true;
 		} catch (DataAccessException e) {
 			logger.error("Error occurred while creating RFQ: {}", e.getMessage());
