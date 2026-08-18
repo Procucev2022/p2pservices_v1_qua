@@ -3,6 +3,7 @@ package com.portal.procucev.rfq.client;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.portal.procucev.rfq.exception.ApplicationException;
+import com.portal.procucev.rfq.model.InlineImage;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -16,6 +17,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestTemplate;
 
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -60,19 +62,30 @@ public class GeminiApiClient {
     }
 
     public String generateContent(String promptText) {
+        return generateContent(promptText, List.of());
+    }
+
+    /**
+     * Sends the prompt, optionally with image attachments as inline data so a requirement sent as
+     * a screenshot or photograph can be read. With an empty image list the request is identical to
+     * the text-only form.
+     */
+    public String generateContent(String promptText, List<InlineImage> images) {
         if (apiKey == null || apiKey.isBlank()) {
             throw new ApplicationException(
                     "Gemini API key is not configured. Set the GEMINI_API_KEY environment variable "
                             + "(or the app.gemini.api-key property) to enable AI extraction.");
         }
-        log.info("Sending request to Gemini API (Primary Model: {})...", primaryModel);
+        List<InlineImage> inlineImages = images != null ? images : List.<InlineImage>of();
+        log.info("Sending request to Gemini API (Primary Model: {}, inline images: {})...",
+                primaryModel, inlineImages.size());
         try {
-            return callGeminiModel(primaryModel, promptText);
+            return callGeminiModel(primaryModel, promptText, inlineImages);
         } catch (Exception e) {
             log.warn("Primary Gemini model ({}) failed: {}. Retrying with Fallback Model ({})...",
                     primaryModel, e.getMessage(), fallbackModel);
             try {
-                return callGeminiModel(fallbackModel, promptText);
+                return callGeminiModel(fallbackModel, promptText, inlineImages);
             } catch (Exception ex) {
                 log.error("Fallback Gemini model ({}) call also failed: {}", fallbackModel, ex.getMessage());
                 throw new ApplicationException("Gemini AI API calls failed on both primary (" + primaryModel + ") and fallback (" + fallbackModel + ") models: " + ex.getMessage(), ex);
@@ -80,14 +93,25 @@ public class GeminiApiClient {
         }
     }
 
-    private String callGeminiModel(String model, String promptText) throws Exception {
+    private String callGeminiModel(String model, String promptText, List<InlineImage> images) throws Exception {
         String url = String.format("%s/%s:generateContent", baseUrl, model);
 
         Map<String, Object> textPart = new HashMap<>();
         textPart.put("text", promptText);
 
+        List<Map<String, Object>> parts = new ArrayList<>();
+        parts.add(textPart);
+        for (InlineImage image : images) {
+            Map<String, Object> inlineData = new HashMap<>();
+            inlineData.put("mimeType", image.mimeType());
+            inlineData.put("data", image.base64Data());
+            Map<String, Object> imagePart = new HashMap<>();
+            imagePart.put("inlineData", inlineData);
+            parts.add(imagePart);
+        }
+
         Map<String, Object> contentsObj = new HashMap<>();
-        contentsObj.put("parts", List.of(textPart));
+        contentsObj.put("parts", parts);
 
         Map<String, Object> requestBody = new HashMap<>();
         requestBody.put("contents", List.of(contentsObj));

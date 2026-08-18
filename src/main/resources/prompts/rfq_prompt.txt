@@ -24,6 +24,15 @@ Attachment text may be a flattened spreadsheet where cells are separated by " | 
 one line. A label such as "Delivery Location" may sit in one cell with its value in the next cell
 on the same line, or as a column header with the value in the rows beneath it. Read both layouts.
 
+IMAGES: one or more images may be attached to this request. An image is part of "the email" and is
+just as authoritative as the text sections. Buyers routinely send their requirement as a screenshot
+of a spreadsheet, a photo of a printed purchase note, or a scan of an indent form, and in those
+cases the EMAIL BODY is only a short covering note and EMAIL ATTACHMENT TEXT is empty. Read every
+attached image and extract the line items, quantities, units, specifications, delivery location and
+delivery date from it exactly as you would from typed text. Read the table structure in an image:
+match each quantity to the row it sits on. Do NOT report a detail as missing when it is visible in
+an attached image.
+
 Analyze the following email content and extract structured RFQ details into a SINGLE JSON object with EXACTLY this structure:
 
 {

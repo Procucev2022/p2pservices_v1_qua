@@ -5,13 +5,19 @@ import com.portal.procucev.rfq.client.GeminiApiClient;
 import com.portal.procucev.rfq.exception.ApplicationException;
 import com.portal.procucev.rfq.model.EmailData;
 import com.portal.procucev.rfq.model.ExtractedRFQ;
+import com.portal.procucev.rfq.model.InlineImage;
+import com.portal.procucev.rfq.util.FileUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Service;
 
+import java.io.File;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.List;
 
 @Slf4j
 @Service
@@ -20,6 +26,15 @@ public class AIExtractionService {
 
     private final GeminiApiClient geminiApiClient;
     private final ObjectMapper objectMapper = new ObjectMapper();
+
+    @Value("${app.gemini.max-inline-images:5}")
+    private int maxInlineImages = 5;
+
+    @Value("${app.gemini.max-inline-image-bytes:5242880}")
+    private long maxInlineImageBytes = 5242880L;
+
+    @Value("${app.gemini.max-inline-image-total-bytes:15728640}")
+    private long maxInlineImageTotalBytes = 15728640L;
 
     public ExtractedRFQ extractRFQFromEmail(EmailData email) {
         String subj = email.getSubject() != null ? email.getSubject() : "(No Subject)";
@@ -43,12 +58,17 @@ public class AIExtractionService {
             throw new ApplicationException("AI extraction failed to load prompt template: " + e.getMessage(), e);
         }
 
+        // Image attachments have no text layer, so they contribute nothing to attachmentText.
+        // They are sent alongside the prompt so a requirement supplied as a screenshot or a
+        // photographed purchase note is still read instead of being reported as detail-less.
+        List<InlineImage> inlineImages = collectInlineImages(email);
+
         ExtractedRFQ extractedRFQ = null;
         Exception firstException = null;
 
         // First attempt
         try {
-            String jsonResponse = geminiApiClient.generateContent(prompt);
+            String jsonResponse = geminiApiClient.generateContent(prompt, inlineImages);
             extractedRFQ = parseAndValidateJson(jsonResponse, email.getSenderEmail());
         } catch (Exception e) {
             firstException = e;
@@ -59,7 +79,7 @@ public class AIExtractionService {
         if (extractedRFQ == null) {
             try {
                 String retryPrompt = prompt + "\n\nCRITICAL: Return STRICT JSON ONLY. Do not include markdown code block syntax.";
-                String jsonResponse = geminiApiClient.generateContent(retryPrompt);
+                String jsonResponse = geminiApiClient.generateContent(retryPrompt, inlineImages);
                 extractedRFQ = parseAndValidateJson(jsonResponse, email.getSenderEmail());
             } catch (Exception e) {
                 log.error("Retry AI extraction attempt also failed for subject '{}': {}", subj, e.getMessage());
@@ -73,6 +93,56 @@ public class AIExtractionService {
                 extractedRFQ.getItems() != null ? extractedRFQ.getItems().size() : 0);
 
         return extractedRFQ;
+    }
+
+    /**
+     * Gathers the image attachments worth sending inline, newest limits first.
+     *
+     * <p>Bounded on purpose: the request carries the images Base64 encoded, so an unbounded photo
+     * album would blow the request size limit and fail an extraction that would otherwise have
+     * succeeded on the body alone.
+     */
+    private List<InlineImage> collectInlineImages(EmailData email) {
+        List<InlineImage> images = new ArrayList<>();
+        if (email.getAttachments() == null || email.getAttachments().isEmpty()) {
+            return images;
+        }
+
+        long totalBytes = 0L;
+        for (File attachment : email.getAttachments()) {
+            if (images.size() >= maxInlineImages) {
+                log.warn("Reached the inline image limit of {}; further image attachments are not sent for extraction.",
+                        maxInlineImages);
+                break;
+            }
+            String mimeType = FileUtil.visionImageMimeType(attachment);
+            if (mimeType == null) {
+                continue;
+            }
+            long length = attachment.length();
+            if (length > maxInlineImageBytes) {
+                log.warn("Image attachment '{}' is {} bytes, above the {} byte inline limit. Skipping it.",
+                        attachment.getName(), length, maxInlineImageBytes);
+                continue;
+            }
+            if (totalBytes + length > maxInlineImageTotalBytes) {
+                log.warn("Adding image attachment '{}' would exceed the {} byte inline budget. Skipping it.",
+                        attachment.getName(), maxInlineImageTotalBytes);
+                continue;
+            }
+            String base64 = FileUtil.readAsBase64(attachment);
+            if (base64 == null) {
+                continue;
+            }
+            totalBytes += length;
+            images.add(new InlineImage(attachment.getName(), mimeType, base64));
+        }
+
+        if (!images.isEmpty()) {
+            log.info("Sending {} image attachment(s) to the vision model for extraction: {}",
+                    images.size(), images.stream().map(InlineImage::fileName).toList());
+        }
+        return images;
     }
 
     private ExtractedRFQ parseAndValidateJson(String jsonResponse, String fallbackSenderEmail) throws Exception {

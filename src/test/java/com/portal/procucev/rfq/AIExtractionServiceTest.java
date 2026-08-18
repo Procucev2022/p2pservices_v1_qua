@@ -11,6 +11,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
 
 public class AIExtractionServiceTest {
@@ -38,7 +39,7 @@ public class AIExtractionServiceTest {
                 "}\n" +
                 "```";
 
-        Mockito.when(geminiApiClient.generateContent(anyString())).thenReturn(jsonResponse);
+        Mockito.when(geminiApiClient.generateContent(anyString(), anyList())).thenReturn(jsonResponse);
 
         EmailData email = EmailData.builder()
                 .subject("Need Laptops")
@@ -68,7 +69,7 @@ public class AIExtractionServiceTest {
                 "}\n" +
                 "```";
 
-        Mockito.when(geminiApiClient.generateContent(anyString())).thenReturn(jsonResponse);
+        Mockito.when(geminiApiClient.generateContent(anyString(), anyList())).thenReturn(jsonResponse);
 
         EmailData email = EmailData.builder()
                 .subject("Monitor requirement")
@@ -85,7 +86,7 @@ public class AIExtractionServiceTest {
     @Test
     @DisplayName("Test extractRFQFromEmail when Gemini API throws exception")
     void testExtractRFQFromEmailException() {
-        Mockito.when(geminiApiClient.generateContent(anyString())).thenThrow(new RuntimeException("API error"));
+        Mockito.when(geminiApiClient.generateContent(anyString(), anyList())).thenThrow(new RuntimeException("API error"));
 
         EmailData email = EmailData.builder()
                 .subject("Error test")
@@ -99,7 +100,7 @@ public class AIExtractionServiceTest {
     @DisplayName("Test extractRFQFromEmail with raw JSON response without code block markdown")
     void testExtractRFQFromEmailRawJson() {
         String jsonResponse = "{\"buyerEmail\":\"buyer@test.com\",\"items\":[]}";
-        Mockito.when(geminiApiClient.generateContent(anyString())).thenReturn(jsonResponse);
+        Mockito.when(geminiApiClient.generateContent(anyString(), anyList())).thenReturn(jsonResponse);
 
         EmailData email = EmailData.builder()
                 .senderEmail("sender@test.com")
@@ -113,7 +114,7 @@ public class AIExtractionServiceTest {
     @Test
     @DisplayName("Test extractRFQFromEmail when Gemini returns null or empty response")
     void testExtractRFQFromEmailNullResponse() {
-        Mockito.when(geminiApiClient.generateContent(anyString())).thenReturn(null);
+        Mockito.when(geminiApiClient.generateContent(anyString(), anyList())).thenReturn(null);
 
         EmailData email = EmailData.builder().senderEmail("sender@test.com").build();
         assertThrows(ApplicationException.class, () -> aiExtractionService.extractRFQFromEmail(email));

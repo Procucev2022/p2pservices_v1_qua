@@ -9,11 +9,13 @@ import jakarta.mail.FetchProfile;
 import jakarta.mail.Flags;
 import jakarta.mail.Folder;
 import jakarta.mail.Message;
+import jakarta.mail.MessagingException;
 import jakarta.mail.Part;
 import jakarta.mail.Session;
 import jakarta.mail.Store;
 import jakarta.mail.internet.InternetAddress;
 import jakarta.mail.internet.MimeMultipart;
+import jakarta.mail.search.MessageIDTerm;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -56,6 +58,41 @@ public class EmailReaderService {
     @Value("${app.mail.max-attachment-bytes:26214400}")
     private long maxAttachmentBytes = 26214400L;
 
+    @Value("${app.mail.connect-timeout-ms:15000}")
+    private int connectTimeoutMs = 15000;
+
+    /**
+     * IMAP socket read timeout. Downloading a message with attachments is a single read as far as
+     * this timeout is concerned, so it needs headroom well beyond a bare protocol exchange.
+     */
+    @Value("${app.mail.read-timeout-ms:60000}")
+    private int readTimeoutMs = 60000;
+
+    @Value("${app.mail.move-max-attempts:3}")
+    private int moveMaxAttempts = 3;
+
+    @Value("${app.mail.move-retry-delay-ms:2000}")
+    private long moveRetryDelayMs = 2000L;
+
+    /**
+     * Connection settings shared by every IMAP operation.
+     *
+     * <p>Bounded waits: an unreachable or slow mail host must not pin a scheduler thread
+     * indefinitely. These were previously duplicated per method with hard-coded values, so raising
+     * one timeout silently left the other operation on the old limit.
+     */
+    private Properties buildImapProperties() {
+        Properties props = new Properties();
+        props.put("mail.store.protocol", "imaps");
+        props.put("mail.imaps.host", mailHost);
+        props.put("mail.imaps.port", String.valueOf(mailPort));
+        props.put("mail.imaps.ssl.enable", "true");
+        props.put("mail.imaps.connectiontimeout", String.valueOf(connectTimeoutMs));
+        props.put("mail.imaps.timeout", String.valueOf(readTimeoutMs));
+        props.put("mail.imaps.writetimeout", String.valueOf(readTimeoutMs));
+        return props;
+    }
+
     public List<EmailData> fetchUnreadEmails() {
         if (mailPassword == null || mailPassword.isBlank()) {
             throw new ApplicationException(
@@ -68,17 +105,7 @@ public class EmailReaderService {
         Folder folder = null;
 
         try {
-            Properties props = new Properties();
-            props.put("mail.store.protocol", "imaps");
-            props.put("mail.imaps.host", mailHost);
-            props.put("mail.imaps.port", String.valueOf(mailPort));
-            props.put("mail.imaps.ssl.enable", "true");
-            // Bounded waits: an unreachable mail host must not pin a scheduler thread indefinitely.
-            props.put("mail.imaps.connectiontimeout", "15000");
-            props.put("mail.imaps.timeout", "30000");
-            props.put("mail.imaps.writetimeout", "30000");
-
-            Session session = Session.getInstance(props);
+            Session session = Session.getInstance(buildImapProperties());
             store = session.getStore("imaps");
             store.connect(mailHost, mailUsername, mailPassword);
 
@@ -137,22 +164,53 @@ public class EmailReaderService {
         return emailsList;
     }
 
+    /**
+     * Files a processed message into the Processed or Error folder, retrying a transient failure.
+     *
+     * <p>A failed move used to be logged and forgotten, leaving the message sitting in the inbox
+     * already flagged SEEN: it was neither filed nor eligible for another poll, so the mailbox
+     * silently drifted out of step with the RFQ records.
+     */
     public void moveMessageToFolder(String messageId, String targetFolderName) {
         log.info("Moving message [{}] to folder '{}'", messageId, targetFolderName);
+        Exception lastFailure = null;
+
+        for (int attempt = 1; attempt <= Math.max(1, moveMaxAttempts); attempt++) {
+            try {
+                moveMessageOnce(messageId, targetFolderName);
+                return;
+            } catch (Exception e) {
+                lastFailure = e;
+                log.warn("Attempt {}/{} to move message [{}] to folder '{}' failed: {}",
+                        attempt, moveMaxAttempts, messageId, targetFolderName, e.getMessage());
+                if (attempt < moveMaxAttempts) {
+                    sleepBeforeRetry();
+                }
+            }
+        }
+
+        log.error("Error moving message [{}] to folder '{}' after {} attempt(s): {}",
+                messageId, targetFolderName, moveMaxAttempts,
+                lastFailure != null ? lastFailure.getMessage() : "unknown", lastFailure);
+    }
+
+    private void sleepBeforeRetry() {
+        try {
+            Thread.sleep(moveRetryDelayMs);
+        } catch (InterruptedException ignore) {
+            Thread.currentThread().interrupt();
+        }
+    }
+
+    /**
+     * One attempt at the move. Throws on a transient IMAP failure so the caller can retry, and
+     * returns normally when the message simply is not in the inbox, which no retry would fix.
+     */
+    private void moveMessageOnce(String messageId, String targetFolderName) throws MessagingException {
         Store store = null;
         Folder srcFolder = null;
-
         try {
-            Properties props = new Properties();
-            props.put("mail.store.protocol", "imaps");
-            props.put("mail.imaps.host", mailHost);
-            props.put("mail.imaps.port", String.valueOf(mailPort));
-            props.put("mail.imaps.ssl.enable", "true");
-            props.put("mail.imaps.connectiontimeout", "15000");
-            props.put("mail.imaps.timeout", "30000");
-            props.put("mail.imaps.writetimeout", "30000");
-
-            Session session = Session.getInstance(props);
+            Session session = Session.getInstance(buildImapProperties());
             store = session.getStore("imaps");
             store.connect(mailHost, mailUsername, mailPassword);
 
@@ -164,36 +222,75 @@ public class EmailReaderService {
                 targetFolder.create(Folder.HOLDS_MESSAGES);
             }
 
-            Message[] messages = srcFolder.getMessages();
-            boolean messageFoundAndMoved = false;
-            String normalizedTargetId = normalizeMessageId(messageId);
-
-            for (Message msg : messages) {
-                String[] headers = msg.getHeader("Message-ID");
-                if (headers != null && headers.length > 0) {
-                    String currentMsgId = normalizeMessageId(headers[0]);
-                    if (!normalizedTargetId.isEmpty() && currentMsgId.equalsIgnoreCase(normalizedTargetId)) {
-                        msg.setFlag(Flags.Flag.SEEN, true);
-                        srcFolder.copyMessages(new Message[]{msg}, targetFolder);
-                        msg.setFlag(Flags.Flag.DELETED, true);
-                        messageFoundAndMoved = true;
-                        log.info("Successfully marked SEEN and moved message [{}] to folder '{}'", messageId, targetFolderName);
-                        break;
-                    }
-                }
+            Message message = findMessageById(srcFolder, messageId);
+            if (message == null) {
+                log.warn("Could not find message [{}] in folder '{}' to move to '{}'",
+                        messageId, inboxFolder, targetFolderName);
+                return;
             }
 
-            if (messageFoundAndMoved) {
-                srcFolder.expunge();
-            } else {
-                log.warn("Could not find message [{}] in folder '{}' to move to '{}'", messageId, inboxFolder, targetFolderName);
-            }
-
-        } catch (Exception e) {
-            log.error("Error moving message [{}] to folder '{}': {}", messageId, targetFolderName, e.getMessage(), e);
+            message.setFlag(Flags.Flag.SEEN, true);
+            srcFolder.copyMessages(new Message[]{message}, targetFolder);
+            message.setFlag(Flags.Flag.DELETED, true);
+            srcFolder.expunge();
+            log.info("Successfully marked SEEN and moved message [{}] to folder '{}'", messageId, targetFolderName);
         } finally {
             closeFolderAndStore(srcFolder, store);
         }
+    }
+
+    /**
+     * Locates a message by Message-ID using a server-side SEARCH, which costs one round trip
+     * whatever the mailbox size.
+     *
+     * <p>The previous implementation walked every message in the inbox calling
+     * {@code getHeader("Message-ID")}. On an IMAP folder that header is not prefetched, so each
+     * call was its own round trip: a 50-message inbox meant ~50 sequential round trips per move
+     * and regularly exceeded the socket read timeout, which is what produced the
+     * "BYE ... Read timed out" failures. This is the same trap the unread scan already avoids
+     * with a FetchProfile.
+     */
+    private Message findMessageById(Folder folder, String messageId) throws MessagingException {
+        String normalizedId = normalizeMessageId(messageId);
+        if (normalizedId.isEmpty()) {
+            return null;
+        }
+
+        for (String candidate : new String[]{"<" + normalizedId + ">", normalizedId}) {
+            try {
+                Message[] found = folder.search(new MessageIDTerm(candidate));
+                if (found != null && found.length > 0) {
+                    return found[0];
+                }
+            } catch (MessagingException e) {
+                // Fall through to the local scan; some servers reject or mis-handle HEADER SEARCH.
+                log.debug("IMAP SEARCH by Message-ID '{}' was not usable: {}", candidate, e.getMessage());
+            }
+        }
+
+        return scanForMessageId(folder, normalizedId);
+    }
+
+    /** Fallback for servers whose SEARCH is unreliable: one bulk FETCH, then a local comparison. */
+    private Message scanForMessageId(Folder folder, String normalizedId) throws MessagingException {
+        Message[] messages = folder.getMessages();
+        if (messages.length == 0) {
+            return null;
+        }
+
+        FetchProfile headersOnly = new FetchProfile();
+        headersOnly.add("Message-ID");
+        folder.fetch(messages, headersOnly);
+
+        // Newest first: the message just processed is almost always the most recent arrival.
+        for (int i = messages.length - 1; i >= 0; i--) {
+            String[] headers = messages[i].getHeader("Message-ID");
+            if (headers != null && headers.length > 0
+                    && normalizedId.equalsIgnoreCase(normalizeMessageId(headers[0]))) {
+                return messages[i];
+            }
+        }
+        return null;
     }
 
     private String normalizeMessageId(String raw) {

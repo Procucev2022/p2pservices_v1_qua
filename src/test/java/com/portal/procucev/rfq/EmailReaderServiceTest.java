@@ -37,6 +37,12 @@ public class EmailReaderServiceTest {
         ReflectionTestUtils.setField(service, "inboxFolder", "INBOX");
         ReflectionTestUtils.setField(service, "attachmentDirectory", tempDir.toAbsolutePath().toString());
         ReflectionTestUtils.setField(service, "maxAttachmentBytes", 26214400L);
+        ReflectionTestUtils.setField(service, "connectTimeoutMs", 5000);
+        ReflectionTestUtils.setField(service, "readTimeoutMs", 5000);
+        // Still more than one attempt so the move retry loop is exercised, but without the
+        // production back-off holding the suite up.
+        ReflectionTestUtils.setField(service, "moveMaxAttempts", 2);
+        ReflectionTestUtils.setField(service, "moveRetryDelayMs", 1L);
     }
 
     @Test

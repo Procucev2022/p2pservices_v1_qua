@@ -58,13 +58,26 @@ public class ExcelMasterDataLoader {
         }
 
         this.masterRecords = records;
-        log.info("Successfully loaded TOTAL {} category master records across both 1st and 2nd Excel datasets.", masterRecords.size());
+
+        // The old message said "Successfully loaded TOTAL 0 records across both datasets" when
+        // neither dataset was deployed, which reads like a success and hides the consequence.
+        // State the functional effect once instead of warning per absent file.
+        if (records.isEmpty()) {
+            log.warn("No category master records were loaded from '{}'. Item categorisation will run on "
+                            + "keyword matching alone. Deploy the category dataset spreadsheet, or point "
+                            + "CATEGORY_MASTER_FILE_PATH at it, to enable master-data classification.",
+                    masterFilePath);
+            return;
+        }
+        log.info("Loaded TOTAL {} category master records from {} dataset file(s).", records.size(), fileNames.size());
     }
 
     private void loadSingleExcelFile(String fileName, List<MasterCategoryRecord> targetList) {
         try (InputStream is = getInputStreamForFile(fileName)) {
             if (is == null) {
-                log.warn("Category dataset file '{}' not found. Skipping this set.", fileName);
+                // Optional enrichment: absence is a deployment choice, not an error. The single
+                // summary warning in loadMasterData reports the effect if nothing loads at all.
+                log.info("Category dataset file '{}' is not present; skipping this set.", fileName);
                 return;
             }
 

@@ -16,9 +16,26 @@ import org.apache.poi.xwpf.usermodel.XWPFDocument;
 import java.io.File;
 import java.io.FileInputStream;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.util.Base64;
+import java.util.Locale;
+import java.util.Map;
 
 @Slf4j
 public final class FileUtil {
+
+    /**
+     * Image types the multimodal model accepts as inline data. Deliberately narrower than "any
+     * image": sending a type the API rejects would fail the whole extraction, so formats outside
+     * this set are still reported as unsupported.
+     */
+    private static final Map<String, String> VISION_IMAGE_MIME_TYPES = Map.of(
+            "png", "image/png",
+            "jpg", "image/jpeg",
+            "jpeg", "image/jpeg",
+            "webp", "image/webp",
+            "heic", "image/heic",
+            "heif", "image/heif");
 
     private FileUtil() {
     }
@@ -36,14 +53,55 @@ public final class FileUtil {
             } else if (filename.endsWith(".txt") || filename.endsWith(".csv")) {
                 return extractPlainText(file);
             }
+            if (isVisionImage(file)) {
+                // An image has no text layer to strip, so returning nothing here is expected and
+                // is not a failure: the bytes are sent to the vision model as inline data instead.
+                log.info("Attachment '{}' is an image; it will be read by the vision model rather than a text extractor.",
+                        file.getName());
+                return "";
+            }
             // Unsupported types previously returned "" indistinguishably from an empty
             // attachment, which made attachment-driven extraction failures undiagnosable.
-            log.warn("Unsupported attachment type '{}' - no text extracted. Supported: .pdf, .xlsx, .xls, .xlsm, .docx, .txt, .csv",
+            log.warn("Unsupported attachment type '{}' - no text extracted. Supported: .pdf, .xlsx, .xls, .xlsm, "
+                            + ".docx, .txt, .csv, and images (.png, .jpg, .jpeg, .webp, .heic, .heif) via the vision model",
                     file.getName());
         } catch (Exception e) {
             log.error("Error extracting text from file {}: {}", file.getName(), e.getMessage());
         }
         return "";
+    }
+
+    /**
+     * The MIME type to send an image attachment under, or null when the file is not an image the
+     * vision model accepts.
+     */
+    public static String visionImageMimeType(File file) {
+        if (file == null) {
+            return null;
+        }
+        String name = file.getName().toLowerCase(Locale.ROOT);
+        int dot = name.lastIndexOf('.');
+        if (dot < 0 || dot == name.length() - 1) {
+            return null;
+        }
+        return VISION_IMAGE_MIME_TYPES.get(name.substring(dot + 1));
+    }
+
+    public static boolean isVisionImage(File file) {
+        return visionImageMimeType(file) != null;
+    }
+
+    /** Reads a file as Base64 for inline transport, or returns null when it cannot be read. */
+    public static String readAsBase64(File file) {
+        if (file == null || !file.exists()) {
+            return null;
+        }
+        try {
+            return Base64.getEncoder().encodeToString(Files.readAllBytes(file.toPath()));
+        } catch (Exception e) {
+            log.error("Could not read attachment '{}' as inline data: {}", file.getName(), e.getMessage());
+            return null;
+        }
     }
 
     private static String extractPdfText(File pdfFile) throws Exception {
