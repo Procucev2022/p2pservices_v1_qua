@@ -16,6 +16,7 @@ import com.portal.procucev.rfq.parser.DateParser;
 import com.portal.procucev.rfq.repository.EmailTransactionRepository;
 import com.portal.procucev.rfq.repository.RFQRepository;
 import com.portal.procucev.rfq.repository.RfqItemRecordRepository;
+import com.portal.procucev.rfq.util.QuantityNormalizer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -328,6 +329,23 @@ public class EmailProcessorService {
                 log.info("DEBUG Extracted Data: Item='{}', Quantity={}, UOM='{}', Specification='{}', Brand='{}', PartCode='{}', Raw Location='{}', Raw Date='{}'",
                         desc, item.getQuantity(), item.getUom(), item.getSpecification(), item.getBrand(),
                         item.getEffectivePartNumber(), item.getDeliveryLocation(), item.getDeliveryDate());
+
+                // Recover a quantity the buyer wrote directly beside THIS item's name, e.g. a
+                // run-on requirement sentence or table row such as "Plain Washers M10 - 1,000 Nos".
+                // The model reads the unit but intermittently drops the number in that layout, and
+                // because the match is anchored on the item's own name this is safe to run for
+                // multi-item payloads too - which is where the whole-email scan below cannot help.
+                if (item.getQuantity() == null || item.getQuantity() <= 0) {
+                    QuantityNormalizer.QuantityMatch perItemQty = scanQuantityForItem(email, desc);
+                    if (perItemQty != null) {
+                        log.info("Quantity recovered beside item name for item '{}': {} {}",
+                                desc, perItemQty.quantity(), perItemQty.uom() != null ? perItemQty.uom() : "");
+                        item.setQuantity(perItemQty.quantity());
+                        if (perItemQty.uom() != null && (item.getUom() == null || item.getUom().isBlank())) {
+                            item.setUom(perItemQty.uom());
+                        }
+                    }
+                }
 
                 // Recover an explicitly stated quantity the model failed to return. A spec-dense
                 // email ("16 GB RAM, 512 GB SSD, 21.5-inch monitor") can push the model into
@@ -790,6 +808,25 @@ public class EmailProcessorService {
      */
     private static final java.util.regex.Pattern QUANTITY_STATEMENT_PATTERN = java.util.regex.Pattern.compile(
             "(?i)\\b(?:required\\s+)?(?:quantity|qty)\\b\\s*(?:of\\s+)?[:=]?\\s*([^\\r\\n]{1,40})");
+
+    /**
+     * Finds a quantity written directly beside one item's name, searching body, attachment text and
+     * subject in that order. Anchoring on the name is what makes this usable on a multi-item
+     * requirement, where {@link #scanQuantityFromEmail} would apply one number to every row.
+     */
+    private QuantityNormalizer.QuantityMatch scanQuantityForItem(EmailData email, String description) {
+        if (email == null || description == null || description.isBlank()) {
+            return null;
+        }
+        String[] sources = {email.getBody(), email.getAttachmentText(), email.getSubject()};
+        for (String source : sources) {
+            QuantityNormalizer.QuantityMatch match = QuantityNormalizer.findQuantityForItem(source, description);
+            if (match != null) {
+                return match;
+            }
+        }
+        return null;
+    }
 
     /**
      * Last-resort recovery of a quantity the model failed to return, scanning body, attachment and

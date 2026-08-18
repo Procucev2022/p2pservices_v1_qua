@@ -3,6 +3,7 @@ package com.portal.procucev.rfq.util;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -47,12 +48,54 @@ public class QuantityNormalizer {
     // Singular forms and common trade units were previously absent, so legitimate quantities such
     // as "1 Set", "10 Pairs", "2 Dozen" or "24 Packets" normalised to null and the item was
     // rejected as quantity-less.
-    private static final Pattern DIGIT_UNIT_PATTERN = Pattern.compile("(?i)\\b([0-9,]+(?:\\.[0-9]+)?)\\s*"
-            + "(?:nos?|no\\.|units?|pieces?|pcs?|bags?|items?|boxes|box|sets?|rolls?|pairs?|dozens?|dzn?|"
+    private static final String TRADE_UNITS =
+            "nos?|no\\.|units?|pieces?|pcs?|bags?|items?|boxes|box|sets?|rolls?|pairs?|dozens?|dzn?|"
             + "packets?|pkts?|pkt|packs?|bundles?|cartons?|ctns?|reams?|sheets?|tubes?|cans?|drums?|"
-            + "coils?|lengths?|laptops?|systems?|machines?|numbers?)\\b");
+            + "coils?|lengths?|laptops?|systems?|machines?|numbers?";
+    private static final Pattern DIGIT_UNIT_PATTERN =
+            Pattern.compile("(?i)\\b([0-9,]+(?:\\.[0-9]+)?)\\s*(?:" + TRADE_UNITS + ")\\b");
     private static final Pattern DIRECT_DIGIT_PATTERN = Pattern.compile("^\\s*([0-9,]+(?:\\.[0-9]+)?)\\s*$");
     private static final Pattern SPECIFICATION_INDICATOR_PATTERN = Pattern.compile("(?i)\\b(?:lph|liters?\\s*(?:per|/)\\s*hour|liters?\\s+capacity|capacity|ton|tons|w|watt|watts|hp|gb|tb|mb|ram|ssd|inch|inches|mm|cm|diameter|pn\\d+|bar|psi|v|kv|kva|rpm|hz|star|rating|display|screen|reduction\\s+ratio|per\\s+bag|ratio)\\b");
+
+    /** A quantity literal, allowing grouped thousands in western (1,000) or Indian (1,00,000) style. */
+    private static final String QTY_NUMBER = "[0-9]{1,3}(?:,[0-9]{2,3})+|[0-9]+(?:\\.[0-9]+)?";
+
+    /** Punctuation that mail clients and flattened spreadsheets put between an item name and its quantity. */
+    private static final String NAME_QTY_SEPARATOR = "[\\s\\-:=@*)\\],|]*";
+
+    /**
+     * A quantity written immediately after the item name and qualified by a trade unit, as in
+     * "Plain Washers M10 - 1,000 Nos" or the flattened table row "Plain Washers M10 | 1,000 | Nos".
+     * Requiring the unit is what keeps a trailing specification number out of the match.
+     */
+    private static final Pattern TRAILING_UNIT_QTY_PATTERN = Pattern.compile(
+            "(?i)^" + NAME_QTY_SEPARATOR + "(" + QTY_NUMBER + ")[\\s|]*(" + TRADE_UNITS + ")\\b");
+
+    /** A quantity written after the item name behind an explicit keyword, as in "Gear Box Seal 40x52x7, Qty: 12". */
+    private static final Pattern TRAILING_KEYWORD_QTY_PATTERN = Pattern.compile(
+            "(?i)^" + NAME_QTY_SEPARATOR + "(?:required\\s+)?(?:qty|quantity)\\b[\\s:=|]*(?:of\\s+)?(" + QTY_NUMBER + ")\\b");
+
+    /** A quantity written before the item name, as in "500 Nos of Plain Washers M10". */
+    private static final Pattern LEADING_UNIT_QTY_PATTERN = Pattern.compile(
+            "(?i)(" + QTY_NUMBER + ")\\s*(" + TRADE_UNITS + ")\\b\\s*(?:of\\s+)?[\\s\\-:=|]*$");
+
+    /**
+     * A quantity written before the item name with the item itself acting as the unit, as in
+     * "we require 10 laptops". The purchasing verb is required, and the number must sit immediately
+     * before the name, which is what stops a capacity such as "2 ton air conditioner" from matching.
+     */
+    private static final Pattern LEADING_PURCHASE_QTY_PATTERN = Pattern.compile(
+            "(?i)\\b(?:require|requires|required|need|needs|needed|quote\\s+for|purchase|order|supply|procure)\\s+"
+            + "(?:a\\s+total\\s+of\\s+)?(?:about\\s+|approx\\.?\\s+|approximately\\s+)?(" + QTY_NUMBER + ")\\s*$");
+
+    /** Invisible or exotic spacing that varies between mail clients and breaks a literal name match. */
+    private static final Pattern MATCH_NOISE_PATTERN = Pattern.compile("[\u00A0\u2000-\u200B]"); // nbsp and exotic spaces
+
+    /** Upper bound on an item name we are willing to turn into a matching pattern. */
+    private static final int MAX_MATCHABLE_NAME_LENGTH = 200;
+
+    /** Shortest token stem length that keeps an optional plural suffix from swallowing a whole word. */
+    private static final int MIN_STEM_LENGTH = 3;
 
     public static Double normalize(Object raw) {
         if (raw == null) {
@@ -180,6 +223,143 @@ public class QuantityNormalizer {
         return Character.toUpperCase(str.charAt(0)) + str.substring(1);
     }
 
+    /**
+     * Locates the purchase quantity that the buyer wrote next to one specific item name.
+     *
+     * <p>This exists because the extraction model reliably reads the unit but sometimes drops the
+     * number when a requirement is written as a run-on list such as "MS Hex Bolts M10 x 50 mm -
+     * 500 Nos, Plain Washers M10 - 1,000 Nos". Every item then arrives with a uom and a null
+     * quantity, and the whole RFQ is rejected as quantity-less.
+     *
+     * <p>The search is anchored on the item's own name, so unlike a whole-email scan it stays
+     * correct for multi-item requirements: a quantity is only accepted when it sits directly beside
+     * that item. Returns null when no quantity is written next to the name, which leaves the
+     * mandatory-quantity rule free to ask the buyer for it.
+     *
+     * @param text            the email body, attachment text or subject to search
+     * @param itemDescription the item name to anchor on
+     * @return the quantity and the unit that qualified it, or null when the name carries no quantity
+     */
+    public static QuantityMatch findQuantityForItem(String text, String itemDescription) {
+        if (text == null || text.isBlank() || itemDescription == null || itemDescription.isBlank()) {
+            return null;
+        }
+        Pattern namePattern = buildItemNamePattern(itemDescription);
+        if (namePattern == null) {
+            return null;
+        }
+        String haystack = normalizeForMatching(text);
+        Matcher nameMatcher = namePattern.matcher(haystack);
+        while (nameMatcher.find()) {
+            QuantityMatch match = matchQuantityAroundName(haystack, nameMatcher.start(), nameMatcher.end());
+            if (match != null) {
+                return match;
+            }
+        }
+        return null;
+    }
+
+    /** Looks for a quantity directly after the matched name, then directly before it. */
+    private static QuantityMatch matchQuantityAroundName(String haystack, int nameStart, int nameEnd) {
+        String tail = haystack.substring(nameEnd);
+
+        Matcher keyword = TRAILING_KEYWORD_QTY_PATTERN.matcher(tail);
+        if (keyword.find()) {
+            Double qty = parseGroupedNumber(keyword.group(1));
+            if (qty != null) {
+                return new QuantityMatch(qty, null);
+            }
+        }
+
+        Matcher trailing = TRAILING_UNIT_QTY_PATTERN.matcher(tail);
+        if (trailing.find()) {
+            Double qty = parseGroupedNumber(trailing.group(1));
+            if (qty != null) {
+                return new QuantityMatch(qty, capitalizeWord(trailing.group(2)));
+            }
+        }
+
+        String head = haystack.substring(0, nameStart);
+
+        Matcher leadingUnit = LEADING_UNIT_QTY_PATTERN.matcher(head);
+        if (leadingUnit.find()) {
+            Double qty = parseGroupedNumber(leadingUnit.group(1));
+            if (qty != null) {
+                return new QuantityMatch(qty, capitalizeWord(leadingUnit.group(2)));
+            }
+        }
+
+        Matcher leadingPurchase = LEADING_PURCHASE_QTY_PATTERN.matcher(head);
+        if (leadingPurchase.find()) {
+            Double qty = parseGroupedNumber(leadingPurchase.group(1));
+            if (qty != null) {
+                return new QuantityMatch(qty, null);
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Parses a digit run that may carry grouping commas. The callers pass a regex-captured number,
+     * so this rejects only the values that are matchable but unusable as a quantity: zero, and a
+     * digit run long enough to overflow to infinity.
+     */
+    private static Double parseGroupedNumber(String digits) {
+        double val = Double.parseDouble(digits.replace(",", ""));
+        return val > 0 && Double.isFinite(val) ? val : null;
+    }
+
+    /**
+     * Builds a tolerant pattern for an item name.
+     *
+     * <p>The name is compared against text the buyer typed, so the two rarely agree character for
+     * character. Tokens are joined by "any non-alphanumeric run" so "M10x50mm" matches "M10 x 50 mm",
+     * and each token accepts an optional plural so a "Desktop Computer" line item still matches
+     * "desktop computers".
+     */
+    private static Pattern buildItemNamePattern(String description) {
+        String normalized = normalizeForMatching(description);
+        if (normalized.length() > MAX_MATCHABLE_NAME_LENGTH) {
+            return null;
+        }
+        StringBuilder sb = new StringBuilder();
+        int used = 0;
+        for (String token : normalized.split("[^a-z0-9]+")) {
+            if (token.isEmpty()) {
+                continue;
+            }
+            if (used > 0) {
+                sb.append("[^a-z0-9]*");
+            }
+            String stem = token.endsWith("s") && token.length() > MIN_STEM_LENGTH
+                    ? token.substring(0, token.length() - 1)
+                    : token;
+            sb.append(Pattern.quote(stem)).append("s?");
+            used++;
+        }
+        return used == 0 ? null : Pattern.compile(sb.toString());
+    }
+
+    /**
+     * Folds the typographic variants a mail client emits into the plain ASCII forms the patterns
+     * expect, so a dimension written "M10 x 50 mm" still matches a body that used the
+     * multiplication sign, and a quantity behind an en dash still matches one behind a hyphen.
+     */
+    private static String normalizeForMatching(String text) {
+        String out = text
+                .replace('\u00D7', 'x')  // multiplication sign
+                .replace('\u2715', 'x')  // multiplication x
+                .replace('\u2716', 'x')  // heavy multiplication x
+                .replace('\u2010', '-')  // hyphen
+                .replace('\u2011', '-')  // non-breaking hyphen
+                .replace('\u2012', '-')  // figure dash
+                .replace('\u2013', '-')  // en dash
+                .replace('\u2014', '-')  // em dash
+                .replace('\u2212', '-'); // minus sign
+        out = MATCH_NOISE_PATTERN.matcher(out).replaceAll(" ");
+        return out.replaceAll("\\s+", " ").toLowerCase(Locale.ROOT).trim();
+    }
+
     public static Double parseWords(String text) {
         if (text == null || text.isBlank()) {
             return null;
@@ -238,5 +418,15 @@ public class QuantityNormalizer {
         }
 
         return null;
+    }
+
+    /**
+     * A purchase quantity found beside an item name, together with the unit that qualified it.
+     *
+     * @param quantity the numeric purchase quantity, always greater than zero
+     * @param uom      the unit token that qualified the number, or null when the quantity was found
+     *                 behind an explicit "Qty:" keyword with no unit written next to it
+     */
+    public record QuantityMatch(double quantity, String uom) {
     }
 }
