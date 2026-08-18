@@ -309,6 +309,37 @@ public class ItemQuantityRecoveryTest {
     }
 
     @Test
+    @DisplayName("Production incident: a labelled field block yields its quantity, on separate lines or collapsed")
+    void labelledFieldBlockYieldsQuantity() {
+        // The 18-Aug 10:53 UTC email. Every detail was supplied and it was still rejected.
+        String block = "Remarks: Original branded material, warranty certificate required, proper manufacturer packing.\n"
+                + "Description: Laptop\n"
+                + "Quantity: 25\n"
+                + "UOM: Nos\n"
+                + "Location: Bengaluru\n"
+                + "Specification: Intel Core i5, 16 GB RAM, 512 GB SSD, 15.6-inch FHD, Windows 11\n"
+                + "State: Karnataka\nPincode: 560001\nCity: Bengaluru\n";
+        assertEquals(25.0, QuantityNormalizer.normalize(block));
+
+        // The same block after an HTML-to-text conversion that lost the line breaks. The captured
+        // value is then "25 UOM", which used to normalise to null and sink the whole RFQ.
+        assertEquals(25.0, QuantityNormalizer.normalize(
+                "Description: Laptop Quantity: 25 UOM: Nos Location: Bengaluru State: Karnataka"));
+        assertEquals(25.0, QuantityNormalizer.normalize("Quantity: 25 UOM: Nos"));
+        assertEquals(1000.0, QuantityNormalizer.normalize("Qty: 1,000 Location: Pune Pincode: 411001"));
+        assertEquals(500.0, QuantityNormalizer.normalize("Quantity: 500 Nos Location: Hyderabad"));
+    }
+
+    @Test
+    @DisplayName("A specification unit directly after a labelled number is still not a quantity")
+    void labelledSpecificationValueIsStillRejected() {
+        assertNull(QuantityNormalizer.normalize("Quantity: 16 GB RAM"));
+        assertNull(QuantityNormalizer.normalize("Quantity: 110 mm diameter"));
+        assertNull(QuantityNormalizer.normalize("Quantity: 10,000 LPH capacity"));
+        assertNull(QuantityNormalizer.normalize("Quantity: 2 ton"));
+    }
+
+    @Test
     @DisplayName("An explicit Qty keyword after the name is honoured even with no unit")
     void trailingKeywordFormIsParsed() {
         assertMatch(12.0, null, "Gear Box Seal 40x52x7, Qty: 12", "Gear Box Seal 40x52x7");

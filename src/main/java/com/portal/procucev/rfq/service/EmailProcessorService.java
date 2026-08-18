@@ -265,7 +265,7 @@ public class EmailProcessorService {
                         ? item.getItemDescription().trim() : extractProductFromSubject(email.getSubject());
 
                 if (desc.isBlank() || desc.equalsIgnoreCase("RFQ Procurement Item")) {
-                    String scannedProduct = scanFieldFromEmail(email, "(?i)(?:product|item|material|description)[:\\s=]*([^\\r\\n]+)");
+                    String scannedProduct = stripTrailingLabels(scanFieldFromEmail(email, PRODUCT_LABEL_REGEX));
                     if (scannedProduct != null && !scannedProduct.isBlank()) {
                         desc = scannedProduct.trim();
                     } else {
@@ -586,6 +586,37 @@ public class EmailProcessorService {
         return groups;
     }
 
+    /**
+     * Labels a buyer uses to name the product. Shared so the thread-merge guard and the
+     * description fallback scan agree on what counts as "this email names its own product".
+     *
+     * <p>Anchored to the start of a line and requiring a colon or equals, because these words also
+     * occur in ordinary prose. Without the anchor, "Original branded material, warranty certificate
+     * required." matched on the word "material" and yielded "warranty certificate required." as the
+     * product name. A leading pipe or bullet is allowed so a flattened spreadsheet cell still matches.
+     */
+    private static final String PRODUCT_LABEL_REGEX =
+            "(?im)^[\\s|\\-*]*(?:product|item|material|description)\\s*[:=]\\s*([^\\r\\n]+)";
+
+    /** Labels that mark where a value ends when a whole requirement block is collapsed onto one line. */
+    private static final java.util.regex.Pattern NEXT_FIELD_LABEL_PATTERN = java.util.regex.Pattern.compile(
+            "(?i)\\s+(?:quantity|qty|uom|unit|specifications?|specs|configuration|brand|make|manufacturer|"
+            + "delivery\\s+location|location|ship\\s+to|city|state|pincode|pin|remarks|notes|"
+            + "delivery\\s+date|required\\s+by|date)\\s*[:=]");
+
+    /**
+     * Cuts a scanned value at the next field label. A label block that lost its line breaks turns
+     * "Description: Laptop Quantity: 25 UOM: Nos" into one line, and the line-tail capture would
+     * otherwise take every following field as part of the product name.
+     */
+    private String stripTrailingLabels(String value) {
+        if (value == null) {
+            return null;
+        }
+        java.util.regex.Matcher matcher = NEXT_FIELD_LABEL_PATTERN.matcher(value);
+        return matcher.find() ? value.substring(0, matcher.start()).trim() : value.trim();
+    }
+
     private ExtractedRFQ mergeThreadContext(EmailData email, ExtractedRFQ extracted) {
         if (extracted == null || (email.getInReplyTo() == null && email.getReferences() == null)) {
             return extracted;
@@ -604,15 +635,36 @@ public class EmailProcessorService {
             }
             try {
                 ExtractedRFQ historical = objectMapper.readValue(prior.get().getExtractionJson(), ExtractedRFQ.class);
+
+                // The current email always outranks thread history. Inheriting an item identity
+                // from an earlier message is only correct when this email names no product of its
+                // own - the buyer replying "quantity is 25" to our clarification mail. When the
+                // buyer instead starts a NEW requirement inside an old Gmail thread, inheriting
+                // would retarget the RFQ at the previous thread's product: an order for a Laptop
+                // silently became an order for MS Hex Bolts. Getting the wrong product onto an RFQ
+                // is worse than asking the buyer to resend.
+                String statedProduct = stripTrailingLabels(scanFieldFromEmail(email, PRODUCT_LABEL_REGEX));
+                boolean namesItsOwnProduct = statedProduct != null && !statedProduct.isBlank();
+                if (namesItsOwnProduct) {
+                    log.info("Thread history found for this email, but it names its own product ('{}'). "
+                            + "Item identity will NOT be inherited from the earlier message.", statedProduct.trim());
+                }
+
                 if (historical.getItems() != null && !historical.getItems().isEmpty()
                         && extracted.getItems() != null && !extracted.getItems().isEmpty()) {
                     for (int i = 0; i < extracted.getItems().size(); i++) {
                         RFQItem current = extracted.getItems().get(i);
                         RFQItem original = i < historical.getItems().size() ? historical.getItems().get(i) : historical.getItems().get(0);
-                        if (current.getItemDescription() == null || current.getItemDescription().isBlank()) current.setItemDescription(original.getItemDescription());
-                        if (current.getSpecification() == null || current.getSpecification().isBlank()) current.setSpecification(original.getSpecification());
-                        if (current.getBrand() == null || current.getBrand().isBlank()) current.setBrand(original.getBrand());
-                        if (current.getCategory() == null || current.getCategory().isBlank()) current.setCategory(original.getCategory());
+                        if (current.getItemDescription() == null || current.getItemDescription().isBlank()) {
+                            current.setItemDescription(namesItsOwnProduct ? statedProduct.trim() : original.getItemDescription());
+                        }
+                        // Specification, brand and category describe a specific product, so they
+                        // may only be carried over while we are still discussing the same one.
+                        if (!namesItsOwnProduct) {
+                            if (current.getSpecification() == null || current.getSpecification().isBlank()) current.setSpecification(original.getSpecification());
+                            if (current.getBrand() == null || current.getBrand().isBlank()) current.setBrand(original.getBrand());
+                            if (current.getCategory() == null || current.getCategory().isBlank()) current.setCategory(original.getCategory());
+                        }
                     }
                 }
                 if (isBlank(extracted.getDeliveryLocation())) extracted.setDeliveryLocation(historical.getDeliveryLocation());

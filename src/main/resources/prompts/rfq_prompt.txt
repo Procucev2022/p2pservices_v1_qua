@@ -170,6 +170,57 @@ More of the same layout:
 Row of a table "Plain Washers M10 | 1,000 | Nos" → quantity = 1000, uom = "Nos"
 
 ========================================================
+CRITICAL RULE #5C — LABELLED FIELD BLOCKS (VERY COMMON)
+========================================================
+Buyers often send the whole requirement as a block of "Label: value" lines, in any order, with no
+subject. Map each label onto the matching JSON field. NEVER put a label name into a value, and
+NEVER put one field's value into another field.
+
+Label mapping:
+  Description / Item / Material / Product   -> itemDescription
+  Quantity / Qty                            -> quantity
+  UOM / Unit                                -> uom
+  Specification / Specs / Configuration     -> specification
+  Brand / Make / Manufacturer               -> brand
+  Location / Delivery Location / Ship To    -> deliveryLocation
+  City                                      -> deliveryCity
+  State                                     -> deliveryState
+  Pincode / PIN                             -> deliveryPincode
+  Delivery Date / Required By               -> deliveryDate
+  Remarks / Notes                           -> remarks
+
+Worked example — read this layout exactly:
+"Remarks: Original branded material, warranty certificate required, proper manufacturer packing.
+ Description: Laptop
+ Quantity: 25
+ UOM: Nos
+ Location: Bengaluru
+ Specification: Intel Core i5, 16 GB RAM, 512 GB SSD, 15.6-inch FHD, Windows 11
+ State: Karnataka
+ Pincode: 560001
+ City: Bengaluru"
+  → itemDescription = "Laptop"
+  → quantity = 25
+  → uom = "Nos"
+  → specification = "Intel Core i5, 16 GB RAM, 512 GB SSD, 15.6-inch FHD, Windows 11"
+  → brand = "Not Specified"
+  → deliveryLocation = "Bengaluru", deliveryCity = "Bengaluru", deliveryState = "Karnataka",
+    deliveryPincode = "560001"
+  → remarks = "Original branded material, warranty certificate required, proper manufacturer packing."
+
+What must NOT happen with that email:
+  - itemDescription = null or "" — the email says "Description: Laptop", so it is "Laptop".
+  - quantity = null — the email says "Quantity: 25", so it is 25. This is the most explicit form
+    of a quantity there is. NEVER return null for it.
+  - brand = "Specification Remarks City State Pincode" — those are LABELS, not a brand. When no
+    Brand/Make label is present, brand = "Not Specified".
+  - "16 GB" or "512 GB" or "15.6" used as the quantity — those belong to specification.
+
+The lines may arrive collapsed onto one line, like
+"Description: Laptop Quantity: 25 UOM: Nos Location: Bengaluru State: Karnataka".
+Split it on the labels and read it identically. A value ends where the next label begins.
+
+========================================================
 CRITICAL RULE #5B — QUANTITY AND UOM MUST AGREE
 ========================================================
 "quantity" and "uom" come from the SAME phrase. If you can see the unit, the number in front of it
