@@ -102,6 +102,30 @@ public class BuyerVendorController {
     }
 
     /**
+     * POST /rest/buyer/vendors/bulk
+     */
+    @PostMapping("/bulk")
+    public ResponseEntity<MessageResponse> createVendorsBulk(@RequestBody List<BuyerVendor> vendors) {
+        try {
+            String buyerOrgId = getLoggedInBuyerOrgId();
+            String username = getLoggedInUsername();
+
+            Map<String, Object> result = buyerVendorService.bulkCreateVendors(vendors, buyerOrgId, username);
+
+            MessageResponse response = MessageResponse.success(
+                "Bulk vendor upload processed successfully",
+                result
+            );
+            return ResponseEntity.ok(response);
+        } catch (Exception ex) {
+            log.error("Error bulk creating vendors", ex);
+            return ResponseEntity.internalServerError().body(
+                new MessageResponse("500", "Internal server error", List.of(ex.getMessage()), new Date(), "Failure", "SYSTEM_ERROR")
+            );
+        }
+    }
+
+    /**
      * GET /rest/buyer/vendors/:id
      */
     @GetMapping("/{id}")

@@ -68,4 +68,68 @@ public class BuyerVendorServiceImpl implements BuyerVendorService {
     public boolean updateStatus(String id, String buyerOrgId, String status) {
         return buyerVendorDao.updateStatus(id, buyerOrgId, status) > 0;
     }
+
+    @Override
+    public java.util.Map<String, Object> bulkCreateVendors(java.util.List<BuyerVendor> vendors, String buyerOrgId, String createdBy) {
+        java.util.List<BuyerVendor> toSave = new java.util.ArrayList<>();
+        java.util.List<String> skippedCodes = new java.util.ArrayList<>();
+        java.util.List<String> errors = new java.util.ArrayList<>();
+
+        if (vendors == null || vendors.isEmpty()) {
+            return java.util.Map.of(
+                "savedCount", 0,
+                "skippedCount", 0,
+                "totalCount", 0,
+                "skippedCodes", skippedCodes,
+                "errors", errors
+            );
+        }
+
+        for (BuyerVendor v : vendors) {
+            if (v.getVendorCode() == null || v.getVendorCode().trim().isEmpty()) {
+                errors.add("A row is missing Vendor Code and was skipped.");
+                continue;
+            }
+            if (v.getVendorName() == null || v.getVendorName().trim().length() < 3) {
+                errors.add("Vendor '" + v.getVendorCode() + "' has invalid name (min 3 chars).");
+                continue;
+            }
+            if (v.getPhone1() == null || !v.getPhone1().matches("\\d{10}")) {
+                errors.add("Vendor '" + v.getVendorCode() + "' has invalid 10-digit phone: " + v.getPhone1());
+                continue;
+            }
+
+            v.setVendorCode(v.getVendorCode().trim());
+            v.setBuyerOrgId(buyerOrgId);
+            v.setCreatedBy(createdBy);
+
+            if (v.getStatus() == null || v.getStatus().trim().isEmpty()) {
+                v.setStatus("Active");
+            }
+            if (v.getSourcingScope() == null || v.getSourcingScope().trim().isEmpty()) {
+                v.setSourcingScope("Client Only");
+            }
+            if (v.getCountry() == null || v.getCountry().trim().isEmpty()) {
+                v.setCountry("IN");
+            }
+
+            if (buyerVendorDao.existsByVendorCodeAndBuyerOrgId(v.getVendorCode(), buyerOrgId)) {
+                skippedCodes.add(v.getVendorCode());
+            } else {
+                toSave.add(v);
+            }
+        }
+
+        if (!toSave.isEmpty()) {
+            buyerVendorDao.saveAll(toSave);
+        }
+
+        return java.util.Map.of(
+            "savedCount", toSave.size(),
+            "skippedCount", skippedCodes.size(),
+            "totalCount", vendors.size(),
+            "skippedCodes", skippedCodes,
+            "errors", errors
+        );
+    }
 }

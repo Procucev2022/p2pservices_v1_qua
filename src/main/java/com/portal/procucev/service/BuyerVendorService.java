@@ -18,4 +18,6 @@ public interface BuyerVendorService {
     BuyerVendor updateVendor(String id, BuyerVendor vendor, String buyerOrgId);
 
     boolean updateStatus(String id, String buyerOrgId, String status);
+
+    java.util.Map<String, Object> bulkCreateVendors(java.util.List<BuyerVendor> vendors, String buyerOrgId, String createdBy);
 }
