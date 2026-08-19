@@ -31,4 +31,17 @@ public class CustomGlobalHandler extends ResponseEntityExceptionHandler {
 		return ResponseEntity.ok().body(messageResponse);
 	}
 
+	@Override
+	protected ResponseEntity<Object> handleMethodArgumentNotValid(
+			org.springframework.web.bind.MethodArgumentNotValidException ex,
+			org.springframework.http.HttpHeaders headers,
+			org.springframework.http.HttpStatusCode status,
+			org.springframework.web.context.request.WebRequest request) {
+		java.util.List<String> errors = ex.getBindingResult().getFieldErrors().stream()
+				.map(err -> err.getField() + ": " + err.getDefaultMessage())
+				.toList();
+		MessageResponse response = MessageResponse.error("Validation failed", errors);
+		return ResponseEntity.badRequest().body(response);
+	}
+
 }

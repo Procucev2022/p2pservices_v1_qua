@@ -194,11 +194,24 @@ public class BuyerVendorController {
     private String getLoggedInBuyerOrgId() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         String username = auth.getName();
-        User user = userDao.findByUsername(username);
-        if (user == null || user.getOrg() == null) {
-            throw new IllegalStateException("Logged-in user has no organization");
+        User user = userDao.findByLatestUserName(username);
+        if (user != null && user.getOrg() != null) {
+            return user.getOrg().getId();
         }
-        return user.getOrg().getId();
+        List<User> users = userDao.findByUsername(username);
+        if (users != null && !users.isEmpty()) {
+            for (User u : users) {
+                if (u.isActive() && u.getOrg() != null) {
+                    return u.getOrg().getId();
+                }
+            }
+            for (User u : users) {
+                if (u.getOrg() != null) {
+                    return u.getOrg().getId();
+                }
+            }
+        }
+        throw new IllegalStateException("Logged-in user has no organization");
     }
 
     private String getLoggedInUsername() {

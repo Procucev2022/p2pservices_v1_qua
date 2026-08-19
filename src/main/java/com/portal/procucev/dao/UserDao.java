@@ -23,7 +23,7 @@ import jakarta.transaction.Transactional;
 @Repository("userDao")
 public interface UserDao extends JpaRepository<User, String> {
 
-	User findByUsername(String username);
+	List<User> findByUsername(String username);
 	
 	@Query("SELECT u FROM User u WHERE u.username = :username ORDER BY u.createdTS DESC LIMIT 1")
 	User findByLatestUserName(@Param("username") String username);

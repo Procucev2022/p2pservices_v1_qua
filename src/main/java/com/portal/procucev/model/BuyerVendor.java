@@ -83,6 +83,5 @@ public class BuyerVendor extends Procucev {
     private String sourcingScope = "Client Only"; // Client Only, Client+Procucev
 
     @Column(name = "buyer_org_id", nullable = false)
-    @NotBlank(message = "Buyer organization ID is required")
     private String buyerOrgId;
 }
