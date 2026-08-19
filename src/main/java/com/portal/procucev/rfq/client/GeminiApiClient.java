@@ -18,9 +18,11 @@ import org.springframework.web.client.RestTemplate;
 
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 
 @Slf4j
 @Component
@@ -32,7 +34,7 @@ public class GeminiApiClient {
 
     private RestTemplate restTemplate;
 
-    @Value("${app.gemini.primary-model:gemini-3.6-flash}")
+    @Value("${app.gemini.primary-model:gemini-3.7-flash}")
     private String primaryModel;
 
     /**
@@ -57,12 +59,50 @@ public class GeminiApiClient {
     @Value("${app.gemini.max-output-tokens:65536}")
     private int maxOutputTokens = 65536;
 
+    private String lastParsedApiKey = null;
+    private List<String> apiKeys = List.of();
+    private final AtomicInteger keyIndex = new AtomicInteger(0);
+
     @PostConstruct
     void init() {
         this.restTemplate = restTemplateBuilder
                 .setConnectTimeout(Duration.ofMillis(connectTimeoutMs))
                 .setReadTimeout(Duration.ofMillis(readTimeoutMs))
                 .build();
+        refreshApiKeys();
+    }
+
+    public synchronized void refreshApiKeys() {
+        this.lastParsedApiKey = null;
+        getApiKeys();
+    }
+
+    public synchronized List<String> getApiKeys() {
+        if (apiKey == null || apiKey.isBlank()) {
+            this.apiKeys = List.of();
+            this.lastParsedApiKey = apiKey;
+            return this.apiKeys;
+        }
+        if (!apiKey.equals(lastParsedApiKey)) {
+            this.apiKeys = Arrays.stream(apiKey.split(","))
+                    .map(String::trim)
+                    .filter(k -> !k.isEmpty())
+                    .toList();
+            this.lastParsedApiKey = apiKey;
+            log.info("Initialized GeminiApiClient with {} API key(s) for round-robin rotation.", this.apiKeys.size());
+        }
+        return this.apiKeys;
+    }
+
+    private String getNextApiKey() {
+        List<String> keys = getApiKeys();
+        if (keys.isEmpty()) {
+            throw new ApplicationException(
+                    "Gemini API key is not configured. Set the GEMINI_API_KEY environment variable "
+                            + "(or the app.gemini.api-key property) to enable AI extraction.");
+        }
+        int index = Math.floorMod(keyIndex.getAndIncrement(), keys.size());
+        return keys.get(index);
     }
 
     public String generateContent(String promptText) {
@@ -75,21 +115,17 @@ public class GeminiApiClient {
      * the text-only form.
      */
     public String generateContent(String promptText, List<InlineImage> images) {
-        if (apiKey == null || apiKey.isBlank()) {
-            throw new ApplicationException(
-                    "Gemini API key is not configured. Set the GEMINI_API_KEY environment variable "
-                            + "(or the app.gemini.api-key property) to enable AI extraction.");
-        }
+        String currentApiKey = getNextApiKey();
         List<InlineImage> inlineImages = images != null ? images : List.<InlineImage>of();
         log.info("Sending request to Gemini API (Primary Model: {}, inline images: {})...",
                 primaryModel, inlineImages.size());
         try {
-            return callGeminiModel(primaryModel, promptText, inlineImages);
+            return callGeminiModel(primaryModel, promptText, inlineImages, currentApiKey);
         } catch (Exception e) {
             log.warn("Primary Gemini model ({}) failed: {}. Retrying with Fallback Model ({})...",
                     primaryModel, e.getMessage(), fallbackModel);
             try {
-                return callGeminiModel(fallbackModel, promptText, inlineImages);
+                return callGeminiModel(fallbackModel, promptText, inlineImages, currentApiKey);
             } catch (Exception ex) {
                 log.error("Fallback Gemini model ({}) call also failed: {}", fallbackModel, ex.getMessage());
                 throw new ApplicationException("Gemini AI API calls failed on both primary (" + primaryModel + ") and fallback (" + fallbackModel + ") models: " + ex.getMessage(), ex);
@@ -97,7 +133,7 @@ public class GeminiApiClient {
         }
     }
 
-    private String callGeminiModel(String model, String promptText, List<InlineImage> images) throws Exception {
+    private String callGeminiModel(String model, String promptText, List<InlineImage> images, String currentApiKey) throws Exception {
         String url = String.format("%s/%s:generateContent", baseUrl, model);
 
         Map<String, Object> textPart = new HashMap<>();
@@ -164,7 +200,7 @@ public class GeminiApiClient {
 
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
-        headers.set("x-goog-api-key", apiKey);
+        headers.set("x-goog-api-key", currentApiKey);
 
         HttpEntity<String> entity = new HttpEntity<>(objectMapper.writeValueAsString(requestBody), headers);
         ResponseEntity<String> response = restTemplate.postForEntity(url, entity, String.class);
