@@ -435,16 +435,18 @@ public class RfqProcessingFlowIntegrationTest {
     }
 
     @Test
-    @DisplayName("Test 14: Idempotency -> same email processed twice is skipped")
-    void test14_IdempotencyDuplicateEmail() {
-        EmailData email = EmailData.builder().messageId("MSG-014").subject("Duplicate Email").senderEmail("buyer@procucev.com").body("Body").build();
+    @DisplayName("Test 14: Reprocessing -> email is processed even if previously present in transaction log")
+    void test14_ReprocessingEmailWithoutDuplicateSkip() {
+        EmailData email = EmailData.builder().messageId("MSG-014").subject("Reprocessed Email").senderEmail("buyer@procucev.com").body("Body").build();
+        when(emailTransactionRepository.findByMessageId("MSG-014")).thenReturn(Optional.of(EmailTransaction.builder().messageId("MSG-014").status("FAILED").build()));
 
-        when(emailTransactionRepository.findByMessageId("MSG-014")).thenReturn(Optional.of(EmailTransaction.builder().messageId("MSG-014").status("RFQ_CREATED").build()));
+        RFQItem item = RFQItem.builder().itemDescription("Dell Laptop").quantity(10.0).deliveryLocation("Bengaluru").deliveryDate("2026-09-30").build();
+        ExtractedRFQ extracted = ExtractedRFQ.builder().buyerEmail("buyer@procucev.com").deliveryLocation("Bengaluru").deliveryDate("2026-09-30").items(List.of(item)).build();
+        when(aiExtractionService.extractRFQFromEmail(any())).thenReturn(extracted);
 
         String result = emailProcessorService.processSingleEmail(email);
 
-        assertEquals("SKIPPED", result);
-        verify(aiExtractionService, never()).extractRFQFromEmail(any());
-        verify(rfqRepository, never()).save(any());
+        assertEquals("RFQ_CREATED", result);
+        verify(rfqRepository, times(1)).save(any());
     }
 }
