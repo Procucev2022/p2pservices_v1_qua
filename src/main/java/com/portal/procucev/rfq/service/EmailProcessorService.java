@@ -115,19 +115,14 @@ public class EmailProcessorService {
             return "SKIPPED_SYSTEM_EMAIL";
         }
 
-        if (emailTransactionRepository.findByMessageId(email.getMessageId()).isPresent()) {
-            log.warn("Duplicate Email detected (Message-ID: {}). Skipping.", email.getMessageId());
-            acknowledgementEmailService.sendDuplicateEmailAcknowledgement(normalizedSender, email.getSubject());
-            emailReaderService.moveMessageToFolder(email.getMessageId(), processedFolder);
-            return "SKIPPED";
-        }
-
-        EmailTransaction transaction = EmailTransaction.builder()
-                .messageId(email.getMessageId())
-                .subject(email.getSubject())
-                .senderEmail(normalizedSender)
-                .status("RECEIVED")
-                .build();
+        EmailTransaction transaction = emailTransactionRepository.findByMessageId(email.getMessageId())
+                .orElseGet(() -> EmailTransaction.builder()
+                        .messageId(email.getMessageId())
+                        .build());
+        transaction.setSenderEmail(normalizedSender);
+        transaction.setSubject(email.getSubject());
+        transaction.setStatus("RECEIVED");
+        transaction.setErrorMessage(null);
         emailTransactionRepository.save(transaction);
 
         try {

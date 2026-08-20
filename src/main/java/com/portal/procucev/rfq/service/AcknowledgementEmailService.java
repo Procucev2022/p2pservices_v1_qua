@@ -185,26 +185,6 @@ public class AcknowledgementEmailService {
         }
     }
 
-    public void sendDuplicateEmailAcknowledgement(String buyerEmail, String rawSubject) {
-        if (buyerEmail == null || buyerEmail.isBlank() || !buyerEmail.contains("@")) {
-            log.error("Cannot send duplicate email acknowledgement: Invalid recipient email '{}'", buyerEmail);
-            return;
-        }
-
-        try {
-            SimpleMailMessage mailMessage = createBaseMailMessage(buyerEmail);
-            mailMessage.setSubject("Duplicate Request Received: " + (rawSubject != null && !rawSubject.isBlank() ? rawSubject : "RFQ Request"));
-            mailMessage.setText("Dear Valued Customer,\n\n"
-                    + "We received your email request, but our system detected that this request has already been received and processed.\n\n"
-                    + "To prevent duplicate RFQ creation, no new RFQ was generated for this duplicate submission.\n\n"
-                    + "Best regards,\nTeam Procucev");
-
-            mailSender.send(mailMessage);
-            log.info("Duplicate email acknowledgement sent successfully to: {}", buyerEmail);
-        } catch (Exception e) {
-            log.error("Failed to send duplicate email acknowledgement to {}: {}", buyerEmail, e.getMessage());
-        }
-    }
 
     // Helper Methods & Template Strings
     private SimpleMailMessage createBaseMailMessage(String toAddress) {

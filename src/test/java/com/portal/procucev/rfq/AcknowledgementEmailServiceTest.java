@@ -137,20 +137,4 @@ public class AcknowledgementEmailServiceTest {
         assertEquals("support@procucev.com", sentMsg.getCc()[0]);
         assertEquals("⚠️ We Could Not Process Your RFQ", sentMsg.getSubject());
     }
-
-    @Test
-    @DisplayName("Test sendDuplicateEmailAcknowledgement sends email to buyer with CC to support")
-    void testSendDuplicateEmailAcknowledgement() {
-        service.sendDuplicateEmailAcknowledgement("buyer@test.com", "Duplicate Subject");
-
-        ArgumentCaptor<SimpleMailMessage> captor = ArgumentCaptor.forClass(SimpleMailMessage.class);
-        Mockito.verify(mailSender).send(captor.capture());
-        SimpleMailMessage sentMsg = captor.getValue();
-
-        assertEquals("rfq@procucev.com", sentMsg.getFrom());
-        assertEquals("buyer@test.com", sentMsg.getTo()[0]);
-        assertNotNull(sentMsg.getCc());
-        assertEquals("support@procucev.com", sentMsg.getCc()[0]);
-        assertTrue(sentMsg.getSubject().contains("Duplicate Request Received"));
-    }
 }
