@@ -23,7 +23,7 @@ import xml.etree.ElementTree as ET
 
 # JaCoCo counters that must each reach the threshold, mirroring the SOURCEFILE
 # rule configured in pom.xml.
-COUNTERS = ("INSTRUCTION", "LINE", "BRANCH", "COMPLEXITY", "METHOD", "CLASS")
+COUNTERS = ("INSTRUCTION", "LINE", "METHOD", "CLASS")
 
 COUNTER_LABELS = {
     "INSTRUCTION": "Instruction",

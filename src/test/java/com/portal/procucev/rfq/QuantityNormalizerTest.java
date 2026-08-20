@@ -210,4 +210,24 @@ public class QuantityNormalizerTest {
         assertEquals("Bags", QuantityNormalizer.extractUom("Quantity: 500 bags"));
         assertEquals("X", QuantityNormalizer.extractUom("10 x"));
     }
+
+    @Test
+    @DisplayName("Test formatted bullet quantities and item-anchored quantity extraction")
+    void testBulletQuantitiesAndItemAnchoredExtraction() {
+        assertEquals(8.0, QuantityNormalizer.normalize("Quantity: 08 Nos."));
+        assertEquals(50.0, QuantityNormalizer.normalize("- *Quantity:* 50 Nos."));
+        assertEquals(1000.0, QuantityNormalizer.normalize("Quantity: 1,000 Nos"));
+
+        var match1 = QuantityNormalizer.findQuantityForItem("Centrifugal Water Pump - Quantity: 08 Nos.", "Centrifugal Water Pump");
+        assertNotNull(match1);
+        assertEquals(8.0, match1.quantity());
+
+        var match2 = QuantityNormalizer.findQuantityForItem("Industrial Butterfly Valve - 50 Nos", "Industrial Butterfly Valve");
+        assertNotNull(match2);
+        assertEquals(50.0, match2.quantity());
+        assertEquals("Nos", match2.uom());
+
+        assertNull(QuantityNormalizer.findQuantityForItem(null, "Item"));
+        assertNull(QuantityNormalizer.findQuantityForItem("Some text", null));
+    }
 }
