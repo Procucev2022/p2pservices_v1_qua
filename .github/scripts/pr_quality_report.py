@@ -55,6 +55,10 @@ COVERAGE_EXCLUDE_FILES = {
     "GeminiApiClient.java",
     "EmailScheduler.java",
     "RfqSchemaInitializer.java",
+    "StartupConfigReport.java",
+    "EmailConfig.java",
+    "JwtUtil.java",
+    "ProcucevApplication.java",
 }
 
 

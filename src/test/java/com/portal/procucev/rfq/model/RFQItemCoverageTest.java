@@ -67,5 +67,62 @@ class RFQItemCoverageTest {
 
         stringQtyItem.setQuantity((Object) 50);
         assertEquals(50.0, stringQtyItem.getQuantity());
+
+        // Test alias setters when description/date/location are null vs non-null
+        RFQItem aliasItem = new RFQItem();
+        aliasItem.setDescriptionAlias("Description A");
+        assertEquals("Description A", aliasItem.getItemDescription());
+        aliasItem.setDescriptionAlias("Description B"); // should not overwrite
+        assertEquals("Description A", aliasItem.getItemDescription());
+
+        aliasItem.setDeliveryDateAlias("2026-10-01");
+        assertEquals("2026-10-01", aliasItem.getDeliveryDate());
+        aliasItem.setDeliveryDateAlias("2026-11-01"); // should not overwrite
+        assertEquals("2026-10-01", aliasItem.getDeliveryDate());
+
+        aliasItem.setDeliveryLocationAlias("Hyderabad");
+        assertEquals("Hyderabad", aliasItem.getDeliveryLocation());
+        aliasItem.setDeliveryLocationAlias("Chennai"); // should not overwrite
+        assertEquals("Hyderabad", aliasItem.getDeliveryLocation());
+
+        // Test getEffectivePartNumber branches
+        RFQItem codeItem = new RFQItem();
+        assertEquals("", codeItem.getEffectivePartNumber());
+
+        codeItem.setModelNumber("MOD-99");
+        assertEquals("MOD-99", codeItem.getEffectivePartNumber());
+
+        codeItem.setPartNumber("PN-88");
+        assertEquals("PN-88", codeItem.getEffectivePartNumber());
+
+        codeItem.setPartCode("PC-77");
+        assertEquals("PC-77", codeItem.getEffectivePartNumber());
+
+        // Test other model records
+        Buyer buyer = new Buyer("John", "john@example.com", "9876543210", "Acme Corp");
+        assertEquals("John", buyer.name());
+        assertEquals("john@example.com", buyer.email());
+        assertEquals("9876543210", buyer.phone());
+        assertEquals("Acme Corp", buyer.company());
+
+        InlineImage img = new InlineImage("cid1", "image/png", new byte[]{1, 2, 3});
+        assertEquals("cid1", img.contentId());
+        assertEquals("image/png", img.contentType());
+        assertArrayEquals(new byte[]{1, 2, 3}, img.data());
+
+        EmailData emailData = new EmailData("MSG-1", "sender@test.com", "Test Subject", "Body text", "2026-08-20", java.util.List.of());
+        assertEquals("MSG-1", emailData.messageId());
+        assertEquals("sender@test.com", emailData.senderEmail());
+        assertEquals("Test Subject", emailData.subject());
+        assertEquals("Body text", emailData.bodyText());
+        assertEquals("2026-08-20", emailData.receivedDate());
+        assertTrue(emailData.attachments().isEmpty());
+
+        ExtractedRFQ rfq = new ExtractedRFQ("Acme", "2026-09-01", "Bengaluru", java.util.List.of(item), "Urgent PR");
+        assertEquals("Acme", rfq.companyName());
+        assertEquals("2026-09-01", rfq.deliveryDate());
+        assertEquals("Bengaluru", rfq.deliveryLocation());
+        assertEquals(1, rfq.items().size());
+        assertEquals("Urgent PR", rfq.specialInstructions());
     }
 }
