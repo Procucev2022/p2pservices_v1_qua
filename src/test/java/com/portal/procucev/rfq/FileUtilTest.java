@@ -122,4 +122,61 @@ public class FileUtilTest {
         }
         assertEquals("", FileUtil.extractTextFromFile(badXlsx));
     }
+
+    @Test
+    @DisplayName("Test vision image MIME types and checks")
+    void testVisionImageMethods() throws Exception {
+        assertNull(FileUtil.visionImageMimeType(null));
+        assertNull(FileUtil.visionImageMimeType(new File("nodotfile")));
+        assertNull(FileUtil.visionImageMimeType(new File("dotatend.")));
+        assertNull(FileUtil.visionImageMimeType(new File("test.bmp")));
+
+        assertEquals("image/png", FileUtil.visionImageMimeType(new File("photo.png")));
+        assertEquals("image/jpeg", FileUtil.visionImageMimeType(new File("photo.jpg")));
+        assertEquals("image/jpeg", FileUtil.visionImageMimeType(new File("photo.jpeg")));
+        assertEquals("image/webp", FileUtil.visionImageMimeType(new File("photo.webp")));
+        assertEquals("image/heic", FileUtil.visionImageMimeType(new File("photo.heic")));
+        assertEquals("image/heif", FileUtil.visionImageMimeType(new File("photo.heif")));
+
+        assertTrue(FileUtil.isVisionImage(new File("photo.PNG")));
+        assertFalse(FileUtil.isVisionImage(new File("document.pdf")));
+
+        File imageFile = new File(tempDir.toFile(), "test.png");
+        try (FileOutputStream fos = new FileOutputStream(imageFile)) {
+            fos.write(new byte[]{1, 2, 3});
+        }
+        // Image files return empty string in extractTextFromFile because they are handled by vision
+        assertEquals("", FileUtil.extractTextFromFile(imageFile));
+    }
+
+    @Test
+    @DisplayName("Test readAsBase64 method")
+    void testReadAsBase64() throws Exception {
+        assertNull(FileUtil.readAsBase64(null));
+        assertNull(FileUtil.readAsBase64(new File(tempDir.toFile(), "missing.png")));
+
+        File sampleFile = new File(tempDir.toFile(), "sample_data.txt");
+        try (FileOutputStream fos = new FileOutputStream(sampleFile)) {
+            fos.write("Hello Base64".getBytes());
+        }
+        String base64 = FileUtil.readAsBase64(sampleFile);
+        assertNotNull(base64);
+        assertFalse(base64.isBlank());
+    }
+
+    @Test
+    @DisplayName("Test extractTextFromFile with Word docx file")
+    void testExtractTextFromDocx() throws Exception {
+        File docxFile = new File(tempDir.toFile(), "sample.docx");
+        try (org.apache.poi.xwpf.usermodel.XWPFDocument doc = new org.apache.poi.xwpf.usermodel.XWPFDocument()) {
+            org.apache.poi.xwpf.usermodel.XWPFParagraph p = doc.createParagraph();
+            org.apache.poi.xwpf.usermodel.XWPFRun r = p.createRun();
+            r.setText("Sample Word Content for RFQ");
+            try (FileOutputStream fos = new FileOutputStream(docxFile)) {
+                doc.write(fos);
+            }
+        }
+        String extracted = FileUtil.extractTextFromFile(docxFile);
+        assertTrue(extracted.contains("Sample Word Content for RFQ"));
+    }
 }

@@ -48,5 +48,22 @@ class RFQEntityCoverageTest {
         assertEquals(entity, entity2);
         assertEquals(entity.hashCode(), entity2.hashCode());
         assertNotNull(entity.toString());
+
+        // Test onCreate, onUpdate, and display formatters
+        RFQEntity lifecycleEntity = new RFQEntity();
+        lifecycleEntity.setRfqNumber("RFQ-2026-001");
+        lifecycleEntity.onCreate();
+        assertNotNull(lifecycleEntity.getCreatedAt());
+        assertNotNull(lifecycleEntity.getUpdatedAt());
+
+        lifecycleEntity.onUpdate();
+        assertNotNull(lifecycleEntity.getUpdatedAt());
+
+        assertEquals("RFQ-2026-001", lifecycleEntity.getDisplayRfqNumber());
+        assertEquals("RFQ-2026-001", lifecycleEntity.getShortRfqNumber());
+
+        RFQEntity allArgs = new RFQEntity(2L, "RFQ-2", "buyer@test.com", "PENDING", "Subj", "[]", "Loc", "2026-10-10", now, now);
+        assertEquals(2L, allArgs.getId());
+        assertEquals("RFQ-2", allArgs.getRfqNumber());
     }
 }
