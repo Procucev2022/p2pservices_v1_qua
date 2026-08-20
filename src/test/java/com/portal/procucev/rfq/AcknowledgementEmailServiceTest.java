@@ -165,7 +165,7 @@ public class AcknowledgementEmailServiceTest {
     }
 
     @Test
-    @DisplayName("Test sendDuplicateEmailAcknowledgement sends email to buyer with CC to support")
+    @DisplayName("Test sendDuplicateEmailAcknowledgement sends email to govardhan.kilari@procucev.com with CC to support")
     void testSendDuplicateEmailAcknowledgement() {
         service.sendDuplicateEmailAcknowledgement("buyer@test.com", "Duplicate Subject");
 
@@ -174,7 +174,7 @@ public class AcknowledgementEmailServiceTest {
         SimpleMailMessage sentMsg = captor.getValue();
 
         assertEquals("rfq@procucev.com", sentMsg.getFrom());
-        assertEquals("buyer@test.com", sentMsg.getTo()[0]);
+        assertEquals("govardhan.kilari@procucev.com", sentMsg.getTo()[0]);
         assertNotNull(sentMsg.getCc());
         assertEquals("support@procucev.com", sentMsg.getCc()[0]);
         assertTrue(sentMsg.getSubject().contains("Duplicate Request Received"));
