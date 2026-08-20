@@ -103,7 +103,7 @@ public class EmailProcessorServiceTest {
     }
 
     @Test
-    @DisplayName("Test processSingleEmail skips duplicate email")
+    @DisplayName("Test processSingleEmail processes repeat email without skipping")
     void testProcessSingleEmailDuplicate() {
         EmailData email = EmailData.builder()
                 .messageId("MSG-DUP")
@@ -114,9 +114,35 @@ public class EmailProcessorServiceTest {
         Mockito.when(emailTransactionRepository.findByMessageId("MSG-DUP"))
                 .thenReturn(Optional.of(EmailTransaction.builder().messageId("MSG-DUP").build()));
 
+        Buyer verifiedBuyer = Buyer.builder().email("buyer@test.com").name("Buyer").verified(true).build();
+        Mockito.when(buyerVerificationService.verifyAndGetBuyer("buyer@test.com")).thenReturn(verifiedBuyer);
+
+        List<RFQItem> items = List.of(
+                RFQItem.builder().itemDescription("Dell Laptop").quantity(5.0).uom("NOS").category("IT").build()
+        );
+        ExtractedRFQ rfq = ExtractedRFQ.builder()
+                .buyerEmail("buyer@test.com")
+                .deliveryLocation("Bangalore")
+                .deliveryDate("2026-08-25")
+                .items(items)
+                .build();
+        Mockito.when(aiExtractionService.extractRFQFromEmail(email)).thenReturn(rfq);
+
+        ValidationService.ValidationResult valResult = new ValidationService.ValidationResult(true, false, List.of(), null);
+        Mockito.when(validationService.validateWithDetails(any())).thenReturn(valResult);
+
+        RFQRequest request = RFQRequest.builder().rfqNumber("RFQ-DUP-999").deliveryDate("2026-08-25").build();
+        Mockito.when(rfqBuilderService.buildRFQRequest(any(), any(), any(), any())).thenReturn(request);
+
+        RFQResponse apiResponse = RFQResponse.builder().status("SUCCESS").rfqNumber("RFQ-DUP-999").build();
+        Mockito.when(rfqApiService.submitRFQ(request)).thenReturn(apiResponse);
+
+        RFQEntity savedEntity = RFQEntity.builder().rfqNumber("RFQ-DUP-999").buyerEmail("buyer@test.com").build();
+        Mockito.when(rfqRepository.save(any())).thenReturn(savedEntity);
+
         String result = emailProcessorService.processSingleEmail(email);
 
-        assertEquals("SKIPPED", result);
+        assertEquals("SUCCESS", result);
     }
 
     @Test

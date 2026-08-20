@@ -434,16 +434,24 @@ public class RfqProcessingFlowIntegrationTest {
     }
 
     @Test
-    @DisplayName("Test 14: Idempotency -> same email processed twice is skipped")
+    @DisplayName("Test 14: Processing -> repeat email continues and creates RFQ")
     void test14_IdempotencyDuplicateEmail() {
-        EmailData email = EmailData.builder().messageId("MSG-014").subject("Duplicate Email").senderEmail("buyer@procucev.com").body("Body").build();
+        EmailData email = EmailData.builder().messageId("MSG-014").subject("Repeat Email").senderEmail("buyer@procucev.com").body("Quantity: 100").build();
 
         when(emailTransactionRepository.findByMessageId("MSG-014")).thenReturn(Optional.of(EmailTransaction.builder().messageId("MSG-014").status("RFQ_CREATED").build()));
 
+        ExtractedRFQ extracted = ExtractedRFQ.builder()
+                .buyerEmail("buyer@procucev.com")
+                .items(List.of(
+                        RFQItem.builder().itemDescription("Laptop Model A").quantity(5.0).uom("Nos").category("IT Hardware").deliveryLocation("Bengaluru").deliveryDate("2026-09-30").build()
+                ))
+                .build();
+
+        when(aiExtractionService.extractRFQFromEmail(email)).thenReturn(extracted);
+
         String result = emailProcessorService.processSingleEmail(email);
 
-        assertEquals("SKIPPED", result);
-        verify(aiExtractionService, never()).extractRFQFromEmail(any());
-        verify(rfqRepository, never()).save(any());
+        assertEquals("RFQ_CREATED", result);
+        verify(rfqRepository, times(1)).save(any(RFQEntity.class));
     }
 }

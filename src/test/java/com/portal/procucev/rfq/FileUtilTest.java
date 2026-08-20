@@ -179,4 +179,46 @@ public class FileUtilTest {
         String extracted = FileUtil.extractTextFromFile(docxFile);
         assertTrue(extracted.contains("Sample Word Content for RFQ"));
     }
+
+    @Test
+    @DisplayName("Test extractTextFromFile with Excel formulas, empty rows, and multiple extensions")
+    void testExtractExcelAdvanced() throws Exception {
+        File xlsxFile = new File(tempDir.toFile(), "formula.xlsx");
+        try (Workbook wb = new XSSFWorkbook()) {
+            Sheet sheet = wb.createSheet("Calculations");
+            Row r0 = sheet.createRow(0);
+            r0.createCell(0).setCellValue(10);
+            r0.createCell(1).setCellValue(20);
+            Cell sumCell = r0.createCell(2);
+            sumCell.setCellFormula("A1+B1");
+
+            // Empty row
+            sheet.createRow(1);
+
+            // Row with blank cells
+            Row r2 = sheet.createRow(2);
+            r2.createCell(0).setCellValue("Total");
+            r2.createCell(2).setCellValue(30);
+
+            try (FileOutputStream fos = new FileOutputStream(xlsxFile)) {
+                wb.write(fos);
+            }
+        }
+        String extracted = FileUtil.extractTextFromFile(xlsxFile);
+        assertTrue(extracted.contains("Calculations"));
+        assertTrue(extracted.contains("Total"));
+
+        // Test with .xls and .xlsm filenames
+        File xlsFile = new File(tempDir.toFile(), "sample.xls");
+        try (FileOutputStream fos = new FileOutputStream(xlsFile)) {
+            java.nio.file.Files.copy(xlsxFile.toPath(), fos);
+        }
+        FileUtil.extractTextFromFile(xlsFile);
+
+        File xlsmFile = new File(tempDir.toFile(), "sample.xlsm");
+        try (FileOutputStream fos = new FileOutputStream(xlsmFile)) {
+            java.nio.file.Files.copy(xlsxFile.toPath(), fos);
+        }
+        FileUtil.extractTextFromFile(xlsmFile);
+    }
 }
