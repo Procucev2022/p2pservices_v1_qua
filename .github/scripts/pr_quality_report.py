@@ -23,7 +23,7 @@ import xml.etree.ElementTree as ET
 
 # JaCoCo counters that must each reach the threshold, mirroring the SOURCEFILE
 # rule configured in pom.xml.
-COUNTERS = ("INSTRUCTION", "LINE", "METHOD", "CLASS")
+COUNTERS = ("INSTRUCTION", "LINE", "BRANCH", "COMPLEXITY", "METHOD", "CLASS")
 
 COUNTER_LABELS = {
     "INSTRUCTION": "Instruction",
@@ -55,10 +55,6 @@ COVERAGE_EXCLUDE_FILES = {
     "GeminiApiClient.java",
     "EmailScheduler.java",
     "RfqSchemaInitializer.java",
-    "StartupConfigReport.java",
-    "EmailConfig.java",
-    "JwtUtil.java",
-    "ProcucevApplication.java",
 }
 
 
