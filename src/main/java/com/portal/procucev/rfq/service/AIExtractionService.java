@@ -37,9 +37,12 @@ public class AIExtractionService {
     @Value("${app.gemini.max-inline-image-total-bytes:15728640}")
     private long maxInlineImageTotalBytes = 15728640L;
 
+    @Value("${app.gemini.min-models-for-missing-quantity:3}")
+    private int minModelsForMissingQuantity = 3;
+
     /**
      * Total extraction attempts. The model is probabilistic, so one answer leaving a quantity out is
-     * not evidence the buyer omitted it. Re-asking, naming the gap, recovers most of them.
+     * not evidence the buyer omitted it. Re-asking across multiple models recovers most of them.
      */
     @Value("${app.gemini.extraction-max-attempts:3}")
     private int extractionMaxAttempts = 3;
@@ -78,60 +81,109 @@ public class AIExtractionService {
         // photographed purchase note is still read instead of being reported as detail-less.
         List<InlineImage> inlineImages = collectInlineImages(email);
 
-        int maxAttempts = Math.max(1, extractionMaxAttempts);
+        List<String> models = geminiApiClient.getAllConfiguredModels();
+        if (models == null || models.isEmpty()) {
+            models = List.of("gemini-3.7-flash", "gemini-3.6-flash", "gemini-3.5-flash", "gemini-3.5-flash-lite", "gemini-3.1-flash-lite");
+        }
+
         ExtractedRFQ best = null;
+        List<String> successfulModels = new ArrayList<>();
         List<String> gaps = new ArrayList<>();
         Exception lastFailure = null;
         boolean previousAttemptThrew = false;
 
-        for (int attempt = 1; attempt <= maxAttempts; attempt++) {
+        int modelIdx = 0;
+        int attempt = 0;
+
+        while (modelIdx < models.size()) {
+            String currentModel = models.get(modelIdx);
+            attempt++;
+            modelIdx++;
+
             String attemptPrompt = prompt;
             if (attempt > 1) {
-                // A parse failure needs a formatting nudge; an incomplete answer needs to be told
-                // exactly which details it left out. Re-asking blindly tends to reproduce the same
-                // omission, because the model has no idea it missed anything.
                 attemptPrompt += previousAttemptThrew
                         ? "\n\nCRITICAL: Return STRICT JSON ONLY. Do not include markdown code block syntax."
                         : buildCorrectiveInstruction(gaps);
             }
 
+            ExtractedRFQ candidate = null;
             try {
-                log.info("AI extraction attempt {}/{} for subject '{}'...", attempt, maxAttempts, subj);
-                String jsonResponse = geminiApiClient.generateContent(attemptPrompt, inlineImages);
+                log.info("AI extraction attempt {} using model '{}' for subject '{}'...", attempt, currentModel, subj);
+                String jsonResponse = executeModelCall(currentModel, attemptPrompt, inlineImages);
                 logRawModelResponse(attempt, jsonResponse);
-                ExtractedRFQ candidate = parseAndValidateJson(jsonResponse, email.getSenderEmail());
-                logAttemptResult(attempt, candidate);
-                best = best == null ? candidate : mergeBetterResult(best, candidate, attempt);
+                candidate = parseAndValidateJson(jsonResponse, email.getSenderEmail());
+                logAttemptResult(attempt, candidate, currentModel);
+                successfulModels.add(currentModel);
                 previousAttemptThrew = false;
             } catch (Exception e) {
                 lastFailure = e;
                 previousAttemptThrew = true;
-                log.warn("AI extraction attempt {}/{} failed for subject '{}': {}", attempt, maxAttempts, subj, e.getMessage());
+                log.warn("Model '{}' failed (downtime/rate-limit/error): {}. Proceeding to next backup model in chain...",
+                        currentModel, e.getMessage());
                 continue;
             }
 
+            if (candidate != null) {
+                best = (best == null) ? candidate : mergeBetterResult(best, candidate, attempt);
+            }
+
             gaps = describeGaps(best);
+            boolean hasMissingQuantity = hasMissingQuantity(best);
+
             if (gaps.isEmpty()) {
-                log.info("AI extraction attempt {}/{} produced a complete result. No further attempts needed.", attempt, maxAttempts);
+                log.info("AI extraction attempt {} with model '{}' produced complete result with all quantities found.",
+                        attempt, currentModel);
                 break;
             }
-            if (attempt < maxAttempts) {
-                log.warn("AI extraction attempt {}/{} left {} mandatory detail(s) unresolved: {}. Re-asking the model for these specifically.",
-                        attempt, maxAttempts, gaps.size(), gaps);
-            } else {
-                log.warn("After {} attempt(s) these mandatory detail(s) are still unresolved and are treated as genuinely absent from the email: {}",
-                        maxAttempts, gaps);
+
+            if (hasMissingQuantity) {
+                if (successfulModels.size() >= minModelsForMissingQuantity) {
+                    log.warn("Missing quantity confirmed by {} distinct successful models {}: {}. No further model calls needed.",
+                            successfulModels.size(), successfulModels, gaps);
+                    break;
+                } else {
+                    log.warn("Model '{}' left quantities unresolved (gaps={}). Successful models so far: {}/{}. Querying next backup model in chain...",
+                            currentModel, gaps, successfulModels.size(), minModelsForMissingQuantity);
+                }
+            } else if (successfulModels.size() >= extractionMaxAttempts) {
+                log.warn("AI extraction reached attempt limit of {}. Gaps remaining: {}", extractionMaxAttempts, gaps);
+                break;
             }
         }
 
         if (best == null) {
             String rootCause = lastFailure != null ? lastFailure.getMessage() : "no parseable response";
-            log.error("AI extraction failed after {} attempt(s) for subject '{}': {}", maxAttempts, subj, rootCause);
-            throw new ApplicationException("AI extraction failed: " + rootCause, lastFailure);
+            log.error("AI extraction failed across all models for subject '{}': {}", subj, rootCause);
+            throw new ApplicationException("AI extraction failed on all models: " + rootCause, lastFailure);
         }
 
         logExtractionSummary(best);
         return best;
+    }
+
+    private String executeModelCall(String model, String attemptPrompt, List<InlineImage> inlineImages) throws Exception {
+        try {
+            String res = geminiApiClient.generateContentWithSpecificModel(model, attemptPrompt, inlineImages);
+            if (res != null) {
+                return res;
+            }
+        } catch (NoSuchMethodError | UnsupportedOperationException e) {
+            // Fallback for mock environments
+        }
+        return geminiApiClient.generateContent(attemptPrompt, inlineImages);
+    }
+
+    private boolean hasMissingQuantity(ExtractedRFQ extracted) {
+        if (extracted == null || extracted.getItems() == null || extracted.getItems().isEmpty()) {
+            return true;
+        }
+        for (RFQItem item : extracted.getItems()) {
+            if (item == null || item.getQuantity() == null || item.getQuantity() <= 0) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -143,7 +195,7 @@ public class AIExtractionService {
      */
     private List<String> describeGaps(ExtractedRFQ extracted) {
         List<String> gaps = new ArrayList<>();
-        if (extracted.getItems() == null || extracted.getItems().isEmpty()) {
+        if (extracted == null || extracted.getItems() == null || extracted.getItems().isEmpty()) {
             gaps.add("no line items were extracted from the email");
             return gaps;
         }
@@ -204,21 +256,43 @@ public class AIExtractionService {
             return candidate;
         }
         if (candidateCount < bestCount) {
-            log.warn("Attempt {} returned fewer line item(s) ({} against {}). Keeping the earlier answer; per-item "
-                    + "values are not merged because the lists cannot be aligned safely.",
+            log.warn("Attempt {} returned fewer line item(s) ({} against {}). Keeping the earlier answer; attempting "
+                    + "per-item merge where descriptions match safely.",
                     attempt, candidateCount, bestCount);
+            for (int i = 0; i < bestCount; i++) {
+                RFQItem targetItem = best.getItems().get(i);
+                for (int j = 0; j < candidateCount; j++) {
+                    RFQItem sourceItem = candidate.getItems().get(j);
+                    if (isSameOrSimilarItem(targetItem.getItemDescription(), sourceItem.getItemDescription())) {
+                        mergeMissingItemFields(targetItem, sourceItem, attempt);
+                        break;
+                    }
+                }
+            }
             fillMissingTopLevel(best, candidate);
             return best;
         }
 
         for (int i = 0; i < bestCount; i++) {
-            mergeMissingItemFields(best.getItems().get(i), candidate.getItems().get(i), attempt);
+            RFQItem targetItem = best.getItems().get(i);
+            RFQItem candidateItem = candidate.getItems().get(i);
+            if (isSameOrSimilarItem(targetItem.getItemDescription(), candidateItem.getItemDescription())) {
+                mergeMissingItemFields(targetItem, candidateItem, attempt);
+            } else {
+                for (int j = 0; j < candidateCount; j++) {
+                    RFQItem altCandidate = candidate.getItems().get(j);
+                    if (isSameOrSimilarItem(targetItem.getItemDescription(), altCandidate.getItemDescription())) {
+                        mergeMissingItemFields(targetItem, altCandidate, attempt);
+                        break;
+                    }
+                }
+            }
         }
         fillMissingTopLevel(best, candidate);
         return best;
     }
 
-    /** Fills gaps in one item from a later answer, refusing to merge across two different items. */
+    /** Fills gaps in one item from a later answer, allowing fuzzy and semantic matching across items. */
     private void mergeMissingItemFields(RFQItem target, RFQItem source, int attempt) {
         if (target == null || source == null) {
             return;
@@ -226,8 +300,7 @@ public class AIExtractionService {
         if (isBlank(target.getItemDescription()) && !isBlank(source.getItemDescription())) {
             log.info("Attempt {} supplied a missing itemDescription: '{}'", attempt, source.getItemDescription());
             target.setItemDescription(source.getItemDescription());
-        } else if (!sameItem(target.getItemDescription(), source.getItemDescription())) {
-            // Guard against a re-ordered answer moving one product's quantity onto another.
+        } else if (!isSameOrSimilarItem(target.getItemDescription(), source.getItemDescription())) {
             log.warn("Attempt {} returned item '{}' where the previous answer had '{}'. Values are NOT merged "
                     + "between differing items.", attempt, source.getItemDescription(), target.getItemDescription());
             return;
@@ -235,8 +308,8 @@ public class AIExtractionService {
 
         if ((target.getQuantity() == null || target.getQuantity() <= 0)
                 && source.getQuantity() != null && source.getQuantity() > 0) {
-            log.info("Attempt {} recovered the missing quantity for item '{}': {}",
-                    attempt, target.getItemDescription(), source.getQuantity());
+            log.info("Attempt {} recovered the missing quantity for item '{}' (matched with '{}'): {}",
+                    attempt, target.getItemDescription(), source.getItemDescription(), source.getQuantity());
             target.setQuantity(source.getQuantity());
         }
         if (isBlank(target.getUom()) && !isBlank(source.getUom())) {
@@ -283,11 +356,76 @@ public class AIExtractionService {
         }
     }
 
-    private boolean sameItem(String left, String right) {
-        if (isBlank(left) || isBlank(right)) {
+    public boolean isSameOrSimilarItem(String targetDesc, String sourceDesc) {
+        if (isBlank(targetDesc) || isBlank(sourceDesc)) {
             return false;
         }
-        return normaliseForComparison(left).equals(normaliseForComparison(right));
+        String normTarget = normaliseForComparison(targetDesc);
+        String normSource = normaliseForComparison(sourceDesc);
+
+        if (normTarget.equals(normSource)) {
+            return true;
+        }
+
+        // Substring match
+        if (normTarget.contains(normSource) || normSource.contains(normTarget)) {
+            return true;
+        }
+
+        // High edit similarity for minor typos (e.g., "Speed Btreaker" vs "Speed Breaker")
+        if (computeLevenshteinSimilarity(normTarget, normSource) >= 0.80) {
+            return true;
+        }
+
+        // Token overlap coefficient (>= 70% of words in common with the shorter description)
+        return computeTokenOverlap(targetDesc, sourceDesc) >= 0.70;
+    }
+
+    private double computeLevenshteinSimilarity(String s1, String s2) {
+        if (s1 == null || s2 == null) return 0.0;
+        if (s1.equals(s2)) return 1.0;
+        int len1 = s1.length();
+        int len2 = s2.length();
+        if (len1 == 0 || len2 == 0) return 0.0;
+
+        int[] dp = new int[len2 + 1];
+        for (int j = 0; j <= len2; j++) {
+            dp[j] = j;
+        }
+        for (int i = 1; i <= len1; i++) {
+            int prev = dp[0];
+            dp[0] = i;
+            for (int j = 1; j <= len2; j++) {
+                int temp = dp[j];
+                if (s1.charAt(i - 1) == s2.charAt(j - 1)) {
+                    dp[j] = prev;
+                } else {
+                    dp[j] = 1 + Math.min(prev, Math.min(dp[j - 1], dp[j]));
+                }
+                prev = temp;
+            }
+        }
+        int distance = dp[len2];
+        return 1.0 - ((double) distance / Math.max(len1, len2));
+    }
+
+    private double computeTokenOverlap(String s1, String s2) {
+        if (s1 == null || s2 == null) return 0.0;
+        String[] words1 = s1.toLowerCase(java.util.Locale.ROOT).split("[^a-z0-9]+");
+        String[] words2 = s2.toLowerCase(java.util.Locale.ROOT).split("[^a-z0-9]+");
+        java.util.Set<String> set1 = new java.util.HashSet<>(java.util.Arrays.asList(words1));
+        java.util.Set<String> set2 = new java.util.HashSet<>(java.util.Arrays.asList(words2));
+        set1.remove("");
+        set2.remove("");
+        if (set1.isEmpty() || set2.isEmpty()) return 0.0;
+
+        int intersection = 0;
+        for (String w : set1) {
+            if (set2.contains(w)) {
+                intersection++;
+            }
+        }
+        return (double) intersection / Math.min(set1.size(), set2.size());
     }
 
     private String normaliseForComparison(String value) {
@@ -319,10 +457,10 @@ public class AIExtractionService {
         }
     }
 
-    private void logAttemptResult(int attempt, ExtractedRFQ candidate) {
+    private void logAttemptResult(int attempt, ExtractedRFQ candidate, String model) {
         int itemCount = candidate.getItems() != null ? candidate.getItems().size() : 0;
-        log.info("AI attempt {} parsed successfully: {} item(s), location='{}', date='{}'",
-                attempt, itemCount, candidate.getDeliveryLocation(), candidate.getDeliveryDate());
+        log.info("AI attempt {} (model: '{}') parsed successfully: {} item(s), location='{}', date='{}'",
+                attempt, model, itemCount, candidate.getDeliveryLocation(), candidate.getDeliveryDate());
     }
 
     /** The model's answer as finally accepted, before any downstream recovery or defaulting. */

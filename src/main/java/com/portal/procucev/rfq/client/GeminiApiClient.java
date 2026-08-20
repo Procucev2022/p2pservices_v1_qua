@@ -35,14 +35,13 @@ public class GeminiApiClient {
     private RestTemplate restTemplate;
 
     @Value("${app.gemini.primary-model:gemini-3.7-flash}")
-    private String primaryModel;
+    private String primaryModel = "gemini-3.7-flash";
 
-    /**
-     * Availability fallback, used only when the primary model call throws. A response that parses
-     * but reads the email wrongly never gets here, which is why the stronger model extracts first.
-     */
-    @Value("${app.gemini.fallback-model:gemini-3.5-flash-lite}")
-    private String fallbackModel;
+    @Value("${app.gemini.backup-models:gemini-3.6-flash,gemini-3.5-flash,gemini-3.5-flash-lite,gemini-3.1-flash-lite}")
+    private String backupModels = "gemini-3.6-flash,gemini-3.5-flash,gemini-3.5-flash-lite,gemini-3.1-flash-lite";
+
+    @Value("${app.gemini.fallback-model:gemini-3.6-flash}")
+    private String fallbackModel = "gemini-3.6-flash";
 
     @Value("${app.gemini.base-url:https://generativelanguage.googleapis.com/v1beta/models}")
     private String baseUrl;
@@ -105,32 +104,63 @@ public class GeminiApiClient {
         return keys.get(index);
     }
 
+    public List<String> getAllConfiguredModels() {
+        List<String> models = new ArrayList<>();
+        if (primaryModel != null && !primaryModel.isBlank()) {
+            models.add(primaryModel.trim());
+        }
+        if (backupModels != null && !backupModels.isBlank()) {
+            for (String m : backupModels.split(",")) {
+                String trimmed = m.trim();
+                if (!trimmed.isEmpty() && !models.contains(trimmed)) {
+                    models.add(trimmed);
+                }
+            }
+        }
+        if (fallbackModel != null && !fallbackModel.isBlank() && !models.contains(fallbackModel.trim())) {
+            models.add(fallbackModel.trim());
+        }
+        if (models.isEmpty()) {
+            models.addAll(List.of("gemini-3.7-flash", "gemini-3.6-flash", "gemini-3.5-flash", "gemini-3.5-flash-lite", "gemini-3.1-flash-lite"));
+        }
+        return models;
+    }
+
     public String generateContent(String promptText) {
         return generateContent(promptText, List.of());
     }
 
-    /**
-     * Sends the prompt, optionally with image attachments as inline data so a requirement sent as
-     * a screenshot or photograph can be read. With an empty image list the request is identical to
-     * the text-only form.
-     */
-    public String generateContent(String promptText, List<InlineImage> images) {
+    public String generateContentWithSpecificModel(String model, String promptText, List<InlineImage> images) throws Exception {
         String currentApiKey = getNextApiKey();
         List<InlineImage> inlineImages = images != null ? images : List.<InlineImage>of();
-        log.info("Sending request to Gemini API (Primary Model: {}, inline images: {})...",
-                primaryModel, inlineImages.size());
-        try {
-            return callGeminiModel(primaryModel, promptText, inlineImages, currentApiKey);
-        } catch (Exception e) {
-            log.warn("Primary Gemini model ({}) failed: {}. Retrying with Fallback Model ({})...",
-                    primaryModel, e.getMessage(), fallbackModel);
+        log.info("Sending request to Gemini API (Model: {}, inline images: {})...", model, inlineImages.size());
+        return callGeminiModel(model, promptText, inlineImages, currentApiKey);
+    }
+
+    /**
+     * Sends the prompt through the configured model chain (Primary -> 1st Backup -> 2nd Backup -> ...).
+     * Any downtime, 503, 429, or network failure automatically falls back to the next model.
+     */
+    public String generateContent(String promptText, List<InlineImage> images) {
+        List<String> models = getAllConfiguredModels();
+        List<InlineImage> inlineImages = images != null ? images : List.<InlineImage>of();
+        String currentApiKey = getNextApiKey();
+
+        Exception lastException = null;
+        for (int i = 0; i < models.size(); i++) {
+            String model = models.get(i);
             try {
-                return callGeminiModel(fallbackModel, promptText, inlineImages, currentApiKey);
-            } catch (Exception ex) {
-                log.error("Fallback Gemini model ({}) call also failed: {}", fallbackModel, ex.getMessage());
-                throw new ApplicationException("Gemini AI API calls failed on both primary (" + primaryModel + ") and fallback (" + fallbackModel + ") models: " + ex.getMessage(), ex);
+                log.info("Attempting Gemini API call with model [{}/{}: {}]...", i + 1, models.size(), model);
+                return callGeminiModel(model, promptText, inlineImages, currentApiKey);
+            } catch (Exception e) {
+                lastException = e;
+                log.warn("Gemini model ({}) failed: {}. Proceeding to next backup model in chain...",
+                        model, e.getMessage());
             }
         }
+        log.error("All Gemini models in chain failed: {}", models);
+        throw new ApplicationException("All Gemini AI API calls failed across models " + models + ": "
+                + (lastException != null ? lastException.getMessage() : "Unknown error"), lastException);
     }
 
     private String callGeminiModel(String model, String promptText, List<InlineImage> images, String currentApiKey) throws Exception {

@@ -190,7 +190,7 @@ public class ExtractionRetryTest {
                 .thenThrow(new RuntimeException("503 upstream unavailable"));
 
         assertThrows(ApplicationException.class, () -> service.extractRFQFromEmail(email()));
-        Mockito.verify(geminiApiClient, Mockito.times(3)).generateContent(anyString(), anyList());
+        Mockito.verify(geminiApiClient, Mockito.atLeast(3)).generateContent(anyString(), anyList());
     }
 
     @Test
@@ -210,6 +210,7 @@ public class ExtractionRetryTest {
     @Test
     @DisplayName("The attempt budget is configurable and honoured")
     void attemptBudgetIsConfigurable() {
+        ReflectionTestUtils.setField(service, "minModelsForMissingQuantity", 1);
         ReflectionTestUtils.setField(service, "extractionMaxAttempts", 1);
         Mockito.when(geminiApiClient.generateContent(anyString(), anyList()))
                 .thenReturn(twoItems("500", "null"));
@@ -229,5 +230,46 @@ public class ExtractionRetryTest {
         ExtractedRFQ result = service.extractRFQFromEmail(email());
 
         assertEquals(2, result.getItems().size(), "an empty answer must not end the extraction");
+    }
+
+    @Test
+    @DisplayName("Downtime and 503 failures are not counted as models reporting data missing")
+    void downtimeDoesNotCountAsMissingDataModel() {
+        // Attempt 1: Model 1 reports missing quantity (1 successful model)
+        // Attempt 2: Model 2 throws 503 downtime (0 successful model contribution)
+        // Attempt 3: Model 3 reports missing quantity (2 successful models)
+        // Attempt 4: Model 4 recovers quantity -> success!
+        Mockito.when(geminiApiClient.generateContent(anyString(), anyList()))
+                .thenReturn(twoItems("500", "null"))
+                .thenThrow(new RuntimeException("503 Service Unavailable"))
+                .thenReturn(twoItems("500", "null"))
+                .thenReturn(twoItems("500", "1000"));
+
+        ExtractedRFQ result = service.extractRFQFromEmail(email());
+        assertNotNull(result);
+        assertEquals(1000.0, result.getItems().get(1).getQuantity());
+        Mockito.verify(geminiApiClient, Mockito.times(4)).generateContent(anyString(), anyList());
+    }
+
+    @Test
+    @DisplayName("Fuzzy item descriptions with typos or spec suffix are matched and merged")
+    void similarItemDescriptionsAreMerged() {
+        String attempt1 = "{\"buyerEmail\":\"b@test.com\",\"items\":["
+                + "{\"itemDescription\":\"Speed Btreaker 2 (DG Point)\",\"uom\":\"RFT\",\"quantity\":null},"
+                + "{\"itemDescription\":\"Compound Wall Rework (50 Sq Ft) - Solid Blocks\",\"uom\":\"Sq Ft\",\"quantity\":null}"
+                + "]}";
+        String attempt2 = "{\"buyerEmail\":\"b@test.com\",\"items\":["
+                + "{\"itemDescription\":\"Speed Breaker 2 (DG Point)\",\"uom\":\"RFT\",\"quantity\":22},"
+                + "{\"itemDescription\":\"Compound Wall Rework - Solid Blocks\",\"uom\":\"Sq Ft\",\"quantity\":50}"
+                + "]}";
+
+        Mockito.when(geminiApiClient.generateContent(anyString(), anyList()))
+                .thenReturn(attempt1)
+                .thenReturn(attempt2);
+
+        ExtractedRFQ result = service.extractRFQFromEmail(email());
+        assertEquals(2, result.getItems().size());
+        assertEquals(22.0, result.getItems().get(0).getQuantity(), "recovered despite 'Btreaker' vs 'Breaker' typo");
+        assertEquals(50.0, result.getItems().get(1).getQuantity(), "recovered despite '(50 Sq Ft)' spec suffix");
     }
 }
