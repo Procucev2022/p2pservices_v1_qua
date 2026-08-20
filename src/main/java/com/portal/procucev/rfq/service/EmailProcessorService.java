@@ -257,7 +257,8 @@ public class EmailProcessorService {
                 log.info("No delivery location stated in the email; falling back to the buyer's registered profile location.");
             }
 
-            for (RFQItem item : extractedRFQ.getItems()) {
+            for (int itemIdx = 0; itemIdx < extractedRFQ.getItems().size(); itemIdx++) {
+                RFQItem item = extractedRFQ.getItems().get(itemIdx);
                 if (item == null) {
                     continue;
                 }
@@ -336,7 +337,7 @@ public class EmailProcessorService {
                 // because the match is anchored on the item's own name this is safe to run for
                 // multi-item payloads too - which is where the whole-email scan below cannot help.
                 if (item.getQuantity() == null || item.getQuantity() <= 0) {
-                    QuantityNormalizer.QuantityMatch perItemQty = scanQuantityForItem(email, desc);
+                    QuantityNormalizer.QuantityMatch perItemQty = scanQuantityForItem(email, item, itemIdx + 1);
                     if (perItemQty != null) {
                         log.info("Quantity recovered beside item name for item '{}': {} {}",
                                 desc, perItemQty.quantity(), perItemQty.uom() != null ? perItemQty.uom() : "");
@@ -899,15 +900,61 @@ public class EmailProcessorService {
      * subject in that order. Anchoring on the name is what makes this usable on a multi-item
      * requirement, where {@link #scanQuantityFromEmail} would apply one number to every row.
      */
-    private QuantityNormalizer.QuantityMatch scanQuantityForItem(EmailData email, String description) {
-        if (email == null || description == null || description.isBlank()) {
+    private QuantityNormalizer.QuantityMatch scanQuantityForItem(EmailData email, RFQItem item, int itemIndex) {
+        if (email == null || item == null) {
             return null;
         }
+        String description = item.getItemDescription();
+        String partNumber = item.getEffectivePartNumber();
+
         String[] sources = {email.getBody(), email.getAttachmentText(), email.getSubject()};
         for (String source : sources) {
-            QuantityNormalizer.QuantityMatch match = QuantityNormalizer.findQuantityForItem(source, description);
-            if (match != null) {
-                return match;
+            if (source == null || source.isBlank()) {
+                continue;
+            }
+            if (description != null && !description.isBlank()) {
+                QuantityNormalizer.QuantityMatch match = QuantityNormalizer.findQuantityForItem(source, description);
+                if (match != null) {
+                    return match;
+                }
+            }
+            if (partNumber != null && !partNumber.isBlank()) {
+                QuantityNormalizer.QuantityMatch match = QuantityNormalizer.findQuantityForItem(source, partNumber);
+                if (match != null) {
+                    return match;
+                }
+            }
+            QuantityNormalizer.QuantityMatch blockMatch = scanQuantityFromBlockSection(source, description, partNumber, itemIndex);
+            if (blockMatch != null) {
+                return blockMatch;
+            }
+        }
+        return null;
+    }
+
+    private QuantityNormalizer.QuantityMatch scanQuantityFromBlockSection(String source, String description, String partNumber, int itemIndex) {
+        if (source == null || source.isBlank()) {
+            return null;
+        }
+        String[] blocks = source.split("(?:------------------------------+|(?<=\\n)(?=\\d+[\\.\\):]))");
+        for (String block : blocks) {
+            String lowerBlock = block.toLowerCase();
+            boolean matchesDesc = description != null && !description.isBlank() && lowerBlock.contains(description.toLowerCase().trim());
+            boolean matchesPart = partNumber != null && !partNumber.isBlank() && lowerBlock.contains(partNumber.toLowerCase().trim());
+            boolean matchesIndex = itemIndex > 0 && (lowerBlock.contains(itemIndex + ".") || lowerBlock.contains(itemIndex + ")"));
+
+            if (matchesDesc || matchesPart || matchesIndex) {
+                java.util.regex.Matcher m = java.util.regex.Pattern.compile("(?i)\\b(?:quantity|qty)\\b\\s*[:=]?\\s*([0-9,]+(?:\\.[0-9]+)?)\\s*([a-zA-Z.]*)").matcher(block);
+                if (m.find()) {
+                    try {
+                        String numStr = m.group(1).replace(",", "").trim();
+                        double qty = Double.parseDouble(numStr);
+                        String uom = m.group(2) != null && !m.group(2).isBlank() ? m.group(2).trim() : null;
+                        if (qty > 0) {
+                            return new QuantityNormalizer.QuantityMatch(qty, uom);
+                        }
+                    } catch (Exception ignored) {}
+                }
             }
         }
         return null;

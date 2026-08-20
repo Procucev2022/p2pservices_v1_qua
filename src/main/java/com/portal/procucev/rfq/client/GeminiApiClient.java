@@ -117,20 +117,31 @@ public class GeminiApiClient {
     public String generateContent(String promptText, List<InlineImage> images) {
         String currentApiKey = getNextApiKey();
         List<InlineImage> inlineImages = images != null ? images : List.<InlineImage>of();
+        
+        String cleanPrimary = sanitizeModelName(primaryModel, "gemini-2.5-flash");
+        String cleanFallback = sanitizeModelName(fallbackModel, "gemini-1.5-flash");
+
         log.info("Sending request to Gemini API (Primary Model: {}, inline images: {})...",
-                primaryModel, inlineImages.size());
+                cleanPrimary, inlineImages.size());
         try {
-            return callGeminiModel(primaryModel, promptText, inlineImages, currentApiKey);
+            return callGeminiModel(cleanPrimary, promptText, inlineImages, currentApiKey);
         } catch (Exception e) {
             log.warn("Primary Gemini model ({}) failed: {}. Retrying with Fallback Model ({})...",
-                    primaryModel, e.getMessage(), fallbackModel);
+                    cleanPrimary, e.getMessage(), cleanFallback);
             try {
-                return callGeminiModel(fallbackModel, promptText, inlineImages, currentApiKey);
+                return callGeminiModel(cleanFallback, promptText, inlineImages, currentApiKey);
             } catch (Exception ex) {
-                log.error("Fallback Gemini model ({}) call also failed: {}", fallbackModel, ex.getMessage());
-                throw new ApplicationException("Gemini AI API calls failed on both primary (" + primaryModel + ") and fallback (" + fallbackModel + ") models: " + ex.getMessage(), ex);
+                log.error("Fallback Gemini model ({}) call also failed: {}", cleanFallback, ex.getMessage());
+                throw new ApplicationException("Gemini AI API calls failed on both primary (" + cleanPrimary + ") and fallback (" + cleanFallback + ") models: " + ex.getMessage(), ex);
             }
         }
+    }
+
+    private String sanitizeModelName(String rawModel, String defaultFallback) {
+        if (rawModel == null || rawModel.isBlank()) {
+            return defaultFallback;
+        }
+        return rawModel.trim().toLowerCase().replaceAll("\\s+", "-");
     }
 
     private String callGeminiModel(String model, String promptText, List<InlineImage> images, String currentApiKey) throws Exception {

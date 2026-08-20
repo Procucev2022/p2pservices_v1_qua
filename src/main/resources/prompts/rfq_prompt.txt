@@ -66,19 +66,33 @@ CRITICAL RULE #1 — PURCHASE QUANTITY
 "quantity" means the NUMBER OF UNITS/ITEMS THE BUYER WANTS TO PURCHASE.
 Examples of valid purchase quantity:
 "Quantity: 4 Units" → quantity = 4
+"Quantity: 08 Nos." → quantity = 8
+"Quantity: 50 Nos." → quantity = 50
 "Quantity: 3,000 Meters" → quantity = 3000
+"Quantity: 1,000 Nos" → quantity = 1000
 "Quantity: 20 Units" → quantity = 20
 "Quantity: seven units" → quantity = 7
 "Quantity: ten pieces" → quantity = 10
 "Quantity: two thousand units" → quantity = 2000
 
-A colon is NOT required. These inline phrasings are equally explicit and MUST be extracted:
+A colon is NOT required. These inline phrasings and structured bullet points are equally explicit and MUST be extracted:
+"- *Quantity:* 08 Nos." → quantity = 8
+"- *Quantity:* 50 Nos." → quantity = 50
 "with a quantity of 15 Nos" → quantity = 15
 "quantity of 15 Nos (UOM: Nos)" → quantity = 15, uom = "Nos"
 "qty 25" → quantity = 25
 "in a quantity of two hundred" → quantity = 200
 "we require 10 laptops" → quantity = 10
 "please quote for 50 pieces" → quantity = 50
+
+TABLE IMAGES & SPREADSHEETS:
+When reading an image table with columns (S.No, Description, Quantity, UOM, Brand, Specification, City, State...):
+Extract the exact numeric value from the "Quantity" column for EVERY row!
+For example:
+- Row 1: MS Hex Bolt, Quantity: 500 Nos → quantity = 500
+- Row 2: Plain Washer, Quantity: 1,000 Nos → quantity = 1000
+- Row 3: Spring Washer, Quantity: 1,000 Nos → quantity = 1000
+- Row 4: MS Nut, Quantity: 500 Nos → quantity = 500
 
 ========================================================
 CRITICAL RULE #2 — NEVER CONFUSE SPECIFICATIONS WITH QUANTITY
