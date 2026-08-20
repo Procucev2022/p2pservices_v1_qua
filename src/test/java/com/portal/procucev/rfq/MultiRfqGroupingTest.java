@@ -241,6 +241,7 @@ public class MultiRfqGroupingTest {
         ArgumentCaptor<SimpleMailMessage> mailCaptor = ArgumentCaptor.forClass(SimpleMailMessage.class);
         verify(mailSender).send(mailCaptor.capture());
         assertEquals("⚡ One Quick Detail Needed to Process Your RFQ", mailCaptor.getValue().getSubject());
+        assertEquals("govardhan.kilari@procucev.com", mailCaptor.getValue().getTo()[0]);
     }
 
     @Test
@@ -362,6 +363,7 @@ public class MultiRfqGroupingTest {
         ArgumentCaptor<SimpleMailMessage> mailCaptor = ArgumentCaptor.forClass(SimpleMailMessage.class);
         verify(mailSender).send(mailCaptor.capture());
         assertEquals("🚀 Almost There! Register to Get Your RFQ Live", mailCaptor.getValue().getSubject());
+        assertEquals("govardhan.kilari@procucev.com", mailCaptor.getValue().getTo()[0]);
     }
 
     @Test

@@ -304,6 +304,7 @@ public class RfqProcessingFlowIntegrationTest {
 
         ArgumentCaptor<SimpleMailMessage> mailCaptor = ArgumentCaptor.forClass(SimpleMailMessage.class);
         verify(mailSender, times(1)).send(mailCaptor.capture());
+        assertEquals("govardhan.kilari@procucev.com", mailCaptor.getValue().getTo()[0]);
         assertTrue(mailCaptor.getValue().getText().contains("Quantity"));
     }
 

@@ -64,7 +64,7 @@ public class AcknowledgementEmailServiceTest {
     }
 
     @Test
-    @DisplayName("Case 2: Unregistered buyer -> CASE 2 Template")
+    @DisplayName("Case 2: Unregistered buyer -> CASE 2 Template sent to govardhan.kilari@procucev.com")
     void testCase2UnregisteredBuyerAcknowledgement() {
         service.sendUnregisteredBuyerAcknowledgement("unregistered@test.com");
 
@@ -73,7 +73,7 @@ public class AcknowledgementEmailServiceTest {
         SimpleMailMessage sentMsg = captor.getValue();
 
         assertEquals("rfq@procucev.com", sentMsg.getFrom(), "Sender must be rfq@procucev.com");
-        assertEquals("unregistered@test.com", sentMsg.getTo()[0]);
+        assertEquals("govardhan.kilari@procucev.com", sentMsg.getTo()[0]);
         assertNotNull(sentMsg.getCc());
         assertEquals("support@procucev.com", sentMsg.getCc()[0]);
         assertNotEquals("notification@procucev.com", sentMsg.getFrom());
@@ -85,7 +85,7 @@ public class AcknowledgementEmailServiceTest {
     }
 
     @Test
-    @DisplayName("Case 3: Registered buyer + missing details -> CASE 3 Template")
+    @DisplayName("Case 3: Registered buyer + missing details -> CASE 3 Template sent to govardhan.kilari@procucev.com")
     void testCase3DetailsMissingAcknowledgement() {
         Buyer buyer = Buyer.builder().email("buyer@test.com").name("Jane").build();
 
@@ -96,7 +96,7 @@ public class AcknowledgementEmailServiceTest {
         SimpleMailMessage sentMsg = captor.getValue();
 
         assertEquals("rfq@procucev.com", sentMsg.getFrom(), "Sender must be rfq@procucev.com");
-        assertEquals("buyer@test.com", sentMsg.getTo()[0]);
+        assertEquals("govardhan.kilari@procucev.com", sentMsg.getTo()[0]);
         assertNotNull(sentMsg.getCc());
         assertEquals("support@procucev.com", sentMsg.getCc()[0]);
         assertNotEquals("notification@procucev.com", sentMsg.getFrom());
@@ -118,7 +118,7 @@ public class AcknowledgementEmailServiceTest {
     }
 
     @Test
-    @DisplayName("Test sendFailureAcknowledgement sends Case 3 template")
+    @DisplayName("Test sendFailureAcknowledgement sends failure template to govardhan.kilari@procucev.com")
     void testSendFailureAcknowledgementSuccess() {
         FailedRfqRequest req = FailedRfqRequest.builder()
                 .buyerEmail("buyer@test.com")
@@ -134,8 +134,34 @@ public class AcknowledgementEmailServiceTest {
         SimpleMailMessage sentMsg = captor.getValue();
 
         assertEquals("rfq@procucev.com", sentMsg.getFrom());
+        assertEquals("govardhan.kilari@procucev.com", sentMsg.getTo()[0]);
         assertEquals("support@procucev.com", sentMsg.getCc()[0]);
         assertEquals("⚠️ We Could Not Process Your RFQ", sentMsg.getSubject());
+    }
+
+    @Test
+    @DisplayName("Test sendConsolidatedAcknowledgement partial success: success to buyer, failure to govardhan")
+    void testSendConsolidatedAcknowledgementPartialSuccess() {
+        RFQEntity entity = RFQEntity.builder()
+                .rfqNumber("RFQ-201")
+                .buyerEmail("buyer@test.com")
+                .build();
+        Buyer buyer = Buyer.builder().email("buyer@test.com").name("Alice").build();
+        List<String> failedItems = List.of("Group (Hardware) | Reason: RFQ Creation error: Server error");
+
+        service.sendConsolidatedAcknowledgement(List.of(entity), failedItems, buyer, "Subject");
+
+        ArgumentCaptor<SimpleMailMessage> captor = ArgumentCaptor.forClass(SimpleMailMessage.class);
+        Mockito.verify(mailSender, Mockito.times(2)).send(captor.capture());
+        List<SimpleMailMessage> sentMessages = captor.getAllValues();
+
+        // Message 1: Success to buyer
+        assertEquals("buyer@test.com", sentMessages.get(0).getTo()[0]);
+        assertTrue(sentMessages.get(0).getSubject().contains("RFQ #RFQ-201"));
+
+        // Message 2: Failure alert to govardhan.kilari@procucev.com
+        assertEquals("govardhan.kilari@procucev.com", sentMessages.get(1).getTo()[0]);
+        assertEquals("⚠️ Some RFQs Were Created, Some Need Attention", sentMessages.get(1).getSubject());
     }
 
     @Test

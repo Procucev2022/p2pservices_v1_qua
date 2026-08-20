@@ -556,6 +556,15 @@ public class EmailProcessorService {
             transaction.setErrorMessage(e.getMessage());
             emailTransactionRepository.save(transaction);
             try {
+                acknowledgementEmailService.sendProcessingFailureAcknowledgement(
+                        normalizedSender,
+                        "Valued Customer",
+                        "Unexpected system error: " + e.getMessage()
+                );
+            } catch (Exception mailEx) {
+                log.error("Failed to send failure email in catch block: {}", mailEx.getMessage());
+            }
+            try {
                 emailReaderService.moveMessageToFolder(email.getMessageId(), errorFolder);
             } catch (Exception ex) {
                 log.error("Failed to move email to error folder: {}", ex.getMessage());
