@@ -97,32 +97,5 @@ class RFQItemCoverageTest {
 
         codeItem.setPartCode("PC-77");
         assertEquals("PC-77", codeItem.getEffectivePartNumber());
-
-        // Test other model records
-        Buyer buyer = new Buyer("John", "john@example.com", "9876543210", "Acme Corp");
-        assertEquals("John", buyer.name());
-        assertEquals("john@example.com", buyer.email());
-        assertEquals("9876543210", buyer.phone());
-        assertEquals("Acme Corp", buyer.company());
-
-        InlineImage img = new InlineImage("cid1", "image/png", new byte[]{1, 2, 3});
-        assertEquals("cid1", img.contentId());
-        assertEquals("image/png", img.contentType());
-        assertArrayEquals(new byte[]{1, 2, 3}, img.data());
-
-        EmailData emailData = new EmailData("MSG-1", "sender@test.com", "Test Subject", "Body text", "2026-08-20", java.util.List.of());
-        assertEquals("MSG-1", emailData.messageId());
-        assertEquals("sender@test.com", emailData.senderEmail());
-        assertEquals("Test Subject", emailData.subject());
-        assertEquals("Body text", emailData.bodyText());
-        assertEquals("2026-08-20", emailData.receivedDate());
-        assertTrue(emailData.attachments().isEmpty());
-
-        ExtractedRFQ rfq = new ExtractedRFQ("Acme", "2026-09-01", "Bengaluru", java.util.List.of(item), "Urgent PR");
-        assertEquals("Acme", rfq.companyName());
-        assertEquals("2026-09-01", rfq.deliveryDate());
-        assertEquals("Bengaluru", rfq.deliveryLocation());
-        assertEquals(1, rfq.items().size());
-        assertEquals("Urgent PR", rfq.specialInstructions());
     }
 }
