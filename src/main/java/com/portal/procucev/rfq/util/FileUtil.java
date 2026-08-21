@@ -184,13 +184,8 @@ public final class FileUtil {
                     : formatter.formatCellValue(cell);
             return value != null ? value.trim() : "";
         } catch (Exception e) {
-            // A broken formula or unsupported function must not lose the rest of the sheet.
-            try {
-                String raw = formatter.formatCellValue(cell);
-                return raw != null ? raw.trim() : "";
-            } catch (Exception ignored) {
-                return "";
-            }
+            String raw = formatter.formatCellValue(cell);
+            return raw != null ? raw.trim() : "";
         }
     }
 

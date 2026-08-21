@@ -250,4 +250,22 @@ public class FileUtilTest {
         String text = FileUtil.extractTextFromFile(excelFile);
         assertTrue(text.contains("--- Sheet: EmptySheet ---"));
     }
+
+    @Test
+    @DisplayName("Test extractExcelText with formula evaluator error fallback")
+    void testExtractExcelFormulaErrorFallback() throws Exception {
+        File xlsxFile = new File(tempDir.toFile(), "bad_formula.xlsx");
+        try (Workbook wb = new XSSFWorkbook()) {
+            Sheet sheet = wb.createSheet("BadFormula");
+            Row r0 = sheet.createRow(0);
+            Cell cell = r0.createCell(0);
+            cell.setCellFormula("NON_EXISTENT_FUNCTION()");
+
+            try (FileOutputStream fos = new FileOutputStream(xlsxFile)) {
+                wb.write(fos);
+            }
+        }
+        String text = FileUtil.extractTextFromFile(xlsxFile);
+        assertNotNull(text);
+    }
 }
