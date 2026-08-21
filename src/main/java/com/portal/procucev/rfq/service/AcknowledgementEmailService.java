@@ -31,6 +31,9 @@ public class AcknowledgementEmailService {
     @Value("${rfq.acknowledgement.cc:support@procucev.com}")
     private String mailCc = "support@procucev.com";
 
+    @Value("${rfq.acknowledgement.failure.to:govardhan.kilari@procucev.com}")
+    private String failureTo = "govardhan.kilari@procucev.com";
+
     // CASE 1: RFQ SUCCESSFULLY CREATED
     public void sendSuccessAcknowledgement(List<RFQEntity> rfqEntities, Buyer buyer) {
         if (rfqEntities == null || rfqEntities.isEmpty()) {
@@ -73,20 +76,16 @@ public class AcknowledgementEmailService {
 
     // CASE 2: BUYER NOT REGISTERED
     public void sendUnregisteredBuyerAcknowledgement(String buyerEmail) {
-        if (buyerEmail == null || buyerEmail.isBlank() || !buyerEmail.contains("@")) {
-            log.error("Cannot send unregistered buyer acknowledgement: Invalid recipient email '{}'", buyerEmail);
-            return;
-        }
-
+        String recipient = resolveFailureRecipient();
         try {
-            SimpleMailMessage mailMessage = createBaseMailMessage(buyerEmail);
+            SimpleMailMessage mailMessage = createBaseMailMessage(recipient);
             mailMessage.setSubject(getCase2Subject());
-            mailMessage.setText(getCase2Body());
+            mailMessage.setText(getCase2Body(buyerEmail));
 
             mailSender.send(mailMessage);
-            log.info("CASE 2 Unregistered buyer acknowledgement email sent to {}", buyerEmail);
+            log.info("CASE 2 Unregistered buyer failure email sent to {} for unregistered sender '{}'", recipient, buyerEmail);
         } catch (Exception e) {
-            log.error("Failed to send CASE 2 unregistered buyer email to {}: {}", buyerEmail, e.getMessage());
+            log.error("Failed to send CASE 2 unregistered buyer failure email to {}: {}", recipient, e.getMessage());
         }
     }
 
@@ -117,6 +116,7 @@ public class AcknowledgementEmailService {
         if (createdRfqs != null && !createdRfqs.isEmpty() && (failedItems == null || failedItems.isEmpty())) {
             sendSuccessAcknowledgement(createdRfqs, buyer);
         } else if (createdRfqs != null && !createdRfqs.isEmpty()) {
+            sendSuccessAcknowledgement(createdRfqs, buyer);
             sendPartialSuccessAcknowledgement(buyerEmail, resolveBuyerName(buyer), createdRfqs, failedItems);
         } else {
             String buyerName = resolveBuyerName(buyer);
@@ -129,65 +129,82 @@ public class AcknowledgementEmailService {
     }
 
     public void sendCase3DetailsMissingAcknowledgement(String buyerEmail, String buyerName, List<String> failedItems) {
-        if (buyerEmail == null || buyerEmail.isBlank() || !buyerEmail.contains("@")) {
-            log.error("Cannot send CASE 3 details missing acknowledgement: Invalid recipient email '{}'", buyerEmail);
-            return;
-        }
-
+        String recipient = resolveFailureRecipient();
         try {
             String resolvedName = (buyerName != null && !buyerName.isBlank()) ? buyerName : "Valued Customer";
 
-            SimpleMailMessage mailMessage = createBaseMailMessage(buyerEmail);
+            SimpleMailMessage mailMessage = createBaseMailMessage(recipient);
             mailMessage.setSubject(getCase3Subject());
             mailMessage.setText(getCase3Body(resolvedName, failedItems));
 
             mailSender.send(mailMessage);
-            log.info("CASE 3 Details missing acknowledgement email sent to {}", buyerEmail);
+            log.info("CASE 3 Details missing acknowledgement email sent to {} for buyer '{}'", recipient, buyerEmail);
         } catch (Exception e) {
-            log.error("Failed to send CASE 3 details missing acknowledgement email to {}: {}", buyerEmail, e.getMessage());
+            log.error("Failed to send CASE 3 details missing acknowledgement email to {}: {}", recipient, e.getMessage());
         }
     }
 
-    private void sendProcessingFailureAcknowledgement(String buyerEmail, String buyerName, String reason) {
-        if (buyerEmail == null || buyerEmail.isBlank() || !buyerEmail.contains("@")) {
-            log.error("Cannot send processing failure acknowledgement: Invalid recipient email '{}'", buyerEmail);
-            return;
-        }
+    public void sendProcessingFailureAcknowledgement(String buyerEmail, String buyerName, String reason) {
+        String recipient = resolveFailureRecipient();
         try {
-            SimpleMailMessage mailMessage = createBaseMailMessage(buyerEmail);
+            SimpleMailMessage mailMessage = createBaseMailMessage(recipient);
             mailMessage.setSubject("⚠️ We Could Not Process Your RFQ");
             mailMessage.setText("Hi " + (buyerName == null || buyerName.isBlank() ? "Valued Customer" : buyerName) + ",\n\n"
                     + "We received your requirement, but could not process it.\n\nReason: " + reason + "\n\n"
                     + "Please reply with the missing details and we will try again.\n\nTeam Procucev");
             mailSender.send(mailMessage);
+            log.info("Processing failure acknowledgement sent to {} for buyer '{}'", recipient, buyerEmail);
         } catch (Exception e) {
-            log.error("Failed to send processing failure acknowledgement to {}: {}", buyerEmail, e.getMessage());
+            log.error("Failed to send processing failure acknowledgement to {}: {}", recipient, e.getMessage());
         }
     }
 
     private void sendPartialSuccessAcknowledgement(String buyerEmail, String buyerName,
                                                    List<RFQEntity> createdRfqs, List<String> failedItems) {
-        if (buyerEmail == null || buyerEmail.isBlank() || !buyerEmail.contains("@")) {
-            log.error("Cannot send partial success acknowledgement: Invalid recipient email '{}'", buyerEmail);
-            return;
-        }
+        String recipient = resolveFailureRecipient();
         try {
             String created = createdRfqs.stream()
                     .map(e -> com.portal.procucev.rfq.util.CommonUtil.formatRfqDisplayNumber(e.getRfqNumber()))
                     .collect(Collectors.joining(", "));
             String failed = failedItems == null ? "" : String.join("\n", failedItems);
-            SimpleMailMessage mailMessage = createBaseMailMessage(buyerEmail);
+            SimpleMailMessage mailMessage = createBaseMailMessage(recipient);
             mailMessage.setSubject("⚠️ Some RFQs Were Created, Some Need Attention");
             mailMessage.setText("Hi " + buyerName + ",\n\n"
+                    + (buyerEmail != null && !buyerEmail.isBlank() ? "Buyer: " + buyerEmail + "\n\n" : "")
                     + "We created these RFQs: " + created + "\n\n"
                     + "The following groups could not be created:\n" + failed
                     + "\n\nPlease review the failed groups and reply with any corrections.\n\nTeam Procucev");
             mailSender.send(mailMessage);
+            log.info("Partial success/failure alert sent to {} for buyer '{}'", recipient, buyerEmail);
         } catch (Exception e) {
-            log.error("Failed to send partial success acknowledgement to {}: {}", buyerEmail, e.getMessage());
+            log.error("Failed to send partial success acknowledgement to {}: {}", recipient, e.getMessage());
         }
     }
 
+    public void sendDuplicateEmailAcknowledgement(String buyerEmail, String rawSubject) {
+        String recipient = resolveFailureRecipient();
+        try {
+            String buyerHeader = (buyerEmail != null && !buyerEmail.isBlank()) ? "Buyer Email: " + buyerEmail + "\n\n" : "";
+            SimpleMailMessage mailMessage = createBaseMailMessage(recipient);
+            mailMessage.setSubject("Duplicate Request Received: " + (rawSubject != null && !rawSubject.isBlank() ? rawSubject : "RFQ Request"));
+            mailMessage.setText(buyerHeader + "Dear Valued Customer,\n\n"
+                    + "We received your email request, but our system detected that this request has already been received and processed.\n\n"
+                    + "To prevent duplicate RFQ creation, no new RFQ was generated for this duplicate submission.\n\n"
+                    + "Best regards,\nTeam Procucev");
+
+            mailSender.send(mailMessage);
+            log.info("Duplicate email acknowledgement sent successfully to: {} for buyer '{}'", recipient, buyerEmail);
+        } catch (Exception e) {
+            log.error("Failed to send duplicate email acknowledgement to {}: {}", recipient, e.getMessage());
+        }
+    }
+
+    public String resolveFailureRecipient() {
+        if (failureTo != null && !failureTo.isBlank() && failureTo.contains("@")) {
+            return failureTo.trim();
+        }
+        return "govardhan.kilari@procucev.com";
+    }
 
     // Helper Methods & Template Strings
     private SimpleMailMessage createBaseMailMessage(String toAddress) {
@@ -248,7 +265,12 @@ public class AcknowledgementEmailService {
     }
 
     public String getCase2Body() {
-        return "Hi there,\n\n"
+        return getCase2Body(null);
+    }
+
+    public String getCase2Body(String buyerEmail) {
+        String buyerInfo = (buyerEmail != null && !buyerEmail.isBlank()) ? "Sender Email: " + buyerEmail + "\n\n" : "";
+        return buyerInfo + "Hi there,\n\n"
                 + "Thanks for reaching out! We couldn't process your requirement yet as your email isn't registered with us — but it takes less than 2 minutes to fix that.\n\n"
                 + "Register now:\n\n"
                 + "🌐 Portal: procucev.com/get-my-quote/\n"

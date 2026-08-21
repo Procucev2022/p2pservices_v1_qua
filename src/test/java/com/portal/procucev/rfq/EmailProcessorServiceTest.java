@@ -103,7 +103,7 @@ public class EmailProcessorServiceTest {
     }
 
     @Test
-    @DisplayName("Test processSingleEmail processes repeat email without skipping")
+    @DisplayName("Test processSingleEmail reprocesses previously seen email instead of skipping as duplicate")
     void testProcessSingleEmailDuplicate() {
         EmailData email = EmailData.builder()
                 .messageId("MSG-DUP")
@@ -112,7 +112,10 @@ public class EmailProcessorServiceTest {
                 .build();
 
         Mockito.when(emailTransactionRepository.findByMessageId("MSG-DUP"))
-                .thenReturn(Optional.of(EmailTransaction.builder().messageId("MSG-DUP").build()));
+                .thenReturn(Optional.of(EmailTransaction.builder().messageId("MSG-DUP").status("FAILED").build()));
+
+        Buyer unverifiedBuyer = Buyer.builder().email("buyer@test.com").verified(false).build();
+        Mockito.when(buyerVerificationService.verifyAndGetBuyer("buyer@test.com")).thenReturn(unverifiedBuyer);
 
         Buyer verifiedBuyer = Buyer.builder().email("buyer@test.com").name("Buyer").verified(true).build();
         Mockito.when(buyerVerificationService.verifyAndGetBuyer("buyer@test.com")).thenReturn(verifiedBuyer);

@@ -304,6 +304,7 @@ public class RfqProcessingFlowIntegrationTest {
 
         ArgumentCaptor<SimpleMailMessage> mailCaptor = ArgumentCaptor.forClass(SimpleMailMessage.class);
         verify(mailSender, times(1)).send(mailCaptor.capture());
+        assertEquals("govardhan.kilari@procucev.com", mailCaptor.getValue().getTo()[0]);
         assertTrue(mailCaptor.getValue().getText().contains("Quantity"));
     }
 
@@ -434,11 +435,10 @@ public class RfqProcessingFlowIntegrationTest {
     }
 
     @Test
-    @DisplayName("Test 14: Processing -> repeat email continues and creates RFQ")
-    void test14_IdempotencyDuplicateEmail() {
-        EmailData email = EmailData.builder().messageId("MSG-014").subject("Repeat Email").senderEmail("buyer@procucev.com").body("Quantity: 100").build();
-
-        when(emailTransactionRepository.findByMessageId("MSG-014")).thenReturn(Optional.of(EmailTransaction.builder().messageId("MSG-014").status("RFQ_CREATED").build()));
+    @DisplayName("Test 14: Reprocessing -> email is processed even if previously present in transaction log")
+    void test14_ReprocessingEmailWithoutDuplicateSkip() {
+        EmailData email = EmailData.builder().messageId("MSG-014").subject("Reprocessed Email").senderEmail("buyer@procucev.com").body("Body").build();
+        when(emailTransactionRepository.findByMessageId("MSG-014")).thenReturn(Optional.of(EmailTransaction.builder().messageId("MSG-014").status("FAILED").build()));
 
         ExtractedRFQ extracted = ExtractedRFQ.builder()
                 .buyerEmail("buyer@procucev.com")

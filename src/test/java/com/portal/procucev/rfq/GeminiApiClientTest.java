@@ -42,12 +42,25 @@ public class GeminiApiClientTest {
         Mockito.when(restTemplateBuilder.build()).thenReturn(restTemplate);
 
         client = new GeminiApiClient(restTemplateBuilder, objectMapper);
-        ReflectionTestUtils.setField(client, "primaryModel", "gemini-3.5-flash-lite");
+        ReflectionTestUtils.setField(client, "primaryModel", "gemini-3.7-flash");
+        ReflectionTestUtils.setField(client, "backupModels", "gemini-3.6-flash,gemini-3.5-flash,gemini-3.5-flash-lite,gemini-3.1-flash-lite");
         ReflectionTestUtils.setField(client, "fallbackModel", "gemini-3.6-flash");
         ReflectionTestUtils.setField(client, "baseUrl", "https://generativelanguage.googleapis.com/v1beta/models");
         ReflectionTestUtils.setField(client, "apiKey", "test-key");
 
         ReflectionTestUtils.invokeMethod(client, "init");
+    }
+
+    @Test
+    @DisplayName("Test getAllConfiguredModels returns ordered hierarchy")
+    void testGetAllConfiguredModels() {
+        List<String> models = client.getAllConfiguredModels();
+        assertEquals(5, models.size());
+        assertEquals("gemini-3.7-flash", models.get(0));
+        assertEquals("gemini-3.6-flash", models.get(1));
+        assertEquals("gemini-3.5-flash", models.get(2));
+        assertEquals("gemini-3.5-flash-lite", models.get(3));
+        assertEquals("gemini-3.1-flash-lite", models.get(4));
     }
 
     @Test
@@ -65,7 +78,7 @@ public class GeminiApiClientTest {
                 "  ]\n" +
                 "}";
 
-        Mockito.when(restTemplate.postForEntity(contains("gemini-3.5-flash-lite"), any(), eq(String.class)))
+        Mockito.when(restTemplate.postForEntity(contains("gemini-3.7-flash"), any(), eq(String.class)))
                 .thenReturn(new ResponseEntity<>(jsonResponseBody, HttpStatus.OK));
 
         String result = client.generateContent("Test Prompt");
@@ -75,10 +88,10 @@ public class GeminiApiClientTest {
     }
 
     @Test
-    @DisplayName("Test generateContent primary fails, fallback model succeeds")
+    @DisplayName("Test generateContent primary fails, 1st backup model succeeds")
     void testGenerateContentPrimaryFailsFallbackSuccess() {
-        Mockito.when(restTemplate.postForEntity(contains("gemini-3.5-flash-lite"), any(), eq(String.class)))
-                .thenThrow(new RuntimeException("Primary Timeout"));
+        Mockito.when(restTemplate.postForEntity(contains("gemini-3.7-flash"), any(), eq(String.class)))
+                .thenThrow(new RuntimeException("Primary 503 Unavailable"));
 
         String fallbackResponseBody = "{\n" +
                 "  \"candidates\": [\n" +
@@ -101,7 +114,36 @@ public class GeminiApiClientTest {
     }
 
     @Test
-    @DisplayName("Test generateContent primary and fallback both fail")
+    @DisplayName("Test generateContent cascades through 3 models until 4th succeeds")
+    void testGenerateContentCascadesThroughModels() {
+        Mockito.when(restTemplate.postForEntity(contains("gemini-3.7-flash"), any(), eq(String.class)))
+                .thenThrow(new RuntimeException("503 Service Unavailable"));
+        Mockito.when(restTemplate.postForEntity(contains("gemini-3.6-flash"), any(), eq(String.class)))
+                .thenThrow(new RuntimeException("429 Rate Limit"));
+        Mockito.when(restTemplate.postForEntity(contains("gemini-3.5-flash"), any(), eq(String.class)))
+                .thenThrow(new RuntimeException("500 Internal Server Error"));
+
+        String successBody = "{\n" +
+                "  \"candidates\": [\n" +
+                "    {\n" +
+                "      \"content\": {\n" +
+                "        \"parts\": [\n" +
+                "          {\"text\": \"Recovered on 3.5-flash-lite\"}\n" +
+                "        ]\n" +
+                "      }\n" +
+                "    }\n" +
+                "  ]\n" +
+                "}";
+
+        Mockito.when(restTemplate.postForEntity(contains("gemini-3.5-flash-lite"), any(), eq(String.class)))
+                .thenReturn(new ResponseEntity<>(successBody, HttpStatus.OK));
+
+        String result = client.generateContent("Test Prompt");
+        assertEquals("Recovered on 3.5-flash-lite", result);
+    }
+
+    @Test
+    @DisplayName("Test generateContent primary and all backup models fail")
     void testGenerateContentBothFail() {
         Mockito.when(restTemplate.postForEntity(anyString(), any(), eq(String.class)))
                 .thenThrow(new RuntimeException("API Outage"));

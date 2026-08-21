@@ -258,7 +258,7 @@ public class RfqReplyProcessingTest {
     }
 
     @Test
-    @DisplayName("TEST 8: Repeated buyer replies create RFQs with unique IDs")
+    @DisplayName("TEST 8: Reply email is processed even if message ID is present in transaction log")
     void test8_PreventDuplicateProcessingOnSameReplyMessageId() {
         EmailData replyEmail = EmailData.builder()
                 .messageId("MSG-REPLY-DUPLICATE-001")
@@ -282,9 +282,9 @@ public class RfqReplyProcessingTest {
                 .build();
 
         when(emailTransactionRepository.findByMessageId("MSG-REPLY-DUPLICATE-001"))
-                .thenReturn(java.util.Optional.of(com.portal.procucev.rfq.entity.EmailTransaction.builder().status("RFQ_CREATED").build()));
-        when(aiExtractionService.extractRFQFromEmail(replyEmail)).thenReturn(extracted);
+                .thenReturn(java.util.Optional.of(com.portal.procucev.rfq.entity.EmailTransaction.builder().messageId("MSG-REPLY-DUPLICATE-001").status("FAILED").build()));
 
+        when(aiExtractionService.extractRFQFromEmail(replyEmail)).thenReturn(extracted);
         RFQRequest mockRfqReq = RFQRequest.builder().rfqNumber("RFQ-2030").build();
         when(rfqBuilderService.buildRFQRequest(any(), any(), any(), any())).thenReturn(mockRfqReq);
 
