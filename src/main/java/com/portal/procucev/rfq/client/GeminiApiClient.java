@@ -32,10 +32,10 @@ public class GeminiApiClient {
 
     private RestTemplate restTemplate;
 
-    @Value("${app.gemini.primary-model:gemini-3.5-flash-lite}")
+    @Value("${app.gemini.primary-model:gemini-1.5-flash}")
     private String primaryModel;
 
-    @Value("${app.gemini.fallback-model:gemini-3.6-flash}")
+    @Value("${app.gemini.fallback-model:gemini-2.0-flash}")
     private String fallbackModel;
 
     @Value("${app.gemini.base-url:https://generativelanguage.googleapis.com/v1beta/models}")
@@ -66,9 +66,7 @@ public class GeminiApiClient {
     }
 
     /**
-     * Sends the prompt, optionally with image attachments as inline data so a requirement sent as
-     * a screenshot or photograph can be read. With an empty image list the request is identical to
-     * the text-only form.
+     * Sends the prompt, optionally with image attachments as inline data.
      */
     public String generateContent(String promptText, List<InlineImage> images) {
         if (apiKey == null || apiKey.isBlank()) {
@@ -94,7 +92,7 @@ public class GeminiApiClient {
     }
 
     private String callGeminiModel(String model, String promptText, List<InlineImage> images) throws Exception {
-        String url = String.format("%s/%s:generateContent", baseUrl, model);
+        String url = String.format("%s/%s:generateContent?key=%s", baseUrl, model, apiKey.trim());
 
         Map<String, Object> textPart = new HashMap<>();
         textPart.put("text", promptText);
@@ -116,51 +114,52 @@ public class GeminiApiClient {
         Map<String, Object> requestBody = new HashMap<>();
         requestBody.put("contents", List.of(contentsObj));
 
-        Map<String, Object> itemSchema = new HashMap<>();
-        itemSchema.put("type", "OBJECT");
-        itemSchema.put("properties", Map.of(
-                "itemDescription", Map.of("type", "STRING"),
-                "partCode", Map.of("type", "STRING"),
-                "specification", Map.of("type", "STRING"),
-                "quantity", Map.of("type", "NUMBER"),
-                "uom", Map.of("type", "STRING"),
-                "brand", Map.of("type", "STRING"),
-                "category", Map.of("type", "STRING"),
-                "deliveryDate", Map.of("type", "STRING"),
-                "deliveryLocation", Map.of("type", "STRING")
-        ));
-
-        Map<String, Object> responseSchema = Map.of(
-                "type", "OBJECT",
-                "properties", Map.of(
-                        "buyerEmail", Map.of("type", "STRING"),
-                        "category", Map.of("type", "STRING"),
-                        "deliveryLocation", Map.of("type", "STRING"),
-                        "deliveryCity", Map.of("type", "STRING"),
-                        "deliveryState", Map.of("type", "STRING"),
-                        "deliveryPincode", Map.of("type", "STRING"),
-                        "deliveryDate", Map.of("type", "STRING"),
-                        "items", Map.of(
-                                "type", "ARRAY",
-                                "items", itemSchema
-                        )
-                ),
-                "required", List.of("items")
-        );
-
         Map<String, Object> generationConfig = new HashMap<>();
         generationConfig.put("temperature", 0.1);
         generationConfig.put("responseMimeType", "application/json");
-        generationConfig.put("responseSchema", responseSchema);
-        // A requirement sheet with a hundred-plus line items needs far more output budget than the
-        // model default. Without this the response is cut mid-array and the JSON fails to parse.
         generationConfig.put("maxOutputTokens", maxOutputTokens);
+
+        // Attach strict RFQ extraction responseSchema only when images/RFQ extraction are present
+        if (!images.isEmpty()) {
+            Map<String, Object> itemSchema = new HashMap<>();
+            itemSchema.put("type", "OBJECT");
+            itemSchema.put("properties", Map.of(
+                    "itemDescription", Map.of("type", "STRING"),
+                    "partCode", Map.of("type", "STRING"),
+                    "specification", Map.of("type", "STRING"),
+                    "quantity", Map.of("type", "NUMBER"),
+                    "uom", Map.of("type", "STRING"),
+                    "brand", Map.of("type", "STRING"),
+                    "category", Map.of("type", "STRING"),
+                    "deliveryDate", Map.of("type", "STRING"),
+                    "deliveryLocation", Map.of("type", "STRING")
+            ));
+
+            Map<String, Object> responseSchema = Map.of(
+                    "type", "OBJECT",
+                    "properties", Map.of(
+                            "buyerEmail", Map.of("type", "STRING"),
+                            "category", Map.of("type", "STRING"),
+                            "deliveryLocation", Map.of("type", "STRING"),
+                            "deliveryCity", Map.of("type", "STRING"),
+                            "deliveryState", Map.of("type", "STRING"),
+                            "deliveryPincode", Map.of("type", "STRING"),
+                            "deliveryDate", Map.of("type", "STRING"),
+                            "items", Map.of(
+                                    "type", "ARRAY",
+                                    "items", itemSchema
+                            )
+                    ),
+                    "required", List.of("items")
+            );
+            generationConfig.put("responseSchema", responseSchema);
+        }
 
         requestBody.put("generationConfig", generationConfig);
 
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
-        headers.set("x-goog-api-key", apiKey);
+        headers.set("x-goog-api-key", apiKey.trim());
 
         HttpEntity<String> entity = new HttpEntity<>(objectMapper.writeValueAsString(requestBody), headers);
         ResponseEntity<String> response = restTemplate.postForEntity(url, entity, String.class);
@@ -171,17 +170,12 @@ public class GeminiApiClient {
             if (candidates.isArray() && candidates.size() > 0) {
                 JsonNode candidate = candidates.get(0);
 
-                // finishReason was previously ignored, so a truncated or filtered generation was
-                // handed back as though it were complete. Surfacing it turns a silent partial
-                // extraction into a diagnosable failure.
                 String finishReason = candidate.path("finishReason").asText("");
                 if (!finishReason.isEmpty() && !"STOP".equalsIgnoreCase(finishReason)) {
-                    log.warn("Gemini model {} stopped with finishReason={} (maxOutputTokens={}). The extraction may be incomplete.",
+                    log.warn("Gemini model {} stopped with finishReason={} (maxOutputTokens={}).",
                             model, finishReason, maxOutputTokens);
                     if ("MAX_TOKENS".equalsIgnoreCase(finishReason)) {
-                        throw new ApplicationException("Gemini response was truncated (finishReason=MAX_TOKENS). "
-                                + "The request likely exceeded the output budget of " + maxOutputTokens
-                                + " tokens; raise app.gemini.max-output-tokens or split the attachment.");
+                        throw new ApplicationException("Gemini response was truncated (finishReason=MAX_TOKENS).");
                     }
                 }
 
