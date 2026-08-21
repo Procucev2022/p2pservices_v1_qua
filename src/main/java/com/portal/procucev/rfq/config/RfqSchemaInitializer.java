@@ -68,9 +68,29 @@ public class RfqSchemaInitializer {
                     "items_json TEXT, " +
                     "delivery_location VARCHAR(255), " +
                     "delivery_date VARCHAR(255), " +
+                    "remarks TEXT, " +
                     "created_at DATETIME NOT NULL, " +
                     "updated_at DATETIME" +
                     ")");
+
+            try {
+                jdbcTemplate.execute("ALTER TABLE rfq_records ADD COLUMN remarks TEXT");
+                log.info("Successfully verified/added 'remarks' column on 'rfq_records' table.");
+            } catch (Exception ignored) {
+                // Column already exists or table was newly created
+            }
+
+            try {
+                jdbcTemplate.execute("ALTER TABLE rfq_items MODIFY COLUMN remarks TEXT");
+            } catch (Exception ignored) {
+                // Table/column modified or missing
+            }
+
+            try {
+                jdbcTemplate.execute("ALTER TABLE gmt_items MODIFY COLUMN remarks TEXT");
+            } catch (Exception ignored) {
+                // Table/column modified or missing
+            }
 
             jdbcTemplate.execute("CREATE TABLE IF NOT EXISTS rfq_item_records (" +
                     "id BIGINT AUTO_INCREMENT PRIMARY KEY, " +

@@ -125,4 +125,9 @@ public class ClientRFQDto {
 	public String getDisplayRfqNumber() {
 		return com.portal.procucev.rfq.util.CommonUtil.formatRfqDisplayNumber(this.rfqId);
 	}
+
+	@com.fasterxml.jackson.annotation.JsonProperty("rfqIcon")
+	public String getRfqIcon() {
+		return com.portal.procucev.rfq.util.CommonUtil.getRfqIcon(this.rfqId);
+	}
 }

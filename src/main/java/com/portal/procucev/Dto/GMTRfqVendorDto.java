@@ -60,6 +60,21 @@ public class GMTRfqVendorDto {
 		this.rfqId = rfqId;
 	}
 
+	@com.fasterxml.jackson.annotation.JsonProperty("displayRfqId")
+	public String getDisplayRfqId() {
+		return com.portal.procucev.rfq.util.CommonUtil.formatRfqDisplayNumber(this.rfqId);
+	}
+
+	@com.fasterxml.jackson.annotation.JsonProperty("displayRfqNumber")
+	public String getDisplayRfqNumber() {
+		return com.portal.procucev.rfq.util.CommonUtil.formatRfqDisplayNumber(this.rfqId);
+	}
+
+	@com.fasterxml.jackson.annotation.JsonProperty("rfqIcon")
+	public String getRfqIcon() {
+		return com.portal.procucev.rfq.util.CommonUtil.getRfqIcon(this.rfqId);
+	}
+
 	public String getDesc() {
 		return desc;
 	}

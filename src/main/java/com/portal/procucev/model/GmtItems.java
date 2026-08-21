@@ -20,6 +20,7 @@ public class GmtItems extends Procucev{
 	private String category;
 	private String division;
 	private String brand;
+	@Column(columnDefinition = "TEXT")
 	private String remarks;
 	private double quantity;
 	@Column(name="rfq_item_id")

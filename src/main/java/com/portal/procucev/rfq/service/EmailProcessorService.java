@@ -218,12 +218,18 @@ public class EmailProcessorService {
             Set<String> seenInEmailKeys = new HashSet<>();
             boolean hasItemMissingQuantity = false;
             String topDeliveryDate = extractedRFQ.getDeliveryDate() != null ? extractedRFQ.getDeliveryDate().trim() : "";
-            String topDeliveryLocation = extractedRFQ.getDeliveryLocation() != null ? extractedRFQ.getDeliveryLocation().trim() : "";
+            if (topDeliveryDate.isBlank() || topDeliveryDate.equalsIgnoreCase("Not Specified") || topDeliveryDate.equalsIgnoreCase("null")) {
+                String scannedDate = scanFieldFromEmail(email, "(?i)(?:delivery\\s+date|delivery\\s+required|deliver\\s+by|needed\\s+by|required\\s+within|within|in)[:\\s=]*([^\\r\\n,;]+)");
+                if (scannedDate != null && !scannedDate.isBlank()) {
+                    log.info("Top-level delivery date recovered by fallback scan: '{}'", scannedDate);
+                    topDeliveryDate = scannedDate;
+                    extractedRFQ.setDeliveryDate(scannedDate);
+                }
+            }
 
-            // Calculate default date (Current Date + 5 Days) if missing
-            String defaultDate = (topDeliveryDate != null && !topDeliveryDate.isBlank() && !topDeliveryDate.equalsIgnoreCase("null") && !topDeliveryDate.equalsIgnoreCase("Not Specified"))
-                    ? topDeliveryDate
-                    : java.time.LocalDate.now().plusDays(5).format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd"));
+            // Parse exact date, relative period, or default to Current Date + 5 Days
+            String defaultDate = dateParser.parseDateString(topDeliveryDate);
+            String topDeliveryLocation = extractedRFQ.getDeliveryLocation() != null ? extractedRFQ.getDeliveryLocation().trim() : "";
 
             // Recover a stated delivery location before falling back to the buyer's registered
             // address. Without this, a location supplied only in an attachment was silently
@@ -356,32 +362,12 @@ public class EmailProcessorService {
                     }
                 }
 
-                // Verify if quantity was inferred as 1.0 without explicit purchasing quantity statement in email text
-                if (item.getQuantity() == null || item.getQuantity() == 1.0) {
-                    boolean hasExplicitQuantityInText = hasExplicitPurchaseQuantityInText(email.getSubject(), email.getBody(), email.getAttachmentText());
-                    if (!hasExplicitQuantityInText) {
-                        log.warn("No explicit purchase quantity stated in email text for item '{}'. Resetting quantity to null.", desc);
-                        item.setQuantity(null);
-                    }
-                }
-
-                // MANDATORY QUANTITY VALIDATION PER ITEM
-                // Every offending row is recorded before the payload is rejected. Breaking out on the
-                // first one discarded the already-validated items and told the buyer about a single
-                // line, which is unusable feedback on a requirement sheet with many rows.
+                // QUANTITY DEFAULTING LOGIC:
+                // Email quantity exists -> use email quantity
+                // Email quantity missing -> quantity = 1.0
                 if (item.getQuantity() == null || item.getQuantity() <= 0) {
-                    // Spell out everything that was tried, so the log distinguishes "the buyer did
-                    // not state a quantity" from "we failed to read one that was there".
-                    log.warn("REJECTING item '{}': no usable quantity after all recovery steps. "
-                            + "Model returned null, per-item name-anchored scan found nothing"
-                            + "{}, and the email text {} an explicit quantity keyword.",
-                            desc,
-                            isMultiItemPayload ? " (whole-email scan skipped: multi-item payload)" : " and the whole-email scan found nothing",
-                            hasExplicitPurchaseQuantityInText(email.getSubject(), email.getBody(), email.getAttachmentText())
-                                    ? "DOES contain" : "does NOT contain");
-                    failedItemsList.add("Item: " + desc + " | Reason: Quantity is mandatory. Please provide the required quantity.");
-                    hasItemMissingQuantity = true;
-                    continue;
+                    log.info("No explicit quantity stated for item '{}'. Defaulting quantity to 1.0.", desc);
+                    item.setQuantity(1.0);
                 }
 
                 // Resolve item-level location & date fallbacks with ISO yyyy-MM-dd normalization
@@ -410,14 +396,8 @@ public class EmailProcessorService {
                 validItems.add(item);
             }
 
-            log.info("Item validation complete: {} of {} extracted item(s) are valid, {} rejected.",
-                    validItems.size(), extractedRFQ.getItems().size(), failedItemsList.size());
-
-            if (hasItemMissingQuantity) {
-                log.warn("Rejecting email payload: {} of {} item(s) are missing a mandatory quantity.",
-                        failedItemsList.size(), extractedRFQ.getItems().size());
-                validItems.clear();
-            }
+            log.info("Item validation complete: {} of {} extracted item(s) are valid.",
+                    validItems.size(), extractedRFQ.getItems().size());
 
             if (validItems.isEmpty()) {
                 log.warn("RFQ validation failed: All items in email were invalid or missing mandatory quantity/location.");
@@ -477,6 +457,10 @@ public class EmailProcessorService {
                         .build();
 
                 RFQRequest rfqRequest = rfqBuilderService.buildRFQRequest(groupExtractedRFQ, buyer, email.getSubject(), email.getAttachments());
+                String fullRemarks = rfqBuilderService.buildFormattedRemarks(groupExtractedRFQ, rfqRequest.getDeliveryDate(), groupLocation, email.getBody(), buyer);
+                if (fullRemarks != null && !fullRemarks.isBlank()) {
+                    rfqRequest.setRemarks(fullRemarks);
+                }
                 String generatedRfqNumber = rfqRequest.getRfqNumber();
 
                 log.info("Creating RFQ for buyerId={}, Category='{}', Location='{}', Date='{}'", buyer.getUserId(), groupCategory, groupLocation, groupDate);
@@ -493,6 +477,7 @@ public class EmailProcessorService {
                             .itemsJson(objectMapper.writeValueAsString(groupItems))
                             .deliveryLocation(groupLocation)
                             .deliveryDate(rfqRequest.getDeliveryDate() != null ? rfqRequest.getDeliveryDate() : groupDate)
+                            .remarks(rfqRequest.getRemarks())
                             .build();
 
                     RFQEntity savedRfq = rfqRepository.save(rfqEntity);

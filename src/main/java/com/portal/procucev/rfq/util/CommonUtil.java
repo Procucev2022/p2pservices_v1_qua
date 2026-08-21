@@ -18,7 +18,7 @@ public final class CommonUtil {
         if (fullRfqNumber == null || fullRfqNumber.isBlank()) {
             return "";
         }
-        String clean = fullRfqNumber.trim().replaceAll("^[✉️🌐\\s]+", "").trim();
+        String clean = fullRfqNumber.trim().replaceAll("^[✉️📧🌐\\s]+", "").trim();
         return clean;
     }
 
@@ -27,7 +27,36 @@ public final class CommonUtil {
         if (shortened.isBlank()) {
             return "";
         }
-        return "✉️ " + shortened;
+        return "📧 " + shortened;
+    }
+
+    public static String formatRfqDisplayNumber(String fullRfqNumber, String sourceType) {
+        String shortened = shortenRfqNumber(fullRfqNumber);
+        if (shortened.isBlank()) {
+            return "";
+        }
+        if ("W".equalsIgnoreCase(sourceType) || "WEB".equalsIgnoreCase(sourceType)) {
+            return "🌐 " + shortened;
+        }
+        return "📧 " + shortened;
+    }
+
+    public static String getRfqIcon(String fullRfqNumber, String sourceType) {
+        String shortened = shortenRfqNumber(fullRfqNumber);
+        if (shortened.isBlank()) {
+            return "";
+        }
+        if ("W".equalsIgnoreCase(sourceType) || "WEB".equalsIgnoreCase(sourceType)) {
+            if (shortened.startsWith("RFQ-")) {
+                return "📧";
+            }
+            return "🌐";
+        }
+        return "📧";
+    }
+
+    public static String getRfqIcon(String fullRfqNumber) {
+        return getRfqIcon(fullRfqNumber, null);
     }
 
     public static String formatRfqDisplayId(String fullRfqNumber) {

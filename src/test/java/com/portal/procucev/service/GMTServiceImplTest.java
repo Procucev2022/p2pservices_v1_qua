@@ -112,7 +112,7 @@ class GMTServiceImplTest {
         rfq.setOrg(org);
         rfq.setStatus(masterStatus);
 
-        when(javaMailSender.createMimeMessage()).thenReturn(mimeMessage);
+        when(javaMailSender.createMimeMessage()).thenAnswer(inv -> new org.springframework.mail.javamail.JavaMailSenderImpl().createMimeMessage());
         doNothing().when(javaMailSender).send(any(MimeMessage.class));
         when(subscriptionPlanDao.findById("2001")).thenReturn(Optional.of(new SubscriptionPlan()));
         when(userDao.findById(anyString())).thenReturn(Optional.of(user));

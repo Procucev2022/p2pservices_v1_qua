@@ -31,17 +31,28 @@ public class CommonUtilTest {
     @Test
     @DisplayName("Test formatRfqDisplayNumber adds email icon and preserves unique suffix")
     void testFormatRfqDisplayNumber() {
-        assertEquals("✉️ RFQ-20260813162614-5ababe44", CommonUtil.formatRfqDisplayNumber("RFQ-20260813162614-5ababe44"));
-        assertEquals("✉️ RFQ-20260813162547-ffe67f9f", CommonUtil.formatRfqDisplayNumber("RFQ-20260813162547-ffe67f9f"));
-        assertEquals("✉️ RFQ-20260813153514-bbc27322", CommonUtil.formatRfqDisplayNumber("RFQ-20260813153514-bbc27322"));
-        assertEquals("✉️ RFQ-101", CommonUtil.formatRfqDisplayNumber("RFQ-101"));
+        assertEquals("📧 RFQ-20260813162614-5ababe44", CommonUtil.formatRfqDisplayNumber("RFQ-20260813162614-5ababe44"));
+        assertEquals("📧 RFQ-101", CommonUtil.formatRfqDisplayNumber("RFQ-101"));
         assertEquals("", CommonUtil.formatRfqDisplayNumber(null));
         assertEquals("", CommonUtil.formatRfqDisplayNumber("   "));
 
+        // Test sourceType aware overload
+        assertEquals("📧 RFQ-101", CommonUtil.formatRfqDisplayNumber("RFQ-101", "T"));
+        assertEquals("📧 RFQ-101", CommonUtil.formatRfqDisplayNumber("RFQ-101", "EMAIL"));
+        assertEquals("🌐 RFQ-101", CommonUtil.formatRfqDisplayNumber("RFQ-101", "WEB"));
+        assertEquals("", CommonUtil.formatRfqDisplayNumber(null, "WEB"));
+
         // Also verify formatRfqDisplayId
-        assertEquals("✉️ RFQ-20260813162614-5ababe44", CommonUtil.formatRfqDisplayId("RFQ-20260813162614-5ababe44"));
-        assertEquals("✉️ RFQ-20260813162547-ffe67f9f", CommonUtil.formatRfqDisplayId("RFQ-20260813162547-ffe67f9f"));
-        assertEquals("✉️ RFQ-20260813153514-bbc27322", CommonUtil.formatRfqDisplayId("RFQ-20260813153514-bbc27322"));
+        assertEquals("📧 RFQ-20260813162614-5ababe44", CommonUtil.formatRfqDisplayId("RFQ-20260813162614-5ababe44"));
+    }
+
+    @Test
+    void testGetRfqIcon() {
+        assertEquals("", CommonUtil.getRfqIcon(null));
+        assertEquals("📧", CommonUtil.getRfqIcon("RFQ-101"));
+        assertEquals("📧", CommonUtil.getRfqIcon("RFQ-101", "WEB"));
+        assertEquals("🌐", CommonUtil.getRfqIcon("OTHER-101", "WEB"));
+        assertEquals("📧", CommonUtil.getRfqIcon("OTHER-101", "EMAIL"));
     }
 
     @Test

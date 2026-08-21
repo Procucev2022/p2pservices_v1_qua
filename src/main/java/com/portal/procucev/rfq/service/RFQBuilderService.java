@@ -50,7 +50,15 @@ public class RFQBuilderService {
             Map.entry("kakinada", "533431")
     );
 
+    public RFQRequest buildRFQRequest(ExtractedRFQ extractedRFQ, Buyer buyer, String rawSubject, List<File> attachmentFiles, String rawBody) {
+        return buildRFQRequestWithBody(extractedRFQ, buyer, rawSubject, attachmentFiles, rawBody);
+    }
+
     public RFQRequest buildRFQRequest(ExtractedRFQ extractedRFQ, Buyer buyer, String rawSubject, List<File> attachmentFiles) {
+        return buildRFQRequestWithBody(extractedRFQ, buyer, rawSubject, attachmentFiles, null);
+    }
+
+    private RFQRequest buildRFQRequestWithBody(ExtractedRFQ extractedRFQ, Buyer buyer, String rawSubject, List<File> attachmentFiles, String rawBody) {
         String rfqNumber = CommonUtil.generateUniqueRfqNumber();
         log.info("Generating unique RFQ Number ONCE: {}", rfqNumber);
 
@@ -238,10 +246,7 @@ public class RFQBuilderService {
                     brandVal = brandVal.substring(0, 50).trim();
                 }
 
-                if (item.getQuantity() == null || item.getQuantity() <= 0) {
-                    throw new IllegalArgumentException("Quantity is mandatory for item: " + (item.getItemDescription() != null ? item.getItemDescription() : "RFQ Item"));
-                }
-                double qty = item.getQuantity();
+                double qty = (item.getQuantity() != null && item.getQuantity() > 0) ? item.getQuantity() : 1.0;
 
                 String partCodeVal = sanitizeText(item.getEffectivePartNumber());
 
@@ -286,23 +291,38 @@ public class RFQBuilderService {
                 // column mapping in GMTServiceImpl's manual Excel upload. The DTO field names
                 // mirror the columns, not the labels, so the technical detail goes to brand() and
                 // the brand name goes to remarks().
+                String extraBodyContent = extractCleanEmailBodyContent(rawBody, buyer);
+                String itemRemarks = brandVal;
+                if (!brandVal.isBlank() && !brandVal.toLowerCase().startsWith("brand:")) {
+                    itemRemarks = "Brand: " + brandVal;
+                }
+                if (!extraBodyContent.isBlank()) {
+                    if (!itemRemarks.isBlank() && !extraBodyContent.toLowerCase().contains(itemRemarks.toLowerCase())) {
+                        itemRemarks = itemRemarks + "\n" + extraBodyContent;
+                    } else if (itemRemarks.isBlank()) {
+                        itemRemarks = extraBodyContent;
+                    }
+                }
+
                 rfqItemsList.add(RFQRequest.RfqItemDto.builder()
                         .brand(specs)
                         .unitofMeasures(item.getUom() != null && !item.getUom().isBlank() ? sanitizeText(item.getUom()) : "Nos")
                         .quantity(qty)
                         .description(cleanItemDesc)
                         .category(item.getCategory())
-                        .createdBy(buyer.getName())
+                        .createdBy(buyer != null && buyer.getName() != null ? buyer.getName() : "User")
                         .createdTS(nowIso)
                         .itemcode(partCodeVal)
                         .serialNo(serialNo++)
-                        .remarks(brandVal)
+                        .remarks(itemRemarks)
                         .build());
             }
         }
 
         String orgIdVal = (buyer != null && buyer.getOrgId() != null && !buyer.getOrgId().isBlank()) ? buyer.getOrgId() : "1";
         String userIdVal = (buyer != null && buyer.getUserId() != null && !buyer.getUserId().isBlank()) ? buyer.getUserId() : "1";
+
+        String formattedRemarks = buildFormattedRemarks(extractedRFQ, deliveryDate, address, rawBody, buyer);
 
         RFQRequest request = RFQRequest.builder()
                 .createdBy(buyer != null && buyer.getName() != null ? buyer.getName() : "User")
@@ -312,7 +332,7 @@ public class RFQBuilderService {
                 .org(RFQRequest.OrgRef.builder().id(orgIdVal).build())
                 .user(userIdVal)
                 .sourceType("T")
-                .remarks("")
+                .remarks(formattedRemarks)
                 .clientdeliverylocationrfq(locations)
                 .rfqItem(rfqItemsList)
                 .vendors(new ArrayList<>())
@@ -357,5 +377,139 @@ public class RFQBuilderService {
         return transliterated.replaceAll("[^\\x00-\\x7F]", "-").replaceAll("\\s+", " ").trim();
     }
 
+    public String buildFormattedRemarks(ExtractedRFQ extractedRFQ, String finalDeliveryDate, String finalDeliveryLocation) {
+        return buildFormattedRemarks(extractedRFQ, finalDeliveryDate, finalDeliveryLocation, null, null);
+    }
 
+    public String buildFormattedRemarks(ExtractedRFQ extractedRFQ, String finalDeliveryDate, String finalDeliveryLocation, String rawBody, Buyer buyer) {
+        if (extractedRFQ == null || extractedRFQ.getItems() == null || extractedRFQ.getItems().isEmpty()) {
+            return extractCleanEmailBodyContent(rawBody, buyer);
+        }
+
+        StringBuilder sb = new StringBuilder();
+        List<RFQItem> items = extractedRFQ.getItems();
+
+        for (int i = 0; i < items.size(); i++) {
+            RFQItem item = items.get(i);
+            if (item == null) {
+                continue;
+            }
+
+            if (i > 0) {
+                sb.append("\n\n");
+            }
+
+            // Description
+            String desc = item.getItemDescription() != null && !item.getItemDescription().isBlank()
+                    ? item.getItemDescription().trim() : "RFQ Item";
+            sb.append("Description:\n").append(desc);
+
+            // Specifications (if present)
+            String spec = item.getSpecification();
+            if (spec != null && !spec.isBlank() && !spec.equalsIgnoreCase("Not Specified") && !spec.equalsIgnoreCase("null")) {
+                sb.append("\n\nSpecifications:\n").append(spec.trim());
+            }
+
+            // Quantity (if mentioned)
+            if (item.getQuantity() != null && item.getQuantity() > 0) {
+                double qtyVal = item.getQuantity();
+                String qtyStr = (qtyVal == (long) qtyVal) ? String.valueOf((long) qtyVal) : String.valueOf(qtyVal);
+                sb.append("\n\nQuantity:\n").append(qtyStr);
+            }
+
+            // Brand (if mentioned)
+            String brand = item.getBrand();
+            if (brand != null && !brand.isBlank() && !brand.equalsIgnoreCase("Not Specified") && !brand.equalsIgnoreCase("null")) {
+                String cleanBrand = brand.startsWith("Brand:") ? brand.substring(6).trim() : brand.trim();
+                sb.append("\n\nBrand:\n").append(cleanBrand);
+            }
+
+            // Delivery Date
+            String itemDate = (item.getDeliveryDate() != null && !item.getDeliveryDate().isBlank() && !item.getDeliveryDate().equalsIgnoreCase("Not Specified") && !item.getDeliveryDate().equalsIgnoreCase("null"))
+                    ? item.getDeliveryDate().trim() : finalDeliveryDate;
+            if (itemDate != null && !itemDate.isBlank()) {
+                sb.append("\n\nDelivery Date:\n").append(itemDate);
+            }
+
+            // Delivery Location
+            String itemLoc = (item.getDeliveryLocation() != null && !item.getDeliveryLocation().isBlank() && !item.getDeliveryLocation().equalsIgnoreCase("Not Specified") && !item.getDeliveryLocation().equalsIgnoreCase("null"))
+                    ? item.getDeliveryLocation().trim() : finalDeliveryLocation;
+            if (itemLoc != null && !itemLoc.isBlank()) {
+                sb.append("\n\nDelivery Location:\n").append(itemLoc);
+            }
+        }
+
+        String extraContent = extractCleanEmailBodyContent(rawBody, buyer);
+        if (!extraContent.isBlank()) {
+            // Append any additional non-duplicate body lines if present in email text
+            String formattedSoFar = sb.toString();
+            String[] extraLines = extraContent.split("\\r?\\n");
+            List<String> newLines = new ArrayList<>();
+            for (String line : extraLines) {
+                if (!line.isBlank() && !formattedSoFar.toLowerCase().contains(line.toLowerCase().trim())) {
+                    newLines.add(line.trim());
+                }
+            }
+            if (!newLines.isEmpty()) {
+                sb.append("\n\nAdditional Details:\n").append(String.join("\n", newLines));
+            }
+        }
+
+        return sb.toString();
+    }
+
+    public String extractCleanEmailBodyContent(String rawBody, Buyer buyer) {
+        if (rawBody == null || rawBody.isBlank()) {
+            return "";
+        }
+        String buyerEmail = buyer != null && buyer.getEmail() != null ? buyer.getEmail().toLowerCase().trim() : "";
+        String companyName = buyer != null && buyer.getCompanyName() != null ? buyer.getCompanyName().toLowerCase().trim() : "";
+        String buyerName = buyer != null && buyer.getName() != null ? buyer.getName().toLowerCase().trim() : "";
+
+        String[] lines = rawBody.split("\\r?\\n");
+        List<String> cleanLines = new ArrayList<>();
+        boolean inSignature = false;
+
+        for (String line : lines) {
+            String trimmed = line.trim();
+            if (trimmed.isEmpty()) {
+                continue;
+            }
+            String lower = trimmed.toLowerCase();
+
+            if (lower.startsWith("regards") || lower.startsWith("thanks") || lower.startsWith("best regards")
+                    || lower.startsWith("sincerely") || lower.startsWith("cheers") || lower.startsWith("sent from my")) {
+                inSignature = true;
+                continue;
+            }
+            if (inSignature) {
+                continue;
+            }
+
+            if (lower.matches("(?i)^(hello|hi|dear|greetings|respected|good morning|good afternoon).*")) {
+                continue;
+            }
+
+            if (lower.matches("(?i)^(from|to|subject|date|message-id|reply-to|sent):.*")) {
+                continue;
+            }
+
+            if (!buyerEmail.isEmpty() && lower.contains(buyerEmail)) {
+                continue;
+            }
+            if (lower.matches(".*[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}.*")) {
+                continue;
+            }
+            if (!companyName.isEmpty() && lower.contains(companyName) && lower.length() <= companyName.length() + 30) {
+                continue;
+            }
+            if (!buyerName.isEmpty() && lower.equalsIgnoreCase(buyerName)) {
+                continue;
+            }
+
+            cleanLines.add(trimmed);
+        }
+
+        return String.join("\n", cleanLines).trim();
+    }
 }

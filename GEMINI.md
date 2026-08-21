@@ -1,6 +1,6 @@
 # Quality Check Configuration & Assistant Instructions
 
-This document defines the mandatory Quality Check protocol for AI coding agents operating on this workspace (including Antigravity, Kiro, GitHub Copilot, Claude, Cursor, and others).
+This document defines the mandatory Quality Check protocol for AI coding agents operating on this workspace (including Antigravity, Kiro, GitHub Copilot, Claude, Codex, Cursor, and others).
 
 ---
 
@@ -10,13 +10,34 @@ After performing code modifications (such as implementing features, bug fixes, r
 
 ---
 
-## 1. Execution Priority Order
+## 1. Unit Test Coverage & Global Timeout Requirements
+
+1. **Per-File 90% Code Coverage Benchmark (MANDATORY)**:
+   - Every single source file in the application must maintain at least **90% unit test code coverage** across all parameters:
+     - **Lines** (`LINE`) >= 90%
+     - **Statements / Instructions** (`INSTRUCTION`) >= 90%
+     - **Branches** (`BRANCH`) >= 90%
+     - **Functions / Methods** (`METHOD`) >= 90%
+     - **Complexity** (`COMPLEXITY`) >= 90%
+     - **Classes** (`CLASS`) >= 90%
+   - No source file may be skipped or excluded from coverage checks.
+   - If any file falls below 90% coverage on any parameter, the build MUST fail (`<haltOnFailure>true</haltOnFailure>`).
+
+2. **Global Unit Test Timeout**:
+   - All unit tests must be configured with a global timeout (default 30 seconds per test) via `junit.jupiter.execution.timeout.default` or Surefire configuration to prevent hanging executions.
+
+3. **Mandatory Post-Change Verification**:
+   - Whenever ANY change is made to the codebase, AI coding agents MUST execute the build & unit test coverage verification suite (`mvn clean test jacoco:report`) and verify per-file coverage compliance before completing the task.
+
+---
+
+## 2. Execution Priority Order
 
 Quality checks **MUST** be executed in the following order:
 
 ### Priority 1: Build Verification & Unit Test Code Coverage (REQUIRED FIRST)
 1. **Compilation / Build Check**: Verify that the code compiles without errors or warnings.
-2. **Unit Test Suite & Code Coverage**: Run unit tests and generate coverage reports (JaCoCo, Jest coverage, Pytest cov, etc.). Verify that test coverage thresholds are maintained and no regressions were introduced.
+2. **Unit Test Suite & Code Coverage**: Run unit tests (`mvn clean test jacoco:report`) and verify that every single file reaches >= 90% unit test code coverage across all metrics (lines, statements, branches, methods, complexity, class).
 
 ### Priority 2: Typechecking & Static Analysis
 1. **Type Safety**: Execute strict typechecking (e.g. `javac`, `tsc --noEmit`, `mypy`, `go vet`).
@@ -30,7 +51,7 @@ Quality checks **MUST** be executed in the following order:
 
 ---
 
-## 2. Multi-Project & Global Workspace Scope
+## 3. Multi-Project & Global Workspace Scope
 
 When working in a workspace with multiple projects, submodules, or microservices:
 - AI agents **MUST NOT** only run checks in a single sub-directory if root or global commands exist.
@@ -38,7 +59,7 @@ When working in a workspace with multiple projects, submodules, or microservices
 
 ---
 
-## 3. Command Matrix by Technology Stack
+## 4. Command Matrix by Technology Stack
 
 ### Java / Maven (Current Workspace Standard)
 - **Fast Incremental Check (Dirty / Modified Files Only)**:
@@ -49,7 +70,7 @@ When working in a workspace with multiple projects, submodules, or microservices
   # Fast test execution for modified test files only
   mvn test-compile -Dtest=EmailProcessorServiceTest,RFQBuilderServiceTest
   ```
-- **Step 1: Build & Unit Test Coverage (FIRST)**:
+- **Step 1: Build & Unit Test Coverage Verification (FIRST & MANDATORY)**:
   ```powershell
   mvn clean test jacoco:report
   ```
@@ -62,51 +83,11 @@ When working in a workspace with multiple projects, submodules, or microservices
   mvn flyway:migrate
   ```
 
-### JavaScript / TypeScript / Node.js
-- **Fast Incremental Check**:
-  ```bash
-  npx jest --onlyChanged
-  npm run typecheck -- --incremental
-  ```
-- **Step 1: Build & Unit Test Coverage (FIRST)**:
-  ```bash
-  npm run build
-  npm test -- --coverage
-  ```
-- **Step 2 & 3: Typecheck & Linting**:
-  ```bash
-  npm run typecheck # tsc --noEmit
-  npm run lint      # eslint .
-  ```
-- **Step 4: Database Schema Migrations**:
-  ```bash
-  npx prisma migrate dev # or npx typeorm migration:run
-  ```
-
-### Python
-- **Fast Incremental Check**:
-  ```bash
-  pytest --picked
-  flake8 $(git diff --name-only HEAD | grep '\.py$')
-  ```
-- **Step 1: Build & Unit Test Coverage (FIRST)**:
-  ```bash
-  pytest --cov=. --cov-report=term-missing
-  ```
-- **Step 2 & 3: Typecheck & Linting**:
-  ```bash
-  mypy .
-  flake8 .
-  ```
-- **Step 4: Database Schema Migrations**:
-  ```bash
-  alembic upgrade head
-  ```
-
 ---
 
-## 4. Fast Check Mode for Iterative Development
+## 5. Fast Check Mode for Iterative Development
 
 During rapid iterative development (before running the complete workspace validation suite):
 - Run the **Fast Incremental Check** command targeting modified files to quickly catch compilation errors or broken tests.
-- **Rule**: Prior to declaring full task completion to the user, the full **Step 1 (Build & Unit Test Coverage)** through **Step 4** check commands MUST be executed.
+- **Rule**: Prior to declaring full task completion to the user, the full **Step 1 (Build & Unit Test Coverage)** through **Step 4** check commands MUST be executed, verifying 90% per-file coverage across all parameters.
+

@@ -64,21 +64,15 @@ public class ValidationService {
         }
 
         if (!missingQuantityItems.isEmpty()) {
-            StringBuilder sb = new StringBuilder();
-            sb.append("RFQ creation failed because quantity is missing for:\n");
-            for (int k = 0; k < missingQuantityItems.size(); k++) {
-                sb.append((k + 1)).append(". ").append(missingQuantityItems.get(k)).append("\n");
+            StringBuilder sb = new StringBuilder("Item quantity is missing for:");
+            for (int i = 0; i < missingQuantityItems.size(); i++) {
+                sb.append("\n").append(i + 1).append(". ").append(missingQuantityItems.get(i));
             }
-            sb.append("Quantity is a mandatory field for every RFQ item.");
-
-            String reason = sb.toString();
-            log.warn("RFQ Validation failed due to missing quantity: {}", missingQuantityItems);
-
             return ValidationResult.builder()
                     .valid(false)
                     .missingQuantity(true)
                     .missingItems(missingQuantityItems)
-                    .failureReason(reason)
+                    .failureReason(sb.toString())
                     .build();
         }
 

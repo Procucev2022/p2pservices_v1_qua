@@ -45,6 +45,7 @@ public class RfqItem extends Procucev {
 	private String unitofMeasures;
 	private long unitprice;
 	private long totalamount;
+	@Column(columnDefinition = "TEXT")
 	private String remarks;	
 	@Column(name="pritem_id")
 	private String pritemId;

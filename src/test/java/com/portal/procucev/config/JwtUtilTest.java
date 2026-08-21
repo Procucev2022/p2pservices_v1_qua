@@ -86,4 +86,12 @@ class JwtUtilTest {
         assertNull(jwtUtil.extractExpiration(tokenWithoutExpiry));
         assertTrue(jwtUtil.validateToken(tokenWithoutExpiry, userDetails));
     }
+
+    @Test
+    void testUnconfiguredSecretKey() {
+        JwtUtil unconfigured = new JwtUtil();
+        ReflectionTestUtils.setField(unconfigured, "secret", "");
+        unconfigured.init();
+        assertThrows(IllegalStateException.class, () -> unconfigured.extractUsername("token"));
+    }
 }

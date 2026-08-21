@@ -108,14 +108,17 @@ public class AcknowledgementEmailService {
     }
 
     public void sendConsolidatedAcknowledgement(List<RFQEntity> createdRfqs, List<String> failedItems, Buyer buyer, String rawSubject) {
+        String buyerEmail = (buyer != null && buyer.getEmail() != null && !buyer.getEmail().isBlank())
+                ? buyer.getEmail() : (createdRfqs != null && !createdRfqs.isEmpty() ? createdRfqs.get(0).getBuyerEmail() : "");
+
+        log.info("Sending consolidated acknowledgement to buyerEmail='{}', createdRfqs={}, failedItems={}",
+                buyerEmail, createdRfqs != null ? createdRfqs.size() : 0, failedItems != null ? failedItems.size() : 0);
+
         if (createdRfqs != null && !createdRfqs.isEmpty() && (failedItems == null || failedItems.isEmpty())) {
             sendSuccessAcknowledgement(createdRfqs, buyer);
         } else if (createdRfqs != null && !createdRfqs.isEmpty()) {
-            String buyerEmail = (buyer != null && buyer.getEmail() != null && !buyer.getEmail().isBlank()) ? buyer.getEmail() : "";
             sendPartialSuccessAcknowledgement(buyerEmail, resolveBuyerName(buyer), createdRfqs, failedItems);
         } else {
-            String buyerEmail = (buyer != null && buyer.getEmail() != null && !buyer.getEmail().isBlank())
-                    ? buyer.getEmail() : "";
             String buyerName = resolveBuyerName(buyer);
             sendCase3DetailsMissingAcknowledgement(buyerEmail, buyerName, failedItems);
         }

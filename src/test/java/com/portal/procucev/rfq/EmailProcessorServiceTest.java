@@ -142,7 +142,7 @@ public class EmailProcessorServiceTest {
 
         String result = emailProcessorService.processSingleEmail(email);
 
-        assertEquals("SUCCESS", result);
+        assertEquals("RFQ_CREATED", result);
     }
 
     @Test
@@ -188,7 +188,7 @@ public class EmailProcessorServiceTest {
     }
 
     @Test
-    @DisplayName("Test processSingleEmail validation failure (missing quantity)")
+    @DisplayName("Test processSingleEmail missing quantity returns VALIDATION_FAILED")
     void testProcessSingleEmailValidationFailedMissingQuantity() {
         EmailData email = EmailData.builder()
                 .messageId("MSG-VAL-FAIL")
@@ -207,13 +207,18 @@ public class EmailProcessorServiceTest {
                 .build();
         Mockito.when(aiExtractionService.extractRFQFromEmail(email)).thenReturn(rfq);
 
-        ValidationService.ValidationResult valResult = new ValidationService.ValidationResult(false, true, List.of("Laptop"), "Missing Qty");
+        ValidationService.ValidationResult valResult = ValidationService.ValidationResult.builder()
+                .valid(false)
+                .missingQuantity(true)
+                .missingItems(List.of("Laptop"))
+                .failureReason("Item quantity is missing for:\n1. Laptop")
+                .build();
         Mockito.when(validationService.validateWithDetails(any())).thenReturn(valResult);
 
         String result = emailProcessorService.processSingleEmail(email);
 
         assertEquals("VALIDATION_FAILED", result);
-        Mockito.verify(acknowledgementEmailService).sendConsolidatedAcknowledgement(anyList(), anyList(), any(), any());
+        Mockito.verify(acknowledgementEmailService).sendFailureAcknowledgement(any(), eq(verifiedBuyer));
     }
 
     @Test
@@ -311,7 +316,7 @@ public class EmailProcessorServiceTest {
         EmailData email = EmailData.builder()
                 .messageId("MSG-NO-ITEMS")
                 .senderEmail("buyer@test.com")
-                .subject("Empty Items")
+                .subject("")
                 .build();
 
         Mockito.when(emailTransactionRepository.findByMessageId("MSG-NO-ITEMS")).thenReturn(Optional.empty());
@@ -321,7 +326,7 @@ public class EmailProcessorServiceTest {
 
         ExtractedRFQ rfq = ExtractedRFQ.builder()
                 .buyerEmail("buyer@test.com")
-                .items(List.of(RFQItem.builder().itemDescription("").build()))
+                .items(List.of())
                 .build();
         Mockito.when(aiExtractionService.extractRFQFromEmail(email)).thenReturn(rfq);
 
@@ -413,7 +418,7 @@ public class EmailProcessorServiceTest {
         EmailData email = EmailData.builder()
                 .messageId("MSG-NULL-ITEMS")
                 .senderEmail("buyer@test.com")
-                .subject("Need items")
+                .subject("")
                 .build();
 
         Mockito.when(emailTransactionRepository.findByMessageId("MSG-NULL-ITEMS")).thenReturn(Optional.empty());
@@ -437,7 +442,7 @@ public class EmailProcessorServiceTest {
         EmailData email = EmailData.builder()
                 .messageId("MSG-EMPTY-DEDUP")
                 .senderEmail("buyer@test.com")
-                .subject("Need items")
+                .subject("")
                 .build();
 
         Mockito.when(emailTransactionRepository.findByMessageId("MSG-EMPTY-DEDUP")).thenReturn(Optional.empty());

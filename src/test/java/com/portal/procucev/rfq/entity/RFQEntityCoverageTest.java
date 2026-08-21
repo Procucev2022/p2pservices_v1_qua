@@ -59,10 +59,10 @@ class RFQEntityCoverageTest {
         lifecycleEntity.onUpdate();
         assertNotNull(lifecycleEntity.getUpdatedAt());
 
-        assertEquals("RFQ-2026-001", lifecycleEntity.getDisplayRfqNumber());
+        assertEquals("📧 RFQ-2026-001", lifecycleEntity.getDisplayRfqNumber());
         assertEquals("RFQ-2026-001", lifecycleEntity.getShortRfqNumber());
 
-        RFQEntity allArgs = new RFQEntity(2L, "RFQ-2", "buyer@test.com", "PENDING", "Subj", "[]", "Loc", "2026-10-10", now, now);
+        RFQEntity allArgs = new RFQEntity(2L, "RFQ-2", "buyer@test.com", "PENDING", "Subj", "[]", "Loc", "2026-10-10", "Remarks", now, now);
         assertEquals(2L, allArgs.getId());
         assertEquals("RFQ-2", allArgs.getRfqNumber());
         assertEquals("buyer@test.com", allArgs.getBuyerEmail());
@@ -71,34 +71,35 @@ class RFQEntityCoverageTest {
         assertEquals("[]", allArgs.getItemsJson());
         assertEquals("Loc", allArgs.getDeliveryLocation());
         assertEquals("2026-10-10", allArgs.getDeliveryDate());
+        assertEquals("Remarks", allArgs.getRemarks());
 
         assertTrue(entity.canEqual(entity2));
         assertFalse(entity.equals(null));
         assertFalse(entity.equals(new Object()));
         assertTrue(entity.equals(entity));
 
-        RFQEntity diffId = new RFQEntity(99L, "RFQ-100", "buyer@example.com", "SUCCESS", "Subject", "[{}]", "Bengaluru", "2026-09-30", now, now);
+        RFQEntity diffId = new RFQEntity(99L, "RFQ-100", "buyer@example.com", "SUCCESS", "Subject", "[{}]", "Bengaluru", "2026-09-30", null, now, now);
         assertNotEquals(entity, diffId);
 
-        RFQEntity diffNum = new RFQEntity(1L, "RFQ-DIFF", "buyer@example.com", "SUCCESS", "Subject", "[{}]", "Bengaluru", "2026-09-30", now, now);
+        RFQEntity diffNum = new RFQEntity(1L, "RFQ-DIFF", "buyer@example.com", "SUCCESS", "Subject", "[{}]", "Bengaluru", "2026-09-30", null, now, now);
         assertNotEquals(entity, diffNum);
 
-        RFQEntity diffEmail = new RFQEntity(1L, "RFQ-100", "diff@example.com", "SUCCESS", "Subject", "[{}]", "Bengaluru", "2026-09-30", now, now);
+        RFQEntity diffEmail = new RFQEntity(1L, "RFQ-100", "diff@example.com", "SUCCESS", "Subject", "[{}]", "Bengaluru", "2026-09-30", null, now, now);
         assertNotEquals(entity, diffEmail);
 
-        RFQEntity diffStatus = new RFQEntity(1L, "RFQ-100", "buyer@example.com", "FAILED", "Subject", "[{}]", "Bengaluru", "2026-09-30", now, now);
+        RFQEntity diffStatus = new RFQEntity(1L, "RFQ-100", "buyer@example.com", "FAILED", "Subject", "[{}]", "Bengaluru", "2026-09-30", null, now, now);
         assertNotEquals(entity, diffStatus);
 
-        RFQEntity diffSubj = new RFQEntity(1L, "RFQ-100", "buyer@example.com", "SUCCESS", "Diff Subj", "[{}]", "Bengaluru", "2026-09-30", now, now);
+        RFQEntity diffSubj = new RFQEntity(1L, "RFQ-100", "buyer@example.com", "SUCCESS", "Diff Subj", "[{}]", "Bengaluru", "2026-09-30", null, now, now);
         assertNotEquals(entity, diffSubj);
 
-        RFQEntity diffJson = new RFQEntity(1L, "RFQ-100", "buyer@example.com", "SUCCESS", "Subject", "[\"diff\"]", "Bengaluru", "2026-09-30", now, now);
+        RFQEntity diffJson = new RFQEntity(1L, "RFQ-100", "buyer@example.com", "SUCCESS", "Subject", "[\"diff\"]", "Bengaluru", "2026-09-30", null, now, now);
         assertNotEquals(entity, diffJson);
 
-        RFQEntity diffLoc = new RFQEntity(1L, "RFQ-100", "buyer@example.com", "SUCCESS", "Subject", "[{}]", "Chennai", "2026-09-30", now, now);
+        RFQEntity diffLoc = new RFQEntity(1L, "RFQ-100", "buyer@example.com", "SUCCESS", "Subject", "[{}]", "Chennai", "2026-09-30", null, now, now);
         assertNotEquals(entity, diffLoc);
 
-        RFQEntity diffDate = new RFQEntity(1L, "RFQ-100", "buyer@example.com", "SUCCESS", "Subject", "[{}]", "Bengaluru", "2026-11-30", now, now);
+        RFQEntity diffDate = new RFQEntity(1L, "RFQ-100", "buyer@example.com", "SUCCESS", "Subject", "[{}]", "Bengaluru", "2026-11-30", null, now, now);
         assertNotEquals(entity, diffDate);
 
         assertNotNull(RFQEntity.builder().toString());

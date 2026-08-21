@@ -314,7 +314,7 @@ public class RfqDtoAndModelTest {
         assertEquals("Subject", r1.getRawSubject());
         assertEquals("CREATED", r1.getStatus());
 
-        RFQEntity r2 = new RFQEntity(1L, "RFQ-100", "buyer@test.com", "CREATED", "Subject", "[]", "Location", "2026-08-25", now, now);
+        RFQEntity r2 = new RFQEntity(1L, "RFQ-100", "buyer@test.com", "CREATED", "Subject", "[]", "Location", "2026-08-25", null, now, now);
         assertEquals(r1, r2);
         assertEquals(r1.hashCode(), r2.hashCode());
         assertNotNull(r1.toString());
