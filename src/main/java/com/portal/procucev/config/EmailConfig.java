@@ -7,6 +7,8 @@ import org.springframework.context.event.EventListener;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
+import static com.portal.procucev.utils.ContextClassLoaderRunnable.preservingContextClassLoader;
+
 import com.portal.procucev.service.GMTService;
 
 import java.util.concurrent.CompletableFuture;
@@ -53,7 +55,11 @@ public class EmailConfig {
 		if (!isEnabled) {
 			return;
 		}
-		CompletableFuture.runAsync(self::scheduleTaskWithCronExpressionsforForwardEmailToClient);
+		// Same reason as the email RFQ startup trigger: runAsync uses ForkJoinPool.commonPool(),
+		// whose workers do not inherit the web application's class loader in a WAR deployment. This
+		// job parses mail attachments through Jakarta Mail and Apache POI, both of which discover
+		// their handlers via the thread context class loader.
+		CompletableFuture.runAsync(preservingContextClassLoader(self::scheduleTaskWithCronExpressionsforForwardEmailToClient));
 	}
 
 	/**

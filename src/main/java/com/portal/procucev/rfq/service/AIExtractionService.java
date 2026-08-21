@@ -25,6 +25,9 @@ import java.util.List;
 @RequiredArgsConstructor
 public class AIExtractionService {
 
+    /** Classpath location of the extraction prompt, packaged under {@code src/main/resources}. */
+    public static final String PROMPT_TEMPLATE_PATH = "prompts/rfq_prompt.txt";
+
     private final GeminiApiClient geminiApiClient;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -561,8 +564,20 @@ public class AIExtractionService {
         return extracted;
     }
 
+    /**
+     * Reads the extraction prompt from the packaged classpath resource.
+     *
+     * <p>The resource is bound to this class's own class loader. The single-argument
+     * {@link ClassPathResource} constructor resolves through the <em>thread context</em> class
+     * loader instead, and the startup run of the email job is dispatched onto
+     * {@code ForkJoinPool.commonPool()}. Those worker threads are created by the JVM and do not
+     * inherit the web application's class loader in a WAR deployment, so the template resolved to
+     * "cannot be opened because it does not exist" on that thread while working normally on the
+     * {@code scheduling-*} threads, even though it is packaged in {@code WEB-INF/classes}.
+     * Loading it through the class's own loader makes the lookup independent of the calling thread.
+     */
     private String loadPromptTemplate() throws Exception {
-        ClassPathResource resource = new ClassPathResource("prompts/rfq_prompt.txt");
+        ClassPathResource resource = new ClassPathResource(PROMPT_TEMPLATE_PATH, getClass().getClassLoader());
         try (InputStream inputStream = resource.getInputStream()) {
             return new String(inputStream.readAllBytes(), StandardCharsets.UTF_8);
         }
