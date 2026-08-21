@@ -1,0 +1,18 @@
+# Cursor Quality Checks & Rules
+
+## Mandatory 90% Per-File Unit Test Code Coverage Benchmark
+
+- Every source file in this Java Maven workspace must achieve at least **90% coverage** across ALL metrics:
+  - Instructions / Statements (>= 90%)
+  - Lines (>= 90%)
+  - Branches (>= 90%)
+  - Methods / Functions (>= 90%)
+  - Cyclomatic Complexity (>= 90%)
+  - Class (>= 90%)
+- Zero file exemptions. No `<excludes>` allowed.
+- All unit tests must conform to global timeouts (10s default per test).
+- Before declaring task completion on ANY change, run:
+  ```powershell
+  mvn clean test jacoco:report
+  ```
+- If any file falls below 90% on any parameter, the build will fail immediately (`haltOnFailure=true`). Fix all test coverage deficiencies before completing.

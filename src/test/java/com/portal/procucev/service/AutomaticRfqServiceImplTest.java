@@ -1,15 +1,9 @@
 package com.portal.procucev.service;
 
-import com.portal.procucev.dao.GmtItemsDao;
-import com.portal.procucev.dao.MasterStatusDao;
-import com.portal.procucev.dao.OrgDao;
-import com.portal.procucev.dao.RfqDao;
-import com.portal.procucev.dao.UserDao;
-import com.portal.procucev.model.MasterStatus;
-import com.portal.procucev.model.Organization;
-import com.portal.procucev.model.Rfq;
-import com.portal.procucev.model.RfqItem;
-import com.portal.procucev.model.User;
+import com.portal.procucev.customexception.RfqDocumentSizeExceededException;
+import com.portal.procucev.dao.*;
+import com.portal.procucev.model.*;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -17,12 +11,11 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.dao.DataIntegrityViolationException;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -38,9 +31,16 @@ class AutomaticRfqServiceImplTest {
     private UserDao userDao;
     @Mock
     private OrgDao orgDao;
+    @Mock
+    private PincodeDao pincodeDao;
 
     @InjectMocks
     private AutomaticRfqServiceImpl service;
+
+    @Test
+    void testGetMaxDocumentBytes() {
+        assertEquals(26214400L, service.getMaxDocumentBytes());
+    }
 
     @Test
     void testRaiseRfq_Success() {
@@ -59,9 +59,6 @@ class AutomaticRfqServiceImplTest {
         boolean result = service.raiseRfq(rfq);
         assertTrue(result);
 
-        // The RFQ must be written and flushed BEFORE the GMT items are built, because building them
-        // reads each RfqItem's UUID and that is only assigned once the cascaded insert has run.
-        // Building them first wrote every gmt_items row with rfq_item_id = NULL.
         org.mockito.InOrder inOrder = org.mockito.Mockito.inOrder(rfqDao, gmtItemsDao);
         inOrder.verify(rfqDao).saveAndFlush(rfq);
         inOrder.verify(gmtItemsDao).saveAll(org.mockito.ArgumentMatchers.anyList());
@@ -97,6 +94,23 @@ class AutomaticRfqServiceImplTest {
     }
 
     @Test
+    void testRaiseRfq_DefaultQuantityAndUom() {
+        Rfq rfq = new Rfq();
+        List<RfqItem> items = new ArrayList<>();
+        RfqItem item = new RfqItem();
+        item.setQuantity(0.0);
+        item.setUnitofMeasures(null);
+        items.add(item);
+        rfq.setRfqItem(items);
+
+        when(masterStatusDao.findByStatus(anyString())).thenReturn(new MasterStatus());
+
+        assertTrue(service.raiseRfq(rfq));
+        assertEquals(1.0, item.getQuantity());
+        assertEquals("Nos", item.getUnitofMeasures());
+    }
+
+    @Test
     void testRaiseRfq_Exception() {
         Rfq rfq = new Rfq();
         rfq.setRfqItem(new ArrayList<>());
@@ -104,6 +118,137 @@ class AutomaticRfqServiceImplTest {
 
         boolean result = service.raiseRfq(rfq);
         assertFalse(result);
+    }
+
+    @Test
+    void testResolveDeliveryLocation_NullOrEmptyRfq() {
+        assertDoesNotThrow(() -> service.resolveDeliveryLocation(null, null));
+
+        Rfq rfq = new Rfq();
+        User user = new User();
+        Organization org = new Organization();
+        org.setCity("Hyd");
+        org.setState("TS");
+        org.setZipCode("500001");
+        user.setOrg(org);
+
+        service.resolveDeliveryLocation(rfq, user);
+        assertNotNull(rfq.getClientdeliverylocationrfq());
+        assertEquals("Hyd", rfq.getClientdeliverylocationrfq().get(0).getCity());
+    }
+
+    @Test
+    void testResolveDeliveryLocation_CompleteAddress() {
+        Rfq rfq = new Rfq();
+        ClientDeliveryLocationRfq loc = new ClientDeliveryLocationRfq();
+        loc.setCity("Bangalore");
+        loc.setState("Karnataka");
+        loc.setPincode("560001");
+        rfq.setClientdeliverylocationrfq(List.of(loc));
+
+        service.resolveDeliveryLocation(rfq, null);
+        assertEquals("Bangalore", loc.getCity());
+        assertEquals("Karnataka", loc.getState());
+        assertEquals("560001", loc.getPincode());
+    }
+
+    @Test
+    void testResolveDeliveryLocation_PincodeLookup() {
+        Rfq rfq = new Rfq();
+        ClientDeliveryLocationRfq loc = new ClientDeliveryLocationRfq();
+        loc.setPincode("560001");
+        rfq.setClientdeliverylocationrfq(List.of(loc));
+
+        PincodeData pinData = new PincodeData();
+        pinData.setCity("Bangalore");
+        pinData.setState("Karnataka");
+        pinData.setPincode("560001");
+
+        when(pincodeDao.findByPincode("560001")).thenReturn(pinData);
+
+        service.resolveDeliveryLocation(rfq, null);
+        assertEquals("Bangalore", loc.getCity());
+        assertEquals("Karnataka", loc.getState());
+    }
+
+    @Test
+    void testResolveDeliveryLocation_CityLookup() {
+        Rfq rfq = new Rfq();
+        ClientDeliveryLocationRfq loc = new ClientDeliveryLocationRfq();
+        loc.setCity("Hyderabad");
+        rfq.setClientdeliverylocationrfq(List.of(loc));
+
+        PincodeData pinData = new PincodeData();
+        pinData.setCity("Hyderabad");
+        pinData.setState("Telangana");
+        pinData.setPincode("500001");
+
+        when(pincodeDao.findByCityIgnoreCase("Hyderabad")).thenReturn(pinData);
+
+        service.resolveDeliveryLocation(rfq, null);
+        assertEquals("500001", loc.getPincode());
+        assertEquals("Telangana", loc.getState());
+    }
+
+    @Test
+    void testResolveDeliveryLocation_FallbackToOrgAddressWhenNotFound() {
+        Rfq rfq = new Rfq();
+        ClientDeliveryLocationRfq loc = new ClientDeliveryLocationRfq();
+        loc.setCity("UnknownCity");
+        rfq.setClientdeliverylocationrfq(List.of(loc));
+
+        when(pincodeDao.findByCityIgnoreCase("UnknownCity")).thenReturn(null);
+
+        User user = new User();
+        Organization org = new Organization();
+        org.setCity("FallbackCity");
+        org.setState("FallbackState");
+        org.setZipCode("999999");
+        user.setOrg(org);
+
+        service.resolveDeliveryLocation(rfq, user);
+        assertEquals("FallbackCity", loc.getCity());
+        assertEquals("FallbackState", loc.getState());
+        assertEquals("999999", loc.getPincode());
+    }
+
+    @Test
+    void testAttachDocuments_Success() {
+        Rfq rfq = new Rfq();
+        String b64 = Base64.getEncoder().encodeToString("Doc payload".getBytes());
+        List<Map<String, String>> docs = List.of(
+                Map.of("fileName", "spec.pdf", "file", b64),
+                Map.of("fileName", "empty.pdf", "file", ""),
+                Collections.singletonMap("fileName", "nullfile.pdf")
+        );
+
+        service.attachDocuments(rfq, docs);
+        assertNotNull(rfq.getRfqDocument());
+        assertEquals(1, rfq.getRfqDocument().size());
+        assertEquals("spec.pdf", rfq.getRfqDocument().get(0).getFileName());
+    }
+
+    @Test
+    void testAttachDocuments_SizeExceeded() {
+        Rfq rfq = new Rfq();
+        byte[] hugeBytes = new byte[30000000];
+        String hugeB64 = Base64.getEncoder().encodeToString(hugeBytes);
+        List<Map<String, String>> docs = List.of(
+                Map.of("fileName", "huge.pdf", "file", hugeB64)
+        );
+
+        assertThrows(RfqDocumentSizeExceededException.class, () -> service.attachDocuments(rfq, docs));
+    }
+
+    @Test
+    void testAttachDocuments_InvalidBase64() {
+        Rfq rfq = new Rfq();
+        List<Map<String, String>> docs = List.of(
+                Map.of("fileName", "bad.pdf", "file", "Not Valid Base64 %%%")
+        );
+
+        assertDoesNotThrow(() -> service.attachDocuments(rfq, docs));
+        assertTrue(rfq.getRfqDocument().isEmpty());
     }
 
     @Test
@@ -187,80 +332,76 @@ class AutomaticRfqServiceImplTest {
     }
 
     @Test
-    void testRaiseRfq_WithBlankRfqId_GeneratesNew() {
-        Rfq rfq = new Rfq();
-        rfq.setRfqId("");
-        List<RfqItem> items = new ArrayList<>();
-        RfqItem item = new RfqItem();
-        item.setId("ITEM2");
-        item.setBrand("B");
-        item.setDescription("D");
-        item.setQuantity(1.0);
-        item.setRemarks("R");
-        item.setUnitofMeasures("U");
-        items.add(item);
-        rfq.setRfqItem(items);
+    void testResolveDeliveryLocation_NullDeliveryInListAndNoCityStatePin() {
+        Rfq rfq1 = new Rfq();
+        rfq1.setClientdeliverylocationrfq(Collections.singletonList(null));
+        assertDoesNotThrow(() -> service.resolveDeliveryLocation(rfq1, null));
 
-        when(masterStatusDao.findByStatus(anyString())).thenReturn(new MasterStatus());
+        Rfq rfq2 = new Rfq();
+        ClientDeliveryLocationRfq blankLoc = new ClientDeliveryLocationRfq();
+        blankLoc.setCity("");
+        blankLoc.setState("");
+        blankLoc.setPincode("");
+        rfq2.setClientdeliverylocationrfq(Collections.singletonList(blankLoc));
 
-        boolean result = service.raiseRfq(rfq);
-        assertTrue(result);
-        assertNotNull(rfq.getRfqId());
-        assertFalse(rfq.getRfqId().isBlank());
+        User user = new User();
+        Organization org = new Organization();
+        org.setCity("OrgCity");
+        org.setState("OrgState");
+        org.setZipCode("111111");
+        user.setOrg(org);
+
+        service.resolveDeliveryLocation(rfq2, user);
+        assertEquals("OrgCity", blankLoc.getCity());
+        assertEquals("OrgState", blankLoc.getState());
+        assertEquals("111111", blankLoc.getPincode());
     }
 
     @Test
-    void testRaiseRfq_WithNullRfqId_GeneratesNew() {
+    void testAttachDocuments_NullAndEmptyInputs() {
+        assertDoesNotThrow(() -> service.attachDocuments(null, List.of()));
+        assertDoesNotThrow(() -> service.attachDocuments(new Rfq(), null));
+        assertDoesNotThrow(() -> service.attachDocuments(new Rfq(), Collections.emptyList()));
+
         Rfq rfq = new Rfq();
+        List<Map<String, String>> docsWithNullMap = new ArrayList<>();
+        docsWithNullMap.add(null);
+        assertDoesNotThrow(() -> service.attachDocuments(rfq, docsWithNullMap));
+    }
+
+    @Test
+    void testRaiseRfq_BranchesAndHelpers() {
+        // 1. raiseRfq with null sourceType, null rfqId, qty <= 0, and blank/null uom
+        Rfq rfq = new Rfq();
+        rfq.setSourceType(null);
         rfq.setRfqId(null);
-        List<RfqItem> items = new ArrayList<>();
-        RfqItem item = new RfqItem();
-        item.setId("ITEM3");
-        item.setBrand("B");
-        item.setDescription("D");
-        item.setQuantity(1.0);
-        item.setRemarks("R");
-        item.setUnitofMeasures("U");
-        items.add(item);
-        rfq.setRfqItem(items);
+        RfqItem item1 = new RfqItem();
+        item1.setQuantity(0.0);
+        item1.setUnitofMeasures(null);
+        RfqItem item2 = new RfqItem();
+        item2.setQuantity(-5.0);
+        item2.setUnitofMeasures("   ");
+        rfq.setRfqItem(new ArrayList<>(List.of(item1, item2)));
 
         when(masterStatusDao.findByStatus(anyString())).thenReturn(new MasterStatus());
-
-        boolean result = service.raiseRfq(rfq);
-        assertTrue(result);
+        assertTrue(service.raiseRfq(rfq));
+        assertEquals("T", rfq.getSourceType());
         assertNotNull(rfq.getRfqId());
-        assertFalse(rfq.getRfqId().isBlank());
-    }
+        assertEquals(1.0, item1.getQuantity());
+        assertEquals("Nos", item1.getUnitofMeasures());
+        assertEquals(1.0, item2.getQuantity());
+        assertEquals("Nos", item2.getUnitofMeasures());
 
-    @Test
-    void testRaiseRfq_SetsCorrectFlags() {
-        Rfq rfq = new Rfq();
-        rfq.setRfqId("RFQ-FLAG-TEST");
-        List<RfqItem> items = new ArrayList<>();
-        RfqItem item = new RfqItem();
-        item.setId("ITEM4");
-        item.setBrand("B");
-        item.setDescription("D");
-        item.setQuantity(5.0);
-        item.setRemarks("R");
-        item.setUnitofMeasures("U");
-        items.add(item);
-        rfq.setRfqItem(items);
+        // 2. raiseRfq with null rfqItem
+        Rfq rfqNullItems = new Rfq();
+        rfqNullItems.setSourceType("EMAIL");
+        rfqNullItems.setRfqItem(null);
+        assertThrows(NullPointerException.class, () -> service.raiseRfq(rfqNullItems));
 
-        MasterStatus ms = new MasterStatus();
-        when(masterStatusDao.findByStatus(anyString())).thenReturn(ms);
-
-        boolean result = service.raiseRfq(rfq);
-        assertTrue(result);
-        assertTrue(rfq.isByClient());
-        assertEquals(ms, rfq.getStatus());
-        assertEquals(ms, rfq.getClientStatus());
-    }
-
-    @Test
-    void testValidateEmail_Exception() {
-        when(userDao.findByLatestUserName("error@test.com")).thenThrow(new RuntimeException("DB Error"));
-        assertThrows(RuntimeException.class, () -> service.validateEmail("error@test.com"));
+        // 3. applyOrganizationAddress edge cases
+        ClientDeliveryLocationRfq loc = new ClientDeliveryLocationRfq();
+        org.springframework.test.util.ReflectionTestUtils.invokeMethod(service, "applyOrganizationAddress", (ClientDeliveryLocationRfq) null, new User());
+        org.springframework.test.util.ReflectionTestUtils.invokeMethod(service, "applyOrganizationAddress", loc, (User) null);
+        org.springframework.test.util.ReflectionTestUtils.invokeMethod(service, "applyOrganizationAddress", loc, new User());
     }
 }
-

@@ -173,6 +173,23 @@ public class RFQApiServiceTest {
         RFQResponse resp = rfqApiService.submitRFQ(req);
         assertEquals("SUCCESS", resp.getStatus());
     }
+
+    @Test
+    @DisplayName("Test submitRFQ with explicit custom sourceType")
+    void testSubmitRFQCustomSourceType() {
+        ArgumentCaptor<Rfq> captor = ArgumentCaptor.forClass(Rfq.class);
+        Mockito.when(automaticRfqService.raiseRfq(captor.capture())).thenReturn(true);
+
+        RFQRequest req = RFQRequest.builder()
+                .rfqNumber("RFQ-107")
+                .buyerEmail("buyer@test.com")
+                .sourceType("PORTAL_DIRECT")
+                .build();
+
+        RFQResponse resp = rfqApiService.submitRFQ(req);
+        assertEquals("SUCCESS", resp.getStatus());
+        assertEquals("PORTAL_DIRECT", captor.getValue().getSourceType());
+    }
 }
 
 

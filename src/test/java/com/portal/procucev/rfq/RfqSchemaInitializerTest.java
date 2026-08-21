@@ -9,6 +9,8 @@ import org.springframework.jdbc.core.JdbcTemplate;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.contains;
+import static org.mockito.Mockito.doThrow;
 
 public class RfqSchemaInitializerTest {
 
@@ -29,9 +31,16 @@ public class RfqSchemaInitializerTest {
     }
 
     @Test
-    @DisplayName("Test initializeSchema exception handling")
+    @DisplayName("Test initializeSchema with ignored alter table exceptions")
+    void testInitializeSchemaWithIgnoredExceptions() {
+        doThrow(new RuntimeException("Duplicate column")).when(jdbcTemplate).execute(contains("ALTER TABLE"));
+        assertDoesNotThrow(() -> initializer.initializeSchema());
+    }
+
+    @Test
+    @DisplayName("Test initializeSchema outer exception handling")
     void testInitializeSchemaException() {
-        Mockito.doThrow(new RuntimeException("DB Connection Refused")).when(jdbcTemplate).execute(anyString());
+        doThrow(new RuntimeException("DB Connection Refused")).when(jdbcTemplate).execute(contains("CREATE TABLE IF NOT EXISTS rfq_buyers"));
         assertDoesNotThrow(() -> initializer.initializeSchema());
     }
 }

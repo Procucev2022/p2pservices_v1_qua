@@ -153,6 +153,13 @@
 			<artifactId>jakarta.mail</artifactId>
 		</dependency>
 
+		<dependency>
+			<groupId>com.icegreen</groupId>
+			<artifactId>greenmail-junit5</artifactId>
+			<version>2.0.1</version>
+			<scope>test</scope>
+		</dependency>
+
 	</dependencies>
 
 	<build>
@@ -178,6 +185,7 @@
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-surefire-plugin</artifactId>
 				<configuration>
+					<forkedProcessTimeoutInSeconds>180</forkedProcessTimeoutInSeconds>
 					<!-- Keep JaCoCo's late-bound agent argument and allow Mockito/Byte Buddy
 					     to run on newer local JDKs used for coverage verification. -->
 					<argLine>@{argLine} -Dnet.bytebuddy.experimental=true -XX:+EnableDynamicAgentLoading</argLine>
@@ -225,31 +233,8 @@
 							<goal>check</goal>
 						</goals>
 						<configuration>
-						<haltOnFailure>false</haltOnFailure>
-
-						<!-- Exclude files with IMAP/SMTP I/O, email pipelines, or large
-						     legacy controllers whose branches are impractical to cover
-						     in pure unit tests. -->
-						<excludes>
-							<exclude>com/portal/procucev/service/ProcUserServiceImpl.class</exclude>
-							<exclude>com/portal/procucev/rfq/service/ExcelMasterDataLoader.class</exclude>
-							<exclude>com/portal/procucev/rfq/service/ExcelMasterDataLoader$*.class</exclude>
-							<exclude>com/portal/procucev/rfq/service/EmailReaderService.class</exclude>
-							<exclude>com/portal/procucev/rfq/service/EmailProcessorService.class</exclude>
-							<exclude>com/portal/procucev/rfq/service/RFQBuilderService.class</exclude>
-							<exclude>com/portal/procucev/rfq/service/AcknowledgementEmailService.class</exclude>
-							<exclude>com/portal/procucev/rfq/service/CategoryClassificationService.class</exclude>
-							<exclude>com/portal/procucev/rfq/service/BuyerVerificationService.class</exclude>
-							<exclude>com/portal/procucev/rfq/scheduler/EmailScheduler.class</exclude>
-							<exclude>com/portal/procucev/rfq/config/RfqSchemaInitializer.class</exclude>
-							<exclude>com/portal/procucev/controller/UserController.class</exclude>
-							<exclude>com/portal/procucev/config/StartupConfigReport.class</exclude>
-							<exclude>com/portal/procucev/config/EmailConfig.class</exclude>
-							<exclude>com/portal/procucev/config/JwtUtil.class</exclude>
-							<exclude>com/portal/procucev/ProcucevApplication.class</exclude>
-						</excludes>
-
-						<rules>
+							<haltOnFailure>true</haltOnFailure>
+							<rules>
 								<!-- Every source file must reach 90% on every counter.
 								     No includes/excludes: no file is exempt. -->
 								<rule>

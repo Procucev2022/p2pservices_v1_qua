@@ -166,7 +166,7 @@ public class RFQBuilderService {
                     String[] tokens = locStr.split("[,\\-–—\\n]");
                     if (tokens.length > 0 && !tokens[0].trim().isBlank()) {
                         String firstToken = tokens[0].trim();
-                        boolean isStateName = state != null && firstToken.equalsIgnoreCase(state);
+                        boolean isStateName = !state.isBlank() && firstToken.equalsIgnoreCase(state);
                         if (!firstToken.matches("^\\d+$") && !isStateName) {
                             city = firstToken;
                         }
@@ -289,7 +289,7 @@ public class RFQBuilderService {
                         .quantity(qty)
                         .description(cleanItemDesc)
                         .category(item.getCategory())
-                        .createdBy(buyer.getName())
+                        .createdBy(buyer != null && buyer.getName() != null ? buyer.getName() : "User")
                         .createdTS(nowIso)
                         .itemcode(partCodeVal)
                         .serialNo(serialNo++)

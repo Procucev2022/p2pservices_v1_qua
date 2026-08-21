@@ -3,6 +3,7 @@ package com.portal.procucev.rfq;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.portal.procucev.rfq.client.GeminiApiClient;
 import com.portal.procucev.rfq.exception.ApplicationException;
+import com.portal.procucev.rfq.model.InlineImage;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -61,10 +62,26 @@ public class GeminiApiClientTest {
         assertEquals("gemini-3.5-flash", models.get(2));
         assertEquals("gemini-3.5-flash-lite", models.get(3));
         assertEquals("gemini-3.1-flash-lite", models.get(4));
+
+        // When models are null or empty
+        ReflectionTestUtils.setField(client, "primaryModel", "");
+        ReflectionTestUtils.setField(client, "backupModels", "gemini-3.6-flash, gemini-3.7-flash");
+        ReflectionTestUtils.setField(client, "fallbackModel", "gemini-fallback");
+        List<String> modelsWithFallback = client.getAllConfiguredModels();
+        assertTrue(modelsWithFallback.contains("gemini-fallback"));
+
+        ReflectionTestUtils.setField(client, "primaryModel", null);
+        ReflectionTestUtils.setField(client, "backupModels", null);
+        ReflectionTestUtils.setField(client, "fallbackModel", null);
+        List<String> defaultModels = client.getAllConfiguredModels();
+        assertFalse(defaultModels.isEmpty());
+
+        ReflectionTestUtils.setField(client, "apiKey", null);
+        assertTrue(client.getApiKeys().isEmpty());
     }
 
     @Test
-    @DisplayName("Test generateContent primary model success")
+    @DisplayName("Test generateContent primary model success and with inline images")
     void testGenerateContentPrimarySuccess() {
         String jsonResponseBody = "{\n" +
                 "  \"candidates\": [\n" +
@@ -85,6 +102,78 @@ public class GeminiApiClientTest {
 
         assertNotNull(result);
         assertTrue(result.contains("buyer@test.com"));
+
+        // With inline images
+        List<InlineImage> images = List.of(new InlineImage("spec.png", "image/png", "base64bytes"));
+        String imageResult = client.generateContent("Test Prompt with Image", images);
+        assertNotNull(imageResult);
+    }
+
+    @Test
+    @DisplayName("Test generateContentWithSpecificModel")
+    void testGenerateContentWithSpecificModel() throws Exception {
+        String jsonResponseBody = "{\n" +
+                "  \"candidates\": [\n" +
+                "    {\n" +
+                "      \"content\": {\n" +
+                "        \"parts\": [\n" +
+                "          {\"text\": \"Specific model text\"}\n" +
+                "        ]\n" +
+                "      }\n" +
+                "    }\n" +
+                "  ]\n" +
+                "}";
+
+        Mockito.when(restTemplate.postForEntity(contains("custom-model"), any(), eq(String.class)))
+                .thenReturn(new ResponseEntity<>(jsonResponseBody, HttpStatus.OK));
+
+        String res = client.generateContentWithSpecificModel("custom-model", "prompt", null);
+        assertEquals("Specific model text", res);
+
+        List<InlineImage> images = List.of(new InlineImage("doc.jpg", "image/jpeg", "imgbytes"));
+        String res2 = client.generateContentWithSpecificModel("custom-model", "prompt", images);
+        assertEquals("Specific model text", res2);
+    }
+
+    @Test
+    @DisplayName("Test finishReason handling")
+    void testFinishReasonHandling() {
+        String maxTokensResponse = "{\n" +
+                "  \"candidates\": [\n" +
+                "    {\n" +
+                "      \"finishReason\": \"MAX_TOKENS\",\n" +
+                "      \"content\": {\n" +
+                "        \"parts\": [\n" +
+                "          {\"text\": \"Truncated...\"}\n" +
+                "        ]\n" +
+                "      }\n" +
+                "    }\n" +
+                "  ]\n" +
+                "}";
+
+        Mockito.when(restTemplate.postForEntity(anyString(), any(), eq(String.class)))
+                .thenReturn(new ResponseEntity<>(maxTokensResponse, HttpStatus.OK));
+
+        assertThrows(ApplicationException.class, () -> client.generateContent("Test Prompt"));
+
+        String otherFinishReason = "{\n" +
+                "  \"candidates\": [\n" +
+                "    {\n" +
+                "      \"finishReason\": \"SAFETY\",\n" +
+                "      \"content\": {\n" +
+                "        \"parts\": [\n" +
+                "          {\"text\": \"Safety filtered\"}\n" +
+                "        ]\n" +
+                "      }\n" +
+                "    }\n" +
+                "  ]\n" +
+                "}";
+
+        Mockito.when(restTemplate.postForEntity(anyString(), any(), eq(String.class)))
+                .thenReturn(new ResponseEntity<>(otherFinishReason, HttpStatus.OK));
+
+        String safetyRes = client.generateContent("Test Prompt");
+        assertEquals("Safety filtered", safetyRes);
     }
 
     @Test
@@ -294,5 +383,54 @@ public class GeminiApiClientTest {
         assertEquals(4, countKey1);
         assertEquals(4, countKey2);
         assertEquals(4, countKey3);
+    }
+
+    @Test
+    @DisplayName("Test generateContent when getAllConfiguredModels returns empty")
+    void testGenerateContentEmptyConfiguredModels() {
+        GeminiApiClient spyClient = Mockito.spy(client);
+        Mockito.doReturn(List.of()).when(spyClient).getAllConfiguredModels();
+
+        assertThrows(ApplicationException.class, () -> spyClient.generateContent("prompt"));
+    }
+
+    @Test
+    @DisplayName("Test getAllConfiguredModels deduplication, blank tokens, and fallback model duplicates")
+    void testGetAllConfiguredModelsDeduplication() {
+        ReflectionTestUtils.setField(client, "primaryModel", "  ");
+        ReflectionTestUtils.setField(client, "backupModels", "modelA,  ,,modelA,modelB");
+        ReflectionTestUtils.setField(client, "fallbackModel", "modelB");
+
+        List<String> models = client.getAllConfiguredModels();
+        assertEquals(2, models.size());
+        assertEquals("modelA", models.get(0));
+        assertEquals("modelB", models.get(1));
+
+        // fallbackModel blank
+        ReflectionTestUtils.setField(client, "fallbackModel", "   ");
+        List<String> models2 = client.getAllConfiguredModels();
+        assertEquals(2, models2.size());
+    }
+
+    @Test
+    @DisplayName("Test callGeminiModel with SAFETY finishReason and empty or non-array candidates")
+    void testCallGeminiModelCandidatesEdgeCases() {
+        // 1. SAFETY finish reason (does not throw, returns text)
+        String safetyResponse = "{\"candidates\": [{\"finishReason\": \"SAFETY\", \"content\": {\"parts\": [{\"text\": \"Safe output\"}]}}]}";
+        Mockito.when(restTemplate.postForEntity(anyString(), any(), eq(String.class)))
+                .thenReturn(new ResponseEntity<>(safetyResponse, HttpStatus.OK));
+        assertEquals("Safe output", client.generateContent("prompt"));
+
+        // 2. Empty candidates array
+        String emptyCandidates = "{\"candidates\": []}";
+        Mockito.when(restTemplate.postForEntity(anyString(), any(), eq(String.class)))
+                .thenReturn(new ResponseEntity<>(emptyCandidates, HttpStatus.OK));
+        assertThrows(ApplicationException.class, () -> client.generateContent("prompt"));
+
+        // 3. Non-array candidates
+        String nonArrayCandidates = "{\"candidates\": \"invalid\"}";
+        Mockito.when(restTemplate.postForEntity(anyString(), any(), eq(String.class)))
+                .thenReturn(new ResponseEntity<>(nonArrayCandidates, HttpStatus.OK));
+        assertThrows(ApplicationException.class, () -> client.generateContent("prompt"));
     }
 }

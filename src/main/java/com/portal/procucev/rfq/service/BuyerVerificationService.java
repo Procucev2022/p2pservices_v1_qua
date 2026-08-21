@@ -70,7 +70,7 @@ public class BuyerVerificationService {
         }
         String orgId = String.valueOf(portalUser.getOrg().getId());
         String userId = String.valueOf(portalUser.getId());
-        String compName = (portalUser.getOrg() != null && portalUser.getOrg().getCompanyName() != null)
+        String compName = portalUser.getOrg().getCompanyName() != null
                 ? portalUser.getOrg().getCompanyName() : "Portal Buyer";
 
         String personName = ((portalUser.getFirstName() != null ? portalUser.getFirstName() : "") + " " +
@@ -79,16 +79,15 @@ public class BuyerVerificationService {
             personName = portalUser.getFullName() != null ? portalUser.getFullName() : normalizedEmail;
         }
 
-        String buyerCity = portalUser.getOrg() != null ? portalUser.getOrg().getCity() : null;
-        String buyerState = portalUser.getOrg() != null ? portalUser.getOrg().getState() : null;
-        String buyerPincode = portalUser.getOrg() != null ? portalUser.getOrg().getZipCode() : null;
+        String buyerCity = portalUser.getOrg().getCity();
+        String buyerState = portalUser.getOrg().getState();
+        String buyerPincode = portalUser.getOrg().getZipCode();
 
-        String buyerAddress = null;
-        if (portalUser.getOrg() != null) {
-            String a1 = portalUser.getOrg().getAddress1() != null ? portalUser.getOrg().getAddress1().trim() : "";
-            String a2 = portalUser.getOrg().getAddress2() != null ? portalUser.getOrg().getAddress2().trim() : "";
-            buyerAddress = (a1 + " " + a2).trim();
-            if (buyerAddress.isEmpty()) buyerAddress = null;
+        String a1 = portalUser.getOrg().getAddress1() != null ? portalUser.getOrg().getAddress1().trim() : "";
+        String a2 = portalUser.getOrg().getAddress2() != null ? portalUser.getOrg().getAddress2().trim() : "";
+        String buyerAddress = (a1 + " " + a2).trim();
+        if (buyerAddress.isEmpty()) {
+            buyerAddress = null;
         }
 
         // Cache/Sync to rfq_buyers table
