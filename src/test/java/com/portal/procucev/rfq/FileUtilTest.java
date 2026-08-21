@@ -162,6 +162,9 @@ public class FileUtilTest {
         String base64 = FileUtil.readAsBase64(sampleFile);
         assertNotNull(base64);
         assertFalse(base64.isBlank());
+
+        // Test exception branch in readAsBase64 (passing a directory causes Files.readAllBytes to fail)
+        assertNull(FileUtil.readAsBase64(tempDir.toFile()));
     }
 
     @Test

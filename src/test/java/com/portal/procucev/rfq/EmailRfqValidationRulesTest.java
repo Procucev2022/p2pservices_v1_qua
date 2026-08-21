@@ -92,7 +92,7 @@ public class EmailRfqValidationRulesTest {
     }
 
     @Test
-    @DisplayName("TEST 3: Missing quantity -> Validation fails and reports missing quantity")
+    @DisplayName("TEST 3: Missing quantity -> Defaulted to 1.0 and validation passes")
     void test3_MissingQuantityFails() {
         ExtractedRFQ rfq = ExtractedRFQ.builder()
                 .buyerEmail("buyer@procucev.com")
@@ -102,14 +102,12 @@ public class EmailRfqValidationRulesTest {
                 .build();
 
         ValidationService.ValidationResult result = validationService.validateWithDetails(rfq);
-        assertFalse(result.isValid());
-        assertTrue(result.isMissingQuantity());
-        assertEquals(1, result.getMissingItems().size());
-        assertTrue(result.getFailureReason().contains("quantity is missing for:\n1. Dell Latitude Laptops"));
+        assertTrue(result.isValid());
+        assertEquals(1.0, rfq.getItems().get(0).getQuantity());
     }
 
     @Test
-    @DisplayName("TEST 4: Multiple items where one item is missing quantity -> Entire RFQ fails (No partial RFQ)")
+    @DisplayName("TEST 4: Multiple items where one item is missing quantity -> Defaulted to 1.0 and validation passes")
     void test4_MultipleItemsOneMissingQuantityFailsEntireRfq() {
         ExtractedRFQ rfq = ExtractedRFQ.builder()
                 .buyerEmail("buyer@procucev.com")
@@ -120,10 +118,8 @@ public class EmailRfqValidationRulesTest {
                 .build();
 
         ValidationService.ValidationResult result = validationService.validateWithDetails(rfq);
-        assertFalse(result.isValid());
-        assertTrue(result.isMissingQuantity());
-        assertEquals(1, result.getMissingItems().size());
-        assertEquals("Computer Monitor", result.getMissingItems().get(0));
+        assertTrue(result.isValid());
+        assertEquals(1.0, rfq.getItems().get(1).getQuantity());
     }
 
     @Test

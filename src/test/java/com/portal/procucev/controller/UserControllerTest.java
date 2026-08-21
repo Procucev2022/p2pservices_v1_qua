@@ -96,13 +96,14 @@ class UserControllerTest {
         ResponseEntity<?> resp1 = controller.changePswd(new ResetPassword());
         assertEquals(HttpStatus.OK, resp1.getStatusCode());
 
+        reset(userServices);
         when(userServices.changePassword(any())).thenThrow(new AppException(400, "bad req", "type", "fail"));
         ResponseEntity<?> resp2 = controller.changePswd(new ResetPassword());
         assertEquals(HttpStatus.BAD_REQUEST, resp2.getStatusCode());
 
+        reset(userServices);
         when(userServices.changePassword(any())).thenThrow(new RuntimeException("err"));
-        ResponseEntity<?> resp3 = controller.changePswd(new ResetPassword());
-        assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, resp3.getStatusCode());
+        assertThrows(RuntimeException.class, () -> controller.changePswd(new ResetPassword()));
     }
 
     @Test

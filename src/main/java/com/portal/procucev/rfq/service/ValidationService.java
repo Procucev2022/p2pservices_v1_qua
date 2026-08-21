@@ -40,8 +40,6 @@ public class ValidationService {
             return ValidationResult.builder().valid(false).failureReason("No line items found in RFQ.").build();
         }
 
-        List<String> missingQuantityItems = new java.util.ArrayList<>();
-
         for (int i = 0; i < items.size(); i++) {
             RFQItem item = items.get(i);
             if (item == null) {
@@ -59,21 +57,9 @@ public class ValidationService {
             }
 
             if (item.getQuantity() == null || item.getQuantity() <= 0) {
-                missingQuantityItems.add(item.getItemDescription().trim());
+                log.info("No explicit quantity stated for item '{}'. Defaulting quantity to 1.0.", item.getItemDescription());
+                item.setQuantity(1.0);
             }
-        }
-
-        if (!missingQuantityItems.isEmpty()) {
-            StringBuilder sb = new StringBuilder("Item quantity is missing for:");
-            for (int i = 0; i < missingQuantityItems.size(); i++) {
-                sb.append("\n").append(i + 1).append(". ").append(missingQuantityItems.get(i));
-            }
-            return ValidationResult.builder()
-                    .valid(false)
-                    .missingQuantity(true)
-                    .missingItems(missingQuantityItems)
-                    .failureReason(sb.toString())
-                    .build();
         }
 
         log.info("Extracted RFQ passed all validation checks successfully.");

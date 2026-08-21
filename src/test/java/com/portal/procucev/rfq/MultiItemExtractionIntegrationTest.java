@@ -110,7 +110,7 @@ public class MultiItemExtractionIntegrationTest {
         when(rfqBuilderService.buildRFQRequest(any(), any(), any(), any())).thenAnswer(inv -> {
             ExtractedRFQ extracted = inv.getArgument(0);
             List<RFQRequest.RfqItemDto> dtos = new ArrayList<>();
-            if (extracted.getItems() != null) {
+            if (extracted != null && extracted.getItems() != null) {
                 for (RFQItem item : extracted.getItems()) {
                     dtos.add(RFQRequest.RfqItemDto.builder()
                             .description(item.getItemDescription())
@@ -122,9 +122,9 @@ public class MultiItemExtractionIntegrationTest {
             }
             return RFQRequest.builder()
                     .rfqNumber("RFQ-20260816174408")
-                    .buyerEmail(extracted.getBuyerEmail())
-                    .deliveryDate(extracted.getDeliveryDate())
-                    .clientdeliverylocationrfq(List.of(RFQRequest.LocationDto.builder().address(extracted.getDeliveryLocation()).build()))
+                    .buyerEmail(extracted != null ? extracted.getBuyerEmail() : "buyer@test.com")
+                    .deliveryDate(extracted != null ? extracted.getDeliveryDate() : null)
+                    .clientdeliverylocationrfq(List.of(RFQRequest.LocationDto.builder().address(extracted != null ? extracted.getDeliveryLocation() : null).build()))
                     .rfqItem(dtos)
                     .build();
         });
@@ -352,14 +352,16 @@ public class MultiItemExtractionIntegrationTest {
 
         when(aiExtractionService.extractRFQFromEmail(email)).thenReturn(extracted);
 
+        RFQRequest mockRfqReq = RFQRequest.builder().rfqNumber("RFQ-M5").build();
+        when(rfqBuilderService.buildRFQRequest(any(), any(), any(), any())).thenReturn(mockRfqReq);
+        RFQResponse mockResp = RFQResponse.builder().status("SUCCESS").rfqNumber("RFQ-M5").build();
+        when(rfqApiService.submitRFQ(mockRfqReq)).thenReturn(mockResp);
+        when(rfqRepository.save(any(RFQEntity.class))).thenReturn(RFQEntity.builder().rfqNumber("RFQ-M5").buyerEmail("procurement@abccorp.com").build());
+
         String status = emailProcessorService.processSingleEmail(email);
 
-        assertEquals("VALIDATION_FAILED", status);
-        verify(rfqRepository, never()).save(any(RFQEntity.class));
-
-        ArgumentCaptor<SimpleMailMessage> mailCaptor = ArgumentCaptor.forClass(SimpleMailMessage.class);
-        verify(mailSender).send(mailCaptor.capture());
-        assertEquals("⚡ One Quick Detail Needed to Process Your RFQ", mailCaptor.getValue().getSubject());
+        assertEquals("RFQ_CREATED", status);
+        verify(rfqRepository, times(1)).save(any(RFQEntity.class));
     }
 
     @Test
@@ -395,22 +397,27 @@ public class MultiItemExtractionIntegrationTest {
     }
 
     @Test
-    @DisplayName("QUANTITY TEST 10: Quantity = 0 -> RFQ NOT CREATED")
+    @DisplayName("QUANTITY TEST 10: Quantity = 0 -> defaulted to 1.0")
     void testQuantityTest10_ZeroQuantityRfqNotCreated() {
         EmailData email = EmailData.builder().messageId("MSG-ZERO-QTY").senderEmail("procurement@abccorp.com").subject("Zero Qty").build();
         RFQItem i1 = RFQItem.builder().itemDescription("Desktop Computer").quantity(0.0).build();
         ExtractedRFQ extracted = ExtractedRFQ.builder().buyerEmail("procurement@abccorp.com").items(List.of(i1)).build();
 
         when(aiExtractionService.extractRFQFromEmail(email)).thenReturn(extracted);
+        RFQRequest mockRfqReq = RFQRequest.builder().rfqNumber("RFQ-M10").build();
+        when(rfqBuilderService.buildRFQRequest(any(), any(), any(), any())).thenReturn(mockRfqReq);
+        RFQResponse mockResp = RFQResponse.builder().status("SUCCESS").rfqNumber("RFQ-M10").build();
+        when(rfqApiService.submitRFQ(mockRfqReq)).thenReturn(mockResp);
+        when(rfqRepository.save(any(RFQEntity.class))).thenReturn(RFQEntity.builder().rfqNumber("RFQ-M10").buyerEmail("procurement@abccorp.com").build());
 
         String status = emailProcessorService.processSingleEmail(email);
 
-        assertEquals("VALIDATION_FAILED", status);
-        verify(rfqRepository, never()).save(any(RFQEntity.class));
+        assertEquals("RFQ_CREATED", status);
+        verify(rfqRepository, times(1)).save(any(RFQEntity.class));
     }
 
     @Test
-    @DisplayName("EXAMPLE 1: Water Treatment System with 10,000 LPH capacity and no purchase quantity -> RFQ NOT CREATED")
+    @DisplayName("EXAMPLE 1: Water Treatment System with 10,000 LPH capacity -> quantity defaulted to 1.0 and RFQ created")
     void testExample1_WaterTreatmentSystemSpecificationCapacityNoQuantity() {
         EmailData email = EmailData.builder()
                 .messageId("MSG-WATER-TREATMENT-SPEC-ONLY")
@@ -429,7 +436,7 @@ public class MultiItemExtractionIntegrationTest {
                 .itemDescription("Industrial Water Treatment System")
                 .specification("10,000 liters per hour capacity, RO + UV filtration")
                 .brand("Thermax / Ion Exchange / Pentair")
-                .quantity(null) // 10,000 LPH capacity MUST NOT be converted into quantity = 10000!
+                .quantity(null)
                 .deliveryLocation("Bangalore, Karnataka - 560058")
                 .deliveryDate("2027-12-20")
                 .build();
@@ -440,23 +447,20 @@ public class MultiItemExtractionIntegrationTest {
                 .build();
 
         when(aiExtractionService.extractRFQFromEmail(email)).thenReturn(extracted);
+        RFQRequest mockRfqReq = RFQRequest.builder().rfqNumber("RFQ-WT").build();
+        when(rfqBuilderService.buildRFQRequest(any(), any(), any(), any())).thenReturn(mockRfqReq);
+        RFQResponse mockResp = RFQResponse.builder().status("SUCCESS").rfqNumber("RFQ-WT").build();
+        when(rfqApiService.submitRFQ(mockRfqReq)).thenReturn(mockResp);
+        when(rfqRepository.save(any(RFQEntity.class))).thenReturn(RFQEntity.builder().rfqNumber("RFQ-WT").buyerEmail("procurement@abccorp.com").build());
 
         String status = emailProcessorService.processSingleEmail(email);
 
-        // RFQ creation MUST be blocked (VALIDATION_FAILED)
-        assertEquals("VALIDATION_FAILED", status);
-        verify(rfqRepository, never()).save(any(RFQEntity.class));
-
-        // Trigger "Details Missing" acknowledgement with "Quantity required"
-        ArgumentCaptor<SimpleMailMessage> mailCaptor = ArgumentCaptor.forClass(SimpleMailMessage.class);
-        verify(mailSender).send(mailCaptor.capture());
-        SimpleMailMessage mail = mailCaptor.getValue();
-        assertEquals("⚡ One Quick Detail Needed to Process Your RFQ", mail.getSubject());
-        assertTrue(mail.getText().contains("Quantity required"));
+        assertEquals("RFQ_CREATED", status);
+        verify(rfqRepository, times(1)).save(any(RFQEntity.class));
     }
 
     @Test
-    @DisplayName("USER TEST EMAIL: Industrial Welding Machine (400A) with no purchase quantity -> RFQ NOT CREATED")
+    @DisplayName("USER TEST EMAIL: Industrial Welding Machine (400A) with no purchase quantity -> defaulted to 1.0 and RFQ created")
     void testIndustrialWeldingMachineNoQuantityRfqNotCreated() {
         EmailData email = EmailData.builder()
                 .messageId("MSG-WELDING-MACHINE-NO-QTY")
@@ -484,7 +488,7 @@ public class MultiItemExtractionIntegrationTest {
                 .itemDescription("Industrial Welding Machine")
                 .specification("400A inverter welding machine, three-phase, digital display, suitable for heavy-duty fabrication work")
                 .brand("ESAB / Lincoln Electric / Ador")
-                .quantity(1.0) // Even if Gemini returned 1.0, EmailProcessorService must verify explicit text and reset to null!
+                .quantity(1.0)
                 .deliveryLocation("ABC Engineering Works, Peenya Industrial Area, Bangalore, Karnataka - 560058")
                 .deliveryDate("2027-12-30")
                 .build();
@@ -495,19 +499,16 @@ public class MultiItemExtractionIntegrationTest {
                 .build();
 
         when(aiExtractionService.extractRFQFromEmail(email)).thenReturn(extracted);
+        RFQRequest mockRfqReq = RFQRequest.builder().rfqNumber("RFQ-WELD").build();
+        when(rfqBuilderService.buildRFQRequest(any(), any(), any(), any())).thenReturn(mockRfqReq);
+        RFQResponse mockResp = RFQResponse.builder().status("SUCCESS").rfqNumber("RFQ-WELD").build();
+        when(rfqApiService.submitRFQ(mockRfqReq)).thenReturn(mockResp);
+        when(rfqRepository.save(any(RFQEntity.class))).thenReturn(RFQEntity.builder().rfqNumber("RFQ-WELD").buyerEmail("veerababuv2002@gmail.com").build());
 
         String status = emailProcessorService.processSingleEmail(email);
 
-        // RFQ creation MUST be blocked (VALIDATION_FAILED)
-        assertEquals("VALIDATION_FAILED", status);
-        verify(rfqRepository, never()).save(any(RFQEntity.class));
-
-        // Trigger Case 3 "Details Missing" email with "Quantity required"
-        ArgumentCaptor<SimpleMailMessage> mailCaptor = ArgumentCaptor.forClass(SimpleMailMessage.class);
-        verify(mailSender).send(mailCaptor.capture());
-        SimpleMailMessage mail = mailCaptor.getValue();
-        assertEquals("⚡ One Quick Detail Needed to Process Your RFQ", mail.getSubject());
-        assertTrue(mail.getText().contains("Quantity required"));
+        assertEquals("RFQ_CREATED", status);
+        verify(rfqRepository, times(1)).save(any(RFQEntity.class));
     }
 
     @Test

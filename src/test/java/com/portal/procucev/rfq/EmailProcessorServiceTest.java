@@ -210,18 +210,18 @@ public class EmailProcessorServiceTest {
                 .build();
         Mockito.when(aiExtractionService.extractRFQFromEmail(email)).thenReturn(rfq);
 
-        ValidationService.ValidationResult valResult = ValidationService.ValidationResult.builder()
-                .valid(false)
-                .missingQuantity(true)
-                .missingItems(List.of("Laptop"))
-                .failureReason("Item quantity is missing for:\n1. Laptop")
-                .build();
-        Mockito.when(validationService.validateWithDetails(any())).thenReturn(valResult);
+        RFQRequest request = RFQRequest.builder().rfqNumber("RFQ-VAL-999").deliveryDate("2026-08-25").build();
+        Mockito.when(rfqBuilderService.buildRFQRequest(any(), any(), any(), any())).thenReturn(request);
+
+        RFQResponse apiResponse = RFQResponse.builder().status("SUCCESS").rfqNumber("RFQ-VAL-999").build();
+        Mockito.when(rfqApiService.submitRFQ(request)).thenReturn(apiResponse);
+
+        RFQEntity savedEntity = RFQEntity.builder().rfqNumber("RFQ-VAL-999").buyerEmail("buyer@test.com").build();
+        Mockito.when(rfqRepository.save(any())).thenReturn(savedEntity);
 
         String result = emailProcessorService.processSingleEmail(email);
 
-        assertEquals("VALIDATION_FAILED", result);
-        Mockito.verify(acknowledgementEmailService).sendFailureAcknowledgement(any(), eq(verifiedBuyer));
+        assertEquals("RFQ_CREATED", result);
     }
 
     @Test

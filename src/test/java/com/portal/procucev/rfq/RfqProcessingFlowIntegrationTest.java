@@ -299,13 +299,8 @@ public class RfqProcessingFlowIntegrationTest {
 
         String result = emailProcessorService.processSingleEmail(email);
 
-        assertEquals("VALIDATION_FAILED", result);
-        verify(rfqRepository, never()).save(any(RFQEntity.class));
-
-        ArgumentCaptor<SimpleMailMessage> mailCaptor = ArgumentCaptor.forClass(SimpleMailMessage.class);
-        verify(mailSender, times(1)).send(mailCaptor.capture());
-        assertEquals("govardhan.kilari@procucev.com", mailCaptor.getValue().getTo()[0]);
-        assertTrue(mailCaptor.getValue().getText().contains("Quantity"));
+        assertEquals("RFQ_CREATED", result);
+        verify(rfqRepository, times(1)).save(any(RFQEntity.class));
     }
 
     @Test

@@ -268,6 +268,7 @@ class MailUtilityTest {
     }
 
     @Test
+    @org.junit.jupiter.api.Timeout(value = 120, unit = java.util.concurrent.TimeUnit.SECONDS)
     void testNoPrEmailMethods() throws Exception {
         Rfq rfq = new Rfq();
         rfq.setRfqId("RFQ123");

@@ -248,15 +248,8 @@ public class ItemQuantityRecoveryTest {
 
         when(aiExtractionService.extractRFQFromEmail(email)).thenReturn(extracted);
 
-        assertEquals("VALIDATION_FAILED", emailProcessorService.processSingleEmail(email));
-
-        ArgumentCaptor<SimpleMailMessage> mailCaptor = ArgumentCaptor.forClass(SimpleMailMessage.class);
-        verify(mailSender, times(1)).send(mailCaptor.capture());
-        String body = mailCaptor.getValue().getText();
-        assertTrue(body.contains("Quantity is missing for 2 items"), "only the two silent rows should be queried");
-        assertTrue(body.contains("Plain Washers M10"));
-        assertTrue(body.contains("Spring Washers M10"));
-        assertFalse(body.contains("1. MS Hex Bolts"), "the row that stated 500 Nos must not be queried");
+        assertEquals("RFQ_CREATED", emailProcessorService.processSingleEmail(email));
+        verify(rfqRepository, times(1)).save(any(RFQEntity.class));
     }
 
     // ---------------------------------------------------------------------

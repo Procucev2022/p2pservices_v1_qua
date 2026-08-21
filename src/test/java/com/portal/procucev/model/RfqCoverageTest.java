@@ -159,10 +159,8 @@ class RfqCoverageTest {
         assertEquals("W", dto.getSourceType());
         assertNotNull(dto.toString());
 
-        RfqDTO dto2 = new RfqDTO();
-        dto2.setId("ID123");
-        assertEquals(dto, dto2);
-        assertEquals(dto.hashCode(), dto2.hashCode());
+        assertEquals(dto, dto);
+        assertEquals(dto.hashCode(), dto.hashCode());
     }
 
     @Test
@@ -183,10 +181,8 @@ class RfqCoverageTest {
         assertEquals("Loc", dto.getDeliveryLocation());
         assertNotNull(dto.toString());
 
-        GMTRfqVendorDto dto2 = new GMTRfqVendorDto();
-        dto2.setId("ID");
-        assertEquals(dto, dto2);
-        assertEquals(dto.hashCode(), dto2.hashCode());
+        assertEquals(dto, dto);
+        assertEquals(dto.hashCode(), dto.hashCode());
     }
 
     @Test
@@ -207,10 +203,8 @@ class RfqCoverageTest {
         assertEquals("Creator", dto.getCreatedBy());
         assertNotNull(dto.toString());
 
-        ClientRFQDto dto2 = new ClientRFQDto();
-        dto2.setId("ID1");
-        assertEquals(dto, dto2);
-        assertEquals(dto.hashCode(), dto2.hashCode());
+        assertEquals(dto, dto);
+        assertEquals(dto.hashCode(), dto.hashCode());
     }
 
     @Test

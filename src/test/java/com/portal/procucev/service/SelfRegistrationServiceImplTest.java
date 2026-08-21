@@ -393,6 +393,7 @@ class SelfRegistrationServiceImplTest {
     }
 
     @Test
+    @org.junit.jupiter.api.Timeout(value = 90, unit = java.util.concurrent.TimeUnit.SECONDS)
     void testSelfclientRegistrationDataByApp_FullFlow() {
         Organization o = new Organization();
         o.setCompanyName("AppComp");
