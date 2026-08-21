@@ -24,4 +24,7 @@ public class EmailData {
     private String attachmentText;
     private String inReplyTo;
     private String references;
+    private boolean fileSizeExceeded;
+    private String errorMessage;
+    private String failedAttachmentName;
 }

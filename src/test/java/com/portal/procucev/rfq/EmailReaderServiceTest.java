@@ -369,6 +369,38 @@ public class EmailReaderServiceTest {
         assertDoesNotThrow(() -> ReflectionTestUtils.invokeMethod(
                 service, "closeFolderAndStore", null, null, false));
     }
+
+    @Test
+    @DisplayName("Test parseMessage handles attachment exceeding maxAttachmentBytes gracefully")
+    void testParseMessageAttachmentSizeLimitExceeded() throws Exception {
+        ReflectionTestUtils.setField(service, "maxAttachmentBytes", 10L);
+
+        Message msg = Mockito.mock(Message.class);
+        Mockito.when(msg.getHeader("Message-ID")).thenReturn(new String[]{"MSG-OVERSIZED"});
+        Mockito.when(msg.getSubject()).thenReturn("Oversized Attachment RFQ");
+        Mockito.when(msg.getFrom()).thenReturn(new Address[]{new InternetAddress("sender@test.com")});
+        Mockito.when(msg.isMimeType("multipart/*")).thenReturn(true);
+
+        jakarta.mail.internet.MimeMultipart mp = Mockito.mock(jakarta.mail.internet.MimeMultipart.class);
+        jakarta.mail.BodyPart attPart = Mockito.mock(jakarta.mail.BodyPart.class);
+        Mockito.when(attPart.getDisposition()).thenReturn(jakarta.mail.Part.ATTACHMENT);
+        Mockito.when(attPart.getFileName()).thenReturn("huge_catalog.pdf");
+
+        byte[] largeBytes = new byte[100];
+        Mockito.when(attPart.getInputStream()).thenReturn(new java.io.ByteArrayInputStream(largeBytes));
+
+        Mockito.when(mp.getCount()).thenReturn(1);
+        Mockito.when(mp.getBodyPart(0)).thenReturn(attPart);
+        Mockito.when(msg.getContent()).thenReturn(mp);
+
+        EmailData data = ReflectionTestUtils.invokeMethod(service, "parseMessage", msg);
+
+        assertNotNull(data);
+        assertTrue(data.isFileSizeExceeded());
+        assertEquals("huge_catalog.pdf", data.getFailedAttachmentName());
+        assertNotNull(data.getErrorMessage());
+        assertTrue(data.getErrorMessage().contains("huge_catalog.pdf"));
+    }
 }
 
 

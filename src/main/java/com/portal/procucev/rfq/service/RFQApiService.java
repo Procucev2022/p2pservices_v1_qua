@@ -35,7 +35,7 @@ public class RFQApiService {
             rfq.setRfqId(request.getRfqNumber());
             rfq.setProjectDesc(request.getProjectDesc());
             rfq.setUser(request.getUser() != null ? request.getUser() : "1");
-            rfq.setSourceType("T");
+            rfq.setSourceType(request.getSourceType() != null && !request.getSourceType().isBlank() ? request.getSourceType() : "EMAIL");
             rfq.setNoPrFlag(true);
             if (request.getOrg() != null && request.getOrg().getId() != null && !request.getOrg().getId().isBlank()) {
                 Organization org = new Organization();
@@ -68,11 +68,9 @@ public class RFQApiService {
                     RfqItem item = new RfqItem();
                     item.setDescription(dto.getDescription());
                     item.setCategory(dto.getCategory());
-                    if (dto.getQuantity() == null || dto.getQuantity() <= 0) {
-                        throw new IllegalArgumentException("Quantity is mandatory for RFQ item: " + dto.getDescription());
-                    }
-                    item.setQuantity(dto.getQuantity());
-                    item.setUnitofMeasures(dto.getUnitofMeasures());
+                    double qty = (dto.getQuantity() != null && dto.getQuantity() > 0) ? dto.getQuantity() : 1.0;
+                    item.setQuantity(qty);
+                    item.setUnitofMeasures(dto.getUnitofMeasures() != null && !dto.getUnitofMeasures().isBlank() ? dto.getUnitofMeasures() : "Nos");
                     item.setBrand(dto.getBrand());
                     item.setItemcode(dto.getItemcode());
                     item.setRemarks(dto.getRemarks());
@@ -96,6 +94,7 @@ public class RFQApiService {
                     rfqDocument.setFile(bytes);
                     rfqDocument.setFileDetails(bytes);
                     rfqDocument.setVersion(1);
+                    rfqDocument.setRfq(rfq);
                     documents.add(rfqDocument);
                 }
                 rfq.setRfqDocument(documents);

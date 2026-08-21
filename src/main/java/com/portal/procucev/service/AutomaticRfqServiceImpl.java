@@ -69,7 +69,21 @@ OrgDao orgDao;
 			rfq.setByClient(true);
 			rfq.setStatus(resultStatus);
 			rfq.setClientStatus(newStatus);
-			rfq.setSourceType(ApplicationConstants.TOOL);
+			String srcType = (rfq.getSourceType() != null && !rfq.getSourceType().isBlank())
+					? rfq.getSourceType()
+					: ApplicationConstants.TOOL;
+			rfq.setSourceType(srcType);
+
+			if (rfq.getRfqItem() != null) {
+				for (RfqItem item : rfq.getRfqItem()) {
+					if (item.getQuantity() <= 0) {
+						item.setQuantity(1.0);
+					}
+					if (item.getUnitofMeasures() == null || item.getUnitofMeasures().isBlank()) {
+						item.setUnitofMeasures("Nos");
+					}
+				}
+			}
 
 			// String rfqId = selfRegistrationService.generateId("RFQ");
 

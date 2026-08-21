@@ -196,7 +196,7 @@ class EmailRfqSpecificationSalvageTest {
     }
 
     @Test
-    @DisplayName("Specification numbers alone never produce a quantity")
+    @DisplayName("Specification numbers are not picked as quantity and missing quantity defaults to 1.0")
     void specificationNumbersDoNotProduceAQuantity() {
         // Same spec-dense text with the explicit quantity statement removed.
         String noQuantityBody = "We require Desktop Computers. Intel Core i5 13th Generation processor, "
@@ -216,14 +216,9 @@ class EmailRfqSpecificationSalvageTest {
                 .items(List.of(RFQItem.builder().itemDescription("Desktop Computers").quantity(null).build()))
                 .build();
 
-        Mockito.when(buyerVerificationService.verifyAndGetBuyer("buyer@test.com"))
-                .thenReturn(Buyer.builder().email("buyer@test.com").name("Buyer").verified(true).build());
-        Mockito.when(aiExtractionService.extractRFQFromEmail(email)).thenReturn(aiResult);
-
-        String outcome = emailProcessorService.processSingleEmail(email);
-        assertEquals("VALIDATION_FAILED", outcome,
-                "with no explicit quantity the payload must still be rejected, not guessed from 16/512/21.5/3");
-        Mockito.verify(rfqBuilderService, Mockito.never()).buildRFQRequest(any(), any(), any(), any());
+        ExtractedRFQ captured = runAndCaptureBuilderInput(email, aiResult);
+        assertEquals(1.0, captured.getItems().get(0).getQuantity(),
+                "with no explicit quantity the quantity defaults to 1.0, not guessed from 16/512/21.5/3");
     }
 
     @Test

@@ -228,8 +228,8 @@ public class ItemQuantityRecoveryTest {
     }
 
     @Test
-    @DisplayName("Rows that genuinely state no quantity are still rejected and still queried")
-    void itemsWithNoQuantityAnywhereAreStillRejected() {
+    @DisplayName("Rows that state no quantity default to 1.0 and RFQ is created")
+    void itemsWithNoQuantityAnywhereDefaultToOneAndAreCreated() throws Exception {
         EmailData email = EmailData.builder()
                 .messageId("MSG-NO-QTY")
                 .subject("Requirement of MS Hex Bolts M10")
@@ -240,6 +240,8 @@ public class ItemQuantityRecoveryTest {
 
         ExtractedRFQ extracted = ExtractedRFQ.builder()
                 .buyerEmail("govardhan.kilari@procucev.com")
+                .deliveryLocation("Hyderabad")
+                .deliveryDate("2026-08-25")
                 .items(new ArrayList<>(List.of(
                         modelItem("MS Hex Bolts M10 x 50 mm"),
                         modelItem("Plain Washers M10"),
@@ -248,15 +250,17 @@ public class ItemQuantityRecoveryTest {
 
         when(aiExtractionService.extractRFQFromEmail(email)).thenReturn(extracted);
 
-        assertEquals("VALIDATION_FAILED", emailProcessorService.processSingleEmail(email));
+        assertEquals("RFQ_CREATED", emailProcessorService.processSingleEmail(email));
 
-        ArgumentCaptor<SimpleMailMessage> mailCaptor = ArgumentCaptor.forClass(SimpleMailMessage.class);
-        verify(mailSender, times(1)).send(mailCaptor.capture());
-        String body = mailCaptor.getValue().getText();
-        assertTrue(body.contains("Quantity is missing for 2 items"), "only the two silent rows should be queried");
-        assertTrue(body.contains("Plain Washers M10"));
-        assertTrue(body.contains("Spring Washers M10"));
-        assertFalse(body.contains("1. MS Hex Bolts"), "the row that stated 500 Nos must not be queried");
+        ArgumentCaptor<RFQEntity> entityCaptor = ArgumentCaptor.forClass(RFQEntity.class);
+        verify(rfqRepository, times(1)).save(entityCaptor.capture());
+
+        List<RFQItem> saved = objectMapper.readValue(
+                entityCaptor.getValue().getItemsJson(), new TypeReference<List<RFQItem>>() {});
+        assertEquals(3, saved.size());
+        assertEquals(500.0, saved.get(0).getQuantity());
+        assertEquals(1.0, saved.get(1).getQuantity(), "missing quantity must default to 1.0");
+        assertEquals(1.0, saved.get(2).getQuantity(), "missing quantity must default to 1.0");
     }
 
     // ---------------------------------------------------------------------

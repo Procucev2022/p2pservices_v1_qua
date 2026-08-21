@@ -1,6 +1,7 @@
 package com.portal.procucev.rfq.service;
 
 import com.portal.procucev.rfq.exception.ApplicationException;
+import com.portal.procucev.rfq.exception.AttachmentSizeExceededException;
 import com.portal.procucev.rfq.model.EmailData;
 import com.portal.procucev.rfq.util.FileUtil;
 import jakarta.mail.Address;
@@ -333,14 +334,24 @@ public class EmailReaderService {
         StringBuilder htmlFallbackBuilder = new StringBuilder();
         StringBuilder attachmentTextBuilder = new StringBuilder();
         List<File> attachments = new ArrayList<>();
+        boolean fileSizeExceeded = false;
+        String errorMessage = null;
+        String failedAttachmentName = null;
 
-        if (msg.isMimeType("text/plain")) {
-            bodyBuilder.append(msg.getContent().toString());
-        } else if (msg.isMimeType("text/html")) {
-            bodyBuilder.append(htmlToText(msg.getContent().toString()));
-        } else if (msg.isMimeType("multipart/*")) {
-            MimeMultipart multipart = (MimeMultipart) msg.getContent();
-            processMultipart(multipart, bodyBuilder, htmlFallbackBuilder, attachmentTextBuilder, attachments);
+        try {
+            if (msg.isMimeType("text/plain")) {
+                bodyBuilder.append(msg.getContent().toString());
+            } else if (msg.isMimeType("text/html")) {
+                bodyBuilder.append(htmlToText(msg.getContent().toString()));
+            } else if (msg.isMimeType("multipart/*")) {
+                MimeMultipart multipart = (MimeMultipart) msg.getContent();
+                processMultipart(multipart, bodyBuilder, htmlFallbackBuilder, attachmentTextBuilder, attachments);
+            }
+        } catch (AttachmentSizeExceededException e) {
+            fileSizeExceeded = true;
+            failedAttachmentName = e.getFileName();
+            errorMessage = e.getMessage();
+            log.warn("Attachment size limit exceeded for message [{}]: {}", messageId, errorMessage);
         }
 
         if (bodyBuilder.length() == 0 && htmlFallbackBuilder.length() > 0) {
@@ -373,6 +384,9 @@ public class EmailReaderService {
                 .attachmentText(attachmentTextBuilder.toString())
                 .inReplyTo(inReplyTo)
                 .references(references)
+                .fileSizeExceeded(fileSizeExceeded)
+                .errorMessage(errorMessage)
+                .failedAttachmentName(failedAttachmentName)
                 .build();
     }
 
@@ -393,7 +407,7 @@ public class EmailReaderService {
                         while ((bytesRead = inputStream.read(buffer)) != -1) {
                             totalBytes += bytesRead;
                             if (totalBytes > maxAttachmentBytes) {
-                                throw new ApplicationException("Attachment exceeds the configured size limit.");
+                                throw new AttachmentSizeExceededException(fileName, totalBytes, maxAttachmentBytes);
                             }
                             outputStream.write(buffer, 0, bytesRead);
                         }

@@ -238,10 +238,7 @@ public class RFQBuilderService {
                     brandVal = brandVal.substring(0, 50).trim();
                 }
 
-                if (item.getQuantity() == null || item.getQuantity() <= 0) {
-                    throw new IllegalArgumentException("Quantity is mandatory for item: " + (item.getItemDescription() != null ? item.getItemDescription() : "RFQ Item"));
-                }
-                double qty = item.getQuantity();
+                double qty = (item.getQuantity() != null && item.getQuantity() > 0) ? item.getQuantity() : 1.0;
 
                 String partCodeVal = sanitizeText(item.getEffectivePartNumber());
 
@@ -288,7 +285,7 @@ public class RFQBuilderService {
                 // the brand name goes to remarks().
                 rfqItemsList.add(RFQRequest.RfqItemDto.builder()
                         .brand(specs)
-                        .unitofMeasures(item.getUom() != null && !item.getUom().isBlank() ? sanitizeText(item.getUom()) : "Nos")
+                        .unitofMeasures(item.getUom() != null && !item.getUom().isBlank() && !item.getUom().equalsIgnoreCase("null") && !item.getUom().equalsIgnoreCase("Not Specified") ? sanitizeText(item.getUom()) : "Nos")
                         .quantity(qty)
                         .description(cleanItemDesc)
                         .category(item.getCategory())
@@ -311,7 +308,7 @@ public class RFQBuilderService {
                 .noPrFlag(true)
                 .org(RFQRequest.OrgRef.builder().id(orgIdVal).build())
                 .user(userIdVal)
-                .sourceType("T")
+                .sourceType("EMAIL")
                 .remarks("")
                 .clientdeliverylocationrfq(locations)
                 .rfqItem(rfqItemsList)
