@@ -224,4 +224,30 @@ public class FileUtilTest {
         }
         FileUtil.extractTextFromFile(xlsmFile);
     }
+
+    @Test
+    @DisplayName("Test extractTextFromFile with corrupted docx file")
+    void testExtractTextFromCorruptedDocx() throws Exception {
+        File badDocx = new File(tempDir.toFile(), "corrupt.docx");
+        try (FileOutputStream fos = new FileOutputStream(badDocx)) {
+            fos.write("Not a docx content".getBytes());
+        }
+        assertEquals("", FileUtil.extractTextFromFile(badDocx));
+    }
+
+    @Test
+    @DisplayName("Test extractExcelText with empty sheet and empty rows")
+    void testExtractExcelTextWithEmptyRows() throws Exception {
+        File excelFile = new File(tempDir.toFile(), "empty_rows.xlsx");
+        try (Workbook wb = new XSSFWorkbook()) {
+            Sheet sheet = wb.createSheet("EmptySheet");
+            // Row with no cells
+            sheet.createRow(0);
+            try (FileOutputStream fos = new FileOutputStream(excelFile)) {
+                wb.write(fos);
+            }
+        }
+        String text = FileUtil.extractTextFromFile(excelFile);
+        assertTrue(text.contains("--- Sheet: EmptySheet ---"));
+    }
 }
