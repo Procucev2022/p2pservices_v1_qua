@@ -30,6 +30,12 @@ import java.util.*;
 @RequiredArgsConstructor
 public class EmailProcessorService {
 
+    /**
+     * Outcome for an email rejected because an attachment is larger than the allowed size, whether
+     * the limit was hit while reading the mailbox or later by the shared RFQ creation pipeline.
+     */
+    private static final String STATUS_FILE_SIZE_EXCEEDED = "FILE_SIZE_EXCEEDED";
+
     private final EmailReaderService emailReaderService;
     private final AIExtractionService aiExtractionService;
     private final ValidationService validationService;
@@ -49,6 +55,13 @@ public class EmailProcessorService {
 
     @Value("${app.mail.error-folder:Error}")
     private String errorFolder;
+
+    /**
+     * Per-document limit enforced by the shared RFQ creation pipeline, read here only to state the
+     * correct figure in the acknowledgement when that pipeline rejects an attachment.
+     */
+    @Value("${app.rfq.max-document-bytes:26214400}")
+    private long maxDocumentBytes = 26214400L;
 
     public ProcessingStats processUnreadEmails() {
         long startTime = System.currentTimeMillis();
@@ -139,9 +152,10 @@ public class EmailProcessorService {
 
             String buyerName = buyer != null ? buyer.getName() : null;
             acknowledgementEmailService.sendFileSizeExceededAcknowledgement(
-                    normalizedSender, buyerName, email.getFailedAttachmentName(), 26214400L);
+                    normalizedSender, buyerName, email.getFailedAttachmentName(),
+                    emailReaderService.getMaxAttachmentBytes());
             emailReaderService.moveMessageToFolder(email.getMessageId(), errorFolder);
-            return "FILE_SIZE_EXCEEDED";
+            return STATUS_FILE_SIZE_EXCEEDED;
         }
 
         try {
@@ -451,6 +465,7 @@ public class EmailProcessorService {
 
             List<RFQEntity> createdRfqs = new ArrayList<>();
             boolean hasFailures = false;
+            String oversizedDocumentMessage = null;
 
             for (Map.Entry<String, List<RFQItem>> groupEntry : itemGroups.entrySet()) {
                 List<RFQItem> groupItems = groupEntry.getValue();
@@ -510,6 +525,14 @@ public class EmailProcessorService {
                             log.warn("Could not save RFQ item record: {}", ex.getMessage());
                         }
                     }
+                } else if (RFQApiService.STATUS_FILE_SIZE_EXCEEDED.equalsIgnoreCase(apiResponse.getStatus())) {
+                    // The mailbox accepted the attachment but the RFQ pipeline refused it, so this is
+                    // still a file-size failure and must not be reported as a missing detail.
+                    hasFailures = true;
+                    oversizedDocumentMessage = apiResponse.getMessage();
+                    log.warn("RFQ creation refused for RFQ Number {} because an attachment exceeds the allowed size: {}",
+                            generatedRfqNumber, apiResponse.getMessage());
+                    failedItemsList.add("Group (" + groupCategory + ") | Reason: " + apiResponse.getMessage());
                 } else {
                     hasFailures = true;
                     log.warn("RFQ creation failed for RFQ Number: {}", generatedRfqNumber);
@@ -517,10 +540,24 @@ public class EmailProcessorService {
                 }
             }
 
-            // SEND EXACTLY ONE CONSOLIDATED ACKNOWLEDGEMENT EMAIL PER INCOMING EMAIL
-            acknowledgementEmailService.sendConsolidatedAcknowledgement(createdRfqs, failedItemsList, buyer, email.getSubject());
-
             boolean atLeastOneSuccess = !createdRfqs.isEmpty();
+
+            // SEND EXACTLY ONE CONSOLIDATED ACKNOWLEDGEMENT EMAIL PER INCOMING EMAIL.
+            // An oversized attachment gets the file-size template rather than the consolidated one:
+            // the consolidated path ends at the "details missing" template, which lists a missing
+            // quantity as the reason and would misreport a size failure as a data problem.
+            if (oversizedDocumentMessage != null && !atLeastOneSuccess) {
+                acknowledgementEmailService.sendFileSizeExceededAcknowledgement(
+                        buyer.getEmail(), buyer.getName(), null, maxDocumentBytes);
+
+                emailReaderService.moveMessageToFolder(email.getMessageId(), errorFolder);
+                transaction.setStatus(STATUS_FILE_SIZE_EXCEEDED);
+                transaction.setErrorMessage(oversizedDocumentMessage);
+                emailTransactionRepository.save(transaction);
+                return STATUS_FILE_SIZE_EXCEEDED;
+            }
+
+            acknowledgementEmailService.sendConsolidatedAcknowledgement(createdRfqs, failedItemsList, buyer, email.getSubject());
 
             if (atLeastOneSuccess && !hasFailures) {
                 emailReaderService.moveMessageToFolder(email.getMessageId(), processedFolder);

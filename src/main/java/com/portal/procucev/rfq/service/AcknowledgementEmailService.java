@@ -117,8 +117,44 @@ public class AcknowledgementEmailService {
             String buyerEmail = (buyer != null && buyer.getEmail() != null && !buyer.getEmail().isBlank())
                     ? buyer.getEmail() : "";
             String buyerName = resolveBuyerName(buyer);
-            sendCase3DetailsMissingAcknowledgement(buyerEmail, buyerName, failedItems);
+
+            // Only use the "details missing" template when a detail actually is missing. It always
+            // lists a missing quantity, so routing an unrelated failure here reported a data problem
+            // the buyer did not have: a rejected insert was acknowledged as a missing quantity even
+            // though the quantity had been extracted correctly.
+            if (describesMissingDetail(failedItems)) {
+                sendCase3DetailsMissingAcknowledgement(buyerEmail, buyerName, failedItems);
+            } else {
+                sendProcessingFailureAcknowledgement(buyerEmail, buyerName, summariseFailures(failedItems));
+            }
         }
+    }
+
+    /**
+     * True when at least one failure entry names a detail the buyer can supply, which is what the
+     * CASE 3 template asks for. Entries describing a system or persistence failure return false.
+     */
+    private boolean describesMissingDetail(List<String> failedItems) {
+        if (failedItems == null || failedItems.isEmpty()) {
+            return false;
+        }
+        for (String entry : failedItems) {
+            if (entry == null) {
+                continue;
+            }
+            String lower = entry.toLowerCase();
+            if (lower.contains("quantity") || lower.contains("location") || lower.contains("description")) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private String summariseFailures(List<String> failedItems) {
+        if (failedItems == null || failedItems.isEmpty()) {
+            return "We could not create the RFQ for this requirement.";
+        }
+        return String.join("\n", failedItems);
     }
 
     public void sendCase3DetailsMissingAcknowledgement(String buyerEmail, String buyerName) {

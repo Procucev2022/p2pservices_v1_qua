@@ -1,8 +1,8 @@
 package com.portal.procucev.rfq.service;
 
+import com.portal.procucev.customexception.RfqDocumentSizeExceededException;
 import com.portal.procucev.model.ClientDeliveryLocationRfq;
 import com.portal.procucev.model.Organization;
-import com.portal.procucev.model.RFQDocument;
 import com.portal.procucev.model.Rfq;
 import com.portal.procucev.model.RfqItem;
 import com.portal.procucev.rfq.dto.RFQRequest;
@@ -13,17 +13,18 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
-import java.util.Base64;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
-import java.util.Map;
 
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class RFQApiService {
+
+    /** Status returned when creation was refused because a document exceeded the allowed size. */
+    public static final String STATUS_FILE_SIZE_EXCEEDED = "FILE_SIZE_EXCEEDED";
 
     private final AutomaticRfqService automaticRfqService;
     private final DateParser dateParser;
@@ -68,9 +69,12 @@ public class RFQApiService {
                     RfqItem item = new RfqItem();
                     item.setDescription(dto.getDescription());
                     item.setCategory(dto.getCategory());
-                    double qty = (dto.getQuantity() != null && dto.getQuantity() > 0) ? dto.getQuantity() : 1.0;
-                    item.setQuantity(qty);
-                    item.setUnitofMeasures(dto.getUnitofMeasures() != null && !dto.getUnitofMeasures().isBlank() ? dto.getUnitofMeasures() : "Nos");
+                    // Quantity and unit of measure are deliberately passed through as extracted.
+                    // raiseRfq applies the shared "default a missing quantity to 1, a missing UOM to
+                    // Nos" rule for every source, so defaulting here as well would only let the two
+                    // rules drift apart.
+                    item.setQuantity(dto.getQuantity() != null ? dto.getQuantity() : 0.0);
+                    item.setUnitofMeasures(dto.getUnitofMeasures());
                     item.setBrand(dto.getBrand());
                     item.setItemcode(dto.getItemcode());
                     item.setRemarks(dto.getRemarks());
@@ -80,25 +84,11 @@ public class RFQApiService {
                 rfq.setRfqItem(itemsList);
             }
 
-            if (request.getRfqDocument() != null && !request.getRfqDocument().isEmpty()) {
-                List<RFQDocument> documents = new ArrayList<>();
-                for (Map<String, String> documentMap : request.getRfqDocument()) {
-                    String fileName = documentMap.get("fileName");
-                    String encodedFile = documentMap.get("file");
-                    if (encodedFile == null || encodedFile.isBlank()) {
-                        continue;
-                    }
-                    RFQDocument rfqDocument = new RFQDocument();
-                    rfqDocument.setFileName(fileName);
-                    byte[] bytes = Base64.getDecoder().decode(encodedFile);
-                    rfqDocument.setFile(bytes);
-                    rfqDocument.setFileDetails(bytes);
-                    rfqDocument.setVersion(1);
-                    rfqDocument.setRfq(rfq);
-                    documents.add(rfqDocument);
-                }
-                rfq.setRfqDocument(documents);
-            }
+            // Documents are built by the shared pipeline, which owns both the per-file size limit and
+            // the column mapping. The email path used to map them itself and wrote the payload into
+            // file_details as well as file; file_details is a 64KB BLOB, so every attachment over
+            // 64KB failed the insert and rolled the whole RFQ back.
+            automaticRfqService.attachDocuments(rfq, request.getRfqDocument());
 
             boolean success = automaticRfqService.raiseRfq(rfq);
 
@@ -110,6 +100,18 @@ public class RFQApiService {
                     .createdAt(LocalDateTime.now())
                     .build();
 
+        } catch (RfqDocumentSizeExceededException e) {
+            // Reported with its own status so the caller can acknowledge an oversized attachment as
+            // such instead of as a generic creation failure.
+            log.warn("RFQ {} rejected because an attachment exceeds the allowed size: {}",
+                    request.getRfqNumber(), e.getMessage());
+            return RFQResponse.builder()
+                    .rfqNumber(request.getRfqNumber())
+                    .status(STATUS_FILE_SIZE_EXCEEDED)
+                    .buyerEmail(request.getBuyerEmail())
+                    .message(e.getMessage())
+                    .createdAt(LocalDateTime.now())
+                    .build();
         } catch (Exception e) {
             log.error("Error creating RFQ internally for RFQ Number {}: {}", request.getRfqNumber(), e.getMessage(), e);
             return RFQResponse.builder()

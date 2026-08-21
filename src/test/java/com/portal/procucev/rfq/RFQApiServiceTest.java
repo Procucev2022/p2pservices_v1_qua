@@ -1,5 +1,6 @@
 package com.portal.procucev.rfq;
 
+import com.portal.procucev.customexception.RfqDocumentSizeExceededException;
 import com.portal.procucev.model.Rfq;
 import com.portal.procucev.rfq.dto.RFQRequest;
 import com.portal.procucev.rfq.dto.RFQResponse;
@@ -9,6 +10,7 @@ import com.portal.procucev.service.AutomaticRfqService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
 import java.util.Base64;
@@ -173,3 +175,81 @@ public class RFQApiServiceTest {
     }
 }
 
+
+/**
+ * Behaviour added when the email path was moved onto the shared RFQ creation pipeline.
+ */
+class RFQApiServiceSharedPipelineTest {
+
+    private AutomaticRfqService automaticRfqService;
+    private RFQApiService rfqApiService;
+
+    @BeforeEach
+    void setUp() {
+        automaticRfqService = Mockito.mock(AutomaticRfqService.class);
+        rfqApiService = new RFQApiService(automaticRfqService, new DateParser());
+    }
+
+    @Test
+    @DisplayName("submitRFQ delegates document mapping to the shared pipeline instead of mapping them itself")
+    void submitRfqDelegatesDocumentMapping() {
+        Mockito.when(automaticRfqService.raiseRfq(any(Rfq.class))).thenReturn(true);
+
+        List<Map<String, String>> documents = List.of(
+                Map.of("fileName", "drawing.jpg", "file", Base64.getEncoder().encodeToString("payload".getBytes())));
+
+        RFQRequest req = RFQRequest.builder()
+                .rfqNumber("RFQ-200")
+                .buyerEmail("buyer@test.com")
+                .rfqDocument(documents)
+                .build();
+
+        assertEquals("SUCCESS", rfqApiService.submitRFQ(req).getStatus());
+        Mockito.verify(automaticRfqService).attachDocuments(any(Rfq.class), Mockito.eq(documents));
+    }
+
+    /**
+     * An oversized attachment must be reported as its own outcome. Reported as a generic failure it
+     * reached the "details missing" acknowledgement, which always names a missing quantity and so
+     * told the buyer their quantity was absent when it had been extracted correctly.
+     */
+    @Test
+    @DisplayName("submitRFQ reports FILE_SIZE_EXCEEDED when the shared pipeline rejects an oversized document")
+    void submitRfqReportsFileSizeExceeded() {
+        Mockito.doThrow(new RfqDocumentSizeExceededException("drawing.jpg", 30_000_000L, 26214400L))
+                .when(automaticRfqService).attachDocuments(any(Rfq.class), any());
+
+        RFQRequest req = RFQRequest.builder()
+                .rfqNumber("RFQ-201")
+                .buyerEmail("buyer@test.com")
+                .rfqDocument(List.of(Map.of("fileName", "drawing.jpg", "file", "AAAA")))
+                .build();
+
+        RFQResponse resp = rfqApiService.submitRFQ(req);
+
+        assertEquals(RFQApiService.STATUS_FILE_SIZE_EXCEEDED, resp.getStatus());
+        assertTrue(resp.getMessage().contains("drawing.jpg"));
+        assertTrue(resp.getMessage().contains("exceeds"));
+        Mockito.verify(automaticRfqService, Mockito.never()).raiseRfq(any(Rfq.class));
+    }
+
+    /**
+     * Quantity defaulting belongs to the shared pipeline. This path must pass the extracted value
+     * through unchanged so there is exactly one rule deciding what a missing quantity becomes.
+     */
+    @Test
+    @DisplayName("submitRFQ passes a missing quantity through as 0 for the shared default to handle")
+    void submitRfqPassesMissingQuantityThrough() {
+        ArgumentCaptor<Rfq> captor = ArgumentCaptor.forClass(Rfq.class);
+        Mockito.when(automaticRfqService.raiseRfq(captor.capture())).thenReturn(true);
+
+        RFQRequest req = RFQRequest.builder()
+                .rfqNumber("RFQ-202")
+                .buyerEmail("buyer@test.com")
+                .rfqItem(List.of(RFQRequest.RfqItemDto.builder().description("Washer").quantity(null).build()))
+                .build();
+
+        assertEquals("SUCCESS", rfqApiService.submitRFQ(req).getStatus());
+        assertEquals(0.0, captor.getValue().getRfqItem().get(0).getQuantity());
+    }
+}

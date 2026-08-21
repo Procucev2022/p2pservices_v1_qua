@@ -56,8 +56,17 @@ public class EmailReaderService {
     @Value("${app.mail.attachment-directory:./attachments}")
     private String attachmentDirectory;
 
+    /**
+     * Per-attachment size limit. Defaults to {@code app.rfq.max-document-bytes} in configuration so
+     * the mailbox accepts exactly what the web RFQ upload accepts.
+     */
     @Value("${app.mail.max-attachment-bytes:26214400}")
     private long maxAttachmentBytes = 26214400L;
+
+    /** Exposed so callers can report the limit that was breached instead of restating it. */
+    public long getMaxAttachmentBytes() {
+        return maxAttachmentBytes;
+    }
 
     @Value("${app.mail.connect-timeout-ms:15000}")
     private int connectTimeoutMs = 15000;
