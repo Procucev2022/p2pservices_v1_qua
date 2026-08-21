@@ -179,4 +179,22 @@ public class AcknowledgementEmailServiceTest {
         assertEquals("support@procucev.com", sentMsg.getCc()[0]);
         assertTrue(sentMsg.getSubject().contains("Duplicate Request Received"));
     }
+
+    @Test
+    @DisplayName("Test sendFileSizeExceededAcknowledgement sends failure alert to govardhan.kilari@procucev.com")
+    void testFileSizeExceededAcknowledgement() {
+        service.sendFileSizeExceededAcknowledgement("buyer@test.com", "John Doe", "drawing_huge.pdf", 26214400L);
+
+        ArgumentCaptor<SimpleMailMessage> captor = ArgumentCaptor.forClass(SimpleMailMessage.class);
+        Mockito.verify(mailSender).send(captor.capture());
+        SimpleMailMessage sentMsg = captor.getValue();
+
+        assertEquals("rfq@procucev.com", sentMsg.getFrom());
+        assertEquals("govardhan.kilari@procucev.com", sentMsg.getTo()[0]);
+        assertNotNull(sentMsg.getCc());
+        assertEquals("support@procucev.com", sentMsg.getCc()[0]);
+        assertTrue(sentMsg.getSubject().contains("File Size Exceeded"));
+        assertTrue(sentMsg.getText().contains("drawing_huge.pdf"));
+        assertTrue(sentMsg.getText().contains("25MB"));
+    }
 }

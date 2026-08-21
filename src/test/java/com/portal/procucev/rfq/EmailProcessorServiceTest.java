@@ -166,32 +166,45 @@ public class EmailProcessorServiceTest {
     }
 
     @Test
-    @DisplayName("Test processSingleEmail validation failure (missing quantity)")
-    void testProcessSingleEmailValidationFailedMissingQuantity() {
+    @DisplayName("Test processSingleEmail missing quantity defaults to 1.0 and creates RFQ successfully")
+    void testProcessSingleEmailMissingQuantityDefaultsToOne() {
         EmailData email = EmailData.builder()
-                .messageId("MSG-VAL-FAIL")
+                .messageId("MSG-VAL-QTY")
                 .senderEmail("buyer@test.com")
                 .subject("Need items")
                 .build();
 
-        Mockito.when(emailTransactionRepository.findByMessageId("MSG-VAL-FAIL")).thenReturn(Optional.empty());
+        Mockito.when(emailTransactionRepository.findByMessageId("MSG-VAL-QTY")).thenReturn(Optional.empty());
 
         Buyer verifiedBuyer = Buyer.builder().email("buyer@test.com").name("Buyer").verified(true).build();
         Mockito.when(buyerVerificationService.verifyAndGetBuyer("buyer@test.com")).thenReturn(verifiedBuyer);
 
         ExtractedRFQ rfq = ExtractedRFQ.builder()
                 .buyerEmail("buyer@test.com")
-                .items(List.of(RFQItem.builder().itemDescription("Laptop").quantity(null).build()))
+                .deliveryLocation("Bangalore")
+                .deliveryDate("2026-08-25")
+                .items(List.of(RFQItem.builder().itemDescription("Laptop").quantity(null).uom(null).build()))
                 .build();
         Mockito.when(aiExtractionService.extractRFQFromEmail(email)).thenReturn(rfq);
 
-        ValidationService.ValidationResult valResult = new ValidationService.ValidationResult(false, true, List.of("Laptop"), "Missing Qty");
+        ValidationService.ValidationResult valResult = new ValidationService.ValidationResult(true, false, List.of(), null);
         Mockito.when(validationService.validateWithDetails(any())).thenReturn(valResult);
+
+        RFQRequest request = RFQRequest.builder().rfqNumber("RFQ-QTY-1").deliveryDate("2026-08-25").build();
+        Mockito.when(rfqBuilderService.buildRFQRequest(any(), any(), any(), any())).thenReturn(request);
+
+        RFQResponse apiResponse = RFQResponse.builder().status("SUCCESS").rfqNumber("RFQ-QTY-1").build();
+        Mockito.when(rfqApiService.submitRFQ(request)).thenReturn(apiResponse);
+
+        RFQEntity savedEntity = RFQEntity.builder().rfqNumber("RFQ-QTY-1").buyerEmail("buyer@test.com").build();
+        Mockito.when(rfqRepository.save(any())).thenReturn(savedEntity);
 
         String result = emailProcessorService.processSingleEmail(email);
 
-        assertEquals("VALIDATION_FAILED", result);
-        Mockito.verify(acknowledgementEmailService).sendConsolidatedAcknowledgement(anyList(), anyList(), any(), any());
+        assertEquals("RFQ_CREATED", result);
+        assertEquals(1.0, rfq.getItems().get(0).getQuantity());
+        assertEquals("Nos", rfq.getItems().get(0).getUom());
+        Mockito.verify(acknowledgementEmailService).sendConsolidatedAcknowledgement(anyList(), anyList(), eq(verifiedBuyer), anyString());
     }
 
     @Test
@@ -289,7 +302,7 @@ public class EmailProcessorServiceTest {
         EmailData email = EmailData.builder()
                 .messageId("MSG-NO-ITEMS")
                 .senderEmail("buyer@test.com")
-                .subject("Empty Items")
+                .subject("RFQ")
                 .build();
 
         Mockito.when(emailTransactionRepository.findByMessageId("MSG-NO-ITEMS")).thenReturn(Optional.empty());
@@ -391,7 +404,7 @@ public class EmailProcessorServiceTest {
         EmailData email = EmailData.builder()
                 .messageId("MSG-NULL-ITEMS")
                 .senderEmail("buyer@test.com")
-                .subject("Need items")
+                .subject("RFQ")
                 .build();
 
         Mockito.when(emailTransactionRepository.findByMessageId("MSG-NULL-ITEMS")).thenReturn(Optional.empty());
@@ -415,7 +428,7 @@ public class EmailProcessorServiceTest {
         EmailData email = EmailData.builder()
                 .messageId("MSG-EMPTY-DEDUP")
                 .senderEmail("buyer@test.com")
-                .subject("Need items")
+                .subject("RFQ")
                 .build();
 
         Mockito.when(emailTransactionRepository.findByMessageId("MSG-EMPTY-DEDUP")).thenReturn(Optional.empty());
@@ -431,6 +444,29 @@ public class EmailProcessorServiceTest {
 
         String result = emailProcessorService.processSingleEmail(email);
         assertEquals("VALIDATION_FAILED", result);
+    }
+
+    @Test
+    @DisplayName("Test processSingleEmail with fileSizeExceeded moves to error folder and records transaction")
+    void testProcessSingleEmailFileSizeExceeded() {
+        EmailData email = EmailData.builder()
+                .messageId("MSG-LARGE-FILE")
+                .senderEmail("buyer@test.com")
+                .subject("Big Drawing RFQ")
+                .fileSizeExceeded(true)
+                .errorMessage("Attachment 'large_drawing.pdf' (30000000 bytes) exceeds the configured size limit of 26214400 bytes.")
+                .failedAttachmentName("large_drawing.pdf")
+                .build();
+
+        Mockito.when(emailTransactionRepository.findByMessageId("MSG-LARGE-FILE")).thenReturn(Optional.empty());
+        Buyer buyer = Buyer.builder().email("buyer@test.com").name("Buyer").verified(true).build();
+        Mockito.when(buyerVerificationService.verifyAndGetBuyer("buyer@test.com")).thenReturn(buyer);
+
+        String result = emailProcessorService.processSingleEmail(email);
+
+        assertEquals("FILE_SIZE_EXCEEDED", result);
+        Mockito.verify(acknowledgementEmailService).sendFileSizeExceededAcknowledgement(eq("buyer@test.com"), eq("Buyer"), eq("large_drawing.pdf"), anyLong());
+        Mockito.verify(emailReaderService).moveMessageToFolder(eq("MSG-LARGE-FILE"), any());
     }
 
     @Test

@@ -156,6 +156,29 @@ public class AcknowledgementEmailService {
         }
     }
 
+    public void sendFileSizeExceededAcknowledgement(String buyerEmail, String buyerName, String attachmentName, long maxBytes) {
+        String recipient = resolveFailureRecipient();
+        try {
+            long maxMb = maxBytes > 0 ? maxBytes / (1024 * 1024) : 25;
+            String resolvedName = (buyerName != null && !buyerName.isBlank()) ? buyerName : "Valued Customer";
+            String buyerHeader = (buyerEmail != null && !buyerEmail.isBlank()) ? "Buyer Email: " + buyerEmail + "\n\n" : "";
+
+            SimpleMailMessage mailMessage = createBaseMailMessage(recipient);
+            mailMessage.setSubject("⚠️ File Size Exceeded: Could Not Process Your RFQ");
+            mailMessage.setText(buyerHeader + "Hi " + resolvedName + ",\n\n"
+                    + "We received your email, but we were unable to process it because an attachment"
+                    + (attachmentName != null && !attachmentName.isBlank() ? " ('" + attachmentName + "')" : "")
+                    + " exceeds the maximum allowed file size of " + maxMb + "MB.\n\n"
+                    + "Please reduce the file size (maximum " + maxMb + "MB per attachment) or send attachments within the limit, and reply to submit your RFQ again.\n\n"
+                    + "Best regards,\nTeam Procucev");
+
+            mailSender.send(mailMessage);
+            log.info("File size exceeded acknowledgement sent to {} for buyer '{}'", recipient, buyerEmail);
+        } catch (Exception e) {
+            log.error("Failed to send file size exceeded acknowledgement to {}: {}", recipient, e.getMessage());
+        }
+    }
+
     private void sendPartialSuccessAcknowledgement(String buyerEmail, String buyerName,
                                                    List<RFQEntity> createdRfqs, List<String> failedItems) {
         String recipient = resolveFailureRecipient();

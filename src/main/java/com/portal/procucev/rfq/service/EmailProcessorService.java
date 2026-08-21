@@ -125,6 +125,25 @@ public class EmailProcessorService {
         transaction.setErrorMessage(null);
         emailTransactionRepository.save(transaction);
 
+        if (email.isFileSizeExceeded()) {
+            log.warn("Email attachment size limit exceeded for sender '{}', messageId=[{}]: {}",
+                    normalizedSender, email.getMessageId(), email.getErrorMessage());
+            transaction.setStatus("FILE_SIZE_EXCEEDED");
+            transaction.setErrorMessage(email.getErrorMessage());
+            emailTransactionRepository.save(transaction);
+
+            Buyer buyer = null;
+            try {
+                buyer = buyerVerificationService.verifyAndGetBuyer(normalizedSender);
+            } catch (Exception ignored) {}
+
+            String buyerName = buyer != null ? buyer.getName() : null;
+            acknowledgementEmailService.sendFileSizeExceededAcknowledgement(
+                    normalizedSender, buyerName, email.getFailedAttachmentName(), 26214400L);
+            emailReaderService.moveMessageToFolder(email.getMessageId(), errorFolder);
+            return "FILE_SIZE_EXCEEDED";
+        }
+
         try {
             // STEP 1: VALIDATE BUYER FIRST BEFORE CALLING GEMINI AI
             log.info("Validating buyer for sender email: {}", normalizedSender);
@@ -216,7 +235,6 @@ public class EmailProcessorService {
             List<RFQItem> validItems = new ArrayList<>();
             List<String> failedItemsList = new ArrayList<>();
             Set<String> seenInEmailKeys = new HashSet<>();
-            boolean hasItemMissingQuantity = false;
             String topDeliveryDate = extractedRFQ.getDeliveryDate() != null ? extractedRFQ.getDeliveryDate().trim() : "";
             String topDeliveryLocation = extractedRFQ.getDeliveryLocation() != null ? extractedRFQ.getDeliveryLocation().trim() : "";
 
@@ -263,9 +281,12 @@ public class EmailProcessorService {
                     String scannedProduct = stripTrailingLabels(scanFieldFromEmail(email, PRODUCT_LABEL_REGEX));
                     if (scannedProduct != null && !scannedProduct.isBlank()) {
                         desc = scannedProduct.trim();
-                    } else {
-                        desc = "RFQ Procurement Item";
                     }
+                }
+                if (desc.isBlank()) {
+                    log.warn("Item has no description in payload, subject, or email body. Skipping item.");
+                    failedItemsList.add("Item has no description");
+                    continue;
                 }
                 item.setItemDescription(desc);
 
@@ -355,32 +376,13 @@ public class EmailProcessorService {
                     }
                 }
 
-                // Verify if quantity was inferred as 1.0 without explicit purchasing quantity statement in email text
-                if (item.getQuantity() == null || item.getQuantity() == 1.0) {
-                    boolean hasExplicitQuantityInText = hasExplicitPurchaseQuantityInText(email.getSubject(), email.getBody(), email.getAttachmentText());
-                    if (!hasExplicitQuantityInText) {
-                        log.warn("No explicit purchase quantity stated in email text for item '{}'. Resetting quantity to null.", desc);
-                        item.setQuantity(null);
-                    }
-                }
-
-                // MANDATORY QUANTITY VALIDATION PER ITEM
-                // Every offending row is recorded before the payload is rejected. Breaking out on the
-                // first one discarded the already-validated items and told the buyer about a single
-                // line, which is unusable feedback on a requirement sheet with many rows.
+                // Default quantity to 1.0 (and UOM to "Nos") if missing after extraction and recovery
                 if (item.getQuantity() == null || item.getQuantity() <= 0) {
-                    // Spell out everything that was tried, so the log distinguishes "the buyer did
-                    // not state a quantity" from "we failed to read one that was there".
-                    log.warn("REJECTING item '{}': no usable quantity after all recovery steps. "
-                            + "Model returned null, per-item name-anchored scan found nothing"
-                            + "{}, and the email text {} an explicit quantity keyword.",
-                            desc,
-                            isMultiItemPayload ? " (whole-email scan skipped: multi-item payload)" : " and the whole-email scan found nothing",
-                            hasExplicitPurchaseQuantityInText(email.getSubject(), email.getBody(), email.getAttachmentText())
-                                    ? "DOES contain" : "does NOT contain");
-                    failedItemsList.add("Item: " + desc + " | Reason: Quantity is mandatory. Please provide the required quantity.");
-                    hasItemMissingQuantity = true;
-                    continue;
+                    log.info("No explicit quantity stated for item '{}'. Defaulting quantity to 1.0.", desc);
+                    item.setQuantity(1.0);
+                }
+                if (item.getUom() == null || item.getUom().isBlank() || item.getUom().equalsIgnoreCase("null") || item.getUom().equalsIgnoreCase("Not Specified")) {
+                    item.setUom("Nos");
                 }
 
                 // Resolve item-level location & date fallbacks with ISO yyyy-MM-dd normalization
@@ -409,22 +411,16 @@ public class EmailProcessorService {
                 validItems.add(item);
             }
 
-            log.info("Item validation complete: {} of {} extracted item(s) are valid, {} rejected.",
-                    validItems.size(), extractedRFQ.getItems().size(), failedItemsList.size());
-
-            if (hasItemMissingQuantity) {
-                log.warn("Rejecting email payload: {} of {} item(s) are missing a mandatory quantity.",
-                        failedItemsList.size(), extractedRFQ.getItems().size());
-                validItems.clear();
-            }
+            log.info("Item validation complete: {} of {} extracted item(s) are valid.",
+                    validItems.size(), extractedRFQ.getItems().size());
 
             if (validItems.isEmpty()) {
-                log.warn("RFQ validation failed: All items in email were invalid or missing mandatory quantity/location.");
-                acknowledgementEmailService.sendConsolidatedAcknowledgement(Collections.emptyList(), failedItemsList, buyer, email.getSubject());
+                log.warn("RFQ validation failed: All items in email were invalid.");
+                acknowledgementEmailService.sendConsolidatedAcknowledgement(Collections.emptyList(), List.of("No valid items extracted from email"), buyer, email.getSubject());
                 emailReaderService.moveMessageToFolder(email.getMessageId(), errorFolder);
 
                 transaction.setStatus("VALIDATION_FAILED");
-                transaction.setErrorMessage("No valid items with mandatory quantity");
+                transaction.setErrorMessage("No valid items extracted");
                 emailTransactionRepository.save(transaction);
                 return "VALIDATION_FAILED";
             }
@@ -573,7 +569,7 @@ public class EmailProcessorService {
     }
 
     private boolean isErrorStatus(String status) {
-        return Set.of("FAILED", "PARTIAL_FAILURE", "AI_FAILED", "VALIDATION_FAILED", "INVALID_BUYER")
+        return Set.of("FAILED", "PARTIAL_FAILURE", "AI_FAILED", "VALIDATION_FAILED", "INVALID_BUYER", "FILE_SIZE_EXCEEDED")
                 .contains(status);
     }
 
@@ -782,7 +778,12 @@ public class EmailProcessorService {
 
     private String extractProductFromSubject(String subject) {
         if (subject == null || subject.isBlank()) return "";
-        String clean = subject.replaceAll("(?i)^(re:|fwd:|rfq:|request for quotation[:\\-–—]?|inquiry for[:\\-–—]?)", "").trim();
+        String clean = subject.replaceAll("(?i)^(?:re|fwd|rfq|request for quotation|inquiry for|inquiry)[:\\-–—\\s]+", "").trim();
+        if (clean.equalsIgnoreCase("rfq") || clean.equalsIgnoreCase("request for quotation")
+                || clean.equalsIgnoreCase("inquiry") || clean.equalsIgnoreCase("(no subject)")
+                || clean.equalsIgnoreCase("no subject")) {
+            return "";
+        }
         return clean;
     }
 

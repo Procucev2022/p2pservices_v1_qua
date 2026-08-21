@@ -92,8 +92,8 @@ public class EmailRfqValidationRulesTest {
     }
 
     @Test
-    @DisplayName("TEST 3: Missing quantity -> Validation fails and reports missing quantity")
-    void test3_MissingQuantityFails() {
+    @DisplayName("TEST 3: Missing quantity -> Validation defaults quantity to 1.0 and passes")
+    void test3_MissingQuantityDefaultsToOne() {
         ExtractedRFQ rfq = ExtractedRFQ.builder()
                 .buyerEmail("buyer@procucev.com")
                 .items(List.of(
@@ -102,28 +102,26 @@ public class EmailRfqValidationRulesTest {
                 .build();
 
         ValidationService.ValidationResult result = validationService.validateWithDetails(rfq);
-        assertFalse(result.isValid());
-        assertTrue(result.isMissingQuantity());
-        assertEquals(1, result.getMissingItems().size());
-        assertTrue(result.getFailureReason().contains("quantity is missing for:\n1. Dell Latitude Laptops"));
+        assertTrue(result.isValid());
+        assertEquals(1.0, rfq.getItems().get(0).getQuantity());
     }
 
     @Test
-    @DisplayName("TEST 4: Multiple items where one item is missing quantity -> Entire RFQ fails (No partial RFQ)")
-    void test4_MultipleItemsOneMissingQuantityFailsEntireRfq() {
+    @DisplayName("TEST 4: Multiple items where one item is missing quantity -> Defaults to 1.0 and passes")
+    void test4_MultipleItemsOneMissingQuantityDefaultsToOne() {
         ExtractedRFQ rfq = ExtractedRFQ.builder()
                 .buyerEmail("buyer@procucev.com")
                 .items(List.of(
                         RFQItem.builder().itemDescription("Dell Latitude Laptop").quantity(20.0).uom("NOS").build(),
-                        RFQItem.builder().itemDescription("Computer Monitor").quantity(null).uom("NOS").build()
+                        RFQItem.builder().itemDescription("Computer Monitor").quantity(null).uom(null).build()
                 ))
                 .build();
 
         ValidationService.ValidationResult result = validationService.validateWithDetails(rfq);
-        assertFalse(result.isValid());
-        assertTrue(result.isMissingQuantity());
-        assertEquals(1, result.getMissingItems().size());
-        assertEquals("Computer Monitor", result.getMissingItems().get(0));
+        assertTrue(result.isValid());
+        assertEquals(20.0, rfq.getItems().get(0).getQuantity());
+        assertEquals(1.0, rfq.getItems().get(1).getQuantity());
+        assertEquals("Nos", rfq.getItems().get(1).getUom());
     }
 
     @Test

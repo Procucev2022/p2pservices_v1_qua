@@ -284,7 +284,7 @@ public class RfqProcessingFlowIntegrationTest {
     }
 
     @Test
-    @DisplayName("Test 7: Missing quantity in email -> RFQ Creation Aborted + Details Missing Email Sent")
+    @DisplayName("Test 7: Missing quantity in email -> Defaults to 1.0 and RFQ created successfully")
     void test7_MissingQuantity() {
         EmailData email = EmailData.builder().messageId("MSG-007").subject("No Qty").senderEmail("buyer@procucev.com").body("No qty bearings").build();
 
@@ -299,13 +299,8 @@ public class RfqProcessingFlowIntegrationTest {
 
         String result = emailProcessorService.processSingleEmail(email);
 
-        assertEquals("VALIDATION_FAILED", result);
-        verify(rfqRepository, never()).save(any(RFQEntity.class));
-
-        ArgumentCaptor<SimpleMailMessage> mailCaptor = ArgumentCaptor.forClass(SimpleMailMessage.class);
-        verify(mailSender, times(1)).send(mailCaptor.capture());
-        assertEquals("govardhan.kilari@procucev.com", mailCaptor.getValue().getTo()[0]);
-        assertTrue(mailCaptor.getValue().getText().contains("Quantity"));
+        assertEquals("RFQ_CREATED", result);
+        verify(rfqRepository, times(1)).save(any(RFQEntity.class));
     }
 
     @Test
