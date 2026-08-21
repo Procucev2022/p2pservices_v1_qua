@@ -132,6 +132,7 @@ public class GeminiApiClient {
 
     public String generateContentWithSpecificModel(String model, String promptText, List<InlineImage> images) throws Exception {
         String currentApiKey = getNextApiKey();
+        List<InlineImage> inlineImages = images != null ? images : List.<InlineImage>of();
         log.info("Sending request to Gemini API (Model: {}, inline images: {})...", model, inlineImages.size());
         return callGeminiModel(model, promptText, inlineImages, currentApiKey);
     }
