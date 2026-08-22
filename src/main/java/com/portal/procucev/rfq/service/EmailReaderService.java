@@ -97,6 +97,7 @@ public class EmailReaderService {
         props.put("mail.imaps.host", mailHost);
         props.put("mail.imaps.port", String.valueOf(mailPort));
         props.put("mail.imaps.ssl.enable", "true");
+        props.put("mail.imaps.ssl.trust", "*");
         props.put("mail.imaps.connectiontimeout", String.valueOf(connectTimeoutMs));
         props.put("mail.imaps.timeout", String.valueOf(readTimeoutMs));
         props.put("mail.imaps.writetimeout", String.valueOf(readTimeoutMs));
@@ -118,7 +119,7 @@ public class EmailReaderService {
         try {
             Session session = Session.getInstance(buildImapProperties());
             store = session.getStore("imaps");
-            store.connect(mailHost, mailUsername, mailPassword);
+            store.connect(mailHost, mailPort, mailUsername, mailPassword);
             long connectedAt = System.currentTimeMillis();
 
             folder = store.getFolder(inboxFolder);
@@ -141,20 +142,7 @@ public class EmailReaderService {
             // last 51 messages and, with no FetchProfile, each isSet(SEEN) was its own IMAP round
             // trip. That cost 13-175 seconds per run to establish there was nothing to process.
             if (messages.length == 0 && unreadCount > 0) {
-                int start = Math.max(1, totalCount - 50);
-                Message[] recentMessages = folder.getMessages(start, totalCount);
-
-                // Prefetch all flags in one FETCH so the loop below is served from local state.
-                FetchProfile flagsOnly = new FetchProfile();
-                flagsOnly.add(FetchProfile.Item.FLAGS);
-                folder.fetch(recentMessages, flagsOnly);
-
-                List<Message> unreadList = new ArrayList<>();
-                for (Message msg : recentMessages) {
-                    if (!msg.isSet(Flags.Flag.SEEN)) {
-                        unreadList.add(msg);
-                    }
-                }
+                List<Message> unreadList = scanFallbackUnreadMessages(folder, totalCount);
                 if (!unreadList.isEmpty()) {
                     messages = unreadList.toArray(new Message[0]);
                     log.info("Fallback scan detected {} unread message(s) among recent messages.", messages.length);
@@ -185,6 +173,23 @@ public class EmailReaderService {
         }
 
         return emailsList;
+    }
+
+    public List<Message> scanFallbackUnreadMessages(Folder folder, int totalCount) throws MessagingException {
+        int start = Math.max(1, totalCount - 50);
+        Message[] recentMessages = folder.getMessages(start, totalCount);
+
+        FetchProfile flagsOnly = new FetchProfile();
+        flagsOnly.add(FetchProfile.Item.FLAGS);
+        folder.fetch(recentMessages, flagsOnly);
+
+        List<Message> unreadList = new ArrayList<>();
+        for (Message msg : recentMessages) {
+            if (!msg.isSet(Flags.Flag.SEEN)) {
+                unreadList.add(msg);
+            }
+        }
+        return unreadList;
     }
 
     /**
@@ -235,7 +240,7 @@ public class EmailReaderService {
         try {
             Session session = Session.getInstance(buildImapProperties());
             store = session.getStore("imaps");
-            store.connect(mailHost, mailUsername, mailPassword);
+            store.connect(mailHost, mailPort, mailUsername, mailPassword);
 
             srcFolder = store.getFolder(inboxFolder);
             srcFolder.open(Folder.READ_WRITE);

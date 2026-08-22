@@ -107,26 +107,20 @@ public class AcknowledgementEmailService {
     }
 
     public void sendConsolidatedAcknowledgement(List<RFQEntity> createdRfqs, List<String> failedItems, Buyer buyer, String rawSubject) {
-        if (createdRfqs != null && !createdRfqs.isEmpty() && (failedItems == null || failedItems.isEmpty())) {
-            sendSuccessAcknowledgement(createdRfqs, buyer);
-        } else if (createdRfqs != null && !createdRfqs.isEmpty()) {
-            sendSuccessAcknowledgement(createdRfqs, buyer);
-            String buyerEmail = (buyer != null && buyer.getEmail() != null && !buyer.getEmail().isBlank()) ? buyer.getEmail() : "";
-            sendPartialSuccessAcknowledgement(buyerEmail, resolveBuyerName(buyer), createdRfqs, failedItems);
-        } else {
-            String buyerEmail = (buyer != null && buyer.getEmail() != null && !buyer.getEmail().isBlank())
-                    ? buyer.getEmail() : "";
-            String buyerName = resolveBuyerName(buyer);
+        String buyerEmail = (buyer != null && buyer.getEmail() != null) ? buyer.getEmail().trim() : "";
+        String buyerName = resolveBuyerName(buyer);
+        boolean hasCreated = createdRfqs != null && !createdRfqs.isEmpty();
+        boolean hasFailed = failedItems != null && !failedItems.isEmpty();
 
-            // Only use the "details missing" template when a detail actually is missing. It always
-            // lists a missing quantity, so routing an unrelated failure here reported a data problem
-            // the buyer did not have: a rejected insert was acknowledged as a missing quantity even
-            // though the quantity had been extracted correctly.
-            if (describesMissingDetail(failedItems)) {
-                sendCase3DetailsMissingAcknowledgement(buyerEmail, buyerName, failedItems);
-            } else {
-                sendProcessingFailureAcknowledgement(buyerEmail, buyerName, summariseFailures(failedItems));
-            }
+        if (hasCreated && !hasFailed) {
+            sendSuccessAcknowledgement(createdRfqs, buyer);
+        } else if (hasCreated) {
+            sendSuccessAcknowledgement(createdRfqs, buyer);
+            sendPartialSuccessAcknowledgement(buyerEmail, buyerName, createdRfqs, failedItems);
+        } else if (describesMissingDetail(failedItems)) {
+            sendCase3DetailsMissingAcknowledgement(buyerEmail, buyerName, failedItems);
+        } else {
+            sendProcessingFailureAcknowledgement(buyerEmail, buyerName, summariseFailures(failedItems));
         }
     }
 
