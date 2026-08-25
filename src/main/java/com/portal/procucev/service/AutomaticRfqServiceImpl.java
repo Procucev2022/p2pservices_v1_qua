@@ -15,6 +15,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DataAccessException;
+import org.springframework.dao.DuplicateKeyException;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
 import com.portal.procucev.customexception.RfqDocumentSizeExceededException;
@@ -62,6 +64,9 @@ PincodeDao pincodeDao;
 
 @Autowired
 RFQRepository rfqRepository;
+
+@Autowired
+JdbcTemplate jdbcTemplate;
 
 	/**
 	 * Per-document size cap, shared with the web multipart limit and the email pipeline's attachment
@@ -334,12 +339,22 @@ RFQRepository rfqRepository;
 			for (int attempt = 0; attempt < 1_000_000; attempt++) {
 				int suffix = (start + attempt) % 1_000_000;
 				String candidate = companyLetters + datePart + String.format("%06d", suffix);
-				if (rfqDao.findByRfqId(candidate) == null && rfqRepository.findByRfqNumber(candidate).isEmpty()) {
+				if (rfqDao.findByRfqId(candidate) == null
+						&& rfqRepository.findByRfqNumber(candidate).isEmpty()
+						&& reserveRfqNumber(candidate)) {
 					return candidate;
 				}
 			}
 		}
 		throw new IllegalStateException("Unable to allocate unique RFQ id suffix");
+	}
+
+	private boolean reserveRfqNumber(String candidate) {
+		try {
+			return jdbcTemplate.update("INSERT INTO rfq_id_reservations (rfq_number) VALUES (?)", candidate) == 1;
+		} catch (DuplicateKeyException ex) {
+			return false;
+		}
 	}
 	
 	private GmtItems mapRfqItemToGmtItem(RfqItem rfqItem) {

@@ -6,11 +6,13 @@ import com.portal.procucev.model.*;
 import com.portal.procucev.rfq.repository.RFQRepository;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.jdbc.core.JdbcTemplate;
 
 import java.util.*;
 
@@ -36,9 +38,16 @@ class AutomaticRfqServiceImplTest {
     private PincodeDao pincodeDao;
     @Mock
     private RFQRepository rfqRepository;
+    @Mock
+    private JdbcTemplate jdbcTemplate;
 
     @InjectMocks
     private AutomaticRfqServiceImpl service;
+
+    @BeforeEach
+    void setUp() {
+        lenient().when(jdbcTemplate.update(anyString(), org.mockito.ArgumentMatchers.<Object[]>any())).thenReturn(1);
+    }
 
     @Test
     void testGetMaxDocumentBytes() {

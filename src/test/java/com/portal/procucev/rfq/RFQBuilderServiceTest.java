@@ -23,7 +23,6 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.eq;
 
 import com.portal.procucev.service.AutomaticRfqService;
-import com.portal.procucev.service.AutomaticRfqServiceImpl;
 
 public class RFQBuilderServiceTest {
 
@@ -39,7 +38,8 @@ public class RFQBuilderServiceTest {
     void setUp() {
         dateParser = new DateParser();
         pincodeDao = Mockito.mock(PincodeDao.class);
-        automaticRfqService = new AutomaticRfqServiceImpl();
+        automaticRfqService = Mockito.mock(AutomaticRfqService.class);
+        Mockito.when(automaticRfqService.generateRfqId("RFQ")).thenReturn("RFQ260825000001");
         rfqBuilderService = new RFQBuilderService(dateParser, pincodeDao, automaticRfqService);
     }
 
@@ -1140,6 +1140,5 @@ public class RFQBuilderServiceTest {
         assertEquals("560001", reqPinOnly2.getClientdeliverylocationrfq().get(0).getPincode());
     }
 }
-
 
 
