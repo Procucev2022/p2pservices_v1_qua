@@ -65,7 +65,7 @@ public class EmailRfqValidationRulesTest {
     @DisplayName("TEST 2 & 6: Delivery location fallback uses buyer registration address when location is missing")
     void test2_DeliveryLocationFallback() {
         PincodeDao pincodeDao = Mockito.mock(PincodeDao.class);
-        RFQBuilderService rfqBuilderService = new RFQBuilderService(dateParser, pincodeDao);
+        RFQBuilderService rfqBuilderService = new RFQBuilderService(dateParser, pincodeDao, new com.portal.procucev.service.AutomaticRfqServiceImpl());
         Buyer buyer = Buyer.builder()
                 .address("45 Outer Ring Road, Mahadevapura")
                 .city("Bengaluru")

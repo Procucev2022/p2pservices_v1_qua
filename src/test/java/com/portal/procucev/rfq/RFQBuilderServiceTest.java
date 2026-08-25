@@ -29,13 +29,15 @@ public class RFQBuilderServiceTest {
 
     private DateParser dateParser;
     private PincodeDao pincodeDao;
+    private com.portal.procucev.service.AutomaticRfqService autoRfqService;
     private RFQBuilderService rfqBuilderService;
 
     @BeforeEach
     void setUp() {
         dateParser = new DateParser();
         pincodeDao = Mockito.mock(PincodeDao.class);
-        rfqBuilderService = new RFQBuilderService(dateParser, pincodeDao);
+        autoRfqService = new com.portal.procucev.service.AutomaticRfqServiceImpl();
+        rfqBuilderService = new RFQBuilderService(dateParser, pincodeDao, autoRfqService);
     }
 
     @Test
@@ -67,7 +69,7 @@ public class RFQBuilderServiceTest {
         RFQRequest req = rfqBuilderService.buildRFQRequest(rfq, buyer, "Subject", null);
 
         assertNotNull(req);
-        assertTrue(req.getRfqNumber().startsWith("RFQ-"));
+        assertTrue(req.getRfqNumber().startsWith("RFQ"));
         assertEquals("John Doe", req.getCreatedBy());
         assertEquals("Dell Laptop", req.getProjectDesc());
         assertEquals("2026-08-25", req.getDeliveryDate());

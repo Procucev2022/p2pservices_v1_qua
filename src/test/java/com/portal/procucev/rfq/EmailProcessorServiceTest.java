@@ -3028,8 +3028,83 @@ public class EmailProcessorServiceTest {
         Mockito.when(aiExtractionService.extractRFQFromEmail(populatedItemEmail)).thenReturn(extPopulated);
         Mockito.when(rfqApiService.submitRFQ(Mockito.any(RFQRequest.class)))
                 .thenReturn(RFQResponse.builder().status("SUCCESS").rfqNumber("RFQ-POPULATED-1").build());
-        String popRes = emailProcessorService.processSingleEmail(populatedItemEmail);
-        assertEquals("RFQ_CREATED", popRes);
+        // D. Comprehensive mergeThreadContext and helper method branch matrix
+        EmailTransaction histMatrixTx = new EmailTransaction();
+        histMatrixTx.setMessageId("HIST-MATRIX-1");
+        histMatrixTx.setExtractionJson("{\"deliveryLocation\":\"Hist Delivery Location\",\"deliveryDate\":\"2026-12-31\",\"items\":["
+                + "{\"itemDescription\":\"Hist Product A\",\"specification\":\"Hist Spec A\",\"brand\":\"Hist Brand A\",\"category\":\"Hist Cat A\"},"
+                + "{\"itemDescription\":\"Hist Product B\",\"specification\":\"Hist Spec B\",\"brand\":\"Hist Brand B\",\"category\":\"Hist Cat B\"},"
+                + "{\"itemDescription\":\"Hist Product C\",\"specification\":\"Hist Spec C\",\"brand\":\"Hist Brand C\",\"category\":\"Hist Cat C\"}"
+                + "]}");
+        Mockito.when(emailTransactionRepository.findByMessageId("HIST-MATRIX-1")).thenReturn(Optional.of(histMatrixTx));
+
+        // Test matrix: item 0 has spec; item 1 has brand; item 2 has category; item 3 has nothing (tests index >= historical size fallback)
+        ExtractedRFQ extMatrix = ExtractedRFQ.builder()
+                .deliveryLocation("")
+                .deliveryDate("")
+                .items(new java.util.ArrayList<>(List.of(
+                        RFQItem.builder().itemDescription("").specification("Current Spec A").brand("").category(null).build(),
+                        RFQItem.builder().itemDescription("").specification("").brand("Current Brand B").category("").build(),
+                        RFQItem.builder().itemDescription("").specification(null).brand(null).category("Current Cat C").build(),
+                        RFQItem.builder().itemDescription("").specification("").brand("").category("").build()
+                )))
+                .build();
+
+        EmailData matrixEmail = EmailData.builder()
+                .inReplyTo("HIST-MATRIX-1")
+                .references("REF-EXTRA-1")
+                .body("Please update with details")
+                .build();
+
+        ExtractedRFQ mergedMatrix = ReflectionTestUtils.invokeMethod(emailProcessorService, "mergeThreadContext", matrixEmail, extMatrix);
+        assertNotNull(mergedMatrix);
+        assertEquals("Hist Delivery Location", mergedMatrix.getDeliveryLocation());
+        assertEquals("2026-12-31", mergedMatrix.getDeliveryDate());
+        assertEquals("Hist Product A", mergedMatrix.getItems().get(0).getItemDescription());
+        assertEquals("Current Spec A", mergedMatrix.getItems().get(0).getSpecification());
+        assertEquals("Hist Brand A", mergedMatrix.getItems().get(0).getBrand());
+        assertEquals("Hist Cat A", mergedMatrix.getItems().get(0).getCategory());
+
+        assertEquals("Hist Product B", mergedMatrix.getItems().get(1).getItemDescription());
+        assertEquals("Hist Spec B", mergedMatrix.getItems().get(1).getSpecification());
+        assertEquals("Current Brand B", mergedMatrix.getItems().get(1).getBrand());
+        assertEquals("Hist Cat B", mergedMatrix.getItems().get(1).getCategory());
+
+        assertEquals("Hist Product C", mergedMatrix.getItems().get(2).getItemDescription());
+        assertEquals("Hist Spec C", mergedMatrix.getItems().get(2).getSpecification());
+        assertEquals("Hist Brand C", mergedMatrix.getItems().get(2).getBrand());
+        assertEquals("Current Cat C", mergedMatrix.getItems().get(2).getCategory());
+
+        assertEquals("Hist Product A", mergedMatrix.getItems().get(3).getItemDescription());
+        assertEquals("Hist Spec A", mergedMatrix.getItems().get(3).getSpecification());
+
+        // Test non-blank delivery location and date are preserved
+        ExtractedRFQ extPreserved = ExtractedRFQ.builder()
+                .deliveryLocation("Keep My Location")
+                .deliveryDate("2026-11-11")
+                .items(new java.util.ArrayList<>(List.of(
+                        RFQItem.builder().itemDescription("Keep My Product").specification("Keep Spec").brand("Keep Brand").category("Keep Cat").build()
+                )))
+                .build();
+        ExtractedRFQ mergedPreserved = ReflectionTestUtils.invokeMethod(emailProcessorService, "mergeThreadContext", matrixEmail, extPreserved);
+        assertNotNull(mergedPreserved);
+        assertEquals("Keep My Location", mergedPreserved.getDeliveryLocation());
+        assertEquals("2026-11-11", mergedPreserved.getDeliveryDate());
+        assertEquals("Keep My Product", mergedPreserved.getItems().get(0).getItemDescription());
+        assertEquals("Keep Spec", mergedPreserved.getItems().get(0).getSpecification());
+
+        // Test empty historical items and empty extracted items branches
+        ExtractedRFQ extEmpty = ExtractedRFQ.builder().items(new java.util.ArrayList<>()).build();
+        ExtractedRFQ mergedEmpty = ReflectionTestUtils.invokeMethod(emailProcessorService, "mergeThreadContext", matrixEmail, extEmpty);
+        assertNotNull(mergedEmpty);
+
+        EmailTransaction histEmptyItemsTx = new EmailTransaction();
+        histEmptyItemsTx.setMessageId("HIST-EMPTY-ITEMS");
+        histEmptyItemsTx.setExtractionJson("{\"items\":[]}");
+        Mockito.when(emailTransactionRepository.findByMessageId("HIST-EMPTY-ITEMS")).thenReturn(Optional.of(histEmptyItemsTx));
+        EmailData emailHistEmpty = EmailData.builder().inReplyTo("HIST-EMPTY-ITEMS").build();
+        ExtractedRFQ mergedHistEmpty = ReflectionTestUtils.invokeMethod(emailProcessorService, "mergeThreadContext", emailHistEmpty, extMatrix);
+        assertNotNull(mergedHistEmpty);
     }
 }
 

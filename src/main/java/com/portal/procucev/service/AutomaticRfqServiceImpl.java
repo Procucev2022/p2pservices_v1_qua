@@ -327,10 +327,6 @@ PincodeDao pincodeDao;
 		// milliseconds part
 		long millis = System.currentTimeMillis() % 1000000; // last 6 digits to shorten
 
-		// optional random 3-digit suffix
-		// int random = (int) (Math.random() * 1000);
-
-		// return companyLetters + datePart + millis + String.format("%03d", random);
 		return companyLetters + datePart + millis;
 	}
 	
