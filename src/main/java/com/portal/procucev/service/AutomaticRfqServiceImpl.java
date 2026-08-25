@@ -24,6 +24,7 @@ import com.portal.procucev.dao.OrgDao;
 import com.portal.procucev.dao.PincodeDao;
 import com.portal.procucev.dao.RfqDao;
 import com.portal.procucev.dao.UserDao;
+import com.portal.procucev.rfq.repository.RFQRepository;
 import com.portal.procucev.model.ClientDeliveryLocationRfq;
 import com.portal.procucev.model.GmtItems;
 import com.portal.procucev.model.MasterStatus;
@@ -58,6 +59,9 @@ OrgDao orgDao;
 
 @Autowired
 PincodeDao pincodeDao;
+
+@Autowired
+RFQRepository rfqRepository;
 
 	/**
 	 * Per-document size cap, shared with the web multipart limit and the email pipeline's attachment
@@ -324,14 +328,18 @@ PincodeDao pincodeDao;
 		// current date in ddMM format
 		String datePart = new SimpleDateFormat("yyddMM").format(new Date());
 
-		// milliseconds part
-		long millis = System.currentTimeMillis() % 1000000; // last 6 digits to shorten
-
-		// optional random 3-digit suffix
-		// int random = (int) (Math.random() * 1000);
-
-		// return companyLetters + datePart + millis + String.format("%03d", random);
-		return companyLetters + datePart + String.format("%06d", millis);
+		// Allocate and reserve the 6-digit suffix atomically per JVM instance.
+		synchronized (this) {
+			int start = (int) (System.currentTimeMillis() % 1_000_000);
+			for (int attempt = 0; attempt < 1_000_000; attempt++) {
+				int suffix = (start + attempt) % 1_000_000;
+				String candidate = companyLetters + datePart + String.format("%06d", suffix);
+				if (rfqDao.findByRfqId(candidate) == null && rfqRepository.findByRfqNumber(candidate).isEmpty()) {
+					return candidate;
+				}
+			}
+		}
+		throw new IllegalStateException("Unable to allocate unique RFQ id suffix");
 	}
 	
 	private GmtItems mapRfqItemToGmtItem(RfqItem rfqItem) {

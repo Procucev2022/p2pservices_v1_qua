@@ -77,6 +77,8 @@ class GMTServiceImplTest {
     @Mock
     private JavaMailSender javaMailSender;
     @Mock
+    private AutomaticRfqService automaticRfqService;
+    @Mock
     private MimeMessage mimeMessage;
 
     @InjectMocks
@@ -119,6 +121,7 @@ class GMTServiceImplTest {
         when(userDao.findByUsernameAndPhoneAndActive(anyString(), anyString(), eq(true))).thenReturn(user);
         when(userDao.findByUsernameAndActive(anyString(), eq(true))).thenReturn(user);
         when(orgDao.findRfqCreditsByOrg(anyString())).thenReturn(10);
+        when(automaticRfqService.generateRfqId(anyString())).thenReturn("RFQ250101000001");
     }
 
     @Test
@@ -1050,27 +1053,7 @@ class GMTServiceImplTest {
     }
 
     @Test
-    void testGenerateRfqIdInputBranches() {
-        String id1 = service.generateRfqId("company");
-        assertTrue(id1.startsWith("COM"));
-        assertEquals(15, id1.length());
-        assertTrue(id1.matches("^COM\\d{12}$"));
-
-        String id2 = service.generateRfqId("ab");
-        assertTrue(id2.startsWith("AB"));
-        assertEquals(14, id2.length());
-        assertTrue(id2.matches("^AB\\d{12}$"));
-
-        String id3 = service.generateRfqId("");
-        assertFalse(id3.isEmpty());
-        assertEquals(12, id3.length());
-        assertTrue(id3.matches("^\\d{12}$"));
-
-        String id4 = service.generateRfqId(null);
-        assertFalse(id4.isEmpty());
-        assertEquals(12, id4.length());
-        assertTrue(id4.matches("^\\d{12}$"));
-
+    void testGenerateUserIdRejectsNullName() {
         assertThrows(IllegalArgumentException.class, () -> service.generateUserId(null));
     }
 

@@ -3,6 +3,7 @@ package com.portal.procucev.service;
 import com.portal.procucev.customexception.RfqDocumentSizeExceededException;
 import com.portal.procucev.dao.*;
 import com.portal.procucev.model.*;
+import com.portal.procucev.rfq.repository.RFQRepository;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -33,6 +34,8 @@ class AutomaticRfqServiceImplTest {
     private OrgDao orgDao;
     @Mock
     private PincodeDao pincodeDao;
+    @Mock
+    private RFQRepository rfqRepository;
 
     @InjectMocks
     private AutomaticRfqServiceImpl service;
@@ -293,11 +296,17 @@ class AutomaticRfqServiceImplTest {
 
     @Test
     void testGenerateRfqId() {
+        when(rfqRepository.findByRfqNumber(anyString())).thenReturn(Optional.empty());
+
+        String before = new java.text.SimpleDateFormat("yyddMM").format(new Date());
         String id1 = service.generateRfqId("RFQ");
+        String after = new java.text.SimpleDateFormat("yyddMM").format(new Date());
         assertNotNull(id1);
         assertTrue(id1.startsWith("RFQ"));
         assertEquals(15, id1.length());
         assertTrue(id1.matches("^RFQ\\d{12}$"));
+        String generatedDate = id1.substring(3, 9);
+        assertTrue(generatedDate.equals(before) || generatedDate.equals(after));
 
         String id2 = service.generateRfqId("AB");
         assertNotNull(id2);
