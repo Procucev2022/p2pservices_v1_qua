@@ -296,16 +296,24 @@ class AutomaticRfqServiceImplTest {
         String id1 = service.generateRfqId("RFQ");
         assertNotNull(id1);
         assertTrue(id1.startsWith("RFQ"));
+        assertEquals(15, id1.length());
+        assertTrue(id1.matches("^RFQ\\d{12}$"));
 
         String id2 = service.generateRfqId("AB");
         assertNotNull(id2);
         assertTrue(id2.startsWith("AB"));
+        assertEquals(14, id2.length());
+        assertTrue(id2.matches("^AB\\d{12}$"));
 
         String id3 = service.generateRfqId(null);
         assertNotNull(id3);
+        assertEquals(12, id3.length());
+        assertTrue(id3.matches("^\\d{12}$"));
 
         String id4 = service.generateRfqId("");
         assertNotNull(id4);
+        assertEquals(12, id4.length());
+        assertTrue(id4.matches("^\\d{12}$"));
     }
 
     @Test

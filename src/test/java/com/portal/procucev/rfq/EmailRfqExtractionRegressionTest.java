@@ -44,7 +44,7 @@ class EmailRfqExtractionRegressionTest {
 
     @BeforeEach
     void setUp() {
-        rfqBuilderService = new RFQBuilderService(new DateParser(), Mockito.mock(PincodeDao.class));
+        rfqBuilderService = new RFQBuilderService(new DateParser(), Mockito.mock(PincodeDao.class), new com.portal.procucev.service.AutomaticRfqServiceImpl());
     }
 
     private Buyer buyer() {

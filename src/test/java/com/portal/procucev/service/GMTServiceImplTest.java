@@ -1051,10 +1051,26 @@ class GMTServiceImplTest {
 
     @Test
     void testGenerateRfqIdInputBranches() {
-        assertTrue(service.generateRfqId("company").startsWith("COM"));
-        assertTrue(service.generateRfqId("ab").startsWith("AB"));
-        assertFalse(service.generateRfqId("").isEmpty());
-        assertFalse(service.generateRfqId(null).isEmpty());
+        String id1 = service.generateRfqId("company");
+        assertTrue(id1.startsWith("COM"));
+        assertEquals(15, id1.length());
+        assertTrue(id1.matches("^COM\\d{12}$"));
+
+        String id2 = service.generateRfqId("ab");
+        assertTrue(id2.startsWith("AB"));
+        assertEquals(14, id2.length());
+        assertTrue(id2.matches("^AB\\d{12}$"));
+
+        String id3 = service.generateRfqId("");
+        assertFalse(id3.isEmpty());
+        assertEquals(12, id3.length());
+        assertTrue(id3.matches("^\\d{12}$"));
+
+        String id4 = service.generateRfqId(null);
+        assertFalse(id4.isEmpty());
+        assertEquals(12, id4.length());
+        assertTrue(id4.matches("^\\d{12}$"));
+
         assertThrows(IllegalArgumentException.class, () -> service.generateUserId(null));
     }
 

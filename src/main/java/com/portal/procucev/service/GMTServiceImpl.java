@@ -3521,7 +3521,7 @@ public class GMTServiceImpl implements GMTService {
 		// int random = (int) (Math.random() * 1000);
 
 		// return companyLetters + datePart + millis + String.format("%03d", random);
-		return companyLetters + datePart + millis;
+		return companyLetters + datePart + String.format("%06d", millis);
 	}
 
 	@Override

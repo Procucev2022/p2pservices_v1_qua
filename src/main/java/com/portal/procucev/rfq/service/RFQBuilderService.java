@@ -7,7 +7,7 @@ import com.portal.procucev.rfq.model.Buyer;
 import com.portal.procucev.rfq.model.ExtractedRFQ;
 import com.portal.procucev.rfq.model.RFQItem;
 import com.portal.procucev.rfq.parser.DateParser;
-import com.portal.procucev.rfq.util.CommonUtil;
+import com.portal.procucev.service.AutomaticRfqService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import java.nio.file.Files;
@@ -25,6 +25,7 @@ public class RFQBuilderService {
 
     private final DateParser dateParser;
     private final PincodeDao pincodeDao;
+    private final AutomaticRfqService automaticRfqService;
 
     private static final Map<String, String> CITY_PIN_MAP = Map.ofEntries(
             Map.entry("raipur", "492001"),
@@ -51,7 +52,7 @@ public class RFQBuilderService {
     );
 
     public RFQRequest buildRFQRequest(ExtractedRFQ extractedRFQ, Buyer buyer, String rawSubject, List<File> attachmentFiles) {
-        String rfqNumber = CommonUtil.generateUniqueRfqNumber();
+        String rfqNumber = automaticRfqService.generateRfqId("RFQ");
         log.info("Generating unique RFQ Number ONCE: {}", rfqNumber);
 
         boolean isMultipleItems = extractedRFQ.getItems() != null && extractedRFQ.getItems().size() > 1;
