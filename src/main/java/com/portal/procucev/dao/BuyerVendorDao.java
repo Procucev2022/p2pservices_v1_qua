@@ -11,6 +11,7 @@ import com.portal.procucev.model.BuyerVendor;
 
 import jakarta.transaction.Transactional;
 
+import java.util.List;
 import java.util.Optional;
 
 public interface BuyerVendorDao extends JpaRepository<BuyerVendor, String> {
@@ -35,6 +36,10 @@ public interface BuyerVendorDao extends JpaRepository<BuyerVendor, String> {
         @Param("search") String search,
         Pageable pageable
     );
+
+    List<BuyerVendor> findByBuyerOrgId(String buyerOrgId);
+
+    Optional<BuyerVendor> findByVendorCodeAndBuyerOrgId(String vendorCode, String buyerOrgId);
 
     Optional<BuyerVendor> findByIdAndBuyerOrgId(String id, String buyerOrgId);
 

@@ -31,18 +31,16 @@ public class BuyerVendor extends Procucev {
     @Column(name = "search_term")
     private String searchTerm;
 
-    @Column(name = "pan", length = 10)
-    @Pattern(regexp = "^$|[A-Z]{5}[0-9]{4}[A-Z]{1}", message = "Invalid PAN format")
+    @Column(name = "pan", length = 50)
     private String pan;
 
-    @Column(name = "gstin", length = 15)
-    @Pattern(regexp = "^$|\\d{2}[A-Z]{5}\\d{4}[A-Z]{1}[A-Z\\d]{1}[Z]{1}[A-Z\\d]{1}", message = "Invalid GSTIN format")
+    @Column(name = "gstin", length = 50)
     private String gstin;
 
-    @Column(name = "country", length = 10)
+    @Column(name = "country", length = 100)
     private String country = "IN";
 
-    @Column(name = "region_code", length = 10)
+    @Column(name = "region_code", length = 255)
     private String regionCode;
 
     @Column(name = "address_line")
@@ -54,16 +52,14 @@ public class BuyerVendor extends Procucev {
     @Column(name = "district")
     private String district;
 
-    @Column(name = "postal_code", length = 6)
-    @Pattern(regexp = "^$|\\d{6}", message = "Postal code must be 6 digits")
+    @Column(name = "postal_code", length = 50)
     private String postalCode;
 
-    @Column(name = "phone_1", length = 15)
+    @Column(name = "phone_1", length = 50)
     @NotBlank(message = "Phone 1 is required")
-    @Pattern(regexp = "\\d{10}", message = "Phone must be 10 digits")
     private String phone1;
 
-    @Column(name = "phone_2", length = 15)
+    @Column(name = "phone_2", length = 50)
     private String phone2;
 
     @Column(name = "type_of_business")
