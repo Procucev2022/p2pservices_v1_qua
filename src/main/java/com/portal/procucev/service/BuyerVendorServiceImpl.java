@@ -8,8 +8,10 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
+import com.portal.procucev.dao.BuyerVendorAiProfileDao;
 import com.portal.procucev.dao.BuyerVendorDao;
 import com.portal.procucev.model.BuyerVendor;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Optional;
 
@@ -22,7 +24,11 @@ public class BuyerVendorServiceImpl implements BuyerVendorService {
     private BuyerVendorDao buyerVendorDao;
 
     @Autowired
+    private BuyerVendorAiProfileDao buyerVendorAiProfileDao;
+
+    @Autowired
     private JdbcTemplate jdbcTemplate;
+
 
     private void ensureTableExists() {
         try {
@@ -186,6 +192,33 @@ public class BuyerVendorServiceImpl implements BuyerVendorService {
         }
         return false;
     }
+
+    @Override
+    @Transactional
+    public boolean deleteVendor(String idOrCode, String buyerOrgId) {
+        ensureTableExists();
+        Optional<BuyerVendor> vendorOpt = getVendorById(idOrCode, buyerOrgId);
+        if (vendorOpt.isPresent()) {
+            BuyerVendor v = vendorOpt.get();
+            String vendorCode = v.getVendorCode();
+            log.info("Deleting vendor id: {}, code: {} for buyerOrgId: {}", v.getId(), vendorCode, buyerOrgId);
+            
+            // Delete AI profile if exists
+            try {
+                if (vendorCode != null && !vendorCode.trim().isEmpty()) {
+                    buyerVendorAiProfileDao.deleteByVendorCodeAndBuyerOrgId(vendorCode.trim(), buyerOrgId);
+                }
+            } catch (Exception ex) {
+                log.warn("Error deleting AI profile for vendor {}: {}", vendorCode, ex.getMessage());
+            }
+
+            // Delete master buyer vendor
+            buyerVendorDao.delete(v);
+            return true;
+        }
+        return false;
+    }
+
 
     @Override
     public java.util.Map<String, Object> bulkCreateVendors(java.util.List<BuyerVendor> vendors, String buyerOrgId, String createdBy) {

@@ -300,7 +300,35 @@ public class BuyerVendorController {
         }
     }
 
+    /**
+     * DELETE /rest/buyer/vendors/:id
+     */
+    @DeleteMapping("/{id}")
+    public ResponseEntity<MessageResponse> deleteVendor(@PathVariable String id) {
+        try {
+            String buyerOrgId = getLoggedInBuyerOrgId();
+            boolean deleted = buyerVendorService.deleteVendor(id, buyerOrgId);
+            if (!deleted) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
+                    MessageResponse.error("Vendor not found", List.of("VENDOR_NOT_FOUND"))
+                );
+            }
+
+            MessageResponse response = MessageResponse.success(
+                "Vendor deleted successfully",
+                Map.of("id", id)
+            );
+            return ResponseEntity.ok(response);
+        } catch (Exception ex) {
+            log.error("Error deleting vendor", ex);
+            return ResponseEntity.internalServerError().body(
+                new MessageResponse("500", "Internal server error", List.of(ex.getMessage()), new Date(), "Failure", "SYSTEM_ERROR")
+            );
+        }
+    }
+
     private String getLoggedInBuyerOrgId() {
+
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         String username = auth.getName();
         User user = userDao.findByLatestUserName(username);
