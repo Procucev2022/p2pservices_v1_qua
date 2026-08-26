@@ -195,11 +195,11 @@ public class VendorAiProcessingServiceImpl implements VendorAiProcessingService 
         profile.setGstin(vendor.getGstin());
         profile.setPhone1(vendor.getPhone1());
         profile.setPhone2(vendor.getPhone2());
-        profile.setEmail((vendor.getVendorCode() != null ? vendor.getVendorCode().toLowerCase() : "vendor") + "@vendor-hub.com");
+        profile.setEmail(null);
         profile.setAddressLine(vendor.getAddressLine());
-        profile.setCity(vendor.getCity() != null ? vendor.getCity() : "Mumbai");
-        profile.setState(vendor.getRegionCode() != null ? vendor.getRegionCode() : "Maharashtra");
-        profile.setPostalCode(vendor.getPostalCode() != null ? vendor.getPostalCode() : "400001");
+        profile.setCity(vendor.getCity());
+        profile.setState(vendor.getRegionCode());
+        profile.setPostalCode(vendor.getPostalCode());
         profile.setCountry(vendor.getCountry() != null ? vendor.getCountry() : "India");
         profile.setTypeOfBusiness(vendor.getTypeOfBusiness() != null ? vendor.getTypeOfBusiness() : "Authorized Enterprise");
         profile.setVendorGroup(vendor.getVendorGroup() != null ? vendor.getVendorGroup() : "Approved Vendor");
