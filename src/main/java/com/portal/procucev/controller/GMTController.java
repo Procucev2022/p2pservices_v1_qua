@@ -928,7 +928,7 @@ public class GMTController {
 
 	@PostMapping("/updateDeliveryLocation")
 	public ResponseEntity<MessageResponse> updateDeliveryLocation(@RequestBody DeliveryLocationUpdateRequest request) {
-		logger.info("Entered to update delivery location for RFQ: {}", request != null ? request.getRfqId() : null);
+		logger.info("Entered to update delivery location for RFQ: {}", (Object) (request != null ? request.getRfqId() : null));
 		MessageResponse response = gmtService.updateDeliveryLocation(request);
 		HttpStatus status;
 		if (response != null && ("200".equals(response.getStatusCode())

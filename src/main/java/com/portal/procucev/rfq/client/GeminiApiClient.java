@@ -178,10 +178,6 @@ public class GeminiApiClient {
         return generateContent(promptText, List.of(), null);
     }
 
-    public String generateContent(String promptText, List<InlineImage> images) {
-        return generateContent(promptText, images, null);
-    }
-
     public String generateContentWithSpecificModel(String model, String promptText, List<InlineImage> images) throws Exception {
         return generateContentWithSpecificModel(model, promptText, images, null);
     }
