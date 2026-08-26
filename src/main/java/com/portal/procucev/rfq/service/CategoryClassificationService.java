@@ -35,7 +35,7 @@ public class CategoryClassificationService {
 
     private void classifySingleItem(RFQItem item, List<ExcelMasterDataLoader.MasterCategoryRecord> masterRecords, String extractedCategory) {
         // Step 0: Check if item itself has an explicit non-generic category
-        if (item.getCategory() != null && !item.getCategory().isBlank() && !isGenericCategory(item.getCategory())) {
+        if (!isGenericCategory(item.getCategory())) {
             String cleanCat = item.getCategory().trim();
             item.setCategory(cleanCat);
             if (item.getDivision() == null || item.getDivision().isBlank()) {
@@ -78,7 +78,7 @@ public class CategoryClassificationService {
                 item.setCategoryConfidence(0.90);
                 item.setClassificationStatus("DOMAIN_KEYWORD_MATCHED");
                 log.info("Classified item '{}' via domain keyword '{}' -> Category: '{}'",
-                        item.getItemDescription(), entry.getKey(), catName);
+                    item.getItemDescription(), entry.getKey(), catName);
                 return;
             }
         }
@@ -97,12 +97,9 @@ public class CategoryClassificationService {
 
         if (bestMatch != null && highestScore >= minMatchedConfidence) {
             String category = bestMatch.getCategory();
-            if (category != null && category.matches("^\\d+(\\.\\d+)?$")) {
+            if (category == null || category.isBlank() || category.matches("^\\d+(\\.\\d+)?$")) {
                 category = (bestMatch.getDivision() != null && !bestMatch.getDivision().isBlank() && !bestMatch.getDivision().matches("^\\d+(\\.\\d+)?$"))
                         ? bestMatch.getDivision() : "General Industrial Goods";
-            }
-            if (category == null || category.isBlank()) {
-                category = "General Industrial Goods";
             }
             item.setCategory(category);
             item.setDivision(bestMatch.getDivision() != null ? bestMatch.getDivision() : "General Procurement");
@@ -121,13 +118,8 @@ public class CategoryClassificationService {
     private boolean isGenericCategory(String cat) {
         if (cat == null || cat.isBlank()) return true;
         String lower = cat.trim().toLowerCase();
-        if (lower.matches(".*\\b(categories|category|multiple|various|mixed|different|several|all|general|not specified|n/a|null)\\b.*")) {
-            return true;
-        }
-        if (lower.matches(".*\\d+\\s*(categories|category).*")) {
-            return true;
-        }
-        return false;
+        return lower.matches(".*\\b(categories|category|multiple|various|mixed|different|several|all|general|not specified|n/a|null)\\b.*")
+                || lower.matches(".*\\d+\\s*(categories|category).*");
     }
 
     private double calculateMatchScore(String text, ExcelMasterDataLoader.MasterCategoryRecord record) {

@@ -1270,7 +1270,12 @@ public class MailUtility {
 
 	}
 
+	public static java.util.function.BiFunction<String, String, JavaMailSender> customMailSenderSupplier = null;
+
 	public static JavaMailSender getJavaMailSender(String username, String password) {
+		if (customMailSenderSupplier != null) {
+			return customMailSenderSupplier.apply(username, password);
+		}
 		JavaMailSenderImpl mailSender = new JavaMailSenderImpl();
 		mailSender.setHost("smtp.gmail.com"); // Replace with your SMTP host
 		mailSender.setPort(587); // Replace with your SMTP port

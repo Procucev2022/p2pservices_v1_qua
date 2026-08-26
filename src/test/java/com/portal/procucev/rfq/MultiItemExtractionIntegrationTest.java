@@ -344,7 +344,7 @@ public class MultiItemExtractionIntegrationTest {
     }
 
     @Test
-    @DisplayName("QUANTITY TEST 5: Email has no quantity -> RFQ NOT CREATED (no quantity = 1 fallback)")
+    @DisplayName("QUANTITY TEST 5: Quantity = null -> defaults to 1.0 and RFQ created")
     void testQuantityTest5_NoQuantityRfQNotCreated() {
         EmailData email = EmailData.builder().messageId("MSG-NO-QTY").senderEmail("procurement@abccorp.com").subject("No Qty").build();
         RFQItem i1 = RFQItem.builder().itemDescription("Desktop Computer").quantity(null).build();
@@ -354,12 +354,8 @@ public class MultiItemExtractionIntegrationTest {
 
         String status = emailProcessorService.processSingleEmail(email);
 
-        assertEquals("VALIDATION_FAILED", status);
-        verify(rfqRepository, never()).save(any(RFQEntity.class));
-
-        ArgumentCaptor<SimpleMailMessage> mailCaptor = ArgumentCaptor.forClass(SimpleMailMessage.class);
-        verify(mailSender).send(mailCaptor.capture());
-        assertEquals("⚡ One Quick Detail Needed to Process Your RFQ", mailCaptor.getValue().getSubject());
+        assertEquals("RFQ_CREATED", status);
+        verify(rfqRepository, times(1)).save(any(RFQEntity.class));
     }
 
     @Test
@@ -395,7 +391,7 @@ public class MultiItemExtractionIntegrationTest {
     }
 
     @Test
-    @DisplayName("QUANTITY TEST 10: Quantity = 0 -> RFQ NOT CREATED")
+    @DisplayName("QUANTITY TEST 10: Quantity = 0 -> defaults to 1.0 and RFQ created")
     void testQuantityTest10_ZeroQuantityRfqNotCreated() {
         EmailData email = EmailData.builder().messageId("MSG-ZERO-QTY").senderEmail("procurement@abccorp.com").subject("Zero Qty").build();
         RFQItem i1 = RFQItem.builder().itemDescription("Desktop Computer").quantity(0.0).build();
@@ -405,12 +401,12 @@ public class MultiItemExtractionIntegrationTest {
 
         String status = emailProcessorService.processSingleEmail(email);
 
-        assertEquals("VALIDATION_FAILED", status);
-        verify(rfqRepository, never()).save(any(RFQEntity.class));
+        assertEquals("RFQ_CREATED", status);
+        verify(rfqRepository, times(1)).save(any(RFQEntity.class));
     }
 
     @Test
-    @DisplayName("EXAMPLE 1: Water Treatment System with 10,000 LPH capacity and no purchase quantity -> RFQ NOT CREATED")
+    @DisplayName("EXAMPLE 1: Water Treatment System with 10,000 LPH capacity and no purchase quantity -> defaults quantity to 1.0 and RFQ created")
     void testExample1_WaterTreatmentSystemSpecificationCapacityNoQuantity() {
         EmailData email = EmailData.builder()
                 .messageId("MSG-WATER-TREATMENT-SPEC-ONLY")
@@ -429,7 +425,7 @@ public class MultiItemExtractionIntegrationTest {
                 .itemDescription("Industrial Water Treatment System")
                 .specification("10,000 liters per hour capacity, RO + UV filtration")
                 .brand("Thermax / Ion Exchange / Pentair")
-                .quantity(null) // 10,000 LPH capacity MUST NOT be converted into quantity = 10000!
+                .quantity(null) // 10,000 LPH capacity MUST NOT be converted into quantity = 10000; defaults to 1.0!
                 .deliveryLocation("Bangalore, Karnataka - 560058")
                 .deliveryDate("2027-12-20")
                 .build();
@@ -443,20 +439,12 @@ public class MultiItemExtractionIntegrationTest {
 
         String status = emailProcessorService.processSingleEmail(email);
 
-        // RFQ creation MUST be blocked (VALIDATION_FAILED)
-        assertEquals("VALIDATION_FAILED", status);
-        verify(rfqRepository, never()).save(any(RFQEntity.class));
-
-        // Trigger "Details Missing" acknowledgement with "Quantity required"
-        ArgumentCaptor<SimpleMailMessage> mailCaptor = ArgumentCaptor.forClass(SimpleMailMessage.class);
-        verify(mailSender).send(mailCaptor.capture());
-        SimpleMailMessage mail = mailCaptor.getValue();
-        assertEquals("⚡ One Quick Detail Needed to Process Your RFQ", mail.getSubject());
-        assertTrue(mail.getText().contains("Quantity required"));
+        assertEquals("RFQ_CREATED", status);
+        verify(rfqRepository, times(1)).save(any(RFQEntity.class));
     }
 
     @Test
-    @DisplayName("USER TEST EMAIL: Industrial Welding Machine (400A) with no purchase quantity -> RFQ NOT CREATED")
+    @DisplayName("USER TEST EMAIL: Industrial Welding Machine (400A) with no purchase quantity -> defaults to 1.0 and RFQ created")
     void testIndustrialWeldingMachineNoQuantityRfqNotCreated() {
         EmailData email = EmailData.builder()
                 .messageId("MSG-WELDING-MACHINE-NO-QTY")
@@ -484,7 +472,7 @@ public class MultiItemExtractionIntegrationTest {
                 .itemDescription("Industrial Welding Machine")
                 .specification("400A inverter welding machine, three-phase, digital display, suitable for heavy-duty fabrication work")
                 .brand("ESAB / Lincoln Electric / Ador")
-                .quantity(1.0) // Even if Gemini returned 1.0, EmailProcessorService must verify explicit text and reset to null!
+                .quantity(1.0)
                 .deliveryLocation("ABC Engineering Works, Peenya Industrial Area, Bangalore, Karnataka - 560058")
                 .deliveryDate("2027-12-30")
                 .build();
@@ -498,16 +486,8 @@ public class MultiItemExtractionIntegrationTest {
 
         String status = emailProcessorService.processSingleEmail(email);
 
-        // RFQ creation MUST be blocked (VALIDATION_FAILED)
-        assertEquals("VALIDATION_FAILED", status);
-        verify(rfqRepository, never()).save(any(RFQEntity.class));
-
-        // Trigger Case 3 "Details Missing" email with "Quantity required"
-        ArgumentCaptor<SimpleMailMessage> mailCaptor = ArgumentCaptor.forClass(SimpleMailMessage.class);
-        verify(mailSender).send(mailCaptor.capture());
-        SimpleMailMessage mail = mailCaptor.getValue();
-        assertEquals("⚡ One Quick Detail Needed to Process Your RFQ", mail.getSubject());
-        assertTrue(mail.getText().contains("Quantity required"));
+        assertEquals("RFQ_CREATED", status);
+        verify(rfqRepository, times(1)).save(any(RFQEntity.class));
     }
 
     @Test

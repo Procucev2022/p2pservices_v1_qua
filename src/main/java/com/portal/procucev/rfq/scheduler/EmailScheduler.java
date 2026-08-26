@@ -1,5 +1,7 @@
 package com.portal.procucev.rfq.scheduler;
 
+import static com.portal.procucev.utils.ContextClassLoaderRunnable.preservingContextClassLoader;
+
 import java.util.concurrent.CompletableFuture;
 
 import com.portal.procucev.rfq.dto.ProcessingStats;
@@ -40,7 +42,12 @@ public class EmailScheduler {
             return;
         }
         log.info("Application started: Triggering immediate initial Email RFQ processing run...");
-        CompletableFuture.runAsync(self::runEmailProcessingJob);
+        // Wrapped so the run keeps this thread's class loader. runAsync hands the task to
+        // ForkJoinPool.commonPool(), whose workers do not inherit the web application's class
+        // loader in a WAR deployment, and the job then cannot see its own packaged resources: the
+        // extraction prompt failed to load on exactly this path while the cron runs, which use the
+        // container's scheduling threads, were unaffected.
+        CompletableFuture.runAsync(preservingContextClassLoader(self::runEmailProcessingJob));
     }
 
     /**

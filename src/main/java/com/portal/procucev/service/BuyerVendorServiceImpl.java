@@ -8,9 +8,14 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
+import com.portal.procucev.dao.BuyerVendorAiProfileDao;
 import com.portal.procucev.dao.BuyerVendorDao;
 import com.portal.procucev.model.BuyerVendor;
+import com.portal.procucev.model.BuyerVendorAiProfile;
+import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 @Service
@@ -22,10 +27,11 @@ public class BuyerVendorServiceImpl implements BuyerVendorService {
     private BuyerVendorDao buyerVendorDao;
 
     @Autowired
-    private com.portal.procucev.dao.BuyerVendorAiProfileDao buyerVendorAiProfileDao;
+    private BuyerVendorAiProfileDao buyerVendorAiProfileDao;
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
+
 
     private void ensureTableExists() {
         try {
@@ -191,51 +197,89 @@ public class BuyerVendorServiceImpl implements BuyerVendorService {
     }
 
     @Override
-    @org.springframework.transaction.annotation.Transactional
+    @Transactional
     public boolean deleteVendor(String idOrCode, String buyerOrgId) {
         ensureTableExists();
-        Optional<BuyerVendor> vendorOpt = getVendorById(idOrCode, buyerOrgId);
-        if (vendorOpt.isPresent()) {
-            BuyerVendor v = vendorOpt.get();
-            buyerVendorDao.delete(v);
-            try {
-                if (v.getVendorCode() != null) {
-                    buyerVendorAiProfileDao.deleteByVendorCodeAndBuyerOrgId(v.getVendorCode(), buyerOrgId);
-                }
-            } catch (Exception ex) {
-                log.warn("Could not delete AI profile for vendor: {}", v.getVendorCode(), ex);
+        if (idOrCode == null || idOrCode.trim().isEmpty()) {
+            return false;
+        }
+        String key = idOrCode.trim();
+        boolean deletedAny = false;
+        String resolvedVendorCode = null;
+
+        // 1. Try finding AI Profile by primary key UUID or vendorCode
+        Optional<BuyerVendorAiProfile> aiById = buyerVendorAiProfileDao.findById(key);
+        if (aiById.isPresent() && (aiById.get().getBuyerOrgId() == null || buyerOrgId.equals(aiById.get().getBuyerOrgId()))) {
+            resolvedVendorCode = aiById.get().getVendorCode();
+            log.info("Deleting AI profile by id: {}, code: {} for buyerOrgId: {}", key, resolvedVendorCode, buyerOrgId);
+            buyerVendorAiProfileDao.delete(aiById.get());
+            deletedAny = true;
+        } else {
+            Optional<BuyerVendorAiProfile> aiByCode = buyerVendorAiProfileDao.findByVendorCodeAndBuyerOrgId(key, buyerOrgId);
+            if (aiByCode.isPresent()) {
+                resolvedVendorCode = aiByCode.get().getVendorCode();
+                log.info("Deleting AI profile by vendorCode: {} for buyerOrgId: {}", resolvedVendorCode, buyerOrgId);
+                buyerVendorAiProfileDao.delete(aiByCode.get());
+                deletedAny = true;
             }
-            return true;
         }
-        return false;
+
+        // 2. Try finding Master BuyerVendor by primary key UUID or resolved vendorCode or key
+        Optional<BuyerVendor> masterById = buyerVendorDao.findByIdAndBuyerOrgId(key, buyerOrgId);
+        if (masterById.isPresent()) {
+            String code = masterById.get().getVendorCode();
+            log.info("Deleting master buyer vendor by id: {}, code: {} for buyerOrgId: {}", key, code, buyerOrgId);
+            buyerVendorDao.delete(masterById.get());
+            deletedAny = true;
+            if (resolvedVendorCode == null) {
+                resolvedVendorCode = code;
+            }
+        }
+
+        String codeToLookup = resolvedVendorCode != null ? resolvedVendorCode : key;
+        Optional<BuyerVendor> masterByCode = buyerVendorDao.findByVendorCodeAndBuyerOrgId(codeToLookup, buyerOrgId);
+        if (masterByCode.isPresent()) {
+            log.info("Deleting master buyer vendor by code: {} for buyerOrgId: {}", codeToLookup, buyerOrgId);
+            buyerVendorDao.delete(masterByCode.get());
+            deletedAny = true;
+        }
+
+        // 3. Final safety cleanup of AI profile if resolvedVendorCode was discovered from master record
+        if (resolvedVendorCode != null) {
+            try {
+                buyerVendorAiProfileDao.deleteByVendorCodeAndBuyerOrgId(resolvedVendorCode, buyerOrgId);
+            } catch (Exception ignored) {}
+        }
+
+        return deletedAny;
     }
 
     @Override
-    @org.springframework.transaction.annotation.Transactional
-    public java.util.Map<String, Object> bulkDeleteVendors(java.util.List<String> vendorCodes, String buyerOrgId) {
+    @Transactional
+    public int bulkDeleteVendors(java.util.List<String> idsOrCodes, String buyerOrgId) {
         ensureTableExists();
-        if (vendorCodes == null || vendorCodes.isEmpty()) {
-            return java.util.Map.of("deletedCount", 0, "success", true);
+        if (idsOrCodes == null || idsOrCodes.isEmpty()) {
+            return 0;
         }
-        int deletedVendors = buyerVendorDao.deleteByCodesOrIdsAndBuyerOrgId(vendorCodes, buyerOrgId);
-        try {
-            buyerVendorAiProfileDao.deleteByVendorCodesAndBuyerOrgId(vendorCodes, buyerOrgId);
-        } catch (Exception ex) {
-            log.warn("Could not bulk delete AI profiles: {}", ex.getMessage());
-        }
-        return java.util.Map.of(
-            "deletedCount", deletedVendors,
-            "success", true,
-            "message", deletedVendors + " vendor(s) deleted successfully"
-        );
-    }
 
-    @Override
+        int deletedCount = 0;
+        for (String idOrCode : idsOrCodes) {
+            if (idOrCode != null && !idOrCode.trim().isEmpty()) {
+                boolean deleted = deleteVendor(idOrCode.trim(), buyerOrgId);
+                if (deleted) {
+                    deletedCount++;
+                }
+            }
+        }
+        log.info("Bulk deleted {} vendors for buyerOrgId: {}", deletedCount, buyerOrgId);
+        return deletedCount;
+    }
     public java.util.Map<String, Object> bulkCreateVendors(java.util.List<BuyerVendor> vendors, String buyerOrgId, String createdBy) {
         ensureTableExists();
         java.util.List<BuyerVendor> toSave = new java.util.ArrayList<>();
         java.util.List<String> skippedCodes = new java.util.ArrayList<>();
         java.util.List<String> errors = new java.util.ArrayList<>();
+        java.util.Set<String> seenCodes = new java.util.HashSet<>();
 
         if (vendors == null || vendors.isEmpty()) {
             return java.util.Map.of(
@@ -252,16 +296,25 @@ public class BuyerVendorServiceImpl implements BuyerVendorService {
                 errors.add("A row is missing Vendor Code and was skipped.");
                 continue;
             }
+            String rawCode = v.getVendorCode().trim();
+            String normalizedCode = rawCode.toUpperCase(java.util.Locale.ROOT);
+
             if (v.getVendorName() == null || v.getVendorName().trim().length() < 3) {
-                errors.add("Vendor '" + v.getVendorCode() + "' has invalid name (min 3 chars).");
+                errors.add("Vendor '" + rawCode + "' has invalid name (min 3 chars).");
                 continue;
             }
             if (v.getPhone1() == null || !v.getPhone1().matches("\\d{10}")) {
-                errors.add("Vendor '" + v.getVendorCode() + "' has invalid 10-digit phone: " + v.getPhone1());
+                errors.add("Vendor '" + rawCode + "' has invalid 10-digit phone: " + v.getPhone1());
                 continue;
             }
 
-            v.setVendorCode(v.getVendorCode().trim());
+            // Track normalized codes in a request-local set to avoid intra-batch duplicate constraint violations
+            if (!seenCodes.add(normalizedCode)) {
+                skippedCodes.add(rawCode);
+                continue;
+            }
+
+            v.setVendorCode(rawCode);
             v.setBuyerOrgId(buyerOrgId);
             v.setCreatedBy(createdBy);
 
@@ -276,8 +329,8 @@ public class BuyerVendorServiceImpl implements BuyerVendorService {
             }
 
             try {
-                if (buyerVendorDao.existsByVendorCodeAndBuyerOrgId(v.getVendorCode(), buyerOrgId)) {
-                    skippedCodes.add(v.getVendorCode());
+                if (buyerVendorDao.existsByVendorCodeAndBuyerOrgId(rawCode, buyerOrgId)) {
+                    skippedCodes.add(rawCode);
                 } else {
                     toSave.add(v);
                 }

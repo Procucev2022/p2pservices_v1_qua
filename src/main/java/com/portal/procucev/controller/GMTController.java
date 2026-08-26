@@ -27,6 +27,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.portal.procucev.Dto.ClientRFQDto;
+import com.portal.procucev.Dto.DeliveryLocationUpdateRequest;
 import com.portal.procucev.Dto.ForwardRfqVendorRequest;
 import com.portal.procucev.Dto.GMTRfqVendorDto;
 import com.portal.procucev.Dto.GmtRfqSellerDto;
@@ -923,5 +924,25 @@ public class GMTController {
 		response.put("status", "Success");
 		response.put("statusCode", "200");
 		return new ResponseEntity<>(response, HttpStatus.OK);
+	}
+
+	@PostMapping("/updateDeliveryLocation")
+	public ResponseEntity<MessageResponse> updateDeliveryLocation(@RequestBody DeliveryLocationUpdateRequest request) {
+		logger.info("Entered to update delivery location for RFQ: {}", (Object) (request != null ? request.getRfqId() : null));
+		MessageResponse response = gmtService.updateDeliveryLocation(request);
+		HttpStatus status;
+		if (response != null && ("200".equals(response.getStatusCode())
+				|| StatusCodes.OK_VENDOR_CODE.equals(response.getStatusCode())
+				|| "Success".equalsIgnoreCase(response.getStatus())
+				|| String.valueOf(ApplicationConstants.SUCCESS).equals(response.getStatusCode()))) {
+			status = HttpStatus.OK;
+		} else if (response != null && "403".equals(response.getStatusCode())) {
+			status = HttpStatus.FORBIDDEN;
+		} else if (response != null && "404".equals(response.getStatusCode())) {
+			status = HttpStatus.NOT_FOUND;
+		} else {
+			status = HttpStatus.BAD_REQUEST;
+		}
+		return new ResponseEntity<>(response, status);
 	}
 }

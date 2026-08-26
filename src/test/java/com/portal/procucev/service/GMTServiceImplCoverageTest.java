@@ -1,6 +1,7 @@
 package com.portal.procucev.service;
 
 import com.portal.procucev.Dto.BuyerSellerReportDto;
+import com.portal.procucev.Dto.DeliveryLocationUpdateRequest;
 import com.portal.procucev.Dto.GMTRfqVendorDto;
 import com.portal.procucev.Dto.GmtRfqSellerDto;
 import com.portal.procucev.Dto.RfqDTO;
@@ -168,6 +169,8 @@ class GMTServiceImplCoverageTest {
     @Mock
     private JavaMailSender javaMailSender;
     @Mock
+    private AutomaticRfqService automaticRfqService;
+    @Mock
     private MimeMessage mimeMessage;
 
     @InjectMocks
@@ -212,6 +215,7 @@ class GMTServiceImplCoverageTest {
         rfq.setDeliveryDate(Date.from(Instant.now().plus(1, ChronoUnit.DAYS)));
 
         when(javaMailSender.createMimeMessage()).thenReturn(mimeMessage);
+        when(automaticRfqService.generateRfqId(anyString())).thenReturn("RFQ250101000001");
     }
 
     @AfterEach
@@ -1390,6 +1394,172 @@ class GMTServiceImplCoverageTest {
         mapping.setStatus(mappingStatus);
         mapping.setRequestedDate(new Date());
         return mapping;
+    }
+
+    @Test
+    void testUpdateDeliveryLocation_NullRequest_And_MissingId() {
+        MessageResponse resp1 = service.updateDeliveryLocation(null);
+        assertEquals("400", resp1.getStatusCode());
+
+        DeliveryLocationUpdateRequest emptyIdReq = new DeliveryLocationUpdateRequest();
+        emptyIdReq.setId("  ");
+        emptyIdReq.setRfqId("");
+        MessageResponse resp2 = service.updateDeliveryLocation(emptyIdReq);
+        assertEquals("400", resp2.getStatusCode());
+    }
+
+    @Test
+    void testUpdateDeliveryLocation_AuthorizationChecks() {
+        authenticate("unauthorizedUser");
+        User user = new User();
+        user.setUsername("unauthorizedUser");
+        Role role = new Role();
+        role.setRoleName("ClientInitiator");
+        user.setRole(role);
+        when(userDao.findByUsernameAndActive("unauthorizedUser", true)).thenReturn(user);
+
+        DeliveryLocationUpdateRequest req = new DeliveryLocationUpdateRequest();
+        req.setId("RFQ-123");
+        req.setCity("Raigarh");
+        MessageResponse resp = service.updateDeliveryLocation(req);
+        assertEquals("403", resp.getStatusCode());
+        SecurityContextHolder.clearContext();
+    }
+
+    @Test
+    void testUpdateDeliveryLocation_ValidationErrors() {
+        authenticate("cmUser");
+        User cmUser = new User();
+        cmUser.setUsername("cmUser");
+        Role role = new Role();
+        role.setRoleName("CategoryManager");
+        cmUser.setRole(role);
+        when(userDao.findByUsernameAndActive("cmUser", true)).thenReturn(cmUser);
+
+        DeliveryLocationUpdateRequest missingCityReq = new DeliveryLocationUpdateRequest();
+        missingCityReq.setId("RFQ-123");
+        missingCityReq.setCity(":null");
+        MessageResponse resp1 = service.updateDeliveryLocation(missingCityReq);
+        assertEquals("400", resp1.getStatusCode());
+        assertEquals("City is required for delivery location", resp1.getMessage());
+
+        DeliveryLocationUpdateRequest invalidPinReq = new DeliveryLocationUpdateRequest();
+        invalidPinReq.setId("RFQ-123");
+        invalidPinReq.setCity("Raigarh");
+        invalidPinReq.setPincode("INV@LID*PINCODE!!!");
+        MessageResponse resp2 = service.updateDeliveryLocation(invalidPinReq);
+        assertEquals("400", resp2.getStatusCode());
+        assertEquals("Invalid Pincode/Zipcode format", resp2.getMessage());
+
+        SecurityContextHolder.clearContext();
+    }
+
+    @Test
+    void testUpdateDeliveryLocation_RfqNotFound() {
+        DeliveryLocationUpdateRequest req = new DeliveryLocationUpdateRequest();
+        req.setId("NON_EXISTENT");
+        req.setCity("Raigarh");
+        when(rfqDao.findById("NON_EXISTENT")).thenReturn(Optional.empty());
+        when(rfqDao.findByRfqId("NON_EXISTENT")).thenReturn(null);
+
+        MessageResponse resp = service.updateDeliveryLocation(req);
+        assertEquals("404", resp.getStatusCode());
+    }
+
+    @Test
+    void testUpdateDeliveryLocation_Success_ExistingLocation() {
+        authenticate("cmUser");
+        User cmUser = new User();
+        cmUser.setUsername("cmUser");
+        Role role = new Role();
+        role.setRoleName("CategoryManager2");
+        cmUser.setRole(role);
+        when(userDao.findByUsernameAndActive("cmUser", true)).thenReturn(cmUser);
+
+        Rfq existing = new Rfq();
+        existing.setId("RFQ-UUID-1");
+        existing.setRfqId("RFQ-BUS-1");
+        ClientDeliveryLocationRfq loc = new ClientDeliveryLocationRfq();
+        loc.setCity("OldCity");
+        loc.setState(null);
+        loc.setPincode(null);
+        existing.setClientdeliverylocationrfq(new ArrayList<>(List.of(loc)));
+
+        when(rfqDao.findById("RFQ-UUID-1")).thenReturn(Optional.of(existing));
+
+        Date newDate = new Date();
+        DeliveryLocationUpdateRequest req = new DeliveryLocationUpdateRequest();
+        req.setId("RFQ-UUID-1");
+        req.setCity("Raigarh");
+        req.setState("Chhattisgarh");
+        req.setPincode("496001");
+        req.setAddress("Industrial Area");
+        req.setDeliveryDate(newDate);
+
+        MessageResponse resp = service.updateDeliveryLocation(req);
+        assertEquals("200", resp.getStatusCode());
+        assertEquals("Raigarh", loc.getCity());
+        assertEquals("Chhattisgarh", loc.getState());
+        assertEquals("496001", loc.getPincode());
+        assertEquals("Industrial Area", loc.getAddress());
+        assertEquals(newDate, existing.getDeliveryDate());
+        verify(rfqDao).save(existing);
+
+        SecurityContextHolder.clearContext();
+    }
+
+    @Test
+    void testUpdateDeliveryLocation_Success_NewLocation_And_FindByRfqBusinessId() {
+        Rfq existing = new Rfq();
+        existing.setId("RFQ-UUID-2");
+        existing.setRfqId("RFQ-BUS-2");
+        existing.setClientdeliverylocationrfq(null);
+
+        when(rfqDao.findById("RFQ-BUS-2")).thenReturn(Optional.empty());
+        when(rfqDao.findByRfqId("RFQ-BUS-2")).thenReturn(existing);
+
+        DeliveryLocationUpdateRequest req = new DeliveryLocationUpdateRequest();
+        req.setRfqId("RFQ-BUS-2");
+        req.setCity("Mumbai");
+        req.setState(":null");
+        req.setPincode("null");
+        req.setAddress(": null");
+
+        MessageResponse resp = service.updateDeliveryLocation(req);
+        assertEquals("200", resp.getStatusCode());
+        assertNotNull(existing.getClientdeliverylocationrfq());
+        assertEquals(1, existing.getClientdeliverylocationrfq().size());
+        ClientDeliveryLocationRfq createdLoc = existing.getClientdeliverylocationrfq().get(0);
+        assertEquals("Mumbai", createdLoc.getCity());
+        assertNull(createdLoc.getState());
+        assertNull(createdLoc.getPincode());
+        assertNull(createdLoc.getAddress());
+        verify(rfqDao).save(existing);
+    }
+
+    @Test
+    void testFetchRfqById_SanitizesColonNull() {
+        Rfq existing = new Rfq();
+        existing.setId("SANITIZE-TEST");
+        ClientDeliveryLocationRfq loc = new ClientDeliveryLocationRfq();
+        loc.setCity("Raigarh");
+        loc.setState(":null");
+        loc.setPincode("null");
+        loc.setAddress("   ");
+        existing.setClientdeliverylocationrfq(new ArrayList<>(List.of(loc)));
+
+        when(rfqDao.findById("SANITIZE-TEST")).thenReturn(Optional.of(existing));
+
+        Rfq query = new Rfq();
+        query.setId("SANITIZE-TEST");
+        org.springframework.http.ResponseEntity<?> resp = service.fetchRfqById(query);
+        assertNotNull(resp);
+        Rfq fetched = (Rfq) resp.getBody();
+        assertNotNull(fetched);
+        assertEquals("Raigarh", fetched.getClientdeliverylocationrfq().get(0).getCity());
+        assertNull(fetched.getClientdeliverylocationrfq().get(0).getState());
+        assertNull(fetched.getClientdeliverylocationrfq().get(0).getPincode());
+        assertNull(fetched.getClientdeliverylocationrfq().get(0).getAddress());
     }
 
     @SuppressWarnings("unused")

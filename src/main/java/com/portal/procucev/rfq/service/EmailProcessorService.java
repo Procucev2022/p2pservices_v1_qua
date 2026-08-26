@@ -30,6 +30,12 @@ import java.util.*;
 @RequiredArgsConstructor
 public class EmailProcessorService {
 
+    /**
+     * Outcome for an email rejected because an attachment is larger than the allowed size, whether
+     * the limit was hit while reading the mailbox or later by the shared RFQ creation pipeline.
+     */
+    private static final String STATUS_FILE_SIZE_EXCEEDED = "FILE_SIZE_EXCEEDED";
+
     private final EmailReaderService emailReaderService;
     private final AIExtractionService aiExtractionService;
     private final ValidationService validationService;
@@ -49,6 +55,13 @@ public class EmailProcessorService {
 
     @Value("${app.mail.error-folder:Error}")
     private String errorFolder;
+
+    /**
+     * Per-document limit enforced by the shared RFQ creation pipeline, read here only to state the
+     * correct figure in the acknowledgement when that pipeline rejects an attachment.
+     */
+    @Value("${app.rfq.max-document-bytes:26214400}")
+    private long maxDocumentBytes = 26214400L;
 
     public ProcessingStats processUnreadEmails() {
         long startTime = System.currentTimeMillis();
@@ -115,20 +128,35 @@ public class EmailProcessorService {
             return "SKIPPED_SYSTEM_EMAIL";
         }
 
-        if (emailTransactionRepository.findByMessageId(email.getMessageId()).isPresent()) {
-            log.warn("Duplicate Email detected (Message-ID: {}). Skipping.", email.getMessageId());
-            acknowledgementEmailService.sendDuplicateEmailAcknowledgement(normalizedSender, email.getSubject());
-            emailReaderService.moveMessageToFolder(email.getMessageId(), processedFolder);
-            return "SKIPPED";
-        }
-
-        EmailTransaction transaction = EmailTransaction.builder()
-                .messageId(email.getMessageId())
-                .subject(email.getSubject())
-                .senderEmail(normalizedSender)
-                .status("RECEIVED")
-                .build();
+        EmailTransaction transaction = emailTransactionRepository.findByMessageId(email.getMessageId())
+                .orElseGet(() -> EmailTransaction.builder()
+                        .messageId(email.getMessageId())
+                        .build());
+        transaction.setSubject(email.getSubject());
+        transaction.setSenderEmail(normalizedSender);
+        transaction.setStatus("RECEIVED");
+        transaction.setErrorMessage(null);
         emailTransactionRepository.save(transaction);
+
+        if (email.isFileSizeExceeded()) {
+            log.warn("Email attachment size limit exceeded for sender '{}', messageId=[{}]: {}",
+                    normalizedSender, email.getMessageId(), email.getErrorMessage());
+            transaction.setStatus("FILE_SIZE_EXCEEDED");
+            transaction.setErrorMessage(email.getErrorMessage());
+            emailTransactionRepository.save(transaction);
+
+            Buyer buyer = null;
+            try {
+                buyer = buyerVerificationService.verifyAndGetBuyer(normalizedSender);
+            } catch (Exception ignored) {}
+
+            String buyerName = buyer != null ? buyer.getName() : null;
+            acknowledgementEmailService.sendFileSizeExceededAcknowledgement(
+                    normalizedSender, buyerName, email.getFailedAttachmentName(),
+                    emailReaderService.getMaxAttachmentBytes());
+            emailReaderService.moveMessageToFolder(email.getMessageId(), errorFolder);
+            return STATUS_FILE_SIZE_EXCEEDED;
+        }
 
         try {
             // STEP 1: VALIDATE BUYER FIRST BEFORE CALLING GEMINI AI
@@ -221,7 +249,6 @@ public class EmailProcessorService {
             List<RFQItem> validItems = new ArrayList<>();
             List<String> failedItemsList = new ArrayList<>();
             Set<String> seenInEmailKeys = new HashSet<>();
-            boolean hasItemMissingQuantity = false;
             String topDeliveryDate = extractedRFQ.getDeliveryDate() != null ? extractedRFQ.getDeliveryDate().trim() : "";
             String topDeliveryLocation = extractedRFQ.getDeliveryLocation() != null ? extractedRFQ.getDeliveryLocation().trim() : "";
 
@@ -265,12 +292,15 @@ public class EmailProcessorService {
                         ? item.getItemDescription().trim() : extractProductFromSubject(email.getSubject());
 
                 if (desc.isBlank() || desc.equalsIgnoreCase("RFQ Procurement Item")) {
-                    String scannedProduct = scanFieldFromEmail(email, "(?i)(?:product|item|material|description)[:\\s=]*([^\\r\\n]+)");
+                    String scannedProduct = stripTrailingLabels(scanFieldFromEmail(email, PRODUCT_LABEL_REGEX));
                     if (scannedProduct != null && !scannedProduct.isBlank()) {
                         desc = scannedProduct.trim();
-                    } else {
-                        desc = "RFQ Procurement Item";
                     }
+                }
+                if (desc.isBlank()) {
+                    log.warn("Item has no description in payload, subject, or email body. Skipping item.");
+                    failedItemsList.add("Item has no description");
+                    continue;
                 }
                 item.setItemDescription(desc);
 
@@ -360,24 +390,13 @@ public class EmailProcessorService {
                     }
                 }
 
-                // Verify if quantity was inferred as 1.0 without explicit purchasing quantity statement in email text
-                if (item.getQuantity() == null || item.getQuantity() == 1.0) {
-                    boolean hasExplicitQuantityInText = hasExplicitPurchaseQuantityInText(email.getSubject(), email.getBody(), email.getAttachmentText());
-                    if (!hasExplicitQuantityInText) {
-                        log.warn("No explicit purchase quantity stated in email text for item '{}'. Resetting quantity to null.", desc);
-                        item.setQuantity(null);
-                    }
-                }
-
-                // MANDATORY QUANTITY VALIDATION PER ITEM
-                // Every offending row is recorded before the payload is rejected. Breaking out on the
-                // first one discarded the already-validated items and told the buyer about a single
-                // line, which is unusable feedback on a requirement sheet with many rows.
+                // Default quantity to 1.0 (and UOM to "Nos") if missing after extraction and recovery
                 if (item.getQuantity() == null || item.getQuantity() <= 0) {
-                    log.warn("Item '{}' missing mandatory quantity.", desc);
-                    failedItemsList.add("Item: " + desc + " | Reason: Quantity is mandatory. Please provide the required quantity.");
-                    hasItemMissingQuantity = true;
-                    continue;
+                    log.info("No explicit quantity stated for item '{}'. Defaulting quantity to 1.0.", desc);
+                    item.setQuantity(1.0);
+                }
+                if (item.getUom() == null || item.getUom().isBlank() || item.getUom().equalsIgnoreCase("null") || item.getUom().equalsIgnoreCase("Not Specified")) {
+                    item.setUom("Nos");
                 }
 
                 // Resolve item-level location & date fallbacks with ISO yyyy-MM-dd normalization
@@ -392,26 +411,30 @@ public class EmailProcessorService {
 
                 String key = buildDeduplicationKey(item, buyer.getEmail(), defaultDate, defaultLocation);
                 if (seenInEmailKeys.contains(key)) {
-                    log.info("Duplicate RFQ Item within same email payload detected, skipping line: {}", desc);
+                    log.info("Duplicate RFQ Item within same email payload detected, skipping line: {} (dedup key='{}')",
+                            desc, key);
                     continue;
                 }
                 seenInEmailKeys.add(key);
+
+                // The values that will actually reach the RFQ, after every fallback and recovery.
+                // Compare this against the AI FINAL item[..] line to see what this service changed.
+                log.info("RESOLVED item '{}': qty={}, uom='{}', spec='{}', brand='{}', partCode='{}', location='{}', date='{}'",
+                        desc, item.getQuantity(), item.getUom(), item.getSpecification(), item.getBrand(),
+                        item.getEffectivePartNumber(), item.getDeliveryLocation(), item.getDeliveryDate());
                 validItems.add(item);
             }
 
-            if (hasItemMissingQuantity) {
-                log.warn("Rejecting email payload: {} of {} item(s) are missing a mandatory quantity.",
-                        failedItemsList.size(), extractedRFQ.getItems().size());
-                validItems.clear();
-            }
+            log.info("Item validation complete: {} of {} extracted item(s) are valid.",
+                    validItems.size(), extractedRFQ.getItems().size());
 
             if (validItems.isEmpty()) {
-                log.warn("RFQ validation failed: All items in email were invalid or missing mandatory quantity/location.");
-                acknowledgementEmailService.sendConsolidatedAcknowledgement(Collections.emptyList(), failedItemsList, buyer, email.getSubject());
+                log.warn("RFQ validation failed: All items in email were invalid.");
+                acknowledgementEmailService.sendConsolidatedAcknowledgement(Collections.emptyList(), List.of("No valid items extracted from email"), buyer, email.getSubject());
                 emailReaderService.moveMessageToFolder(email.getMessageId(), errorFolder);
 
                 transaction.setStatus("VALIDATION_FAILED");
-                transaction.setErrorMessage("No valid items with mandatory quantity");
+                transaction.setErrorMessage("No valid items extracted");
                 emailTransactionRepository.save(transaction);
                 return "VALIDATION_FAILED";
             }
@@ -425,8 +448,24 @@ public class EmailProcessorService {
 
             // STEP 5: GROUP ITEMS BY CATEGORY, LOCATION & DATE
             Map<String, List<RFQItem>> itemGroups = groupItemsByCategoryLocationAndDate(validItems, defaultLocation, defaultDate);
+
+            // One RFQ is created per group, so a group split is the difference between "one RFQ with
+            // four lines" and "four RFQs with one line each". Log the split explicitly: it is the
+            // only way to tell a grouping split apart from a downstream loss of line items.
+            log.info("Grouped {} valid item(s) into {} RFQ group(s) by delivery location and date: {}",
+                    validItems.size(), itemGroups.size(),
+                    itemGroups.entrySet().stream()
+                            .map(e -> "[" + e.getKey() + "] = " + e.getValue().size() + " item(s)")
+                            .collect(java.util.stream.Collectors.joining(", ")));
+            if (itemGroups.size() > 1) {
+                log.warn("This email will produce {} separate RFQs because its items do not share one "
+                        + "delivery location and date. Items expected on a single RFQ must agree on both.",
+                        itemGroups.size());
+            }
+
             List<RFQEntity> createdRfqs = new ArrayList<>();
             boolean hasFailures = false;
+            String oversizedDocumentMessage = null;
 
             for (Map.Entry<String, List<RFQItem>> groupEntry : itemGroups.entrySet()) {
                 List<RFQItem> groupItems = groupEntry.getValue();
@@ -486,6 +525,14 @@ public class EmailProcessorService {
                             log.warn("Could not save RFQ item record: {}", ex.getMessage());
                         }
                     }
+                } else if (RFQApiService.STATUS_FILE_SIZE_EXCEEDED.equalsIgnoreCase(apiResponse.getStatus())) {
+                    // The mailbox accepted the attachment but the RFQ pipeline refused it, so this is
+                    // still a file-size failure and must not be reported as a missing detail.
+                    hasFailures = true;
+                    oversizedDocumentMessage = apiResponse.getMessage();
+                    log.warn("RFQ creation refused for RFQ Number {} because an attachment exceeds the allowed size: {}",
+                            generatedRfqNumber, apiResponse.getMessage());
+                    failedItemsList.add("Group (" + groupCategory + ") | Reason: " + apiResponse.getMessage());
                 } else {
                     hasFailures = true;
                     log.warn("RFQ creation failed for RFQ Number: {}", generatedRfqNumber);
@@ -493,10 +540,24 @@ public class EmailProcessorService {
                 }
             }
 
-            // SEND EXACTLY ONE CONSOLIDATED ACKNOWLEDGEMENT EMAIL PER INCOMING EMAIL
-            acknowledgementEmailService.sendConsolidatedAcknowledgement(createdRfqs, failedItemsList, buyer, email.getSubject());
-
             boolean atLeastOneSuccess = !createdRfqs.isEmpty();
+
+            // SEND EXACTLY ONE CONSOLIDATED ACKNOWLEDGEMENT EMAIL PER INCOMING EMAIL.
+            // An oversized attachment gets the file-size template rather than the consolidated one:
+            // the consolidated path ends at the "details missing" template, which lists a missing
+            // quantity as the reason and would misreport a size failure as a data problem.
+            if (oversizedDocumentMessage != null && !atLeastOneSuccess) {
+                acknowledgementEmailService.sendFileSizeExceededAcknowledgement(
+                        buyer.getEmail(), buyer.getName(), null, maxDocumentBytes);
+
+                emailReaderService.moveMessageToFolder(email.getMessageId(), errorFolder);
+                transaction.setStatus(STATUS_FILE_SIZE_EXCEEDED);
+                transaction.setErrorMessage(oversizedDocumentMessage);
+                emailTransactionRepository.save(transaction);
+                return STATUS_FILE_SIZE_EXCEEDED;
+            }
+
+            acknowledgementEmailService.sendConsolidatedAcknowledgement(createdRfqs, failedItemsList, buyer, email.getSubject());
 
             if (atLeastOneSuccess && !hasFailures) {
                 emailReaderService.moveMessageToFolder(email.getMessageId(), processedFolder);
@@ -523,6 +584,15 @@ public class EmailProcessorService {
             transaction.setErrorMessage(e.getMessage());
             emailTransactionRepository.save(transaction);
             try {
+                acknowledgementEmailService.sendProcessingFailureAcknowledgement(
+                        normalizedSender,
+                        "Valued Customer",
+                        "Unexpected system error: " + e.getMessage()
+                );
+            } catch (Exception mailEx) {
+                log.error("Failed to send failure email in catch block: {}", mailEx.getMessage());
+            }
+            try {
                 emailReaderService.moveMessageToFolder(email.getMessageId(), errorFolder);
             } catch (Exception ex) {
                 log.error("Failed to move email to error folder: {}", ex.getMessage());
@@ -536,7 +606,7 @@ public class EmailProcessorService {
     }
 
     private boolean isErrorStatus(String status) {
-        return Set.of("FAILED", "PARTIAL_FAILURE", "AI_FAILED", "VALIDATION_FAILED", "INVALID_BUYER")
+        return Set.of("FAILED", "PARTIAL_FAILURE", "AI_FAILED", "VALIDATION_FAILED", "INVALID_BUYER", "FILE_SIZE_EXCEEDED")
                 .contains(status);
     }
 
@@ -586,6 +656,37 @@ public class EmailProcessorService {
         return groups;
     }
 
+    /**
+     * Labels a buyer uses to name the product. Shared so the thread-merge guard and the
+     * description fallback scan agree on what counts as "this email names its own product".
+     *
+     * <p>Anchored to the start of a line and requiring a colon or equals, because these words also
+     * occur in ordinary prose. Without the anchor, "Original branded material, warranty certificate
+     * required." matched on the word "material" and yielded "warranty certificate required." as the
+     * product name. A leading pipe or bullet is allowed so a flattened spreadsheet cell still matches.
+     */
+    private static final String PRODUCT_LABEL_REGEX =
+            "(?im)^[\\s|\\-*]*(?:product|item|material|description)\\s*[:=]\\s*([^\\r\\n]+)";
+
+    /** Labels that mark where a value ends when a whole requirement block is collapsed onto one line. */
+    private static final java.util.regex.Pattern NEXT_FIELD_LABEL_PATTERN = java.util.regex.Pattern.compile(
+            "(?i)\\s+(?:quantity|qty|uom|unit|specifications?|specs|configuration|brand|make|manufacturer|"
+            + "delivery\\s+location|location|ship\\s+to|city|state|pincode|pin|remarks|notes|"
+            + "delivery\\s+date|required\\s+by|date)\\s*[:=]");
+
+    /**
+     * Cuts a scanned value at the next field label. A label block that lost its line breaks turns
+     * "Description: Laptop Quantity: 25 UOM: Nos" into one line, and the line-tail capture would
+     * otherwise take every following field as part of the product name.
+     */
+    private String stripTrailingLabels(String value) {
+        if (value == null) {
+            return null;
+        }
+        java.util.regex.Matcher matcher = NEXT_FIELD_LABEL_PATTERN.matcher(value);
+        return matcher.find() ? value.substring(0, matcher.start()).trim() : value.trim();
+    }
+
     private ExtractedRFQ mergeThreadContext(EmailData email, ExtractedRFQ extracted) {
         if (extracted == null || (email.getInReplyTo() == null && email.getReferences() == null)) {
             return extracted;
@@ -604,15 +705,36 @@ public class EmailProcessorService {
             }
             try {
                 ExtractedRFQ historical = objectMapper.readValue(prior.get().getExtractionJson(), ExtractedRFQ.class);
+
+                // The current email always outranks thread history. Inheriting an item identity
+                // from an earlier message is only correct when this email names no product of its
+                // own - the buyer replying "quantity is 25" to our clarification mail. When the
+                // buyer instead starts a NEW requirement inside an old Gmail thread, inheriting
+                // would retarget the RFQ at the previous thread's product: an order for a Laptop
+                // silently became an order for MS Hex Bolts. Getting the wrong product onto an RFQ
+                // is worse than asking the buyer to resend.
+                String statedProduct = stripTrailingLabels(scanFieldFromEmail(email, PRODUCT_LABEL_REGEX));
+                boolean namesItsOwnProduct = statedProduct != null && !statedProduct.isBlank();
+                if (namesItsOwnProduct) {
+                    log.info("Thread history found for this email, but it names its own product ('{}'). "
+                            + "Item identity will NOT be inherited from the earlier message.", statedProduct.trim());
+                }
+
                 if (historical.getItems() != null && !historical.getItems().isEmpty()
                         && extracted.getItems() != null && !extracted.getItems().isEmpty()) {
                     for (int i = 0; i < extracted.getItems().size(); i++) {
                         RFQItem current = extracted.getItems().get(i);
                         RFQItem original = i < historical.getItems().size() ? historical.getItems().get(i) : historical.getItems().get(0);
-                        if (current.getItemDescription() == null || current.getItemDescription().isBlank()) current.setItemDescription(original.getItemDescription());
-                        if (current.getSpecification() == null || current.getSpecification().isBlank()) current.setSpecification(original.getSpecification());
-                        if (current.getBrand() == null || current.getBrand().isBlank()) current.setBrand(original.getBrand());
-                        if (current.getCategory() == null || current.getCategory().isBlank()) current.setCategory(original.getCategory());
+                        if (current.getItemDescription() == null || current.getItemDescription().isBlank()) {
+                            current.setItemDescription(namesItsOwnProduct ? statedProduct.trim() : original.getItemDescription());
+                        }
+                        // Specification, brand and category describe a specific product, so they
+                        // may only be carried over while we are still discussing the same one.
+                        if (!namesItsOwnProduct) {
+                            if (current.getSpecification() == null || current.getSpecification().isBlank()) current.setSpecification(original.getSpecification());
+                            if (current.getBrand() == null || current.getBrand().isBlank()) current.setBrand(original.getBrand());
+                            if (current.getCategory() == null || current.getCategory().isBlank()) current.setCategory(original.getCategory());
+                        }
                     }
                 }
                 if (isBlank(extracted.getDeliveryLocation())) extracted.setDeliveryLocation(historical.getDeliveryLocation());
@@ -693,7 +815,12 @@ public class EmailProcessorService {
 
     private String extractProductFromSubject(String subject) {
         if (subject == null || subject.isBlank()) return "";
-        String clean = subject.replaceAll("(?i)^(re:|fwd:|rfq:|request for quotation[:\\-–—]?|inquiry for[:\\-–—]?)", "").trim();
+        String clean = subject.replaceAll("(?i)^(?:re|fwd|rfq|request for quotation|inquiry for|inquiry)[:\\-–—\\s]+", "").trim();
+        if (clean.equalsIgnoreCase("rfq") || clean.equalsIgnoreCase("request for quotation")
+                || clean.equalsIgnoreCase("inquiry") || clean.equalsIgnoreCase("(no subject)")
+                || clean.equalsIgnoreCase("no subject")) {
+            return "";
+        }
         return clean;
     }
 

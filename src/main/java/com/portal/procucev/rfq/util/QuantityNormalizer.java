@@ -60,6 +60,9 @@ public class QuantityNormalizer {
     /** A quantity literal, allowing grouped thousands in western (1,000) or Indian (1,00,000) style. */
     private static final String QTY_NUMBER = "[0-9]{1,3}(?:,[0-9]{2,3})+|[0-9]+(?:\\.[0-9]+)?";
 
+    /** A number at the very start of a labelled value, e.g. the "25" in "Quantity: 25 UOM: Nos". */
+    private static final Pattern LEADING_DIGIT_PATTERN = Pattern.compile("^\\s*(" + QTY_NUMBER + ")\\b");
+
     /** Punctuation that mail clients and flattened spreadsheets put between an item name and its quantity. */
     private static final String NAME_QTY_SEPARATOR = "[\\s\\-:=@*)\\],|]*";
 
@@ -146,6 +149,22 @@ public class QuantityNormalizer {
                     double val = Double.parseDouble(cleanDigits);
                     if (val > 0) return val;
                 } catch (Exception ignored) {}
+            }
+            // A labelled value frequently runs straight into the next label, either because the
+            // buyer wrote one line ("Quantity: 25 UOM: Nos Location: Bengaluru") or because the
+            // HTML-to-text conversion collapsed a label block. Requiring the WHOLE value to be
+            // numeric rejected those outright, so an RFQ that stated every detail was still
+            // reported as quantity-less. Accept the leading number instead, unless what follows it
+            // is a specification unit - "Quantity: 16 GB RAM" must still normalise to null.
+            Matcher leadingInValue = LEADING_DIGIT_PATTERN.matcher(extractedValue);
+            if (leadingInValue.find()) {
+                String remainder = extractedValue.substring(leadingInValue.end()).trim();
+                if (!SPECIFICATION_INDICATOR_PATTERN.matcher(remainder).find()) {
+                    double val = Double.parseDouble(leadingInValue.group(1).replace(",", ""));
+                    if (val > 0 && Double.isFinite(val)) {
+                        return val;
+                    }
+                }
             }
             Double wordVal = parseWords(extractedValue);
             if (wordVal != null && wordVal > 0) return wordVal;

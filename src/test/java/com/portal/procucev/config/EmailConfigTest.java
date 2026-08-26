@@ -20,8 +20,17 @@ class EmailConfigTest {
     private EmailConfig config;
 
     @Test
-    void testScheduleTask_Enabled() {
+    void testScheduleTask_Enabled_Success() {
         ReflectionTestUtils.setField(config, "isEnabled", true);
+
+        config.scheduleTaskWithCronExpressionsforForwardEmailToClient();
+        verify(gmtService).emailForwarder();
+    }
+
+    @Test
+    void testScheduleTask_Enabled_Exception() {
+        ReflectionTestUtils.setField(config, "isEnabled", true);
+        doThrow(new RuntimeException("mail forward error")).when(gmtService).emailForwarder();
 
         config.scheduleTaskWithCronExpressionsforForwardEmailToClient();
         verify(gmtService).emailForwarder();
@@ -33,5 +42,24 @@ class EmailConfigTest {
 
         config.scheduleTaskWithCronExpressionsforForwardEmailToClient();
         verify(gmtService, never()).emailForwarder();
+    }
+
+    @Test
+    void testOnApplicationReady_Enabled() {
+        EmailConfig selfMock = mock(EmailConfig.class);
+        ReflectionTestUtils.setField(config, "isEnabled", true);
+        ReflectionTestUtils.setField(config, "self", selfMock);
+
+        config.onApplicationReady();
+    }
+
+    @Test
+    void testOnApplicationReady_Disabled() {
+        EmailConfig selfMock = mock(EmailConfig.class);
+        ReflectionTestUtils.setField(config, "isEnabled", false);
+        ReflectionTestUtils.setField(config, "self", selfMock);
+
+        config.onApplicationReady();
+        verifyNoInteractions(selfMock);
     }
 }

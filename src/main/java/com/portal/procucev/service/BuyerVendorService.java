@@ -19,11 +19,13 @@ public interface BuyerVendorService {
 
     boolean updateStatus(String id, String buyerOrgId, String status);
 
-    boolean deleteVendor(String idOrCode, String buyerOrgId);
+    boolean deleteVendor(String id, String buyerOrgId);
 
-    java.util.Map<String, Object> bulkDeleteVendors(java.util.List<String> vendorCodes, String buyerOrgId);
+    int bulkDeleteVendors(java.util.List<String> idsOrCodes, String buyerOrgId);
 
     java.util.Map<String, Object> bulkCreateVendors(java.util.List<BuyerVendor> vendors, String buyerOrgId, String createdBy);
 
     java.util.List<java.util.Map<String, Object>> getProcucevRecommendations(String category, int limit);
 }
+
+
