@@ -30,6 +30,11 @@ public interface RfqDao extends JpaRepository<Rfq, String>{
 			+ " WHERE r.user=:user and r.noPrFlag = true Order By r.createdTS DESC")
 	List<Rfq> findNoPrRfqByClient(@Param("user") String user);
 
+	@Query("SELECT r FROM Rfq r LEFT JOIN FETCH r.clientStatus "
+			+ " WHERE (r.user = :buyerId OR r.user = :username OR r.createdBy = :username OR (r.org IS NOT NULL AND r.org.id = :orgId)) "
+			+ " AND r.noPrFlag = true ORDER BY r.createdTS DESC")
+	List<Rfq> findBuyerRfqsFiltered(@Param("orgId") String orgId, @Param("buyerId") String buyerId, @Param("username") String username);
+
 	@Query("SELECT r FROM Rfq r WHERE  (r.noPrFlag = true and r.byClient = false)or (r.byClient = true and r.clientStatus =:status )Order By r.createdTS DESC")
 	List<Rfq> findAllRfqNoPrByCM(MasterStatus status);
 
