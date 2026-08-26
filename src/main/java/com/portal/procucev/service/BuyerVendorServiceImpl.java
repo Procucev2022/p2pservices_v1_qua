@@ -259,17 +259,7 @@ public class BuyerVendorServiceImpl implements BuyerVendorService {
     public int bulkDeleteVendors(java.util.List<String> idsOrCodes, String buyerOrgId) {
         ensureTableExists();
         if (idsOrCodes == null || idsOrCodes.isEmpty()) {
-            List<BuyerVendor> allMaster = buyerVendorDao.findByBuyerOrgId(buyerOrgId);
-            int masterCount = allMaster.size();
-            buyerVendorDao.deleteAll(allMaster);
-
-            List<BuyerVendorAiProfile> allAi = buyerVendorAiProfileDao.findByBuyerOrgIdOrderByCreatedTSDesc(buyerOrgId);
-            int aiCount = allAi.size();
-            buyerVendorAiProfileDao.deleteAll(allAi);
-
-            int total = Math.max(masterCount, aiCount);
-            log.info("Bulk deleted all (master: {}, ai: {}) for buyerOrgId: {}", masterCount, aiCount, buyerOrgId);
-            return total;
+            return 0;
         }
 
         int deletedCount = 0;
