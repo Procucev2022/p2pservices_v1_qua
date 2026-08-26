@@ -169,6 +169,8 @@ class GMTServiceImplCoverageTest {
     @Mock
     private JavaMailSender javaMailSender;
     @Mock
+    private AutomaticRfqService automaticRfqService;
+    @Mock
     private MimeMessage mimeMessage;
 
     @InjectMocks
@@ -213,6 +215,7 @@ class GMTServiceImplCoverageTest {
         rfq.setDeliveryDate(Date.from(Instant.now().plus(1, ChronoUnit.DAYS)));
 
         when(javaMailSender.createMimeMessage()).thenReturn(mimeMessage);
+        when(automaticRfqService.generateRfqId(anyString())).thenReturn("RFQ250101000001");
     }
 
     @AfterEach

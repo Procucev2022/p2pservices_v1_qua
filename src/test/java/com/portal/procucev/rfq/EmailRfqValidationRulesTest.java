@@ -13,6 +13,7 @@ import com.portal.procucev.rfq.service.CategoryClassificationService;
 import com.portal.procucev.rfq.service.ExcelMasterDataLoader;
 import com.portal.procucev.rfq.service.RFQBuilderService;
 import com.portal.procucev.rfq.service.ValidationService;
+import com.portal.procucev.service.AutomaticRfqService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -65,7 +66,9 @@ public class EmailRfqValidationRulesTest {
     @DisplayName("TEST 2 & 6: Delivery location fallback uses buyer registration address when location is missing")
     void test2_DeliveryLocationFallback() {
         PincodeDao pincodeDao = Mockito.mock(PincodeDao.class);
-        RFQBuilderService rfqBuilderService = new RFQBuilderService(dateParser, pincodeDao);
+        AutomaticRfqService automaticRfqService = Mockito.mock(AutomaticRfqService.class);
+        Mockito.when(automaticRfqService.generateRfqId("RFQ")).thenReturn("RFQ260825000001");
+        RFQBuilderService rfqBuilderService = new RFQBuilderService(dateParser, pincodeDao, automaticRfqService);
         Buyer buyer = Buyer.builder()
                 .address("45 Outer Ring Road, Mahadevapura")
                 .city("Bengaluru")

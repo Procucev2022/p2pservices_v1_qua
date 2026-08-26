@@ -3,13 +3,17 @@ package com.portal.procucev.service;
 import com.portal.procucev.customexception.RfqDocumentSizeExceededException;
 import com.portal.procucev.dao.*;
 import com.portal.procucev.model.*;
+import com.portal.procucev.rfq.repository.RFQRepository;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.dao.DuplicateKeyException;
+import org.springframework.jdbc.core.JdbcTemplate;
 
 import java.util.*;
 
@@ -33,9 +37,18 @@ class AutomaticRfqServiceImplTest {
     private OrgDao orgDao;
     @Mock
     private PincodeDao pincodeDao;
+    @Mock
+    private RFQRepository rfqRepository;
+    @Mock
+    private JdbcTemplate jdbcTemplate;
 
     @InjectMocks
     private AutomaticRfqServiceImpl service;
+
+    @BeforeEach
+    void setUp() {
+        lenient().when(jdbcTemplate.update(anyString(), org.mockito.ArgumentMatchers.<Object[]>any())).thenReturn(1);
+    }
 
     @Test
     void testGetMaxDocumentBytes() {
@@ -293,19 +306,33 @@ class AutomaticRfqServiceImplTest {
 
     @Test
     void testGenerateRfqId() {
+        when(rfqRepository.findByRfqNumber(anyString())).thenReturn(Optional.empty());
+
+        String before = new java.text.SimpleDateFormat("yyddMM").format(new Date());
         String id1 = service.generateRfqId("RFQ");
+        String after = new java.text.SimpleDateFormat("yyddMM").format(new Date());
         assertNotNull(id1);
         assertTrue(id1.startsWith("RFQ"));
+        assertEquals(15, id1.length());
+        assertTrue(id1.matches("^RFQ\\d{12}$"));
+        String generatedDate = id1.substring(3, 9);
+        assertTrue(generatedDate.equals(before) || generatedDate.equals(after));
 
         String id2 = service.generateRfqId("AB");
         assertNotNull(id2);
         assertTrue(id2.startsWith("AB"));
+        assertEquals(14, id2.length());
+        assertTrue(id2.matches("^AB\\d{12}$"));
 
         String id3 = service.generateRfqId(null);
         assertNotNull(id3);
+        assertEquals(12, id3.length());
+        assertTrue(id3.matches("^\\d{12}$"));
 
         String id4 = service.generateRfqId("");
         assertNotNull(id4);
+        assertEquals(12, id4.length());
+        assertTrue(id4.matches("^\\d{12}$"));
     }
 
     @Test
@@ -403,5 +430,94 @@ class AutomaticRfqServiceImplTest {
         org.springframework.test.util.ReflectionTestUtils.invokeMethod(service, "applyOrganizationAddress", (ClientDeliveryLocationRfq) null, new User());
         org.springframework.test.util.ReflectionTestUtils.invokeMethod(service, "applyOrganizationAddress", loc, (User) null);
         org.springframework.test.util.ReflectionTestUtils.invokeMethod(service, "applyOrganizationAddress", loc, new User());
+    }
+
+    @Test
+    void testGenerateRfqId_VariationsAndCollisions() {
+        // null and short company strings
+        String id1 = service.generateRfqId(null);
+        assertNotNull(id1);
+        String id2 = service.generateRfqId("AB");
+        assertNotNull(id2);
+        assertTrue(id2.startsWith("AB"));
+
+        // DuplicateKeyException branch in reserveRfqNumber
+        when(jdbcTemplate.update(anyString(), org.mockito.ArgumentMatchers.<Object[]>any()))
+                .thenThrow(new DuplicateKeyException("duplicate"))
+                .thenReturn(1);
+        String id3 = service.generateRfqId("XYZ");
+        assertNotNull(id3);
+        assertTrue(id3.startsWith("XYZ"));
+
+        // Collision in rfqDao and rfqRepository
+        when(rfqDao.findByRfqId(anyString()))
+                .thenReturn(new Rfq())
+                .thenReturn(null);
+        when(rfqRepository.findByRfqNumber(anyString()))
+                .thenReturn(Optional.of(new com.portal.procucev.rfq.entity.RFQEntity()))
+                .thenReturn(Optional.empty());
+        when(jdbcTemplate.update(anyString(), org.mockito.ArgumentMatchers.<Object[]>any()))
+                .thenReturn(0)
+                .thenReturn(1);
+        String id4 = service.generateRfqId("PRO");
+        assertNotNull(id4);
+        assertTrue(id4.startsWith("PRO"));
+    }
+
+    @Test
+    void testResolveDeliveryLocation_NullRfq_And_CityNotFound() {
+        assertDoesNotThrow(() -> service.resolveDeliveryLocation(null, new User()));
+
+        Rfq rfq = new Rfq();
+        ClientDeliveryLocationRfq loc = new ClientDeliveryLocationRfq();
+        loc.setCity("UnknownCity");
+        loc.setState(null);
+        loc.setPincode(null);
+        rfq.setClientdeliverylocationrfq(new ArrayList<>(List.of(loc)));
+
+        User user = new User();
+        Organization org = new Organization();
+        org.setCity("OrgCity");
+        org.setState("OrgState");
+        org.setZipCode("123456");
+        user.setOrg(org);
+
+        when(pincodeDao.findByCityIgnoreCase("UnknownCity")).thenReturn(null);
+        service.resolveDeliveryLocation(rfq, user);
+        assertEquals("OrgCity", loc.getCity());
+        assertEquals("OrgState", loc.getState());
+        assertEquals("123456", loc.getPincode());
+    }
+
+    @Test
+    void testAttachDocuments_BlankFileAndInvalidBase64() {
+        Rfq rfq = new Rfq();
+        Map<String, String> blankFileDoc = new HashMap<>();
+        blankFileDoc.put("fileName", "blank.txt");
+        blankFileDoc.put("file", "   ");
+
+        Map<String, String> invalidDoc = new HashMap<>();
+        invalidDoc.put("fileName", "bad.txt");
+        invalidDoc.put("file", "not-valid-base64!!!");
+
+        service.attachDocuments(rfq, List.of(blankFileDoc, invalidDoc));
+        assertTrue(rfq.getRfqDocument().isEmpty());
+    }
+
+    @Test
+    void testValidateEmail_OrgIdNull() {
+        User userWithNullOrgId = new User();
+        userWithNullOrgId.setFullName("John Doe");
+        userWithNullOrgId.setId("U123");
+        Organization org = new Organization();
+        org.setId(null);
+        userWithNullOrgId.setOrg(org);
+
+        when(userDao.findByLatestUserName("test@nullorg.com")).thenReturn(userWithNullOrgId);
+        Map<String, String> resp = service.validateEmail("test@nullorg.com");
+        assertEquals("Success", resp.get("status"));
+        assertEquals("00", resp.get("code"));
+        assertNull(resp.get("orgId"));
+        assertEquals("User Found but Org Id is null", resp.get("description"));
     }
 }

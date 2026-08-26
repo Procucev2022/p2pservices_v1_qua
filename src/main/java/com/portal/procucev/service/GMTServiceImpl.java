@@ -3,7 +3,6 @@ package com.portal.procucev.service;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
-import java.text.SimpleDateFormat;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -165,6 +164,9 @@ public class GMTServiceImpl implements GMTService {
 	private SelfRegistrationService selfRegistrationService;
 
 	@Autowired
+	private AutomaticRfqService automaticRfqService;
+
+	@Autowired
 	private GmtItemsDao gmtItemsDao;
 
 	@Autowired
@@ -314,7 +316,7 @@ public class GMTServiceImpl implements GMTService {
 
 			// String rfqId = selfRegistrationService.generateId("RFQ");
 
-			String rfqId = generateRfqId("RFQ");
+			String rfqId = automaticRfqService.generateRfqId("RFQ");
 			logger.info("Generated RFQ Id: {}", rfqId);
 			rfq.setRfqId(rfqId);
 
@@ -1687,7 +1689,7 @@ public class GMTServiceImpl implements GMTService {
 		try {
 			// Get Total counts for PR
 			// String rfqId = selfRegistrationService.generateId("RFQ");
-			String rfqId = generateRfqId("RFQ");
+			String rfqId = automaticRfqService.generateRfqId("RFQ");
 			logger.info("Generated RFQ Id{}", rfqId);
 			rfq.setRfqId(rfqId);
 
@@ -2653,7 +2655,7 @@ public class GMTServiceImpl implements GMTService {
 			rfq.setClientStatus(newStatus);
 
 			// String rfqId = selfRegistrationService.generateId("RFQ");
-			String rfqId = generateRfqId("RFQ");
+			String rfqId = automaticRfqService.generateRfqId("RFQ");
 			logger.info("Generated RFQ Id: {}", rfqId);
 			rfq.setRfqId(rfqId);
 
@@ -3525,25 +3527,6 @@ public class GMTServiceImpl implements GMTService {
 
 		logger.info("Organization fetched successfully for user ID: {}", user.getId());
 		return org;
-	}
-
-	public String generateRfqId(String company) {
-		String companyLetters = "";
-		if (company != null && !company.isEmpty()) {
-			companyLetters = company.length() >= 3 ? company.substring(0, 3).toUpperCase() : company.toUpperCase();
-		}
-
-		// current date in ddMM format
-		String datePart = new SimpleDateFormat("yyddMM").format(new Date());
-
-		// milliseconds part
-		long millis = System.currentTimeMillis() % 1000000; // last 6 digits to shorten
-
-		// optional random 3-digit suffix
-		// int random = (int) (Math.random() * 1000);
-
-		// return companyLetters + datePart + millis + String.format("%03d", random);
-		return companyLetters + datePart + millis;
 	}
 
 	@Override

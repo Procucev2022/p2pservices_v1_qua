@@ -15,12 +15,15 @@ import com.portal.procucev.model.RFQDocument;
 import com.portal.procucev.model.Rfq;
 import com.portal.procucev.model.RfqItem;
 import com.portal.procucev.model.User;
+import com.portal.procucev.rfq.repository.RFQRepository;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.ArrayList;
@@ -37,6 +40,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 
 /**
@@ -61,9 +65,18 @@ class SharedRfqCreationPipelineTest {
     private OrgDao orgDao;
     @Mock
     private PincodeDao pincodeDao;
+    @Mock
+    private RFQRepository rfqRepository;
+    @Mock
+    private JdbcTemplate jdbcTemplate;
 
     @InjectMocks
     private AutomaticRfqServiceImpl service;
+
+    @BeforeEach
+    void setUp() {
+        lenient().when(jdbcTemplate.update(anyString(), org.mockito.ArgumentMatchers.<Object[]>any())).thenReturn(1);
+    }
 
     private Map<String, String> document(String fileName, byte[] payload) {
         Map<String, String> doc = new HashMap<>();

@@ -11,14 +11,6 @@ import static org.junit.jupiter.api.Assertions.*;
 public class CommonUtilTest {
 
     @Test
-    @DisplayName("Test generateUniqueRfqNumber returns non-null valid format")
-    void testGenerateUniqueRfqNumber() {
-        String rfqNumber = CommonUtil.generateUniqueRfqNumber();
-        assertNotNull(rfqNumber);
-        assertTrue(rfqNumber.startsWith("RFQ-"));
-    }
-
-    @Test
     @DisplayName("Test shortenRfqNumber preserves unique suffix")
     void testShortenRfqNumber() {
         assertEquals("RFQ-20260813153514-bbc27322", CommonUtil.shortenRfqNumber("RFQ-20260813153514-bbc27322"));

@@ -72,6 +72,11 @@ public class RfqSchemaInitializer {
                     "updated_at DATETIME" +
                     ")");
 
+            jdbcTemplate.execute("CREATE TABLE IF NOT EXISTS rfq_id_reservations (" +
+                    "rfq_number VARCHAR(255) PRIMARY KEY, " +
+                    "reserved_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP" +
+                    ")");
+
             jdbcTemplate.execute("CREATE TABLE IF NOT EXISTS rfq_item_records (" +
                     "id BIGINT AUTO_INCREMENT PRIMARY KEY, " +
                     "buyer_email VARCHAR(255) NOT NULL, " +

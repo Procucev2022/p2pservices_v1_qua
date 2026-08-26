@@ -15,6 +15,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DataAccessException;
+import org.springframework.dao.DuplicateKeyException;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
 import com.portal.procucev.customexception.RfqDocumentSizeExceededException;
@@ -24,6 +26,7 @@ import com.portal.procucev.dao.OrgDao;
 import com.portal.procucev.dao.PincodeDao;
 import com.portal.procucev.dao.RfqDao;
 import com.portal.procucev.dao.UserDao;
+import com.portal.procucev.rfq.repository.RFQRepository;
 import com.portal.procucev.model.ClientDeliveryLocationRfq;
 import com.portal.procucev.model.GmtItems;
 import com.portal.procucev.model.MasterStatus;
@@ -58,6 +61,12 @@ OrgDao orgDao;
 
 @Autowired
 PincodeDao pincodeDao;
+
+@Autowired
+RFQRepository rfqRepository;
+
+@Autowired
+JdbcTemplate jdbcTemplate;
 
 	/**
 	 * Per-document size cap, shared with the web multipart limit and the email pipeline's attachment
@@ -324,14 +333,28 @@ PincodeDao pincodeDao;
 		// current date in ddMM format
 		String datePart = new SimpleDateFormat("yyddMM").format(new Date());
 
-		// milliseconds part
-		long millis = System.currentTimeMillis() % 1000000; // last 6 digits to shorten
+		// Allocate and reserve the 6-digit suffix atomically per JVM instance.
+		synchronized (this) {
+			int start = (int) (System.currentTimeMillis() % 1_000_000);
+			for (int attempt = 0; attempt < 1_000_000; attempt++) {
+				int suffix = (start + attempt) % 1_000_000;
+				String candidate = companyLetters + datePart + String.format("%06d", suffix);
+				if (rfqDao.findByRfqId(candidate) == null
+						&& rfqRepository.findByRfqNumber(candidate).isEmpty()
+						&& reserveRfqNumber(candidate)) {
+					return candidate;
+				}
+			}
+		}
+		throw new IllegalStateException("Unable to allocate unique RFQ id suffix");
+	}
 
-		// optional random 3-digit suffix
-		// int random = (int) (Math.random() * 1000);
-
-		// return companyLetters + datePart + millis + String.format("%03d", random);
-		return companyLetters + datePart + millis;
+	private boolean reserveRfqNumber(String candidate) {
+		try {
+			return jdbcTemplate.update("INSERT INTO rfq_id_reservations (rfq_number) VALUES (?)", candidate) == 1;
+		} catch (DuplicateKeyException ex) {
+			return false;
+		}
 	}
 	
 	private GmtItems mapRfqItemToGmtItem(RfqItem rfqItem) {

@@ -3031,5 +3031,183 @@ public class EmailProcessorServiceTest {
         String popRes = emailProcessorService.processSingleEmail(populatedItemEmail);
         assertEquals("RFQ_CREATED", popRes);
     }
+
+    @Test
+    @DisplayName("Test scanFieldFromEmail, mergeThreadContext, looksLikeBrandName and scanQuantity branches")
+    void testBranchCoverageMatrix() throws Exception {
+        com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+
+        // 1. scanFieldFromEmail branches
+        assertNull(ReflectionTestUtils.invokeMethod(emailProcessorService, "scanFieldFromEmail", (EmailData) null, ".*"));
+
+        EmailData emailAttOnly = EmailData.builder()
+                .body(null)
+                .attachmentText("Delivery Location: Bangalore Plant")
+                .build();
+        String scannedLoc = ReflectionTestUtils.invokeMethod(emailProcessorService, "scanFieldFromEmail", emailAttOnly, "(?i)Delivery Location:\\s*(.*)");
+        assertEquals("Bangalore Plant", scannedLoc);
+
+        // 2. mergeThreadContext branches
+        assertNull(ReflectionTestUtils.invokeMethod(emailProcessorService, "mergeThreadContext", emailAttOnly, (ExtractedRFQ) null));
+
+        EmailData emailNoThread = EmailData.builder().inReplyTo(null).references(null).build();
+        ExtractedRFQ extRfq = ExtractedRFQ.builder().deliveryLocation("Mumbai").build();
+        assertSame(extRfq, ReflectionTestUtils.invokeMethod(emailProcessorService, "mergeThreadContext", emailNoThread, extRfq));
+
+        // In-Reply-To where prior transaction doesn't exist
+        EmailData emailPriorNotFound = EmailData.builder().inReplyTo("MSG-NON-EXISTENT").build();
+        Mockito.when(emailTransactionRepository.findByMessageId("MSG-NON-EXISTENT")).thenReturn(Optional.empty());
+        assertSame(extRfq, ReflectionTestUtils.invokeMethod(emailProcessorService, "mergeThreadContext", emailPriorNotFound, extRfq));
+
+        // Prior transaction with null extraction json
+        EmailData emailPriorNullJson = EmailData.builder().inReplyTo("MSG-NULL-JSON").build();
+        EmailTransaction txNullJson = new EmailTransaction();
+        txNullJson.setMessageId("MSG-NULL-JSON");
+        txNullJson.setExtractionJson(null);
+        Mockito.when(emailTransactionRepository.findByMessageId("MSG-NULL-JSON")).thenReturn(Optional.of(txNullJson));
+        assertSame(extRfq, ReflectionTestUtils.invokeMethod(emailProcessorService, "mergeThreadContext", emailPriorNullJson, extRfq));
+
+        // Prior transaction with invalid JSON
+        EmailData emailBadJson = EmailData.builder().inReplyTo("MSG-BAD-JSON").build();
+        EmailTransaction txBadJson = new EmailTransaction();
+        txBadJson.setMessageId("MSG-BAD-JSON");
+        txBadJson.setExtractionJson("{invalid json");
+        Mockito.when(emailTransactionRepository.findByMessageId("MSG-BAD-JSON")).thenReturn(Optional.of(txBadJson));
+        assertSame(extRfq, ReflectionTestUtils.invokeMethod(emailProcessorService, "mergeThreadContext", emailBadJson, extRfq));
+
+        // Prior transaction with historical items and namesItsOwnProduct == false
+        EmailData emailThreadNoOwnProduct = EmailData.builder()
+                .inReplyTo("MSG-VALID-THREAD")
+                .references("MSG-REF-1")
+                .body("Quantity is 50 Nos")
+                .build();
+        ExtractedRFQ historicalRfq = ExtractedRFQ.builder()
+                .deliveryLocation("Chennai Hub")
+                .deliveryDate("2026-11-15")
+                .items(List.of(
+                        RFQItem.builder()
+                                .itemDescription("Centrifugal Pump")
+                                .specification("Cast Iron 5HP")
+                                .brand("Kirloskar")
+                                .category("Pumps & Motors")
+                                .build()
+                ))
+                .build();
+        EmailTransaction txValid = new EmailTransaction();
+        txValid.setMessageId("MSG-VALID-THREAD");
+        txValid.setExtractionJson(mapper.writeValueAsString(historicalRfq));
+        Mockito.when(emailTransactionRepository.findByMessageId("MSG-VALID-THREAD")).thenReturn(Optional.of(txValid));
+
+        ExtractedRFQ currentRfqMissingDetails = ExtractedRFQ.builder()
+                .items(new java.util.ArrayList<>(List.of(
+                        RFQItem.builder().itemDescription("").quantity(50.0).build(),
+                        RFQItem.builder().itemDescription(null).quantity(20.0).build()
+                )))
+                .build();
+        ExtractedRFQ mergedRfq = ReflectionTestUtils.invokeMethod(emailProcessorService, "mergeThreadContext", emailThreadNoOwnProduct, currentRfqMissingDetails);
+        assertNotNull(mergedRfq);
+        assertEquals("Centrifugal Pump", mergedRfq.getItems().get(0).getItemDescription());
+        assertEquals("Cast Iron 5HP", mergedRfq.getItems().get(0).getSpecification());
+        assertEquals("Kirloskar", mergedRfq.getItems().get(0).getBrand());
+        assertEquals("Pumps & Motors", mergedRfq.getItems().get(0).getCategory());
+        assertEquals("Chennai Hub", mergedRfq.getDeliveryLocation());
+        assertEquals("2026-11-15", mergedRfq.getDeliveryDate());
+
+        // Thread with namesItsOwnProduct == true
+        EmailData emailThreadOwnProduct = EmailData.builder()
+                .inReplyTo("MSG-VALID-THREAD-2")
+                .body("Product: Submersible Pump\nQuantity is 10 Nos")
+                .build();
+        EmailTransaction txValid2 = new EmailTransaction();
+        txValid2.setMessageId("MSG-VALID-THREAD-2");
+        txValid2.setExtractionJson(mapper.writeValueAsString(historicalRfq));
+        Mockito.when(emailTransactionRepository.findByMessageId("MSG-VALID-THREAD-2")).thenReturn(Optional.of(txValid2));
+
+        ExtractedRFQ currentRfqBlankDesc = ExtractedRFQ.builder()
+                .items(new java.util.ArrayList<>(List.of(
+                        RFQItem.builder().itemDescription("").quantity(10.0).build()
+                )))
+                .build();
+        ExtractedRFQ mergedOwnProduct = ReflectionTestUtils.invokeMethod(emailProcessorService, "mergeThreadContext", emailThreadOwnProduct, currentRfqBlankDesc);
+        assertEquals("Submersible Pump", mergedOwnProduct.getItems().get(0).getItemDescription());
+        assertNull(mergedOwnProduct.getItems().get(0).getSpecification());
+
+        // 3. looksLikeBrandName branches
+        assertFalse((Boolean) ReflectionTestUtils.invokeMethod(emailProcessorService, "looksLikeBrandName", (String) null));
+        assertFalse((Boolean) ReflectionTestUtils.invokeMethod(emailProcessorService, "looksLikeBrandName", "   "));
+        assertFalse((Boolean) ReflectionTestUtils.invokeMethod(emailProcessorService, "looksLikeBrandName", "A".repeat(70)));
+        assertFalse((Boolean) ReflectionTestUtils.invokeMethod(emailProcessorService, "looksLikeBrandName", "Laptop with 16 GB RAM"));
+        assertFalse((Boolean) ReflectionTestUtils.invokeMethod(emailProcessorService, "looksLikeBrandName", "Please provide Dell"));
+        assertFalse((Boolean) ReflectionTestUtils.invokeMethod(emailProcessorService, "looksLikeBrandName", "One Two Three Four Five Six Seven Eight"));
+        assertTrue((Boolean) ReflectionTestUtils.invokeMethod(emailProcessorService, "looksLikeBrandName", "Dell / HP"));
+
+        // 4. isPlausibleSpecification branches
+        assertFalse((Boolean) ReflectionTestUtils.invokeMethod(emailProcessorService, "isPlausibleSpecification", (String) null));
+        assertFalse((Boolean) ReflectionTestUtils.invokeMethod(emailProcessorService, "isPlausibleSpecification", "abc"));
+        assertFalse((Boolean) ReflectionTestUtils.invokeMethod(emailProcessorService, "isPlausibleSpecification", "Delivery Location: Mumbai"));
+        assertTrue((Boolean) ReflectionTestUtils.invokeMethod(emailProcessorService, "isPlausibleSpecification", "Stainless Steel Grade 304"));
+
+        // 5. scanQuantityFromEmail branches
+        assertNull(ReflectionTestUtils.invokeMethod(emailProcessorService, "scanQuantityFromEmail", (EmailData) null));
+        EmailData emailNullSources = EmailData.builder().body(null).attachmentText(null).subject(null).build();
+        assertNull(ReflectionTestUtils.invokeMethod(emailProcessorService, "scanQuantityFromEmail", emailNullSources));
+        EmailData emailValidQty = EmailData.builder().body("Required Quantity: 100 Nos").build();
+        assertEquals(100.0, (Double) ReflectionTestUtils.invokeMethod(emailProcessorService, "scanQuantityFromEmail", emailValidQty));
+
+        // 6. Additional mergeThreadContext branches
+        EmailData emailThread3 = EmailData.builder()
+                .references("MSG-HIST-3")
+                .attachmentText("Product: Hex Bolts")
+                .build();
+        ExtractedRFQ histEmptyItems = ExtractedRFQ.builder()
+                .items(new java.util.ArrayList<>())
+                .deliveryLocation("Pune")
+                .deliveryDate("2026-12-01")
+                .build();
+        EmailTransaction txHist3 = new EmailTransaction();
+        txHist3.setMessageId("MSG-HIST-3");
+        txHist3.setExtractionJson(mapper.writeValueAsString(histEmptyItems));
+        Mockito.when(emailTransactionRepository.findByMessageId("MSG-HIST-3")).thenReturn(Optional.of(txHist3));
+
+        ExtractedRFQ currentPopulated = ExtractedRFQ.builder()
+                .items(new java.util.ArrayList<>(List.of(
+                        RFQItem.builder().itemDescription("Populated").specification("Spec1").brand("Brand1").category("Cat1").build()
+                )))
+                .deliveryLocation("Mumbai")
+                .deliveryDate("2026-10-01")
+                .build();
+        ExtractedRFQ merged3 = ReflectionTestUtils.invokeMethod(emailProcessorService, "mergeThreadContext", emailThread3, currentPopulated);
+        assertNotNull(merged3);
+        assertEquals("Mumbai", merged3.getDeliveryLocation());
+        assertEquals("2026-10-01", merged3.getDeliveryDate());
+        assertEquals("Populated", merged3.getItems().get(0).getItemDescription());
+        assertEquals("Spec1", merged3.getItems().get(0).getSpecification());
+
+        // Test merge with null items in extracted
+        ExtractedRFQ currentNullItems = ExtractedRFQ.builder().items(null).build();
+        ExtractedRFQ mergedNullItems = ReflectionTestUtils.invokeMethod(emailProcessorService, "mergeThreadContext", emailThreadNoOwnProduct, currentNullItems);
+        assertNotNull(mergedNullItems);
+
+        // Test merge when current has non-blank spec, brand, category with no own product
+        ExtractedRFQ currentWithSpecs = ExtractedRFQ.builder()
+                .items(new java.util.ArrayList<>(List.of(
+                        RFQItem.builder().itemDescription("Item1").specification("SpecX").brand("BrandY").category("CatZ").build()
+                )))
+                .build();
+        ExtractedRFQ mergedWithSpecs = ReflectionTestUtils.invokeMethod(emailProcessorService, "mergeThreadContext", emailThreadNoOwnProduct, currentWithSpecs);
+        assertNotNull(mergedWithSpecs);
+        assertEquals("SpecX", mergedWithSpecs.getItems().get(0).getSpecification());
+        assertEquals("BrandY", mergedWithSpecs.getItems().get(0).getBrand());
+        assertEquals("CatZ", mergedWithSpecs.getItems().get(0).getCategory());
+
+        // Test scanFieldFromEmail from body and attachment
+        EmailData emailWithBodyProduct = EmailData.builder().body("Requirement for Product: Copper Wire").build();
+        String scannedBody = ReflectionTestUtils.invokeMethod(emailProcessorService, "scanFieldFromEmail", emailWithBodyProduct, "Product:\\s*([^\n\r,;]+)");
+        assertEquals("Copper Wire", scannedBody);
+
+        EmailData emailWithAttachProduct = EmailData.builder().attachmentText("Product: Aluminum Rod").build();
+        String scannedAttach = ReflectionTestUtils.invokeMethod(emailProcessorService, "scanFieldFromEmail", emailWithAttachProduct, "Product:\\s*([^\n\r,;]+)");
+        assertEquals("Aluminum Rod", scannedAttach);
+    }
 }
 
