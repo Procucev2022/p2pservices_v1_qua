@@ -327,7 +327,50 @@ public class BuyerVendorController {
         }
     }
 
+    /**
+     * POST /rest/buyer/vendors/bulk-delete
+     * DELETE /rest/buyer/vendors/bulk
+     */
+    @RequestMapping(value = {"/bulk-delete", "/bulk"}, method = {RequestMethod.POST, RequestMethod.DELETE})
+    public ResponseEntity<MessageResponse> bulkDeleteVendors(@RequestBody(required = false) Object payload) {
+        try {
+            String buyerOrgId = getLoggedInBuyerOrgId();
+            List<String> idsOrCodes = new java.util.ArrayList<>();
+
+            if (payload instanceof List<?> list) {
+                for (Object item : list) {
+                    if (item != null) {
+                        idsOrCodes.add(item.toString());
+                    }
+                }
+            } else if (payload instanceof Map<?, ?> map) {
+                Object codes = map.containsKey("vendorCodes") ? map.get("vendorCodes") : map.get("ids");
+                if (codes instanceof List<?> list) {
+                    for (Object item : list) {
+                        if (item != null) {
+                            idsOrCodes.add(item.toString());
+                        }
+                    }
+                }
+            }
+
+            int deletedCount = buyerVendorService.bulkDeleteVendors(idsOrCodes, buyerOrgId);
+
+            MessageResponse response = MessageResponse.success(
+                deletedCount + " vendor(s) deleted successfully",
+                Map.of("deletedCount", deletedCount, "totalRequested", idsOrCodes.size())
+            );
+            return ResponseEntity.ok(response);
+        } catch (Exception ex) {
+            log.error("Error bulk deleting vendors", ex);
+            return ResponseEntity.internalServerError().body(
+                new MessageResponse("500", "Internal server error", List.of(ex.getMessage()), new Date(), "Failure", "SYSTEM_ERROR")
+            );
+        }
+    }
+
     private String getLoggedInBuyerOrgId() {
+
 
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         String username = auth.getName();

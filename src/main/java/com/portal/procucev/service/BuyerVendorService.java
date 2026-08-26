@@ -21,6 +21,9 @@ public interface BuyerVendorService {
 
     boolean deleteVendor(String id, String buyerOrgId);
 
+    int bulkDeleteVendors(java.util.List<String> idsOrCodes, String buyerOrgId);
+
     java.util.Map<String, Object> bulkCreateVendors(java.util.List<BuyerVendor> vendors, String buyerOrgId, String createdBy);
 }
+
 

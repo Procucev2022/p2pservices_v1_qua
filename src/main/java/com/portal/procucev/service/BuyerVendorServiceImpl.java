@@ -219,8 +219,28 @@ public class BuyerVendorServiceImpl implements BuyerVendorService {
         return false;
     }
 
+    @Override
+    @Transactional
+    public int bulkDeleteVendors(java.util.List<String> idsOrCodes, String buyerOrgId) {
+        ensureTableExists();
+        if (idsOrCodes == null || idsOrCodes.isEmpty()) {
+            return 0;
+        }
+        int deletedCount = 0;
+        for (String idOrCode : idsOrCodes) {
+            if (idOrCode != null && !idOrCode.trim().isEmpty()) {
+                boolean deleted = deleteVendor(idOrCode.trim(), buyerOrgId);
+                if (deleted) {
+                    deletedCount++;
+                }
+            }
+        }
+        log.info("Bulk deleted {} vendors for buyerOrgId: {}", deletedCount, buyerOrgId);
+        return deletedCount;
+    }
 
     @Override
+
     public java.util.Map<String, Object> bulkCreateVendors(java.util.List<BuyerVendor> vendors, String buyerOrgId, String createdBy) {
         ensureTableExists();
         java.util.List<BuyerVendor> toSave = new java.util.ArrayList<>();
