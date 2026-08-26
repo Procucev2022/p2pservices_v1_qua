@@ -13,6 +13,51 @@ public class AnalyticsServiceImpl implements AnalyticsService {
     @Autowired
     private JdbcTemplate jdbcTemplate;
 
+    private int getInt(Map<String, Object> map, String key) {
+        if (map == null || !map.containsKey(key)) return 0;
+        Object obj = map.get(key);
+        if (obj == null) return 0;
+        if (obj instanceof Number) return ((Number) obj).intValue();
+        if (obj instanceof Boolean) return ((Boolean) obj) ? 1 : 0;
+        try {
+            return (int) Double.parseDouble(obj.toString().trim());
+        } catch (Exception e) {
+            return 0;
+        }
+    }
+
+    private long getLong(Map<String, Object> map, String key) {
+        if (map == null || !map.containsKey(key)) return 0L;
+        Object obj = map.get(key);
+        if (obj == null) return 0L;
+        if (obj instanceof Number) return ((Number) obj).longValue();
+        if (obj instanceof Boolean) return ((Boolean) obj) ? 1L : 0L;
+        try {
+            return (long) Double.parseDouble(obj.toString().trim());
+        } catch (Exception e) {
+            return 0L;
+        }
+    }
+
+    private double getDouble(Map<String, Object> map, String key) {
+        if (map == null || !map.containsKey(key)) return 0.0;
+        Object obj = map.get(key);
+        if (obj == null) return 0.0;
+        if (obj instanceof Number) return ((Number) obj).doubleValue();
+        if (obj instanceof Boolean) return ((Boolean) obj) ? 1.0 : 0.0;
+        try {
+            return Double.parseDouble(obj.toString().trim());
+        } catch (Exception e) {
+            return 0.0;
+        }
+    }
+
+    private String getString(Map<String, Object> map, String key, String defaultVal) {
+        if (map == null || !map.containsKey(key)) return defaultVal;
+        Object obj = map.get(key);
+        return (obj != null && !obj.toString().trim().isEmpty()) ? obj.toString().trim() : defaultVal;
+    }
+
     private Map<String, Object> calculateGrowth(int current, int previous) {
         Map<String, Object> res = new HashMap<>();
         if (previous == 0) {
@@ -37,7 +82,7 @@ public class AnalyticsServiceImpl implements AnalyticsService {
     public Map<String, Object> getDashboardData() {
         Map<String, Object> response = new HashMap<>();
         try {
-            // 1. Buyers & Sellers counts (All time and period comparison for real growth)
+            // 1. Buyers & Sellers counts
             int totalBuyers = queryForInt("SELECT count(*) FROM organization WHERE org_type_uuid = '3001' OR client_vendor = 0");
             int buyerRecent = queryForInt("SELECT count(*) FROM organization WHERE (org_type_uuid = '3001' OR client_vendor = 0) AND created_ts >= DATE_SUB(NOW(), INTERVAL 30 DAY)");
             int buyerPrev = queryForInt("SELECT count(*) FROM organization WHERE (org_type_uuid = '3001' OR client_vendor = 0) AND created_ts >= DATE_SUB(NOW(), INTERVAL 60 DAY) AND created_ts < DATE_SUB(NOW(), INTERVAL 30 DAY)");
@@ -75,16 +120,16 @@ public class AnalyticsServiceImpl implements AnalyticsService {
                 "SELECT category, count(*) as count FROM rfq_items WHERE category IS NOT NULL AND category != '' AND LOWER(category) NOT IN ('other', 'others') GROUP BY category ORDER BY count DESC LIMIT 1"
             );
             if (!topCatRows.isEmpty()) {
-                topCategoryName = String.valueOf(topCatRows.get(0).get("category"));
-                topCategoryCount = ((Number) topCatRows.get(0).get("count")).intValue();
+                topCategoryName = getString(topCatRows.get(0), "category", "None");
+                topCategoryCount = getInt(topCatRows.get(0), "count");
             }
 
             // 4. Credits & Subscriptions Revenue
             List<Map<String, Object>> creditRows = jdbcTemplate.queryForList(
                 "SELECT COALESCE(SUM(rfq_credits), 0) as total_credits, count(CASE WHEN rfq_credits > 0 THEN 1 END) as org_count FROM organization"
             );
-            long totalCredits = !creditRows.isEmpty() ? ((Number) creditRows.get(0).get("total_credits")).longValue() : 0L;
-            long affectedOrgs = !creditRows.isEmpty() ? ((Number) creditRows.get(0).get("org_count")).longValue() : 0L;
+            long totalCredits = !creditRows.isEmpty() ? getLong(creditRows.get(0), "total_credits") : 0L;
+            long affectedOrgs = !creditRows.isEmpty() ? getLong(creditRows.get(0), "org_count") : 0L;
 
             List<Map<String, Object>> subRevRows = jdbcTemplate.queryForList(
                 "SELECT COALESCE(SUM(p.subscription_price), 0) as total_rev, count(o.uuid) as active_subs " +
@@ -92,7 +137,7 @@ public class AnalyticsServiceImpl implements AnalyticsService {
                 "LEFT JOIN subscription_plan p ON o.subscription_plan_uuid = p.uuid " +
                 "WHERE o.subscription_plan_uuid IS NOT NULL OR o.bfs_name IS NOT NULL"
             );
-            double totalSubRev = !subRevRows.isEmpty() ? ((Number) subRevRows.get(0).get("total_rev")).doubleValue() : 0.0;
+            double totalSubRev = !subRevRows.isEmpty() ? getDouble(subRevRows.get(0), "total_rev") : 0.0;
             String sellerSubs = totalSubRev >= 100000.0
                 ? String.format("₹%.1fL", totalSubRev / 100000.0)
                 : totalSubRev >= 1000.0
@@ -102,14 +147,13 @@ public class AnalyticsServiceImpl implements AnalyticsService {
             int subRecent = queryForInt("SELECT count(*) FROM organization WHERE (subscription_plan_uuid IS NOT NULL OR bfs_name IS NOT NULL) AND created_ts >= DATE_SUB(NOW(), INTERVAL 30 DAY)");
             int subPrev = queryForInt("SELECT count(*) FROM organization WHERE (subscription_plan_uuid IS NOT NULL OR bfs_name IS NOT NULL) AND created_ts >= DATE_SUB(NOW(), INTERVAL 60 DAY) AND created_ts < DATE_SUB(NOW(), INTERVAL 30 DAY)");
 
-            // Real dynamic growth maps
             Map<String, Object> buyerGrowth = calculateGrowth(buyerRecent, buyerPrev);
             Map<String, Object> sellerGrowth = calculateGrowth(sellerRecent, sellerPrev);
             Map<String, Object> inactiveGrowth = calculateGrowth(inactiveRecent, inactivePrev);
             Map<String, Object> rfqGrowth = calculateGrowth(rfqRecent, rfqPrev);
             Map<String, Object> subGrowth = calculateGrowth(subRecent, subPrev);
 
-            // 5. Source distribution per channel for buyers and sellers
+            // 5. Source distribution per channel
             List<Map<String, Object>> sourceBreakdown = jdbcTemplate.queryForList(
                 "SELECT " +
                 "  COALESCE(source_type, 'WEB') as source_type, " +
@@ -124,9 +168,9 @@ public class AnalyticsServiceImpl implements AnalyticsService {
             int otherBuyers = 0, otherSellers = 0;
 
             for (Map<String, Object> s : sourceBreakdown) {
-                String st = String.valueOf(s.get("source_type"));
-                int bc = ((Number) s.get("buyers_count")).intValue();
-                int sc = ((Number) s.get("sellers_count")).intValue();
+                String st = getString(s, "source_type", "WEB");
+                int bc = getInt(s, "buyers_count");
+                int sc = getInt(s, "sellers_count");
                 if ("W".equalsIgnoreCase(st)) {
                     wBuyers += bc;
                     wSellers += sc;
@@ -142,7 +186,6 @@ public class AnalyticsServiceImpl implements AnalyticsService {
             int safeTotalBuyers = Math.max(totalBuyers, 1);
             int safeTotalSellers = Math.max(totalSellers, 1);
 
-            // Construct Real Metrics
             Map<String, Object> metrics = new HashMap<>();
             metrics.put("totalBuyers", Map.of("value", totalBuyers, "change", buyerGrowth.get("change"), "isPositive", buyerGrowth.get("isPositive")));
             metrics.put("totalSellers", Map.of("value", totalSellers, "change", sellerGrowth.get("change"), "isPositive", sellerGrowth.get("isPositive")));
@@ -160,14 +203,12 @@ public class AnalyticsServiceImpl implements AnalyticsService {
                 "volumePercent", totalRfqs > 0 ? ((int) Math.round(((double) topCategoryCount / totalRfqs) * 100)) + "% of Vol" : "0%"
             ));
 
-            // Real Sources
             List<Map<String, Object>> sources = List.of(
                 Map.of("channel", "WhatsApp Bot Channel (W)", "buyersPercent", (int) Math.round(((double) wBuyers / safeTotalBuyers) * 100), "sellersPercent", (int) Math.round(((double) wSellers / safeTotalSellers) * 100)),
                 Map.of("channel", "Web Portal Direct (WEB)", "buyersPercent", (int) Math.round(((double) webBuyers / safeTotalBuyers) * 100), "sellersPercent", (int) Math.round(((double) webSellers / safeTotalSellers) * 100)),
                 Map.of("channel", "Referral & Partner Ingestion", "buyersPercent", (int) Math.round(((double) otherBuyers / safeTotalBuyers) * 100), "sellersPercent", (int) Math.round(((double) otherSellers / safeTotalSellers) * 100))
             );
 
-            // Real Lifecycle Stage shares
             String draftShare = totalRfqs > 0 ? String.format("%.1f%% share", ((double) draftRfqs / totalRfqs) * 100.0) : "0% share";
             String openShare = totalRfqs > 0 ? String.format("%.1f%% share", ((double) openRfqs / totalRfqs) * 100.0) : "0% share";
             String evalShare = totalRfqs > 0 ? String.format("%.1f%% share", ((double) evalRfqs / totalRfqs) * 100.0) : "0% share";
@@ -208,39 +249,38 @@ public class AnalyticsServiceImpl implements AnalyticsService {
                 "COALESCE(AVG(NULLIF(CAST(i.quantity AS DECIMAL(10,2)), 0)), 0) as avgQty, " +
                 "COALESCE(AVG(NULLIF(i.totalamount, 0)), 0) as avgAmount " +
                 "FROM rfq_items i " +
-                "LEFT JOIN rfq_header r ON i.rfq_uuid = r.uuid OR i.rfq_id = r.rfq_id " +
+                "LEFT JOIN rfq_header r ON i.rfq_uuid = r.uuid " +
                 "WHERE i.category IS NOT NULL AND i.category != '' AND LOWER(i.category) NOT IN ('other', 'others') " +
                 "GROUP BY i.category ORDER BY activeRfqs DESC LIMIT 12"
             );
 
-            // Sellers per category from gmt_rfq_vendors
             Map<String, Integer> sellerCategoryMap = new HashMap<>();
             List<Map<String, Object>> catVendorRows = jdbcTemplate.queryForList(
                 "SELECT i.category, count(distinct v.vendor_uuid) as sellersCount " +
                 "FROM rfq_items i " +
-                "JOIN gmt_rfq_vendors v ON i.rfq_uuid = v.rfq_uuid OR i.rfq_id = v.rfq_id " +
+                "JOIN gmt_rfq_vendors v ON i.rfq_uuid = v.rfq_uuid " +
                 "WHERE i.category IS NOT NULL AND i.category != '' " +
                 "GROUP BY i.category"
             );
             for (Map<String, Object> cv : catVendorRows) {
-                sellerCategoryMap.put(String.valueOf(cv.get("category")), ((Number) cv.get("sellersCount")).intValue());
+                sellerCategoryMap.put(getString(cv, "category", ""), getInt(cv, "sellersCount"));
             }
 
             List<Map<String, Object>> categories = new ArrayList<>();
             for (int i = 0; i < catRows.size(); i++) {
                 Map<String, Object> row = catRows.get(i);
-                String catName = String.valueOf(row.get("category"));
-                int activeRfqCount = ((Number) row.get("activeRfqs")).intValue();
-                int catBuyers = ((Number) row.get("buyersCount")).intValue();
+                String catName = getString(row, "category", "Category");
+                int activeRfqCount = getInt(row, "activeRfqs");
+                int catBuyers = getInt(row, "buyersCount");
                 int catSellers = sellerCategoryMap.getOrDefault(catName, 0);
-                double avgAmount = ((Number) row.get("avgAmount")).doubleValue();
-                double avgQty = ((Number) row.get("avgQty")).doubleValue();
-                long totalQty = ((Number) row.get("totalQty")).longValue();
+                double avgAmount = getDouble(row, "avgAmount");
+                double avgQty = getDouble(row, "avgQty");
+                long totalQty = getLong(row, "totalQty");
 
                 List<Map<String, Object>> subRows = jdbcTemplate.queryForList(
                     "SELECT i.description, count(*) as cnt, count(distinct r.user) as distinctBuyers " +
                     "FROM rfq_items i " +
-                    "LEFT JOIN rfq_header r ON i.rfq_uuid = r.uuid OR i.rfq_id = r.rfq_id " +
+                    "LEFT JOIN rfq_header r ON i.rfq_uuid = r.uuid " +
                     "WHERE i.category = ? AND i.description IS NOT NULL AND i.description != '' " +
                     "GROUP BY i.description ORDER BY cnt DESC LIMIT 4",
                     catName
@@ -249,7 +289,7 @@ public class AnalyticsServiceImpl implements AnalyticsService {
                 List<Map<String, Object>> recentRfqRows = jdbcTemplate.queryForList(
                     "SELECT DISTINCT r.rfq_id, r.quote_count, r.quotation_received " +
                     "FROM rfq_items i " +
-                    "JOIN rfq_header r ON i.rfq_uuid = r.uuid OR i.rfq_id = r.rfq_id " +
+                    "JOIN rfq_header r ON i.rfq_uuid = r.uuid " +
                     "WHERE i.category = ? AND r.rfq_id IS NOT NULL AND r.rfq_id != '' " +
                     "ORDER BY r.created_ts DESC LIMIT 3",
                     catName
@@ -257,10 +297,11 @@ public class AnalyticsServiceImpl implements AnalyticsService {
 
                 List<Map<String, Object>> realRecentRfqs = new ArrayList<>();
                 for (Map<String, Object> rfq : recentRfqRows) {
-                    int qc = rfq.get("quote_count") != null ? ((Number) rfq.get("quote_count")).intValue() : 0;
-                    int qr = rfq.get("quotation_received") != null ? ((Number) rfq.get("quotation_received")).intValue() : 0;
+                    int qc = getInt(rfq, "quote_count");
+                    int qr = getInt(rfq, "quotation_received");
+                    String rfqIdVal = getString(rfq, "rfq_id", "RFQ");
                     realRecentRfqs.add(Map.of(
-                        "id", String.valueOf(rfq.get("rfq_id")),
+                        "id", rfqIdVal,
                         "status", (qc > 0 || qr == 1) ? "Quotes Received" : "Open for Bids"
                     ));
                 }
@@ -269,9 +310,9 @@ public class AnalyticsServiceImpl implements AnalyticsService {
                 List<String> subDescriptions = new ArrayList<>();
                 for (int j = 0; j < subRows.size(); j++) {
                     Map<String, Object> s = subRows.get(j);
-                    String desc = String.valueOf(s.get("description"));
-                    int cnt = ((Number) s.get("cnt")).intValue();
-                    int subBuyers = ((Number) s.get("distinctBuyers")).intValue();
+                    String desc = getString(s, "description", catName + " Item");
+                    int cnt = getInt(s, "cnt");
+                    int subBuyers = getInt(s, "distinctBuyers");
                     subDescriptions.add(desc);
 
                     String demandStatus = cnt >= 5 ? "High Demand" : cnt >= 2 ? "Growing" : "Stable";
@@ -289,7 +330,7 @@ public class AnalyticsServiceImpl implements AnalyticsService {
                 }
 
                 String avgValStr = avgAmount > 0
-                    ? (avgAmount >= 100000 ? String.format("₹%.1fL", avgAmount / 100000.0) : String.format("₹%.1fk", avgAmount / 1000.0))
+                    ? (avgAmount >= 100000.0 ? String.format("₹%.1fL", avgAmount / 100000.0) : String.format("₹%.1fk", avgAmount / 1000.0))
                     : avgQty > 0 ? Math.round(avgQty) + " Units" : activeRfqCount + " RFQs";
 
                 String status = activeRfqCount >= 10 ? "High Vol" : activeRfqCount >= 3 ? "Active" : "Stable";
@@ -441,8 +482,8 @@ public class AnalyticsServiceImpl implements AnalyticsService {
 
             List<Map<String, Object>> availableMonths = new ArrayList<>();
             for (Map<String, Object> row : availRows) {
-                int yr = ((Number) row.get("yr")).intValue();
-                int mo = ((Number) row.get("mo")).intValue();
+                int yr = getInt(row, "yr");
+                int mo = getInt(row, "mo");
                 LocalDate ld = LocalDate.of(yr, mo, 1);
                 availableMonths.add(Map.of(
                     "year", yr,
@@ -456,8 +497,8 @@ public class AnalyticsServiceImpl implements AnalyticsService {
                 final int currentDay = i;
                 int rfqs = 0;
                 for (Map<String, Object> r : dailyRfqs) {
-                    if (((Number) r.get("day")).intValue() == currentDay) {
-                        rfqs = ((Number) r.get("rfqs")).intValue();
+                    if (getInt(r, "day") == currentDay) {
+                        rfqs = getInt(r, "rfqs");
                         break;
                     }
                 }
@@ -465,21 +506,21 @@ public class AnalyticsServiceImpl implements AnalyticsService {
                 int regB = 0, regS = 0, totalReg = 0;
                 int whatsappReg = 0, webReg = 0, otherReg = 0;
                 for (Map<String, Object> o : dailyOrgs) {
-                    if (((Number) o.get("day")).intValue() == currentDay) {
-                        regB = ((Number) o.get("regB")).intValue();
-                        regS = ((Number) o.get("regS")).intValue();
-                        totalReg = ((Number) o.get("totalCount")).intValue();
-                        whatsappReg = ((Number) o.get("whatsappCount")).intValue();
-                        webReg = ((Number) o.get("webCount")).intValue();
-                        otherReg = ((Number) o.get("otherCount")).intValue();
+                    if (getInt(o, "day") == currentDay) {
+                        regB = getInt(o, "regB");
+                        regS = getInt(o, "regS");
+                        totalReg = getInt(o, "totalCount");
+                        whatsappReg = getInt(o, "whatsappCount");
+                        webReg = getInt(o, "webCount");
+                        otherReg = getInt(o, "otherCount");
                         break;
                     }
                 }
 
                 int subs = 0;
                 for (Map<String, Object> s : dailySubs) {
-                    if (((Number) s.get("day")).intValue() == currentDay) {
-                        subs = ((Number) s.get("subs")).intValue();
+                    if (getInt(s, "day") == currentDay) {
+                        subs = getInt(s, "subs");
                         break;
                     }
                 }
@@ -492,10 +533,10 @@ public class AnalyticsServiceImpl implements AnalyticsService {
 
                 List<Map<String, Object>> dayLogs = new ArrayList<>();
                 for (Map<String, Object> log : rfqLogs) {
-                    if (((Number) log.get("day")).intValue() == currentDay) {
-                        String timeStr = log.get("created_time") != null ? String.valueOf(log.get("created_time")) : "12:00 PM";
-                        String rfqId = String.valueOf(log.get("rfq_id"));
-                        String desc = log.get("project_desc") != null ? String.valueOf(log.get("project_desc")) : "RFQ initiated";
+                    if (getInt(log, "day") == currentDay) {
+                        String timeStr = getString(log, "created_time", "12:00 PM");
+                        String rfqId = getString(log, "rfq_id", "RFQ");
+                        String desc = getString(log, "project_desc", "RFQ initiated");
                         dayLogs.add(Map.of(
                             "time", timeStr,
                             "text", rfqId + ": " + desc,
@@ -567,16 +608,16 @@ public class AnalyticsServiceImpl implements AnalyticsService {
             List<Map<String, Object>> companies = new ArrayList<>();
 
             for (Map<String, Object> org : orgRows) {
-                String uuid = String.valueOf(org.get("uuid"));
-                String orgName = String.valueOf(org.get("organization_name"));
-                String email = org.get("email") != null ? String.valueOf(org.get("email")) : "";
-                String phone = org.get("organization_phonenumber") != null ? String.valueOf(org.get("organization_phonenumber")) : "";
-                String contact = org.get("contact_person") != null ? String.valueOf(org.get("contact_person")) : orgName;
-                String sourceType = String.valueOf(org.get("source_type"));
-                int credits = org.get("rfq_credits") != null ? ((Number) org.get("rfq_credits")).intValue() : 0;
+                String uuid = getString(org, "uuid", "");
+                String orgName = getString(org, "organization_name", "Organization");
+                String email = getString(org, "email", "");
+                String phone = getString(org, "organization_phonenumber", "");
+                String contact = getString(org, "contact_person", orgName);
+                String sourceType = getString(org, "source_type", "WEB");
+                int credits = getInt(org, "rfq_credits");
                 String tier = org.get("bfs_name") != null ? "Enterprise Tier" : (org.get("subscription_plan_uuid") != null ? "Pro Tier" : "Growth Tier");
 
-                // Real RFQs for this organization with item details
+                // Real RFQs for this organization
                 List<Map<String, Object>> rfqRows = jdbcTemplate.queryForList(
                     "SELECT uuid, rfq_id, project_desc, created_ts, quote_count, quotation_received FROM rfq_header WHERE org_uuid = ? OR user = ? ORDER BY created_ts DESC LIMIT 10",
                     uuid, uuid
@@ -584,23 +625,26 @@ public class AnalyticsServiceImpl implements AnalyticsService {
 
                 List<Map<String, Object>> rfqs = new ArrayList<>();
                 for (Map<String, Object> r : rfqRows) {
-                    String rfqUuid = r.get("uuid") != null ? String.valueOf(r.get("uuid")) : "";
-                    String rfqId = r.get("rfq_id") != null ? String.valueOf(r.get("rfq_id")) : "";
-                    int qc = r.get("quote_count") != null ? ((Number) r.get("quote_count")).intValue() : 0;
-                    int qr = r.get("quotation_received") != null ? ((Number) r.get("quotation_received")).intValue() : 0;
+                    String rfqUuid = getString(r, "uuid", "");
+                    String rfqId = getString(r, "rfq_id", "");
+                    int qc = getInt(r, "quote_count");
+                    int qr = getInt(r, "quotation_received");
 
                     List<Map<String, Object>> itemRows = jdbcTemplate.queryForList(
-                        "SELECT category, totalamount FROM rfq_items WHERE rfq_uuid = ? OR rfq_id = ? LIMIT 1",
-                        rfqUuid, rfqId
+                        "SELECT category, totalamount FROM rfq_items WHERE rfq_uuid = ? LIMIT 1",
+                        rfqUuid
                     );
-                    String itemCat = (!itemRows.isEmpty() && itemRows.get(0).get("category") != null) ? String.valueOf(itemRows.get(0).get("category")) : "General Procurement";
-                    double itemAmt = (!itemRows.isEmpty() && itemRows.get(0).get("totalamount") != null) ? ((Number) itemRows.get(0).get("totalamount")).doubleValue() : 0.0;
+                    String itemCat = !itemRows.isEmpty() ? getString(itemRows.get(0), "category", "General Procurement") : "General Procurement";
+                    double itemAmt = !itemRows.isEmpty() ? getDouble(itemRows.get(0), "totalamount") : 0.0;
                     String valStr = itemAmt > 0 ? String.format("₹%,.0f", itemAmt) : "RFQ Pending Value";
+
+                    String projDesc = getString(r, "project_desc", itemCat + " Requirement");
+                    String crDate = r.get("created_ts") != null ? r.get("created_ts").toString().substring(0, Math.min(10, r.get("created_ts").toString().length())) : "";
 
                     rfqs.add(Map.of(
                         "id", !rfqId.isEmpty() ? rfqId : "RFQ-LIVE",
-                        "title", r.get("project_desc") != null ? String.valueOf(r.get("project_desc")) : (itemCat + " Requirement"),
-                        "createdDate", r.get("created_ts") != null ? String.valueOf(r.get("created_ts")).substring(0, 10) : "",
+                        "title", projDesc,
+                        "createdDate", crDate,
                         "status", (qc > 0 || qr == 1) ? "Quotes Received" : "Open for Bidding",
                         "category", itemCat,
                         "value", valStr
@@ -608,18 +652,25 @@ public class AnalyticsServiceImpl implements AnalyticsService {
                 }
 
                 // Real 30-day RFQ growth for this org
-                int recentOrgRfqs = queryForInt("SELECT count(*) FROM rfq_header WHERE (org_uuid = '" + uuid + "' OR user = '" + uuid + "') AND created_ts >= DATE_SUB(NOW(), INTERVAL 30 DAY)");
-                int prevOrgRfqs = queryForInt("SELECT count(*) FROM rfq_header WHERE (org_uuid = '" + uuid + "' OR user = '" + uuid + "') AND created_ts >= DATE_SUB(NOW(), INTERVAL 60 DAY) AND created_ts < DATE_SUB(NOW(), INTERVAL 30 DAY)");
+                int recentOrgRfqs = queryForInt("SELECT count(*) FROM rfq_header WHERE (org_uuid = ? OR user = ?) AND created_ts >= DATE_SUB(NOW(), INTERVAL 30 DAY)", uuid, uuid);
+                int prevOrgRfqs = queryForInt("SELECT count(*) FROM rfq_header WHERE (org_uuid = ? OR user = ?) AND created_ts >= DATE_SUB(NOW(), INTERVAL 60 DAY) AND created_ts < DATE_SUB(NOW(), INTERVAL 30 DAY)", uuid, uuid);
                 Map<String, Object> orgGrowth = calculateGrowth(recentOrgRfqs, prevOrgRfqs);
 
                 // Real user account count for this org
-                int orgUsers = queryForInt("SELECT count(*) FROM user WHERE org_uuid = '" + uuid + "'");
+                int orgUsers = queryForInt("SELECT count(*) FROM user WHERE org_uuid = ?", uuid);
                 int totalAccounts = Math.max(orgUsers, 1);
 
                 // Real quotes submitted if vendor
                 List<Map<String, Object>> quotesRows = jdbcTemplate.queryForList(
-                    "SELECT v.rfq_id, COALESCE(o.organization_name, 'Vendor') as vendor_name, v.quote_amount, v.quote_submitted_date, v.is_selected " +
+                    "SELECT " +
+                    "  v.uuid as quote_uuid, " +
+                    "  COALESCE(r.rfq_id, 'RFQ') as rfq_id, " +
+                    "  COALESCE(o.organization_name, 'Vendor') as vendor_name, " +
+                    "  (SELECT COALESCE(SUM(i.totalamount), 0) FROM rfq_items i WHERE i.rfq_uuid = v.rfq_uuid) as quote_amount, " +
+                    "  v.quote_submitted_date, " +
+                    "  v.quotation_received " +
                     "FROM gmt_rfq_vendors v " +
+                    "LEFT JOIN rfq_header r ON v.rfq_uuid = r.uuid " +
                     "LEFT JOIN organization o ON v.vendor_uuid = o.uuid " +
                     "WHERE v.vendor_uuid = ? AND v.quote_submitted_date IS NOT NULL " +
                     "ORDER BY v.quote_submitted_date DESC LIMIT 5",
@@ -628,34 +679,40 @@ public class AnalyticsServiceImpl implements AnalyticsService {
                 List<Map<String, Object>> quotes = new ArrayList<>();
                 for (int qIdx = 0; qIdx < quotesRows.size(); qIdx++) {
                     Map<String, Object> q = quotesRows.get(qIdx);
-                    String rfqIdStr = q.get("rfq_id") != null ? String.valueOf(q.get("rfq_id")) : "RFQ";
-                    double qAmt = q.get("quote_amount") != null ? ((Number) q.get("quote_amount")).doubleValue() : 0.0;
-                    int isSel = q.get("is_selected") != null ? ((Number) q.get("is_selected")).intValue() : 0;
+                    String rfqIdStr = getString(q, "rfq_id", "RFQ");
+                    String vName = getString(q, "vendor_name", orgName);
+                    double qAmt = getDouble(q, "quote_amount");
+                    int qr = getInt(q, "quotation_received");
+                    String subDate = q.get("quote_submitted_date") != null ? q.get("quote_submitted_date").toString().substring(0, Math.min(10, q.get("quote_submitted_date").toString().length())) : "Submitted";
                     quotes.add(Map.of(
                         "id", "QT-" + rfqIdStr,
                         "rfqId", rfqIdStr,
-                        "vendorName", q.get("vendor_name") != null ? String.valueOf(q.get("vendor_name")) : orgName,
+                        "vendorName", vName,
                         "amount", qAmt > 0 ? String.format("₹%,.0f", qAmt) : "N/A",
-                        "submittedDate", q.get("quote_submitted_date") != null ? String.valueOf(q.get("quote_submitted_date")).substring(0, 10) : "Submitted",
-                        "status", isSel == 1 ? "Accepted" : "Submitted"
+                        "submittedDate", subDate,
+                        "status", qr == 1 ? "Accepted" : "Submitted"
                     ));
                 }
 
                 // Real comments from rfq_comments
                 List<Map<String, Object>> commentRows = jdbcTemplate.queryForList(
-                    "SELECT uuid, comment, user_name, created_ts FROM rfq_comments " +
+                    "SELECT uuid, comment, commented_user, created_ts FROM rfq_comments " +
                     "WHERE rfq_uuid IN (SELECT uuid FROM rfq_header WHERE org_uuid = ? OR user = ?) " +
                     "ORDER BY created_ts DESC LIMIT 5",
                     uuid, uuid
                 );
                 List<Map<String, Object>> chatMessages = new ArrayList<>();
                 for (Map<String, Object> c : commentRows) {
+                    String commentId = getString(c, "uuid", "msg-" + uuid);
+                    String uName = getString(c, "commented_user", orgName.substring(0, Math.min(orgName.length(), 2)).toUpperCase());
+                    String commentText = getString(c, "comment", "Active on platform.");
+                    String cTime = c.get("created_ts") != null ? c.get("created_ts").toString().substring(0, Math.min(16, c.get("created_ts").toString().length())) : "";
                     chatMessages.add(Map.of(
-                        "id", c.get("uuid") != null ? String.valueOf(c.get("uuid")) : ("msg-" + uuid),
+                        "id", commentId,
                         "sender", "client",
-                        "senderName", c.get("user_name") != null ? String.valueOf(c.get("user_name")) : orgName.substring(0, Math.min(orgName.length(), 2)).toUpperCase(),
-                        "text", c.get("comment") != null ? String.valueOf(c.get("comment")) : "Active on platform.",
-                        "time", c.get("created_ts") != null ? String.valueOf(c.get("created_ts")).substring(0, 16) : ""
+                        "senderName", uName,
+                        "text", commentText,
+                        "time", cTime
                     ));
                 }
 
@@ -697,8 +754,8 @@ public class AnalyticsServiceImpl implements AnalyticsService {
     @Override
     public Map<String, Object> processChat(Map<String, Object> requestPayload) {
         Map<String, Object> response = new HashMap<>();
-        String prompt = requestPayload.get("prompt") != null ? String.valueOf(requestPayload.get("prompt")) : "";
-        String companyId = requestPayload.get("companyId") != null ? String.valueOf(requestPayload.get("companyId")) : "default";
+        String prompt = requestPayload != null && requestPayload.get("prompt") != null ? String.valueOf(requestPayload.get("prompt")) : "";
+        String companyId = requestPayload != null && requestPayload.get("companyId") != null ? String.valueOf(requestPayload.get("companyId")) : "default";
 
         String replyText = "Received your message: \"" + prompt + "\". Our procurement team will assist you shortly.";
         if (prompt.toLowerCase().contains("rfq")) {
@@ -716,9 +773,14 @@ public class AnalyticsServiceImpl implements AnalyticsService {
         return response;
     }
 
-    private Integer queryForInt(String sql) {
+    private Integer queryForInt(String sql, Object... params) {
         try {
-            Integer val = jdbcTemplate.queryForObject(sql, Integer.class);
+            Integer val;
+            if (params != null && params.length > 0) {
+                val = jdbcTemplate.queryForObject(sql, Integer.class, params);
+            } else {
+                val = jdbcTemplate.queryForObject(sql, Integer.class);
+            }
             return val != null ? val : 0;
         } catch (Exception e) {
             return 0;
