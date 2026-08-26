@@ -160,8 +160,10 @@ class GMTServiceImplTest {
         when(rfqDao.findById("RFQ_UUID")).thenReturn(Optional.empty());
         assertFalse(service.editRFQForNoPrByClient(rfq));
 
+        Date existingDate = new Date();
         Rfq existingRfq = new Rfq();
         existingRfq.setId("RFQ_UUID");
+        existingRfq.setDeliveryDate(existingDate);
         when(rfqDao.findById("RFQ_UUID")).thenReturn(Optional.of(existingRfq));
         when(masterStatusDao.findByStatus(anyString())).thenReturn(masterStatus);
 
@@ -169,6 +171,7 @@ class GMTServiceImplTest {
         update1.setId("RFQ_UUID");
         update1.setByClient(true);
         update1.setFromClient(true);
+        update1.setDeliveryDate(new Date(existingDate.getTime() + 10000));
         RfqItem item1 = new RfqItem();
         item1.setId("ITEM1");
         item1.setDescription("Desc");
@@ -179,8 +182,10 @@ class GMTServiceImplTest {
         update2.setId("RFQ_UUID");
         update2.setByClient(true);
         update2.setFromClient(false);
+        update2.setDeliveryDate(null);
         update2.setRfqItem(Collections.singletonList(item1));
         assertTrue(service.editRFQForNoPrByClient(update2));
+        assertEquals(existingDate, update2.getDeliveryDate());
     }
 
     @Test

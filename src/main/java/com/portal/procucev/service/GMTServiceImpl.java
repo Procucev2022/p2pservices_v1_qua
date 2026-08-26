@@ -370,6 +370,10 @@ public class GMTServiceImpl implements GMTService {
 				}
 			}
 
+			if (updatedRfq.getDeliveryDate() == null && existingRfq.getDeliveryDate() != null) {
+				updatedRfq.setDeliveryDate(existingRfq.getDeliveryDate());
+			}
+
 			updatedRfq.setStatus(resultStatus);
 
 			// Set RFQ ID for RFQ items
@@ -2468,6 +2472,10 @@ public class GMTServiceImpl implements GMTService {
 			MasterStatus acceptStatus = masterStatusDao.findByStatus(StatusConstants.CM_RFQ_ACCEPTED);
 			updatedRfq.setClientStatus(acceptStatus);
 
+			if (updatedRfq.getDeliveryDate() == null && existingRfq.getDeliveryDate() != null) {
+				updatedRfq.setDeliveryDate(existingRfq.getDeliveryDate());
+			}
+
 			updatedRfq.setByClient(true);
 			updatedRfq.setStatus(resultStatus);
 
@@ -4459,11 +4467,6 @@ public class GMTServiceImpl implements GMTService {
 		String address = sanitizeLocationField(request.getAddress());
 		Date deliveryDate = request.getDeliveryDate();
 
-		if (city == null || city.isEmpty()) {
-			return new MessageResponse("400", "City is required for delivery location", null,
-					ApplicationConstants.FAILURE, new Date());
-		}
-
 		if (pincode != null && !pincode.isEmpty() && !pincode.matches("^[0-9A-Za-z\\s-]{3,10}$")) {
 			return new MessageResponse("400", "Invalid Pincode/Zipcode format", null, ApplicationConstants.FAILURE,
 					new Date());
@@ -4504,12 +4507,24 @@ public class GMTServiceImpl implements GMTService {
 			locations.add(targetLocation);
 		}
 
-		targetLocation.setCity(city);
-		targetLocation.setState(state);
-		targetLocation.setPincode(pincode);
-		if (address != null) {
+		if (city != null && !city.isEmpty()) {
+			targetLocation.setCity(city);
+		}
+		if (state != null && !state.isEmpty()) {
+			targetLocation.setState(state);
+		}
+		if (pincode != null && !pincode.isEmpty()) {
+			targetLocation.setPincode(pincode);
+		}
+		if (address != null && !address.isEmpty()) {
 			targetLocation.setAddress(address);
 		}
+
+		if (targetLocation.getCity() == null || targetLocation.getCity().isEmpty()) {
+			return new MessageResponse("400", "City is required for delivery location", null,
+					ApplicationConstants.FAILURE, new Date());
+		}
+
 		targetLocation.setRfq(rfq);
 
 		rfqDao.save(rfq);
