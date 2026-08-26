@@ -162,7 +162,7 @@ public class VendorAiProcessingServiceImpl implements VendorAiProcessingService 
 
         try {
             log.info("Calling Gemini AI LLM for vendor: {}", vendor.getVendorName());
-            String jsonResp = geminiApiClient.generateContent(prompt);
+            String jsonResp = geminiApiClient.generateContent(prompt, List.of(), GeminiApiClient.getVendorCategorizationSchema());
             String sanitized = sanitizeJson(jsonResp);
             JsonNode root = objectMapper.readTree(sanitized);
 
@@ -220,10 +220,10 @@ public class VendorAiProcessingServiceImpl implements VendorAiProcessingService 
         profile.setCompanyInfoVerified(hasAddress && hasCity);
         profile.setContactInfoVerified(hasPhone);
 
-        // Score Calculation based on actual data completeness
-        int score = 70;
-        if (hasGstin) score += 10;
-        if (hasPan) score += 5;
+        // Score Calculation based on actual data completeness (baseline 50, max 95)
+        int score = 50;
+        if (hasGstin) score += 20;
+        if (hasPan) score += 10;
         if (hasPhone) score += 5;
         if (hasAddress && hasCity) score += 5;
         if (vendor.getTypeOfBusiness() != null && !vendor.getTypeOfBusiness().isBlank()) score += 3;
@@ -232,9 +232,9 @@ public class VendorAiProcessingServiceImpl implements VendorAiProcessingService 
         score = Math.min(score, 95);
 
         profile.setAiScore(score);
-        profile.setFinancialStability(score + 2);
-        profile.setOperationalScope(score - 1);
-        profile.setComplianceScore(hasGstin && hasPan ? 95 : 85);
+        profile.setFinancialStability(Math.min(score + 2, 95));
+        profile.setOperationalScope(Math.max(score - 1, 40));
+        profile.setComplianceScore(hasGstin && hasPan ? 95 : (hasGstin || hasPan ? 75 : 60));
         profile.setSupplyReliability(score);
 
         if (score >= 85) {

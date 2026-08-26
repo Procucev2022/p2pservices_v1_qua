@@ -292,6 +292,7 @@ public class BuyerVendorServiceImpl implements BuyerVendorService {
         java.util.List<BuyerVendor> toSave = new java.util.ArrayList<>();
         java.util.List<String> skippedCodes = new java.util.ArrayList<>();
         java.util.List<String> errors = new java.util.ArrayList<>();
+        java.util.Set<String> seenCodes = new java.util.HashSet<>();
 
         if (vendors == null || vendors.isEmpty()) {
             return java.util.Map.of(
@@ -308,16 +309,25 @@ public class BuyerVendorServiceImpl implements BuyerVendorService {
                 errors.add("A row is missing Vendor Code and was skipped.");
                 continue;
             }
+            String rawCode = v.getVendorCode().trim();
+            String normalizedCode = rawCode.toUpperCase(java.util.Locale.ROOT);
+
             if (v.getVendorName() == null || v.getVendorName().trim().length() < 3) {
-                errors.add("Vendor '" + v.getVendorCode() + "' has invalid name (min 3 chars).");
+                errors.add("Vendor '" + rawCode + "' has invalid name (min 3 chars).");
                 continue;
             }
             if (v.getPhone1() == null || !v.getPhone1().matches("\\d{10}")) {
-                errors.add("Vendor '" + v.getVendorCode() + "' has invalid 10-digit phone: " + v.getPhone1());
+                errors.add("Vendor '" + rawCode + "' has invalid 10-digit phone: " + v.getPhone1());
                 continue;
             }
 
-            v.setVendorCode(v.getVendorCode().trim());
+            // Track normalized codes in a request-local set to avoid intra-batch duplicate constraint violations
+            if (!seenCodes.add(normalizedCode)) {
+                skippedCodes.add(rawCode);
+                continue;
+            }
+
+            v.setVendorCode(rawCode);
             v.setBuyerOrgId(buyerOrgId);
             v.setCreatedBy(createdBy);
 
@@ -332,8 +342,8 @@ public class BuyerVendorServiceImpl implements BuyerVendorService {
             }
 
             try {
-                if (buyerVendorDao.existsByVendorCodeAndBuyerOrgId(v.getVendorCode(), buyerOrgId)) {
-                    skippedCodes.add(v.getVendorCode());
+                if (buyerVendorDao.existsByVendorCodeAndBuyerOrgId(rawCode, buyerOrgId)) {
+                    skippedCodes.add(rawCode);
                 } else {
                     toSave.add(v);
                 }
