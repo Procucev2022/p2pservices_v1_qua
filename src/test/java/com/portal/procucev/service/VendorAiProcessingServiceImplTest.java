@@ -71,12 +71,12 @@ class VendorAiProcessingServiceImplTest {
         vendorMediumQuality.setVendorCode("VND-MED");
         vendorMediumQuality.setVendorName("Medium Enterprise");
         vendorMediumQuality.setGstin("27BBBBB0000B1Z5");
-        vendorMediumQuality.setPan(null); // No PAN
+        vendorMediumQuality.setPan(""); // Empty PAN string
         vendorMediumQuality.setPhone1("9876543212");
         vendorMediumQuality.setAddressLine("200 Road");
         vendorMediumQuality.setCity("Pune");
-        vendorMediumQuality.setTypeOfBusiness(null);
-        vendorMediumQuality.setTypeOfIndustry(null);
+        vendorMediumQuality.setTypeOfBusiness("");
+        vendorMediumQuality.setTypeOfIndustry("");
         vendorMediumQuality.setCountry(null);
         vendorMediumQuality.setVendorGroup(null);
         vendorMediumQuality.setSourcingScope(null);
@@ -87,10 +87,10 @@ class VendorAiProcessingServiceImplTest {
         vendorLowQuality.setVendorCode("VND-LOW");
         vendorLowQuality.setVendorName("Basic Shop");
         vendorLowQuality.setGstin(null);
-        vendorLowQuality.setPan("AAAAA1111A"); // PAN only
-        vendorLowQuality.setPhone1(null);
-        vendorLowQuality.setAddressLine(null);
-        vendorLowQuality.setCity(null);
+        vendorLowQuality.setPan("AAAAA1111A");
+        vendorLowQuality.setPhone1("");
+        vendorLowQuality.setAddressLine("");
+        vendorLowQuality.setCity("");
     }
 
     @Test
@@ -148,11 +148,11 @@ class VendorAiProcessingServiceImplTest {
     }
 
     @Test
-    void testProcessVendorsWithAiScoreVariations() throws Exception {
+    void testProcessVendorsWithAiAllBranchCombinations() throws Exception {
         // High score with only GSTIN (80% Provided)
         BuyerVendor vendorGstinOnly = new BuyerVendor();
         vendorGstinOnly.setVendorCode("VND-GSTIN");
-        vendorGstinOnly.setVendorName("GSTIN Only Vendor");
+        vendorGstinOnly.setVendorName("GSTIN Only");
         vendorGstinOnly.setGstin("27AAAAA0000A1Z5");
         vendorGstinOnly.setPan(null);
         vendorGstinOnly.setPhone1("9876543210");
@@ -160,6 +160,32 @@ class VendorAiProcessingServiceImplTest {
         vendorGstinOnly.setCity("City 1");
         vendorGstinOnly.setTypeOfBusiness("Supplier");
         vendorGstinOnly.setTypeOfIndustry("Mfg");
+
+        // High score with only PAN (80% Provided)
+        BuyerVendor vendorPanOnly = new BuyerVendor();
+        vendorPanOnly.setVendorCode("VND-PAN");
+        vendorPanOnly.setVendorName("PAN Only");
+        vendorPanOnly.setGstin(null);
+        vendorPanOnly.setPan("AAAAA0000A");
+        vendorPanOnly.setPhone1("9876543210");
+        vendorPanOnly.setAddressLine("Line 1");
+        vendorPanOnly.setCity("City 1");
+        vendorPanOnly.setTypeOfBusiness("Supplier");
+        vendorPanOnly.setTypeOfIndustry("Mfg");
+
+        // Address only, no city
+        BuyerVendor vendorAddressOnly = new BuyerVendor();
+        vendorAddressOnly.setVendorCode("VND-ADDR");
+        vendorAddressOnly.setVendorName("Address Only");
+        vendorAddressOnly.setAddressLine("Road");
+        vendorAddressOnly.setCity(null);
+
+        // City only, no address
+        BuyerVendor vendorCityOnly = new BuyerVendor();
+        vendorCityOnly.setVendorCode("VND-CITY");
+        vendorCityOnly.setVendorName("City Only");
+        vendorCityOnly.setAddressLine(null);
+        vendorCityOnly.setCity("Mumbai");
 
         // Vendor with low score < 70 (neither GSTIN nor PAN)
         BuyerVendor vendorBare = new BuyerVendor();
@@ -171,21 +197,46 @@ class VendorAiProcessingServiceImplTest {
         vendorBare.setAddressLine(null);
         vendorBare.setCity(null);
 
+        // Vendor with whitespace-only fields
+        BuyerVendor vendorBlanks = new BuyerVendor();
+        vendorBlanks.setVendorCode("VND-BLANK");
+        vendorBlanks.setVendorName("Blank Fields Vendor");
+        vendorBlanks.setGstin("   ");
+        vendorBlanks.setPan("   ");
+        vendorBlanks.setPhone1("   ");
+        vendorBlanks.setAddressLine("   ");
+        vendorBlanks.setCity("   ");
+        vendorBlanks.setTypeOfBusiness("   ");
+        vendorBlanks.setTypeOfIndustry("   ");
+
         String rawJson = "{\"industry\": \"General\", \"category\": \"Goods\"}";
         when(geminiApiClient.generateContent(anyString(), anyList(), any())).thenReturn(rawJson);
         when(aiProfileDao.findByVendorCodeAndBuyerOrgId(anyString(), anyString())).thenReturn(Optional.empty());
         when(aiProfileDao.save(any(BuyerVendorAiProfile.class))).thenAnswer(i -> i.getArgument(0));
 
         List<BuyerVendorAiProfile> results = service.processVendorsWithAi(
-            List.of(vendorGstinOnly, vendorBare, vendorLowQuality), "ORG-1", "admin"
+            List.of(vendorGstinOnly, vendorPanOnly, vendorAddressOnly, vendorCityOnly, vendorBare, vendorBlanks, vendorLowQuality),
+            "ORG-1", "admin"
         );
 
-        assertEquals(3, results.size());
+        assertEquals(7, results.size());
         assertEquals("80% Provided", results.get(0).getVerificationStatus());
         assertEquals("Qualified", results.get(0).getQualification());
-        assertEquals("Unqualified", results.get(1).getQualification());
-        assertEquals("Incomplete", results.get(1).getVerificationStatus());
-        assertEquals("Non-Compliant", results.get(1).getComplianceStatus());
+        assertEquals(75, results.get(0).getComplianceScore());
+
+        assertEquals("Partial Information", results.get(1).getVerificationStatus());
+        assertEquals("Pending", results.get(1).getQualification());
+        assertEquals(75, results.get(1).getComplianceScore());
+
+        assertFalse(results.get(2).isCompanyInfoVerified());
+        assertFalse(results.get(3).isCompanyInfoVerified());
+
+        assertEquals("Unqualified", results.get(4).getQualification());
+        assertEquals("Incomplete", results.get(4).getVerificationStatus());
+        assertEquals("Non-Compliant", results.get(4).getComplianceStatus());
+        assertEquals(60, results.get(4).getComplianceScore());
+
+        assertEquals("Unqualified", results.get(5).getQualification());
     }
 
     @Test
@@ -255,12 +306,16 @@ class VendorAiProcessingServiceImplTest {
     }
 
     @Test
-    void testSanitizeJsonEdgeCases() {
+    void testSanitizeJsonAllBranches() {
         assertEquals("{}", ReflectionTestUtils.invokeMethod(service, "sanitizeJson", (Object) null));
         assertEquals("{\"a\":1}", ReflectionTestUtils.invokeMethod(service, "sanitizeJson", "```json\n{\"a\":1}\n```"));
         assertEquals("{\"a\":1}", ReflectionTestUtils.invokeMethod(service, "sanitizeJson", "```\n{\"a\":1}\n```"));
         assertEquals("{\"a\":1}", ReflectionTestUtils.invokeMethod(service, "sanitizeJson", "prefix {\"a\":1} suffix"));
         assertEquals("not json", ReflectionTestUtils.invokeMethod(service, "sanitizeJson", "not json"));
+        assertEquals("{only open", ReflectionTestUtils.invokeMethod(service, "sanitizeJson", "{only open"));
+        assertEquals("only close}", ReflectionTestUtils.invokeMethod(service, "sanitizeJson", "only close}"));
+        assertEquals("}{reversed", ReflectionTestUtils.invokeMethod(service, "sanitizeJson", "}{reversed"));
+        assertEquals("raw without backtick", ReflectionTestUtils.invokeMethod(service, "sanitizeJson", "raw without backtick"));
     }
 
     @Test
