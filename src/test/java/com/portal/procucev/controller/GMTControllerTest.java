@@ -5,6 +5,7 @@ import com.portal.procucev.customexception.MessageResponse;
 import com.portal.procucev.customexception.RfqStatusResponse;
 import com.portal.procucev.model.*;
 import com.portal.procucev.service.GMTService;
+import com.portal.procucev.utils.StatusCodes;
 import jakarta.servlet.http.HttpServletRequest;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -550,5 +551,30 @@ class GMTControllerTest {
 
         when(gmtService.getSubscriptionPlans()).thenReturn(null);
         assertEquals(HttpStatus.OK, controller.getSubscriptionPlans().getStatusCode());
+    }
+
+    @Test
+    void testUpdateDeliveryLocation_AllStatuses() {
+        DeliveryLocationUpdateRequest req = new DeliveryLocationUpdateRequest();
+        req.setRfqId("RFQ100");
+        req.setCity("Raigarh");
+
+        when(gmtService.updateDeliveryLocation(any())).thenReturn(new MessageResponse("200", "Success", null, "Success"));
+        assertEquals(HttpStatus.OK, controller.updateDeliveryLocation(req).getStatusCode());
+
+        when(gmtService.updateDeliveryLocation(any())).thenReturn(new MessageResponse(StatusCodes.OK_VENDOR_CODE, "Success", null, "Success"));
+        assertEquals(HttpStatus.OK, controller.updateDeliveryLocation(req).getStatusCode());
+
+        when(gmtService.updateDeliveryLocation(any())).thenReturn(new MessageResponse("403", "Forbidden", null, "Failure"));
+        assertEquals(HttpStatus.FORBIDDEN, controller.updateDeliveryLocation(req).getStatusCode());
+
+        when(gmtService.updateDeliveryLocation(any())).thenReturn(new MessageResponse("404", "Not Found", null, "Failure"));
+        assertEquals(HttpStatus.NOT_FOUND, controller.updateDeliveryLocation(req).getStatusCode());
+
+        when(gmtService.updateDeliveryLocation(any())).thenReturn(new MessageResponse("400", "Bad Request", null, "Failure"));
+        assertEquals(HttpStatus.BAD_REQUEST, controller.updateDeliveryLocation(req).getStatusCode());
+
+        when(gmtService.updateDeliveryLocation(any())).thenReturn(null);
+        assertEquals(HttpStatus.BAD_REQUEST, controller.updateDeliveryLocation(null).getStatusCode());
     }
 }

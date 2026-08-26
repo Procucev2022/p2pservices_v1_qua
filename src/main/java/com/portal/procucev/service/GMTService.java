@@ -9,6 +9,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
 
 import com.portal.procucev.Dto.ClientRFQDto;
+import com.portal.procucev.Dto.DeliveryLocationUpdateRequest;
 import com.portal.procucev.Dto.ForwardRfqVendorRequest;
 import com.portal.procucev.Dto.GMTRfqVendorDto;
 import com.portal.procucev.Dto.GmtRfqSellerDto;
@@ -166,6 +167,7 @@ public interface GMTService {
 	void dailyReportEmailForwarder();
 
 	List<VendorRFQDto> getAllVendorsSearch(String searchType, String searchValue);
-
+	
+	MessageResponse updateDeliveryLocation(DeliveryLocationUpdateRequest request);
 
 }
