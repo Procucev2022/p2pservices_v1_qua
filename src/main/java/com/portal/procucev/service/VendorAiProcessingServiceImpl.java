@@ -80,11 +80,18 @@ public class VendorAiProcessingServiceImpl implements VendorAiProcessingService 
     @Transactional
     public List<BuyerVendorAiProfile> processVendorsWithAi(List<BuyerVendor> vendors, String buyerOrgId, String username) {
         ensureTableExists();
-        log.info("Processing {} vendors with Gemini AI for buyerOrgId: {}", vendors.size(), buyerOrgId);
-        List<BuyerVendorAiProfile> results = new ArrayList<>();
+        if (vendors == null || vendors.isEmpty()) {
+            return Collections.emptyList();
+        }
+        log.info("Processing {} vendors concurrently with Gemini AI for buyerOrgId: {}", vendors.size(), buyerOrgId);
+        
+        // Execute Gemini AI analysis in parallel across all vendors
+        List<BuyerVendorAiProfile> analyzedProfiles = vendors.parallelStream()
+                .map(v -> analyzeSingleVendor(v, buyerOrgId, username))
+                .toList();
 
-        for (BuyerVendor v : vendors) {
-            BuyerVendorAiProfile profile = analyzeSingleVendor(v, buyerOrgId, username);
+        List<BuyerVendorAiProfile> results = new ArrayList<>();
+        for (BuyerVendorAiProfile profile : analyzedProfiles) {
             Optional<BuyerVendorAiProfile> existing = aiProfileDao.findByVendorCodeAndBuyerOrgId(profile.getVendorCode(), buyerOrgId);
             if (existing.isPresent()) {
                 BuyerVendorAiProfile toUpdate = existing.get();
@@ -100,36 +107,9 @@ public class VendorAiProcessingServiceImpl implements VendorAiProcessingService 
     }
 
     @Override
-    @Transactional
     public List<BuyerVendorAiProfile> getAnalyzedVendors(String buyerOrgId) {
         ensureTableExists();
-        List<BuyerVendorAiProfile> existingProfiles = aiProfileDao.findByBuyerOrgIdOrderByCreatedTSDesc(buyerOrgId);
-        
-        // Ensure any imported BuyerVendors without an AI profile get analyzed and included
-        List<BuyerVendor> allVendors = buyerVendorDao.findByBuyerOrgId(buyerOrgId);
-        if (allVendors != null && !allVendors.isEmpty()) {
-            Set<String> profiledCodes = new HashSet<>();
-            for (BuyerVendorAiProfile p : existingProfiles) {
-                if (p.getVendorCode() != null) {
-                    profiledCodes.add(p.getVendorCode().trim().toLowerCase());
-                }
-            }
-
-            List<BuyerVendor> unprofiledVendors = new ArrayList<>();
-            for (BuyerVendor bv : allVendors) {
-                if (bv.getVendorCode() != null && !profiledCodes.contains(bv.getVendorCode().trim().toLowerCase())) {
-                    unprofiledVendors.add(bv);
-                }
-            }
-
-            if (!unprofiledVendors.isEmpty()) {
-                log.info("Auto-analyzing {} unprofiled vendors via Gemini AI for buyerOrgId: {}", unprofiledVendors.size(), buyerOrgId);
-                List<BuyerVendorAiProfile> newlyProfiled = processVendorsWithAi(unprofiledVendors, buyerOrgId, "system-ai");
-                existingProfiles.addAll(0, newlyProfiled);
-            }
-        }
-
-        return existingProfiles;
+        return aiProfileDao.findByBuyerOrgIdOrderByCreatedTSDesc(buyerOrgId);
     }
 
     @Override
@@ -186,8 +166,8 @@ public class VendorAiProcessingServiceImpl implements VendorAiProcessingService 
             String sanitized = sanitizeJson(jsonResp);
             JsonNode root = objectMapper.readTree(sanitized);
 
-            String industry = root.path("industry").asText(vendor.getTypeOfIndustry() != null ? vendor.getTypeOfIndustry() : "Manufacturing & Industrial");
-            String category = root.path("category").asText("Industrial Goods & Assemblies");
+            String industry = root.path("industry").asText(vendor.getTypeOfIndustry() != null ? vendor.getTypeOfIndustry() : "");
+            String category = root.path("category").asText("");
 
             profile.setIndustry(industry);
             profile.setCategory(category);
@@ -198,10 +178,10 @@ public class VendorAiProcessingServiceImpl implements VendorAiProcessingService 
             log.info("Gemini AI successfully classified vendor {}: Industry={}, Category={}", vendor.getVendorName(), industry, category);
         } catch (Exception ex) {
             log.error("Gemini AI execution failed for vendor {}: {}", vendor.getVendorName(), ex.getMessage(), ex);
-            applyDeterministicCategorization(profile, vendor);
+            throw new RuntimeException("Gemini AI execution failed for vendor " + vendor.getVendorName() + ": " + ex.getMessage(), ex);
         }
 
-        // Apply consistent qualification scoring based on actual data
+        // Apply qualification verification based on actual vendor fields
         applyDeterministicQualification(profile, vendor);
         return profile;
     }
@@ -228,19 +208,6 @@ public class VendorAiProcessingServiceImpl implements VendorAiProcessingService 
         return profile;
     }
 
-    private void applyDeterministicCategorization(BuyerVendorAiProfile profile, BuyerVendor vendor) {
-        String industry = vendor.getTypeOfIndustry() != null && !vendor.getTypeOfIndustry().isBlank() 
-            ? vendor.getTypeOfIndustry().trim() 
-            : detectIndustry(vendor.getVendorName(), "");
-        String category = detectCategory(industry);
-
-        profile.setIndustry(industry);
-        profile.setCategory(category);
-        profile.setSubCategoriesJson(generateSubCategoriesJson(category));
-        profile.setCapabilitiesJson(generateCapabilitiesJson(industry, category));
-        profile.setSuitableCategoriesJson(String.format("[\"%s Direct Sourcing\", \"%s Annual Supply Contract\"]", industry, category));
-    }
-
     private void applyDeterministicQualification(BuyerVendorAiProfile profile, BuyerVendor vendor) {
         boolean hasGstin = vendor.getGstin() != null && !vendor.getGstin().isBlank();
         boolean hasPan = vendor.getPan() != null && !vendor.getPan().isBlank();
@@ -253,7 +220,7 @@ public class VendorAiProcessingServiceImpl implements VendorAiProcessingService 
         profile.setCompanyInfoVerified(hasAddress && hasCity);
         profile.setContactInfoVerified(hasPhone);
 
-        // Deterministic Score Calculation based on data completeness
+        // Score Calculation based on actual data completeness
         int score = 70;
         if (hasGstin) score += 10;
         if (hasPan) score += 5;
@@ -283,59 +250,6 @@ public class VendorAiProcessingServiceImpl implements VendorAiProcessingService 
             profile.setVerificationStatus("Incomplete");
             profile.setComplianceStatus("Non-Compliant");
         }
-    }
-
-    private String detectIndustry(String name, String existingIndustry) {
-        if (existingIndustry != null && !existingIndustry.isBlank()) return existingIndustry;
-        if (name == null) return "Manufacturing & Industrial";
-        String lower = name.toLowerCase();
-        if (lower.contains("steel") || lower.contains("metal") || lower.contains("mro") || lower.contains("iron") || lower.contains("tool")) return "Steel & Metals";
-        if (lower.contains("chem") || lower.contains("petro") || lower.contains("oil") || lower.contains("gas") || lower.contains("polymer")) return "Chemicals";
-        if (lower.contains("elect") || lower.contains("power") || lower.contains("cable") || lower.contains("switch")) return "Electrical & Automation";
-        if (lower.contains("tech") || lower.contains("info") || lower.contains("soft") || lower.contains("it")) return "IT & Software";
-        if (lower.contains("build") || lower.contains("cement") || lower.contains("const") || lower.contains("infra")) return "Cement & Building Materials";
-        if (lower.contains("logist") || lower.contains("transport") || lower.contains("freight") || lower.contains("dart") || lower.contains("dhl")) return "Logistics & Warehousing";
-        if (lower.contains("pharma") || lower.contains("drug") || lower.contains("health")) return "Pharmaceuticals";
-        if (lower.contains("food") || lower.contains("dairy") || lower.contains("beverage") || lower.contains("fmcg")) return "Food & FMCG";
-        return "Manufacturing & Industrial";
-    }
-
-    private String detectCategory(String industry) {
-        return switch (industry) {
-            case "Steel & Metals" -> "Steel & Metals";
-            case "Chemicals" -> "Petrochemicals";
-            case "Electrical & Automation" -> "Switchgear & Cabling";
-            case "IT & Software" -> "IT Hardware & Services";
-            case "Cement & Building Materials" -> "Building Materials & Cement";
-            case "Logistics & Warehousing" -> "Freight & Transport Services";
-            case "Pharmaceuticals" -> "Active Pharmaceutical Ingredients";
-            case "Food & FMCG" -> "Food Ingredients & Packaging";
-            default -> "Industrial Goods & Assemblies";
-        };
-    }
-
-    private String generateSubCategoriesJson(String category) {
-        return switch (category) {
-            case "Steel & Metals" -> "[\"Structural Steel\", \"Alloy Sheets\", \"Fasteners & Fixtures\", \"Pipes & Tubes\"]";
-            case "Petrochemicals" -> "[\"Polymers & Resins\", \"Industrial Solvents\", \"Hydrocarbons\", \"Surfactants\"]";
-            case "Switchgear & Cabling" -> "[\"HT/LT Cables\", \"Circuit Breakers\", \"Transformers\", \"Switchboards\"]";
-            case "Building Materials & Cement" -> "[\"Portland Cement\", \"Aggregate Materials\", \"Reinforcement Bars\", \"Ready-Mix Concrete\"]";
-            case "IT Hardware & Services" -> "[\"Enterprise Servers\", \"Cloud Infrastructure\", \"Networking Gear\", \"Workstations\"]";
-            case "Freight & Transport Services" -> "[\"Express Parcel Delivery\", \"FTL Freight\", \"Cold Chain Logistics\", \"Warehousing\"]";
-            case "Active Pharmaceutical Ingredients" -> "[\"Bulk Drugs\", \"Excipients\", \"Sterile Packaging\", \"Chemical Intermediates\"]";
-            case "Food Ingredients & Packaging" -> "[\"Dairy Products\", \"Food-Grade Oils\", \"Flexible Packaging\", \"Preservatives\"]";
-            default -> "[\"Standard Components\", \"OEM Spare Parts\", \"Fabricated Parts\", \"Raw Stock\"]";
-        };
-    }
-
-    private String generateCapabilitiesJson(String industry, String category) {
-        return switch (industry) {
-            case "Steel & Metals" -> "[\"Steel Sourcing\", \"Industrial Materials\", \"Precision Fabrication\", \"High-Tensile Fastening\"]";
-            case "Chemicals" -> "[\"Industrial Chemicals\", \"Bulk Solvents\", \"Polymer Compounding\", \"Specialty Fluids\"]";
-            case "IT & Software" -> "[\"IT Systems Sourcing\", \"Cloud Infrastructure\", \"Enterprise Software Support\", \"Hardware Maintenance\"]";
-            case "Logistics & Warehousing" -> "[\"Multi-Modal Transport\", \"Warehousing Solutions\", \"Express Delivery\", \"Supply Chain Tracking\"]";
-            default -> String.format("[\"%s Sourcing\", \"%s Supplies\", \"Quality Assured Batching\", \"Just-In-Time Delivery\"]", industry, category);
-        };
     }
 
     private void copyFields(BuyerVendorAiProfile src, BuyerVendorAiProfile dest) {

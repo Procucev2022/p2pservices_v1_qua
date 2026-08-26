@@ -330,8 +330,10 @@ public class BuyerVendorController {
     /**
      * POST /rest/buyer/vendors/bulk-delete
      * DELETE /rest/buyer/vendors/bulk
+     * DELETE /rest/buyer/vendors/bulk-delete
      */
-    @RequestMapping(value = {"/bulk-delete", "/bulk"}, method = {RequestMethod.POST, RequestMethod.DELETE})
+    @RequestMapping(value = {"/bulk-delete"}, method = {RequestMethod.POST, RequestMethod.DELETE})
+    @DeleteMapping("/bulk")
     public ResponseEntity<MessageResponse> bulkDeleteVendors(@RequestBody(required = false) Object payload) {
         try {
             String buyerOrgId = getLoggedInBuyerOrgId();
