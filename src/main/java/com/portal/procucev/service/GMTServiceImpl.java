@@ -1100,6 +1100,7 @@ public class GMTServiceImpl implements GMTService {
 		rfqDto.setNoOfQuotes(rfq.getQuoteCount());
 		//Updateing Source Type
 		rfqDto.setSourceType(rfq.getSourceType());
+		rfqDto.setSourcingStrategyMode(rfq.getSourcingStrategyMode());
 		//rfqDto.setNoOfVendors(rfqVendorDao.findByVendorsByRfq(rfq.getId()));
 		rfqDto.setNoOfVendors(gmtRfqVendorDao.findByVendorsByRfq(rfq.getId()));
 		rfqDto.setQuoteSubmittedDate(rfq.getQuoteSubmittedDate());
@@ -1217,6 +1218,7 @@ public class GMTServiceImpl implements GMTService {
 	            rfq.isNewCommentAvailableVendor());
 
 	    dto.setSourceType(rfq.getSourceType());
+	    dto.setSourcingStrategyMode(rfq.getSourcingStrategyMode());
 
 	    // client status
 	    if (rfq.getClientStatus() != null) {
@@ -1456,7 +1458,14 @@ public class GMTServiceImpl implements GMTService {
 	public ResponseEntity<?> fetchRfqById(Rfq rfq) {
 		Optional<Rfq> rfqList = rfqDao.findById(rfq.getId());
 		if (rfqList.isPresent()) {
-			return new ResponseEntity<>(rfqList.get(), HttpStatus.OK);
+			Rfq fetchedRfq = rfqList.get();
+			try {
+				List<RfqVendor> vendorDetails = getVendorsbyRFQ(fetchedRfq);
+				fetchedRfq.setVendorDetails(vendorDetails);
+			} catch (Exception e) {
+				logger.warn("Could not populate vendor details for RFQ {}: {}", fetchedRfq.getId(), e.getMessage());
+			}
+			return new ResponseEntity<>(fetchedRfq, HttpStatus.OK);
 		} else {
 			logger.error("No rfq's available in the database");
 			throw new AppException(HttpStatus.NO_CONTENT.value(), ApplicationConstants.NO_DATA_FOUND,
@@ -1505,6 +1514,7 @@ public class GMTServiceImpl implements GMTService {
 				rfqDto.setCategory(rfq.getCategory());
 				rfqDto.setRfqId(rfq.getRfqId());
 				rfqDto.setSourceType(rfq.getSourceType());
+				rfqDto.setSourcingStrategyMode(rfq.getSourcingStrategyMode());
 				if (rfq.getClientStatus() != null) {
 					rfqDto.setClientStatus(rfq.getClientStatus());
 					rfqDto.setClientStatusId(rfq.getClientStatus().getId());

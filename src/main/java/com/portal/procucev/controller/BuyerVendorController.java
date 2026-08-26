@@ -77,6 +77,32 @@ public class BuyerVendorController {
     }
 
     /**
+     * GET /rest/buyer/vendors/recommendations?category=&limit=10
+     * Returns Procucev network vendors (including Category Manager added vendors) for RFQ recommendations.
+     */
+    @GetMapping("/recommendations")
+    public ResponseEntity<MessageResponse> getRecommendations(
+            @RequestParam(required = false) String category,
+            @RequestParam(defaultValue = "10") int limit) {
+        try {
+            List<Map<String, Object>> recommendations = buyerVendorService.getProcucevRecommendations(category, limit);
+            MessageResponse response = MessageResponse.success(
+                "Procucev recommendations retrieved successfully",
+                Map.of(
+                    "vendors", recommendations,
+                    "totalRecords", recommendations.size()
+                )
+            );
+            return ResponseEntity.ok(response);
+        } catch (Exception ex) {
+            log.error("Error fetching recommendations", ex);
+            return ResponseEntity.internalServerError().body(
+                new MessageResponse("500", "Internal server error", List.of(ex.getMessage()), new Date(), "Failure", "SYSTEM_ERROR")
+            );
+        }
+    }
+
+    /**
      * POST /rest/buyer/vendors
      */
     @PostMapping

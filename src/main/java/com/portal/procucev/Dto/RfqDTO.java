@@ -51,6 +51,7 @@ public class RfqDTO {
 	private boolean newCommentAvailableVendor;
 	//Added Soucrce Type
 	private String sourceType;
+	private String sourcingStrategyMode;
 	
 	public RfqDTO() {
 		

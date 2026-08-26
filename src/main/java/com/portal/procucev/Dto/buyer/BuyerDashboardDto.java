@@ -248,4 +248,35 @@ public class BuyerDashboardDto {
         private int remainingQuota;
         private int totalQuota;
     }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class CreateRfqRequestDto implements Serializable {
+        private static final long serialVersionUID = 1L;
+        private String rfqNumber;
+        private String title;
+        private String category;
+        private String division;
+        private String sourcingStrategyMode;
+        private double budget;
+        private String deliveryDate;
+        private String specialInstruction;
+        private List<ExtractedEntityDto> entities;
+        private List<String> targetedVendorNames;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class CreateRfqResponseDto implements Serializable {
+        private static final long serialVersionUID = 1L;
+        private String id;
+        private String rfqNumber;
+        private String sourcingStrategyMode;
+        private String status;
+        private String message;
+    }
 }

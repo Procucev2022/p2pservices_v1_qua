@@ -154,6 +154,20 @@ public class BuyerDashboardController {
         }
     }
 
+    @PostMapping("/create-rfq")
+    public ResponseEntity<MessageResponse> createRfq(@RequestBody BuyerDashboardDto.CreateRfqRequestDto request) {
+        try {
+            String username = getLoggedInUsername();
+            BuyerDashboardDto.CreateRfqResponseDto response = buyerDashboardService.createRfq(request, username);
+            return ResponseEntity.ok(MessageResponse.success("RFQ created successfully", Map.of("rfq", response)));
+        } catch (Exception e) {
+            log.error("Error creating RFQ", e);
+            return ResponseEntity.internalServerError().body(
+                    new MessageResponse("500", "Failed to create RFQ", List.of(e.getMessage()), new Date(), "Failure", "SYSTEM_ERROR")
+            );
+        }
+    }
+
     private String getLoggedInUsername() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         if (auth != null && auth.getName() != null && !auth.getName().equalsIgnoreCase("anonymousUser")) {

@@ -20,4 +20,6 @@ public interface BuyerVendorService {
     boolean updateStatus(String id, String buyerOrgId, String status);
 
     java.util.Map<String, Object> bulkCreateVendors(java.util.List<BuyerVendor> vendors, String buyerOrgId, String createdBy);
+
+    java.util.List<java.util.Map<String, Object>> getProcucevRecommendations(String category, int limit);
 }

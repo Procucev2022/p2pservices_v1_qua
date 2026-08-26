@@ -19,4 +19,6 @@ public interface BuyerDashboardService {
     List<BuyerDashboardDto.VendorEvaluationDto> getVendorEvaluations(String buyerOrgId);
 
     List<BuyerDashboardDto.SubscriptionPlanDto> getSubscriptionPlans(String buyerOrgId);
+
+    BuyerDashboardDto.CreateRfqResponseDto createRfq(BuyerDashboardDto.CreateRfqRequestDto request, String username);
 }

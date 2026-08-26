@@ -236,13 +236,16 @@ public class BuyerDashboardServiceImpl implements BuyerDashboardService {
                         }
 
                         int quotesCount = rfq.getCount() > 0 ? rfq.getCount() : (rfq.isQuotationReceived() ? 1 : 0);
+                        String resolvedSourcingMode = rfq.getSourcingStrategyMode() != null && !rfq.getSourcingStrategyMode().isBlank()
+                                ? rfq.getSourcingStrategyMode()
+                                : (rfq.isByClient() ? "mode_1" : "mode_2");
 
                         list.add(BuyerDashboardDto.RFQPipelineItemDto.builder()
                                 .id(rfqNum)
                                 .rfqNumber(rfqNum)
                                 .title(title)
                                 .category(cat)
-                                .sourcingMode(rfq.isByClient() ? "mode_1" : "mode_2")
+                                .sourcingMode(resolvedSourcingMode)
                                 .status(status)
                                 .quotesCount(quotesCount)
                                 .targetDeliveryDate(dateStr)
@@ -506,6 +509,76 @@ public class BuyerDashboardServiceImpl implements BuyerDashboardService {
                 .build());
 
         return plans;
+    }
+
+    @Override
+    public BuyerDashboardDto.CreateRfqResponseDto createRfq(BuyerDashboardDto.CreateRfqRequestDto request, String username) {
+        try {
+            Rfq rfq = new Rfq();
+            String rfqNum = (request.getRfqNumber() != null && !request.getRfqNumber().isBlank())
+                    ? request.getRfqNumber()
+                    : "RFQ-" + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy")) + "-" + String.format("%04d", (int)(Math.random() * 9000 + 1000));
+            rfq.setRfqId(rfqNum);
+            rfq.setProjectDesc(request.getTitle() != null ? request.getTitle() : "Autonomous Sourced RFQ");
+            rfq.setCategory(request.getCategory() != null ? request.getCategory() : "General Procurement");
+            rfq.setDivision(request.getDivision());
+            rfq.setSourcingStrategyMode(request.getSourcingStrategyMode() != null ? request.getSourcingStrategyMode() : "mode_1");
+            rfq.setByClient(true);
+            rfq.setNoPrFlag(true);
+            rfq.setUser(username);
+            rfq.setCreatedBy(username);
+            rfq.setCreatedTS(new java.util.Date());
+            rfq.setSpecialInstruction(request.getSpecialInstruction());
+
+            if (request.getDeliveryDate() != null && !request.getDeliveryDate().isBlank()) {
+                try {
+                    SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd");
+                    rfq.setDeliveryDate(sdf.parse(request.getDeliveryDate()));
+                    rfq.setRfqClosingDate(rfq.getDeliveryDate());
+                } catch (Exception ignored) {}
+            }
+
+            if (request.getEntities() != null && !request.getEntities().isEmpty()) {
+                List<RfqItem> items = new ArrayList<>();
+                int idx = 1;
+                for (BuyerDashboardDto.ExtractedEntityDto ent : request.getEntities()) {
+                    RfqItem item = new RfqItem();
+                    item.setDescription(ent.getItemName());
+                    item.setQuantity(ent.getQuantity() > 0 ? (int)ent.getQuantity() : 1);
+                    item.setUnitofMeasures(ent.getUnit() != null ? ent.getUnit() : "Units");
+                    item.setBrand(ent.getTechnicalSpecs());
+                    item.setCategory(ent.getCategory());
+                    item.setSerialNo(idx++);
+                    item.setCreatedTS(new java.util.Date());
+                    items.add(item);
+                }
+                rfq.setRfqItem(items);
+            }
+
+            if (rfqDao != null) {
+                Rfq saved = rfqDao.save(rfq);
+                return BuyerDashboardDto.CreateRfqResponseDto.builder()
+                        .id(saved.getId())
+                        .rfqNumber(saved.getRfqId())
+                        .sourcingStrategyMode(saved.getSourcingStrategyMode())
+                        .status("Success")
+                        .message("RFQ created and sourcing strategy mode persisted successfully")
+                        .build();
+            }
+
+            return BuyerDashboardDto.CreateRfqResponseDto.builder()
+                    .rfqNumber(rfqNum)
+                    .sourcingStrategyMode(request.getSourcingStrategyMode())
+                    .status("Success")
+                    .message("RFQ processed successfully")
+                    .build();
+        } catch (Exception e) {
+            log.error("Error creating RFQ in BuyerDashboardService", e);
+            return BuyerDashboardDto.CreateRfqResponseDto.builder()
+                    .status("Failure")
+                    .message("Failed to create RFQ: " + e.getMessage())
+                    .build();
+        }
     }
 
     private String generateSha256(String input) {

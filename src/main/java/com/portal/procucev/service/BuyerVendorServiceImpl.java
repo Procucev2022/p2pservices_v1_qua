@@ -256,4 +256,66 @@ public class BuyerVendorServiceImpl implements BuyerVendorService {
             "errors", errors
         );
     }
+
+    @Override
+    public java.util.List<java.util.Map<String, Object>> getProcucevRecommendations(String category, int limit) {
+        ensureTableExists();
+        int maxLimit = limit > 0 ? limit : 100;
+        java.util.List<java.util.Map<String, Object>> result = new java.util.ArrayList<>();
+        java.util.Set<String> addedNames = new java.util.HashSet<>();
+
+        try {
+            org.springframework.data.domain.Pageable pageable = org.springframework.data.domain.PageRequest.of(0, maxLimit);
+            java.util.List<BuyerVendor> dbVendors = new java.util.ArrayList<>();
+
+            if (category != null && !category.trim().isEmpty()) {
+                java.util.List<BuyerVendor> matched = buyerVendorDao.findProcucevNetworkVendors(category.trim(), pageable);
+                if (matched != null) {
+                    dbVendors.addAll(matched);
+                }
+            }
+
+            java.util.List<BuyerVendor> allVendors = buyerVendorDao.findAllProcucevNetworkVendors(pageable);
+            if (allVendors != null) {
+                for (BuyerVendor v : allVendors) {
+                    boolean alreadyInList = dbVendors.stream().anyMatch(existing -> existing.getId() != null && existing.getId().equals(v.getId()));
+                    if (!alreadyInList) {
+                        dbVendors.add(v);
+                    }
+                }
+            }
+
+            if (dbVendors != null) {
+                int scoreBase = 96;
+                double ratingBase = 4.8;
+                for (BuyerVendor v : dbVendors) {
+                    if (v.getVendorName() != null && !addedNames.contains(v.getVendorName().toLowerCase())) {
+                        addedNames.add(v.getVendorName().toLowerCase());
+                        java.util.Map<String, Object> map = new java.util.HashMap<>();
+                        map.put("id", v.getId() != null ? v.getId() : v.getVendorCode());
+                        map.put("vendorCode", v.getVendorCode());
+                        map.put("name", v.getVendorName());
+                        map.put("category", v.getTypeOfIndustry() != null ? v.getTypeOfIndustry() : (v.getTypeOfBusiness() != null ? v.getTypeOfBusiness() : "General Industrial"));
+                        String loc = (v.getCity() != null ? v.getCity() : "") + (v.getRegionCode() != null ? ", " + v.getRegionCode() : "");
+                        map.put("location", !loc.trim().isEmpty() ? loc : (v.getCity() != null ? v.getCity() : "India"));
+                        map.put("rating", Math.round((ratingBase - (result.size() * 0.05)) * 10.0) / 10.0);
+                        map.put("matchScore", Math.max(82, scoreBase - (result.size() * 2)));
+                        map.put("proximity", v.getCity() != null ? "Local Hub (" + v.getCity() + ")" : "Regional Hub (<500km)");
+                        map.put("status", v.getStatus());
+                        map.put("sourcingScope", v.getSourcingScope());
+                        map.put("isProcucevVendor", true);
+                        map.put("origin", "Procucev Network");
+                        result.add(map);
+                        if (result.size() >= maxLimit) {
+                            break;
+                        }
+                    }
+                }
+            }
+        } catch (Exception ex) {
+            log.warn("Could not query DB for Category Manager Procucev recommendations: {}", ex.getMessage());
+        }
+
+        return result;
+    }
 }

@@ -49,4 +49,19 @@ public interface BuyerVendorDao extends JpaRepository<BuyerVendor, String> {
     @Modifying
     @Query("UPDATE BuyerVendor v SET v.status = :status WHERE v.id = :id AND v.buyerOrgId = :buyerOrgId")
     int updateStatus(@Param("id") String id, @Param("buyerOrgId") String buyerOrgId, @Param("status") String status);
+
+    @Query("""
+        SELECT v FROM BuyerVendor v
+        WHERE v.status = 'Active'
+          AND (:industry IS NULL OR :industry = '' OR LOWER(v.typeOfIndustry) LIKE LOWER(CONCAT('%', :industry, '%')) OR LOWER(v.typeOfBusiness) LIKE LOWER(CONCAT('%', :industry, '%')))
+        ORDER BY v.createdTS DESC
+    """)
+    List<BuyerVendor> findProcucevNetworkVendors(@Param("industry") String industry, Pageable pageable);
+
+    @Query("""
+        SELECT v FROM BuyerVendor v
+        WHERE v.status = 'Active'
+        ORDER BY v.createdTS DESC
+    """)
+    List<BuyerVendor> findAllProcucevNetworkVendors(Pageable pageable);
 }
