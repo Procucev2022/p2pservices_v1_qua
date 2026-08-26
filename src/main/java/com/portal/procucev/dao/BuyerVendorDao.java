@@ -50,6 +50,19 @@ public interface BuyerVendorDao extends JpaRepository<BuyerVendor, String> {
     @Query("UPDATE BuyerVendor v SET v.status = :status WHERE v.id = :id AND v.buyerOrgId = :buyerOrgId")
     int updateStatus(@Param("id") String id, @Param("buyerOrgId") String buyerOrgId, @Param("status") String status);
 
+    @Transactional
+    @Modifying
+    void deleteByIdAndBuyerOrgId(String id, String buyerOrgId);
+
+    @Transactional
+    @Modifying
+    void deleteByVendorCodeAndBuyerOrgId(String vendorCode, String buyerOrgId);
+
+    @Transactional
+    @Modifying
+    @Query("DELETE FROM BuyerVendor v WHERE v.buyerOrgId = :buyerOrgId AND (v.vendorCode IN :vendorCodes OR v.id IN :vendorCodes)")
+    int deleteByCodesOrIdsAndBuyerOrgId(@Param("vendorCodes") List<String> vendorCodes, @Param("buyerOrgId") String buyerOrgId);
+
     @Query("""
         SELECT v FROM BuyerVendor v
         WHERE v.status = 'Active'

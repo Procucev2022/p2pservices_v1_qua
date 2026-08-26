@@ -16,5 +16,12 @@ public interface BuyerVendorAiProfileDao extends JpaRepository<BuyerVendorAiProf
 
     Optional<BuyerVendorAiProfile> findByVendorCode(String vendorCode);
 
+    @org.springframework.transaction.annotation.Transactional
+    @org.springframework.data.jpa.repository.Modifying
     void deleteByVendorCodeAndBuyerOrgId(String vendorCode, String buyerOrgId);
+
+    @org.springframework.transaction.annotation.Transactional
+    @org.springframework.data.jpa.repository.Modifying
+    @org.springframework.data.jpa.repository.Query("DELETE FROM BuyerVendorAiProfile p WHERE p.buyerOrgId = :buyerOrgId AND p.vendorCode IN :vendorCodes")
+    int deleteByVendorCodesAndBuyerOrgId(@org.springframework.data.repository.query.Param("vendorCodes") List<String> vendorCodes, @org.springframework.data.repository.query.Param("buyerOrgId") String buyerOrgId);
 }

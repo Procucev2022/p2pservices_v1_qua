@@ -22,6 +22,9 @@ public class BuyerVendorServiceImpl implements BuyerVendorService {
     private BuyerVendorDao buyerVendorDao;
 
     @Autowired
+    private com.portal.procucev.dao.BuyerVendorAiProfileDao buyerVendorAiProfileDao;
+
+    @Autowired
     private JdbcTemplate jdbcTemplate;
 
     private void ensureTableExists() {
@@ -185,6 +188,46 @@ public class BuyerVendorServiceImpl implements BuyerVendorService {
             return true;
         }
         return false;
+    }
+
+    @Override
+    @org.springframework.transaction.annotation.Transactional
+    public boolean deleteVendor(String idOrCode, String buyerOrgId) {
+        ensureTableExists();
+        Optional<BuyerVendor> vendorOpt = getVendorById(idOrCode, buyerOrgId);
+        if (vendorOpt.isPresent()) {
+            BuyerVendor v = vendorOpt.get();
+            buyerVendorDao.delete(v);
+            try {
+                if (v.getVendorCode() != null) {
+                    buyerVendorAiProfileDao.deleteByVendorCodeAndBuyerOrgId(v.getVendorCode(), buyerOrgId);
+                }
+            } catch (Exception ex) {
+                log.warn("Could not delete AI profile for vendor: {}", v.getVendorCode(), ex);
+            }
+            return true;
+        }
+        return false;
+    }
+
+    @Override
+    @org.springframework.transaction.annotation.Transactional
+    public java.util.Map<String, Object> bulkDeleteVendors(java.util.List<String> vendorCodes, String buyerOrgId) {
+        ensureTableExists();
+        if (vendorCodes == null || vendorCodes.isEmpty()) {
+            return java.util.Map.of("deletedCount", 0, "success", true);
+        }
+        int deletedVendors = buyerVendorDao.deleteByCodesOrIdsAndBuyerOrgId(vendorCodes, buyerOrgId);
+        try {
+            buyerVendorAiProfileDao.deleteByVendorCodesAndBuyerOrgId(vendorCodes, buyerOrgId);
+        } catch (Exception ex) {
+            log.warn("Could not bulk delete AI profiles: {}", ex.getMessage());
+        }
+        return java.util.Map.of(
+            "deletedCount", deletedVendors,
+            "success", true,
+            "message", deletedVendors + " vendor(s) deleted successfully"
+        );
     }
 
     @Override

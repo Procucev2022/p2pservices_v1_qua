@@ -326,6 +326,55 @@ public class BuyerVendorController {
         }
     }
 
+    /**
+     * DELETE /rest/buyer/vendors/{idOrCode}
+     */
+    @DeleteMapping("/{idOrCode}")
+    public ResponseEntity<MessageResponse> deleteVendor(@PathVariable String idOrCode) {
+        try {
+            String buyerOrgId = getLoggedInBuyerOrgId();
+            boolean deleted = buyerVendorService.deleteVendor(idOrCode, buyerOrgId);
+            if (!deleted) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
+                    MessageResponse.error("Vendor not found", List.of("VENDOR_NOT_FOUND"))
+                );
+            }
+
+            MessageResponse response = MessageResponse.success(
+                "Vendor deleted successfully",
+                Map.of("idOrCode", idOrCode)
+            );
+            return ResponseEntity.ok(response);
+        } catch (Exception ex) {
+            log.error("Error deleting vendor", ex);
+            return ResponseEntity.internalServerError().body(
+                new MessageResponse("500", "Internal server error", List.of(ex.getMessage()), new Date(), "Failure", "SYSTEM_ERROR")
+            );
+        }
+    }
+
+    /**
+     * POST /rest/buyer/vendors/bulk-delete
+     */
+    @PostMapping("/bulk-delete")
+    public ResponseEntity<MessageResponse> bulkDeleteVendors(@RequestBody List<String> vendorCodes) {
+        try {
+            String buyerOrgId = getLoggedInBuyerOrgId();
+            Map<String, Object> result = buyerVendorService.bulkDeleteVendors(vendorCodes, buyerOrgId);
+
+            MessageResponse response = MessageResponse.success(
+                "Vendors deleted successfully",
+                result
+            );
+            return ResponseEntity.ok(response);
+        } catch (Exception ex) {
+            log.error("Error in bulk deleting vendors", ex);
+            return ResponseEntity.internalServerError().body(
+                new MessageResponse("500", "Internal server error", List.of(ex.getMessage()), new Date(), "Failure", "SYSTEM_ERROR")
+            );
+        }
+    }
+
     private String getLoggedInBuyerOrgId() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         String username = auth.getName();
