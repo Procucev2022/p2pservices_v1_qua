@@ -9,6 +9,7 @@ import com.portal.procucev.rfq.parser.DateParser;
 import com.portal.procucev.rfq.service.RFQBuilderService;
 import com.portal.procucev.rfq.util.FileUtil;
 import com.portal.procucev.rfq.util.QuantityNormalizer;
+import com.portal.procucev.service.AutomaticRfqService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
@@ -44,7 +45,9 @@ class EmailRfqExtractionRegressionTest {
 
     @BeforeEach
     void setUp() {
-        rfqBuilderService = new RFQBuilderService(new DateParser(), Mockito.mock(PincodeDao.class));
+        AutomaticRfqService automaticRfqService = Mockito.mock(AutomaticRfqService.class);
+        Mockito.when(automaticRfqService.generateRfqId("RFQ")).thenReturn("RFQ260825000001");
+        rfqBuilderService = new RFQBuilderService(new DateParser(), Mockito.mock(PincodeDao.class), automaticRfqService);
     }
 
     private Buyer buyer() {

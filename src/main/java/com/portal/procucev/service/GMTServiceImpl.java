@@ -3,7 +3,6 @@ package com.portal.procucev.service;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
-import java.text.SimpleDateFormat;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -69,6 +68,7 @@ import org.springframework.util.CollectionUtils;
 
 import com.portal.procucev.Dto.BuyerSellerReportDto;
 import com.portal.procucev.Dto.ClientRFQDto;
+import com.portal.procucev.Dto.DeliveryLocationUpdateRequest;
 import com.portal.procucev.Dto.ForwardRfqVendorRequest;
 import com.portal.procucev.Dto.GMTRfqVendorDto;
 import com.portal.procucev.Dto.GmtRfqSellerDto;
@@ -162,6 +162,9 @@ public class GMTServiceImpl implements GMTService {
 
 	@Autowired
 	private SelfRegistrationService selfRegistrationService;
+
+	@Autowired
+	private AutomaticRfqService automaticRfqService;
 
 	@Autowired
 	private GmtItemsDao gmtItemsDao;
@@ -313,7 +316,7 @@ public class GMTServiceImpl implements GMTService {
 
 			// String rfqId = selfRegistrationService.generateId("RFQ");
 
-			String rfqId = generateRfqId("RFQ");
+			String rfqId = automaticRfqService.generateRfqId("RFQ");
 			logger.info("Generated RFQ Id: {}", rfqId);
 			rfq.setRfqId(rfqId);
 
@@ -427,7 +430,13 @@ public class GMTServiceImpl implements GMTService {
 			// Set RFQ Delivery Location
 			List<ClientDeliveryLocationRfq> updatedDeliveryLocation = updatedRfq.getClientdeliverylocationrfq();
 			if (!CollectionUtils.isEmpty(updatedDeliveryLocation) && updatedDeliveryLocation != null) {
-				updatedDeliveryLocation.forEach(clientDeliveryLocation -> clientDeliveryLocation.setRfq(updatedRfq));
+				updatedDeliveryLocation.forEach(clientDeliveryLocation -> {
+					clientDeliveryLocation.setCity(sanitizeLocationField(clientDeliveryLocation.getCity()));
+					clientDeliveryLocation.setState(sanitizeLocationField(clientDeliveryLocation.getState()));
+					clientDeliveryLocation.setPincode(sanitizeLocationField(clientDeliveryLocation.getPincode()));
+					clientDeliveryLocation.setAddress(sanitizeLocationField(clientDeliveryLocation.getAddress()));
+					clientDeliveryLocation.setRfq(updatedRfq);
+				});
 			}
 			// Set RFQ Vendors
 			List<RfqVendor> updatedRFQVendors = rfqVendorDao.findDataByRfqId(updatedRfq.getId());
@@ -1456,7 +1465,16 @@ public class GMTServiceImpl implements GMTService {
 	public ResponseEntity<?> fetchRfqById(Rfq rfq) {
 		Optional<Rfq> rfqList = rfqDao.findById(rfq.getId());
 		if (rfqList.isPresent()) {
-			return new ResponseEntity<>(rfqList.get(), HttpStatus.OK);
+			Rfq loadedRfq = rfqList.get();
+			if (!CollectionUtils.isEmpty(loadedRfq.getClientdeliverylocationrfq())) {
+				loadedRfq.getClientdeliverylocationrfq().forEach(loc -> {
+					loc.setCity(sanitizeLocationField(loc.getCity()));
+					loc.setState(sanitizeLocationField(loc.getState()));
+					loc.setPincode(sanitizeLocationField(loc.getPincode()));
+					loc.setAddress(sanitizeLocationField(loc.getAddress()));
+				});
+			}
+			return new ResponseEntity<>(loadedRfq, HttpStatus.OK);
 		} else {
 			logger.error("No rfq's available in the database");
 			throw new AppException(HttpStatus.NO_CONTENT.value(), ApplicationConstants.NO_DATA_FOUND,
@@ -1671,7 +1689,7 @@ public class GMTServiceImpl implements GMTService {
 		try {
 			// Get Total counts for PR
 			// String rfqId = selfRegistrationService.generateId("RFQ");
-			String rfqId = generateRfqId("RFQ");
+			String rfqId = automaticRfqService.generateRfqId("RFQ");
 			logger.info("Generated RFQ Id{}", rfqId);
 			rfq.setRfqId(rfqId);
 
@@ -2497,7 +2515,13 @@ public class GMTServiceImpl implements GMTService {
 			// Set RFQ Delivery Location
 			List<ClientDeliveryLocationRfq> updatedDeliveryLocation = updatedRfq.getClientdeliverylocationrfq();
 			if (!CollectionUtils.isEmpty(updatedDeliveryLocation) && updatedDeliveryLocation != null) {
-				updatedDeliveryLocation.forEach(clientDeliveryLocation -> clientDeliveryLocation.setRfq(updatedRfq));
+				updatedDeliveryLocation.forEach(clientDeliveryLocation -> {
+					clientDeliveryLocation.setCity(sanitizeLocationField(clientDeliveryLocation.getCity()));
+					clientDeliveryLocation.setState(sanitizeLocationField(clientDeliveryLocation.getState()));
+					clientDeliveryLocation.setPincode(sanitizeLocationField(clientDeliveryLocation.getPincode()));
+					clientDeliveryLocation.setAddress(sanitizeLocationField(clientDeliveryLocation.getAddress()));
+					clientDeliveryLocation.setRfq(updatedRfq);
+				});
 			}
 			// Set RFQ Vendors
 			List<RfqVendor> updatedRFQVendors = rfqVendorDao.findDataByRfqId(updatedRfq.getId());
@@ -2631,7 +2655,7 @@ public class GMTServiceImpl implements GMTService {
 			rfq.setClientStatus(newStatus);
 
 			// String rfqId = selfRegistrationService.generateId("RFQ");
-			String rfqId = generateRfqId("RFQ");
+			String rfqId = automaticRfqService.generateRfqId("RFQ");
 			logger.info("Generated RFQ Id: {}", rfqId);
 			rfq.setRfqId(rfqId);
 
@@ -3505,25 +3529,6 @@ public class GMTServiceImpl implements GMTService {
 		return org;
 	}
 
-	public String generateRfqId(String company) {
-		String companyLetters = "";
-		if (company != null && !company.isEmpty()) {
-			companyLetters = company.length() >= 3 ? company.substring(0, 3).toUpperCase() : company.toUpperCase();
-		}
-
-		// current date in ddMM format
-		String datePart = new SimpleDateFormat("yyddMM").format(new Date());
-
-		// milliseconds part
-		long millis = System.currentTimeMillis() % 1000000; // last 6 digits to shorten
-
-		// optional random 3-digit suffix
-		// int random = (int) (Math.random() * 1000);
-
-		// return companyLetters + datePart + millis + String.format("%03d", random);
-		return companyLetters + datePart + millis;
-	}
-
 	@Override
 	public List<Map<String, Object>> getLastOpenRfqsForVendor(String vendorId) {
 		Pageable top3 = PageRequest.of(0, 3);
@@ -4395,7 +4400,131 @@ public class GMTServiceImpl implements GMTService {
 	    }
 	}
 
-	
+	private String sanitizeLocationField(String value) {
+		if (value == null) {
+			return null;
+		}
+		String trimmed = value.trim();
+		if (trimmed.isEmpty() || trimmed.equalsIgnoreCase(":null") || trimmed.equalsIgnoreCase("null")
+				|| trimmed.equalsIgnoreCase(": null")) {
+			return null;
+		}
+		return trimmed;
+	}
 
-	
+	@Override
+	public MessageResponse updateDeliveryLocation(DeliveryLocationUpdateRequest request) {
+		logger.info("Request received to update delivery location");
+		if (request == null) {
+			return new MessageResponse("400", "Request body cannot be null", null, ApplicationConstants.FAILURE,
+					new Date());
+		}
+
+		// Authorization Check
+		if (SecurityContextHolder.getContext().getAuthentication() != null
+				&& SecurityContextHolder.getContext().getAuthentication().getPrincipal() instanceof UserDetails) {
+			UserDetails userDetails = (UserDetails) SecurityContextHolder.getContext().getAuthentication()
+					.getPrincipal();
+			if (userDetails != null && userDetails.getUsername() != null) {
+				User currentUser = userDao.findByUsernameAndActive(userDetails.getUsername(), true);
+				if (currentUser != null && currentUser.getRole() != null) {
+					String roleName = currentUser.getRole().getRoleName();
+					boolean isAuthorized = StatusConstants.CATEGORYMANAGER_ROLE_NAME.equalsIgnoreCase(roleName)
+							|| StatusConstants.categorymanager2.equalsIgnoreCase(roleName)
+							|| StatusConstants.CATEGORY_MANAGER_BASIC.equalsIgnoreCase(roleName)
+							|| "Admin".equalsIgnoreCase(roleName) || "ROLE_ADMIN".equalsIgnoreCase(roleName)
+							|| "ADMIN".equalsIgnoreCase(roleName);
+					if (!isAuthorized) {
+						logger.warn("User {} with role {} is unauthorized to edit RFQ delivery location",
+								currentUser.getUsername(), roleName);
+						return new MessageResponse("403",
+								"Unauthorized: Only Category Managers can update delivery location", null,
+								ApplicationConstants.FAILURE, new Date());
+					}
+				}
+			}
+		}
+
+		String searchId = StringUtils.isNotBlank(request.getId()) ? request.getId().trim()
+				: (StringUtils.isNotBlank(request.getRfqId()) ? request.getRfqId().trim() : null);
+
+		if (searchId == null || searchId.isEmpty()) {
+			return new MessageResponse("400", "RFQ ID is required to update delivery location", null,
+					ApplicationConstants.FAILURE, new Date());
+		}
+
+		String city = sanitizeLocationField(request.getCity());
+		String state = sanitizeLocationField(request.getState());
+		String pincode = sanitizeLocationField(request.getPincode());
+		String address = sanitizeLocationField(request.getAddress());
+		Date deliveryDate = request.getDeliveryDate();
+
+		if (city == null || city.isEmpty()) {
+			return new MessageResponse("400", "City is required for delivery location", null,
+					ApplicationConstants.FAILURE, new Date());
+		}
+
+		if (pincode != null && !pincode.isEmpty() && !pincode.matches("^[0-9A-Za-z\\s-]{3,10}$")) {
+			return new MessageResponse("400", "Invalid Pincode/Zipcode format", null, ApplicationConstants.FAILURE,
+					new Date());
+		}
+
+		Optional<Rfq> rfqOpt = rfqDao.findById(searchId);
+		if (rfqOpt.isEmpty()) {
+			Rfq rfqByBusinessId = rfqDao.findByRfqId(searchId);
+			if (rfqByBusinessId != null) {
+				rfqOpt = Optional.of(rfqByBusinessId);
+			}
+		}
+
+		if (rfqOpt.isEmpty()) {
+			logger.error("RFQ not found with ID: {}", searchId);
+			return new MessageResponse("404", "RFQ not found with ID: " + searchId, null, ApplicationConstants.FAILURE,
+					new Date());
+		}
+
+		Rfq rfq = rfqOpt.get();
+
+		if (deliveryDate != null) {
+			rfq.setDeliveryDate(deliveryDate);
+		}
+
+		List<ClientDeliveryLocationRfq> locations = rfq.getClientdeliverylocationrfq();
+		if (locations == null) {
+			locations = new ArrayList<>();
+			rfq.setClientdeliverylocationrfq(locations);
+		}
+
+		ClientDeliveryLocationRfq targetLocation;
+		if (!locations.isEmpty()) {
+			targetLocation = locations.get(0);
+		} else {
+			targetLocation = new ClientDeliveryLocationRfq();
+			targetLocation.setRfq(rfq);
+			locations.add(targetLocation);
+		}
+
+		targetLocation.setCity(city);
+		targetLocation.setState(state);
+		targetLocation.setPincode(pincode);
+		if (address != null) {
+			targetLocation.setAddress(address);
+		}
+		targetLocation.setRfq(rfq);
+
+		rfqDao.save(rfq);
+		logger.info("Successfully updated delivery location for RFQ: {}", rfq.getRfqId());
+
+		Map<String, Object> data = new HashMap<>();
+		data.put("id", rfq.getId());
+		data.put("rfqId", rfq.getRfqId());
+		data.put("city", targetLocation.getCity());
+		data.put("state", targetLocation.getState());
+		data.put("pincode", targetLocation.getPincode());
+		data.put("address", targetLocation.getAddress());
+		data.put("deliveryDate", rfq.getDeliveryDate());
+
+		return new MessageResponse("200", "Delivery location updated successfully", data, ApplicationConstants.SUCCESS,
+				new Date());
+	}
 }

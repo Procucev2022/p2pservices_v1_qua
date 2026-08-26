@@ -52,6 +52,12 @@ class MailUtilityTest {
         user.setOrg(org);
 
         lenient().when(javaMailSender.createMimeMessage()).thenReturn(mimeMessage);
+        MailUtility.customMailSenderSupplier = (u, p) -> javaMailSender;
+    }
+
+    @org.junit.jupiter.api.AfterEach
+    void tearDown() {
+        MailUtility.customMailSenderSupplier = null;
     }
 
     @Test

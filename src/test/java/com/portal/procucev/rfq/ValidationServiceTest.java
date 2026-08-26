@@ -85,23 +85,25 @@ public class ValidationServiceTest {
     }
 
     @Test
-    @DisplayName("Test ValidationResult getters, setters, builder, equals, hashCode, toString")
-    void testValidationResultModel() {
-        ValidationService.ValidationResult r1 = ValidationService.ValidationResult.builder()
-                .valid(true)
-                .missingQuantity(false)
-                .missingItems(List.of())
-                .failureReason("Reason")
+    @DisplayName("Test validateWithDetails with valid items and default quantity and UOM")
+    void testValidateValidItemsDefaulting() {
+        RFQItem item1 = RFQItem.builder().itemDescription("Item 1").quantity(null).uom(null).build();
+        RFQItem item2 = RFQItem.builder().itemDescription("Item 2").quantity(0.0).uom("").build();
+        RFQItem item3 = RFQItem.builder().itemDescription("Item 3").quantity(5.0).uom("PCS").build();
+
+        ExtractedRFQ rfq = ExtractedRFQ.builder()
+                .buyerEmail("buyer@test.com")
+                .items(List.of(item1, item2, item3))
                 .build();
 
-        assertTrue(r1.isValid());
-        assertFalse(r1.isMissingQuantity());
-        assertEquals(0, r1.getMissingItems().size());
-        assertEquals("Reason", r1.getFailureReason());
-        assertNotNull(r1.toString());
-
-        ValidationService.ValidationResult r2 = new ValidationService.ValidationResult(true, false, List.of(), "Reason");
-        assertEquals(r1, r2);
-        assertEquals(r1.hashCode(), r2.hashCode());
+        ValidationService.ValidationResult res = validationService.validateWithDetails(rfq);
+        assertTrue(res.isValid());
+        assertNull(res.getFailureReason());
+        assertEquals(1.0, item1.getQuantity());
+        assertEquals("Nos", item1.getUom());
+        assertEquals(1.0, item2.getQuantity());
+        assertEquals("Nos", item2.getUom());
+        assertEquals(5.0, item3.getQuantity());
+        assertEquals("PCS", item3.getUom());
     }
 }

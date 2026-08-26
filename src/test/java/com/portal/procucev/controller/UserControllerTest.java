@@ -454,14 +454,80 @@ class UserControllerTest {
     }
 
     @Test
-    void testUpdateSeller() {
-        when(userServices.updateOrganization(any())).thenReturn(true);
-        ResponseEntity<?> resp1 = controller.updateOrganization(org);
+    void testUpdateEmailUserPswdAndDisableUserFalse() {
+        when(userServices.updateEmailUserPswd(any())).thenReturn(false);
+        ResponseEntity<?> resp1 = controller.updateEmailUserPswd(new EmailUser());
         assertEquals(HttpStatus.OK, resp1.getStatusCode());
 
-        when(userServices.updateOrganization(any())).thenReturn(false);
-        ResponseEntity<?> resp2 = controller.updateOrganization(org);
+        when(userServices.disableUser(any())).thenReturn(false);
+        ResponseEntity<?> resp2 = controller.disableUser(user);
         assertEquals(HttpStatus.OK, resp2.getStatusCode());
+    }
+
+    @Test
+    void testGetBuyerByEmail_Scenarios() {
+        // null user
+        ResponseEntity<?> r1 = controller.getBuyerByEmail(null);
+        assertEquals("01", ((Map<?, ?>) r1.getBody()).get("code"));
+
+        // blank email
+        User blankUser = new User();
+        blankUser.setUsername("   ");
+        blankUser.setEmail("   ");
+        ResponseEntity<?> r2 = controller.getBuyerByEmail(blankUser);
+        assertEquals("01", ((Map<?, ?>) r2.getBody()).get("code"));
+
+        // email from user.getEmail()
+        User emailOnlyUser = new User();
+        emailOnlyUser.setEmail("emailonly@test.com");
+        when(userServices.getBuyerUserByEmail(emailOnlyUser)).thenReturn(null);
+        ResponseEntity<?> r3 = controller.getBuyerByEmail(emailOnlyUser);
+        assertEquals("01", ((Map<?, ?>) r3.getBody()).get("code"));
+        assertEquals("User Not Found", ((Map<?, ?>) r3.getBody()).get("description"));
+
+        // found user with fullName
+        User found1 = new User();
+        found1.setId("U1");
+        found1.setFullName("Full Name");
+        found1.setPhone("1234567890");
+        found1.setOrg(org);
+        when(userServices.getBuyerUserByEmail(user)).thenReturn(found1);
+        ResponseEntity<?> r4 = controller.getBuyerByEmail(user);
+        assertEquals("00", ((Map<?, ?>) r4.getBody()).get("code"));
+        assertEquals("Full Name", ((Map<?, ?>) r4.getBody()).get("name"));
+
+        // found user with firstName only
+        User found2 = new User();
+        found2.setId("U2");
+        found2.setFullName("");
+        found2.setFirstName("First Only");
+        when(userServices.getBuyerUserByEmail(user)).thenReturn(found2);
+        ResponseEntity<?> r5 = controller.getBuyerByEmail(user);
+        assertEquals("00", ((Map<?, ?>) r5.getBody()).get("code"));
+        assertEquals("First Only", ((Map<?, ?>) r5.getBody()).get("name"));
+
+        // found user with username only and null org/phone
+        User found3 = new User();
+        found3.setId("U3");
+        found3.setFullName(null);
+        found3.setFirstName(null);
+        found3.setUsername("username_fallback");
+        when(userServices.getBuyerUserByEmail(user)).thenReturn(found3);
+        ResponseEntity<?> r6 = controller.getBuyerByEmail(user);
+        assertEquals("00", ((Map<?, ?>) r6.getBody()).get("code"));
+        assertEquals("username_fallback", ((Map<?, ?>) r6.getBody()).get("name"));
+    }
+
+    @Test
+    void testGetBuyerMessageByEmail() {
+        MessageResponse mr = MessageResponse.success("Buyer fetched successfully", Map.of());
+        when(userServices.getBuyerByEmail("buyer@test.com")).thenReturn(ResponseEntity.ok(mr));
+
+        User req = new User();
+        req.setUsername("buyer@test.com");
+        ResponseEntity<MessageResponse> resp = controller.getBuyerMessageByEmail(req);
+        assertEquals(HttpStatus.OK, resp.getStatusCode());
+        assertEquals("Buyer fetched successfully", resp.getBody().getMessage());
     }
 }
 
