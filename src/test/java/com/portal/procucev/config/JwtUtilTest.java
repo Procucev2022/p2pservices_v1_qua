@@ -32,6 +32,19 @@ class JwtUtilTest {
     }
 
     @Test
+    void testInit_BlankOrNullSecret() {
+        JwtUtil uninitialized = new JwtUtil();
+        ReflectionTestUtils.setField(uninitialized, "secret", null);
+        uninitialized.init();
+        assertThrows(IllegalStateException.class, () -> uninitialized.generateToken(userDetails, "123"));
+
+        JwtUtil blankUtil = new JwtUtil();
+        ReflectionTestUtils.setField(blankUtil, "secret", "   ");
+        blankUtil.init();
+        assertThrows(IllegalStateException.class, () -> blankUtil.generateToken(userDetails, "123"));
+    }
+
+    @Test
     void testGenerateAndValidateToken() {
         String token = jwtUtil.generateToken(userDetails, "9876543210");
         assertNotNull(token);

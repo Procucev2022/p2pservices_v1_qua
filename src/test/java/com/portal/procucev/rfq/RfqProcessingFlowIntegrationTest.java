@@ -284,7 +284,7 @@ public class RfqProcessingFlowIntegrationTest {
     }
 
     @Test
-    @DisplayName("Test 7: Missing quantity in email -> RFQ Creation Aborted + Details Missing Email Sent")
+    @DisplayName("Test 7: Missing quantity in email -> Defaults to 1.0 and RFQ created successfully")
     void test7_MissingQuantity() {
         EmailData email = EmailData.builder().messageId("MSG-007").subject("No Qty").senderEmail("buyer@procucev.com").body("No qty bearings").build();
 
@@ -299,12 +299,8 @@ public class RfqProcessingFlowIntegrationTest {
 
         String result = emailProcessorService.processSingleEmail(email);
 
-        assertEquals("VALIDATION_FAILED", result);
-        verify(rfqRepository, never()).save(any(RFQEntity.class));
-
-        ArgumentCaptor<SimpleMailMessage> mailCaptor = ArgumentCaptor.forClass(SimpleMailMessage.class);
-        verify(mailSender, times(1)).send(mailCaptor.capture());
-        assertTrue(mailCaptor.getValue().getText().contains("Quantity"));
+        assertEquals("RFQ_CREATED", result);
+        verify(rfqRepository, times(1)).save(any(RFQEntity.class));
     }
 
     @Test
@@ -434,16 +430,18 @@ public class RfqProcessingFlowIntegrationTest {
     }
 
     @Test
-    @DisplayName("Test 14: Idempotency -> same email processed twice is skipped")
-    void test14_IdempotencyDuplicateEmail() {
-        EmailData email = EmailData.builder().messageId("MSG-014").subject("Duplicate Email").senderEmail("buyer@procucev.com").body("Body").build();
+    @DisplayName("Test 14: Reprocessing -> email is processed even if previously present in transaction log")
+    void test14_ReprocessingEmailWithoutDuplicateSkip() {
+        EmailData email = EmailData.builder().messageId("MSG-014").subject("Reprocessed Email").senderEmail("buyer@procucev.com").body("Body").build();
+        when(emailTransactionRepository.findByMessageId("MSG-014")).thenReturn(Optional.of(EmailTransaction.builder().messageId("MSG-014").status("FAILED").build()));
 
-        when(emailTransactionRepository.findByMessageId("MSG-014")).thenReturn(Optional.of(EmailTransaction.builder().messageId("MSG-014").status("RFQ_CREATED").build()));
+        RFQItem item = RFQItem.builder().itemDescription("Dell Laptop").quantity(10.0).deliveryLocation("Bengaluru").deliveryDate("2026-09-30").build();
+        ExtractedRFQ extracted = ExtractedRFQ.builder().buyerEmail("buyer@procucev.com").deliveryLocation("Bengaluru").deliveryDate("2026-09-30").items(List.of(item)).build();
+        when(aiExtractionService.extractRFQFromEmail(any())).thenReturn(extracted);
 
         String result = emailProcessorService.processSingleEmail(email);
 
-        assertEquals("SKIPPED", result);
-        verify(aiExtractionService, never()).extractRFQFromEmail(any());
-        verify(rfqRepository, never()).save(any());
+        assertEquals("RFQ_CREATED", result);
+        verify(rfqRepository, times(1)).save(any());
     }
 }

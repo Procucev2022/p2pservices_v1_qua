@@ -228,8 +228,8 @@ public class ItemQuantityRecoveryTest {
     }
 
     @Test
-    @DisplayName("Rows that genuinely state no quantity are still rejected and still queried")
-    void itemsWithNoQuantityAnywhereAreStillRejected() {
+    @DisplayName("Rows that state no quantity default to 1.0 and RFQ is created")
+    void itemsWithNoQuantityAnywhereDefaultToOneAndAreCreated() throws Exception {
         EmailData email = EmailData.builder()
                 .messageId("MSG-NO-QTY")
                 .subject("Requirement of MS Hex Bolts M10")
@@ -240,6 +240,8 @@ public class ItemQuantityRecoveryTest {
 
         ExtractedRFQ extracted = ExtractedRFQ.builder()
                 .buyerEmail("govardhan.kilari@procucev.com")
+                .deliveryLocation("Hyderabad")
+                .deliveryDate("2026-08-25")
                 .items(new ArrayList<>(List.of(
                         modelItem("MS Hex Bolts M10 x 50 mm"),
                         modelItem("Plain Washers M10"),
@@ -248,15 +250,17 @@ public class ItemQuantityRecoveryTest {
 
         when(aiExtractionService.extractRFQFromEmail(email)).thenReturn(extracted);
 
-        assertEquals("VALIDATION_FAILED", emailProcessorService.processSingleEmail(email));
+        assertEquals("RFQ_CREATED", emailProcessorService.processSingleEmail(email));
 
-        ArgumentCaptor<SimpleMailMessage> mailCaptor = ArgumentCaptor.forClass(SimpleMailMessage.class);
-        verify(mailSender, times(1)).send(mailCaptor.capture());
-        String body = mailCaptor.getValue().getText();
-        assertTrue(body.contains("Quantity is missing for 2 items"), "only the two silent rows should be queried");
-        assertTrue(body.contains("Plain Washers M10"));
-        assertTrue(body.contains("Spring Washers M10"));
-        assertFalse(body.contains("1. MS Hex Bolts"), "the row that stated 500 Nos must not be queried");
+        ArgumentCaptor<RFQEntity> entityCaptor = ArgumentCaptor.forClass(RFQEntity.class);
+        verify(rfqRepository, times(1)).save(entityCaptor.capture());
+
+        List<RFQItem> saved = objectMapper.readValue(
+                entityCaptor.getValue().getItemsJson(), new TypeReference<List<RFQItem>>() {});
+        assertEquals(3, saved.size());
+        assertEquals(500.0, saved.get(0).getQuantity());
+        assertEquals(1.0, saved.get(1).getQuantity(), "missing quantity must default to 1.0");
+        assertEquals(1.0, saved.get(2).getQuantity(), "missing quantity must default to 1.0");
     }
 
     // ---------------------------------------------------------------------
@@ -306,6 +310,37 @@ public class ItemQuantityRecoveryTest {
     @DisplayName("A quantity on the line below the item name is picked up")
     void quantityOnFollowingLineIsParsed() {
         assertMatch(750.0, "Nos", "Plain Washers M10\n750 Nos\n", "Plain Washers M10");
+    }
+
+    @Test
+    @DisplayName("Production incident: a labelled field block yields its quantity, on separate lines or collapsed")
+    void labelledFieldBlockYieldsQuantity() {
+        // The 18-Aug 10:53 UTC email. Every detail was supplied and it was still rejected.
+        String block = "Remarks: Original branded material, warranty certificate required, proper manufacturer packing.\n"
+                + "Description: Laptop\n"
+                + "Quantity: 25\n"
+                + "UOM: Nos\n"
+                + "Location: Bengaluru\n"
+                + "Specification: Intel Core i5, 16 GB RAM, 512 GB SSD, 15.6-inch FHD, Windows 11\n"
+                + "State: Karnataka\nPincode: 560001\nCity: Bengaluru\n";
+        assertEquals(25.0, QuantityNormalizer.normalize(block));
+
+        // The same block after an HTML-to-text conversion that lost the line breaks. The captured
+        // value is then "25 UOM", which used to normalise to null and sink the whole RFQ.
+        assertEquals(25.0, QuantityNormalizer.normalize(
+                "Description: Laptop Quantity: 25 UOM: Nos Location: Bengaluru State: Karnataka"));
+        assertEquals(25.0, QuantityNormalizer.normalize("Quantity: 25 UOM: Nos"));
+        assertEquals(1000.0, QuantityNormalizer.normalize("Qty: 1,000 Location: Pune Pincode: 411001"));
+        assertEquals(500.0, QuantityNormalizer.normalize("Quantity: 500 Nos Location: Hyderabad"));
+    }
+
+    @Test
+    @DisplayName("A specification unit directly after a labelled number is still not a quantity")
+    void labelledSpecificationValueIsStillRejected() {
+        assertNull(QuantityNormalizer.normalize("Quantity: 16 GB RAM"));
+        assertNull(QuantityNormalizer.normalize("Quantity: 110 mm diameter"));
+        assertNull(QuantityNormalizer.normalize("Quantity: 10,000 LPH capacity"));
+        assertNull(QuantityNormalizer.normalize("Quantity: 2 ton"));
     }
 
     @Test

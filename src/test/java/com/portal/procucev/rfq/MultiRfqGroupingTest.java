@@ -226,21 +226,18 @@ public class MultiRfqGroupingTest {
     }
 
     @Test
-    @DisplayName("Test 10: Missing quantity -> RFQ not created for item, Details Missing sent")
+    @DisplayName("Test 10: Missing quantity -> defaults to 1.0 and RFQ created")
     void test10_MissingQuantity() {
         EmailData email = EmailData.builder().messageId("M10").senderEmail("buyer@procucev.com").subject("No Qty").body("Laptop").build();
         RFQItem i1 = RFQItem.builder().itemDescription("Laptop").quantity(null).build();
         ExtractedRFQ extracted = ExtractedRFQ.builder().buyerEmail("buyer@procucev.com").items(List.of(i1)).build();
 
         when(aiExtractionService.extractRFQFromEmail(email)).thenReturn(extracted);
+        when(rfqBuilderService.buildRFQRequest(any(), any(), any(), any())).thenReturn(RFQRequest.builder().rfqNumber("RFQ-10").build());
 
         String status = emailProcessorService.processSingleEmail(email);
-        assertEquals("VALIDATION_FAILED", status);
-        verify(rfqRepository, never()).save(any(RFQEntity.class));
-
-        ArgumentCaptor<SimpleMailMessage> mailCaptor = ArgumentCaptor.forClass(SimpleMailMessage.class);
-        verify(mailSender).send(mailCaptor.capture());
-        assertEquals("⚡ One Quick Detail Needed to Process Your RFQ", mailCaptor.getValue().getSubject());
+        assertEquals("RFQ_CREATED", status);
+        verify(rfqRepository, times(1)).save(any(RFQEntity.class));
     }
 
     @Test
@@ -362,6 +359,7 @@ public class MultiRfqGroupingTest {
         ArgumentCaptor<SimpleMailMessage> mailCaptor = ArgumentCaptor.forClass(SimpleMailMessage.class);
         verify(mailSender).send(mailCaptor.capture());
         assertEquals("🚀 Almost There! Register to Get Your RFQ Live", mailCaptor.getValue().getSubject());
+        assertEquals("govardhan.kilari@procucev.com", mailCaptor.getValue().getTo()[0]);
     }
 
     @Test

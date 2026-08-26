@@ -1,5 +1,7 @@
 package com.portal.procucev.controller;
 
+import com.portal.procucev.customexception.MessageResponse;
+import com.portal.procucev.customexception.RfqDocumentSizeExceededException;
 import com.portal.procucev.dao.OrgDao;
 import com.portal.procucev.dao.PincodeDao;
 import com.portal.procucev.dao.UserDao;
@@ -69,6 +71,41 @@ class AutomaticRfqCreationControllerTest {
         when(userDao.findById("U1")).thenReturn(Optional.empty());
         ResponseEntity<?> resp = controller.raiseRfqAuto(rfq);
         assertEquals(HttpStatus.BAD_REQUEST, resp.getStatusCode());
+    }
+
+    /**
+     * Delivery-location resolution now lives in the service so the email pipeline gets the same
+     * pincode and organisation fallbacks. The endpoint's job is to delegate; the resolution rules
+     * themselves are covered against the real implementation in SharedRfqCreationPipelineTest.
+     */
+    @Test
+    void testRaiseRfqAuto_DelegatesDeliveryLocationResolutionToService() {
+        when(userDao.findById("U1")).thenReturn(Optional.of(user));
+        when(autoRfqService.raiseRfq(any())).thenReturn(true);
+
+        ClientDeliveryLocationRfq loc = new ClientDeliveryLocationRfq();
+        loc.setPincode("560001");
+        rfq.setClientdeliverylocationrfq(Collections.singletonList(loc));
+
+        assertEquals(HttpStatus.OK, controller.raiseRfqAuto(rfq).getStatusCode());
+
+        verify(autoRfqService).resolveDeliveryLocation(rfq, user);
+        verify(autoRfqService).raiseRfq(rfq);
+    }
+
+    @Test
+    void testRaiseRfqAuto_OversizedDocumentReturnsPayloadTooLarge() {
+        when(userDao.findById("U1")).thenReturn(Optional.of(user));
+        when(autoRfqService.raiseRfq(any())).thenThrow(
+                new RfqDocumentSizeExceededException("drawing.jpg", 30_000_000L, 26214400L));
+
+        ResponseEntity<?> resp = controller.raiseRfqAuto(rfq);
+
+        assertEquals(HttpStatus.PAYLOAD_TOO_LARGE, resp.getStatusCode());
+        assertNotNull(resp.getBody());
+        MessageResponse body = assertInstanceOf(MessageResponse.class, resp.getBody());
+        assertTrue(body.getMessage().contains("drawing.jpg"));
+        assertTrue(body.getMessage().contains("exceeds"));
     }
 
     @Test

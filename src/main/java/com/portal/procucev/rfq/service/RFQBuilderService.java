@@ -7,7 +7,7 @@ import com.portal.procucev.rfq.model.Buyer;
 import com.portal.procucev.rfq.model.ExtractedRFQ;
 import com.portal.procucev.rfq.model.RFQItem;
 import com.portal.procucev.rfq.parser.DateParser;
-import com.portal.procucev.rfq.util.CommonUtil;
+import com.portal.procucev.service.AutomaticRfqService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import java.nio.file.Files;
@@ -25,6 +25,7 @@ public class RFQBuilderService {
 
     private final DateParser dateParser;
     private final PincodeDao pincodeDao;
+    private final AutomaticRfqService automaticRfqService;
 
     private static final Map<String, String> CITY_PIN_MAP = Map.ofEntries(
             Map.entry("raipur", "492001"),
@@ -51,7 +52,7 @@ public class RFQBuilderService {
     );
 
     public RFQRequest buildRFQRequest(ExtractedRFQ extractedRFQ, Buyer buyer, String rawSubject, List<File> attachmentFiles) {
-        String rfqNumber = CommonUtil.generateUniqueRfqNumber();
+        String rfqNumber = automaticRfqService.generateRfqId("RFQ");
         log.info("Generating unique RFQ Number ONCE: {}", rfqNumber);
 
         boolean isMultipleItems = extractedRFQ.getItems() != null && extractedRFQ.getItems().size() > 1;
@@ -166,7 +167,7 @@ public class RFQBuilderService {
                     String[] tokens = locStr.split("[,\\-–—\\n]");
                     if (tokens.length > 0 && !tokens[0].trim().isBlank()) {
                         String firstToken = tokens[0].trim();
-                        boolean isStateName = state != null && firstToken.equalsIgnoreCase(state);
+                        boolean isStateName = !state.isBlank() && firstToken.equalsIgnoreCase(state);
                         if (!firstToken.matches("^\\d+$") && !isStateName) {
                             city = firstToken;
                         }
@@ -238,10 +239,7 @@ public class RFQBuilderService {
                     brandVal = brandVal.substring(0, 50).trim();
                 }
 
-                if (item.getQuantity() == null || item.getQuantity() <= 0) {
-                    throw new IllegalArgumentException("Quantity is mandatory for item: " + (item.getItemDescription() != null ? item.getItemDescription() : "RFQ Item"));
-                }
-                double qty = item.getQuantity();
+                double qty = (item.getQuantity() != null && item.getQuantity() > 0) ? item.getQuantity() : 1.0;
 
                 String partCodeVal = sanitizeText(item.getEffectivePartNumber());
 
@@ -288,11 +286,11 @@ public class RFQBuilderService {
                 // the brand name goes to remarks().
                 rfqItemsList.add(RFQRequest.RfqItemDto.builder()
                         .brand(specs)
-                        .unitofMeasures(item.getUom() != null && !item.getUom().isBlank() ? sanitizeText(item.getUom()) : "Nos")
+                        .unitofMeasures(item.getUom() != null && !item.getUom().isBlank() && !item.getUom().equalsIgnoreCase("null") && !item.getUom().equalsIgnoreCase("Not Specified") ? sanitizeText(item.getUom()) : "Nos")
                         .quantity(qty)
                         .description(cleanItemDesc)
                         .category(item.getCategory())
-                        .createdBy(buyer.getName())
+                        .createdBy(buyer != null && buyer.getName() != null ? buyer.getName() : "User")
                         .createdTS(nowIso)
                         .itemcode(partCodeVal)
                         .serialNo(serialNo++)
@@ -311,7 +309,7 @@ public class RFQBuilderService {
                 .noPrFlag(true)
                 .org(RFQRequest.OrgRef.builder().id(orgIdVal).build())
                 .user(userIdVal)
-                .sourceType("T")
+                .sourceType("EMAIL")
                 .remarks("")
                 .clientdeliverylocationrfq(locations)
                 .rfqItem(rfqItemsList)
@@ -322,8 +320,10 @@ public class RFQBuilderService {
                 .token(buyer != null ? buyer.getToken() : null)
                 .build();
 
-        log.info("Built RFQ Request Payload: RFQ Number={}, createdBy={}, projectDesc='{}'",
-                request.getRfqNumber(), request.getCreatedBy(), request.getProjectDesc());
+        // The line-item count is logged because nothing between extraction and persistence recorded
+        // it, which made "the RFQ only has one line" impossible to attribute from the logs alone.
+        log.info("Built RFQ Request Payload: RFQ Number={}, createdBy={}, projectDesc='{}', lineItems={}",
+                request.getRfqNumber(), request.getCreatedBy(), request.getProjectDesc(), rfqItemsList.size());
 
         return request;
     }

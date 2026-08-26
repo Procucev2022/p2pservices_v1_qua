@@ -350,6 +350,22 @@ class ProcUserServiceImplTest {
         when(orgDao.findById("ORG1")).thenReturn(Optional.of(existingOrg));
         assertTrue(service.updateOrganization(orgInput));
 
+        Organization orgInputAll = new Organization();
+        orgInputAll.setId("ORG1");
+        orgInputAll.setCompanyName("New Company");
+        orgInputAll.setDetails("Details");
+        orgInputAll.setGstin("GSTIN");
+        orgInputAll.setAddress1("Address");
+        orgInputAll.setState("State");
+        orgInputAll.setCity("City");
+        orgInputAll.setZipCode("Zip");
+        orgInputAll.setContactPerson("Contact");
+        orgInputAll.setEmail("Email");
+        orgInputAll.setOrganizationPhonenumber("Phone");
+        orgInputAll.setBranches(Collections.emptyList());
+        orgInputAll.setDivisionCategories(Collections.emptyList());
+        assertTrue(service.updateOrganization(orgInputAll));
+
         OrgDivisionCategory cat = new OrgDivisionCategory();
         cat.setDivision("D1");
         cat.setCategory("C1");
@@ -773,6 +789,72 @@ class ProcUserServiceImplTest {
         assertEquals(1, service.getVendorSummarySearchResults("name", "x").size());
         assertEquals("+121234567890",
                 ReflectionTestUtils.invokeMethod(service, "normalizePhone", "121234567890"));
+    }
+
+    @Test
+    void testGetBuyerByEmailString_And_DeactivateOrgUser_And_UserActivityGMT() {
+        // getBuyerByEmail(String) null or empty
+        assertEquals(400, service.getBuyerByEmail((String) null).getStatusCode().value());
+        assertEquals(400, service.getBuyerByEmail("   ").getStatusCode().value());
+
+        // getBuyerByEmail(String) not found
+        Role initRole = new Role();
+        initRole.setId("INIT_ROLE");
+        when(roleDao.findByRoleNameAndActive(StatusConstants.ClientInitiator, true)).thenReturn(initRole);
+        when(userDao.findFirstByUsernameAndRoleAndActiveTrueOrderByCreatedTSDesc(eq("buyer@test.com"), eq(initRole)))
+                .thenReturn(Optional.empty());
+        assertEquals(404, service.getBuyerByEmail("buyer@test.com").getStatusCode().value());
+
+        // getBuyerByEmail(String) found
+        when(userDao.findFirstByUsernameAndRoleAndActiveTrueOrderByCreatedTSDesc(eq("buyer@test.com"), eq(initRole)))
+                .thenReturn(Optional.of(user));
+        assertEquals(200, service.getBuyerByEmail("buyer@test.com").getStatusCode().value());
+
+        // deactivateOrgUser
+        when(userDao.findByUsernameAndPhoneAndActive(anyString(), anyString(), eq(true))).thenReturn(user);
+        when(userDao.findOrgIdByUser("USER1")).thenReturn("ORG1");
+        when(userDao.findByOrg("ORG1")).thenReturn(Collections.emptyList());
+        assertTrue(service.deactivateOrgUser(user));
+
+        when(userDao.findByUsernameAndPhoneAndActive(anyString(), anyString(), eq(true))).thenReturn(null);
+        assertThrows(AppException.class, () -> service.deactivateOrgUser(user));
+
+        // userActivity with GMT
+        UserActivityDto gmtDto = new UserActivityDto();
+        gmtDto.setGmtOrBfs("GMT");
+        gmtDto.setOperationSubType("RFQ-123");
+        gmtDto.setLoginTime(LocalDateTime.now());
+
+        Rfq rfq = new Rfq();
+        rfq.setCreatedTS(new Date());
+        when(userDao.findByUsernameAndPhoneAndActive(anyString(), anyString(), eq(true))).thenReturn(user);
+        when(roleDao.findById(anyString())).thenReturn(Optional.of(role));
+        when(rfqDao.findByRfqId("RFQ-123")).thenReturn(rfq);
+        when(userActivityDao.save(any())).thenReturn(new UserActivity());
+
+        assertNotNull(service.saveUserActivity(gmtDto, "user1@test.com", "9876543210"));
+
+        // getBuyerUserByEmail & getBuyerByEmail(User)
+        assertNull(service.getBuyerUserByEmail(null));
+        assertNull(service.getBuyerByEmail((User) null));
+
+        User emptyEmailUser = new User();
+        assertNull(service.getBuyerUserByEmail(emptyEmailUser));
+
+        User buyerInputUser = new User();
+        buyerInputUser.setUsername("buyer.client@test.com");
+        when(userDao.findActiveUsersByUsernameAndRoleNames(eq("buyer.client@test.com"), anyList()))
+                .thenReturn(Collections.emptyList());
+        assertNull(service.getBuyerUserByEmail(buyerInputUser));
+        assertNull(service.getBuyerByEmail(buyerInputUser));
+
+        User foundBuyer = new User();
+        foundBuyer.setId("BUYER1");
+        foundBuyer.setOrg(new Organization());
+        when(userDao.findActiveUsersByUsernameAndRoleNames(eq("buyer.client@test.com"), anyList()))
+                .thenReturn(List.of(foundBuyer));
+        assertNotNull(service.getBuyerUserByEmail(buyerInputUser));
+        assertNotNull(service.getBuyerByEmail(buyerInputUser));
     }
 }
 

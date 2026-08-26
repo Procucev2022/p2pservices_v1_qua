@@ -59,27 +59,12 @@ public class ValidationService {
             }
 
             if (item.getQuantity() == null || item.getQuantity() <= 0) {
-                missingQuantityItems.add(item.getItemDescription().trim());
+                log.info("Validation: Item '{}' missing quantity, defaulting to 1.0", item.getItemDescription());
+                item.setQuantity(1.0);
             }
-        }
-
-        if (!missingQuantityItems.isEmpty()) {
-            StringBuilder sb = new StringBuilder();
-            sb.append("RFQ creation failed because quantity is missing for:\n");
-            for (int k = 0; k < missingQuantityItems.size(); k++) {
-                sb.append((k + 1)).append(". ").append(missingQuantityItems.get(k)).append("\n");
+            if (item.getUom() == null || item.getUom().isBlank()) {
+                item.setUom("Nos");
             }
-            sb.append("Quantity is a mandatory field for every RFQ item.");
-
-            String reason = sb.toString();
-            log.warn("RFQ Validation failed due to missing quantity: {}", missingQuantityItems);
-
-            return ValidationResult.builder()
-                    .valid(false)
-                    .missingQuantity(true)
-                    .missingItems(missingQuantityItems)
-                    .failureReason(reason)
-                    .build();
         }
 
         log.info("Extracted RFQ passed all validation checks successfully.");

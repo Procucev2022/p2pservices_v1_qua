@@ -1,0 +1,15 @@
+---
+description: Mandatory 90% per-file unit test code coverage and quality check protocol
+globs: **/*
+---
+
+# Quality Check & 90% Unit Test Coverage Rules
+
+1. **Mandatory 90% Per-File Unit Test Coverage**:
+   - Every file must reach >= 90% on Instructions, Lines, Branches, Methods, Complexity, and Class counters.
+   - Zero files skipped or excluded.
+2. **Global Timeout**:
+   - All unit tests must complete within the 10s default per-test timeout.
+3. **Execution on Every Change**:
+   - Always run `mvn clean test jacoco:report` before declaring completion.
+   - Any failure or violation must be resolved immediately.
