@@ -24,6 +24,8 @@ public interface BuyerVendorService {
     int bulkDeleteVendors(java.util.List<String> idsOrCodes, String buyerOrgId);
 
     java.util.Map<String, Object> bulkCreateVendors(java.util.List<BuyerVendor> vendors, String buyerOrgId, String createdBy);
+
+    java.util.List<java.util.Map<String, Object>> getProcucevRecommendations(String category, int limit);
 }
 
 

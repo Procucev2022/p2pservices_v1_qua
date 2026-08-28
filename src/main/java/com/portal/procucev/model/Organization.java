@@ -57,6 +57,9 @@ public class Organization extends Procucev {
 	private String gstin;
 	
 	private String refference;
+	
+	@Transient
+	private String brandName;
 
 	@Column(name = "organization_phonenumber")
 	private String organizationPhonenumber;
@@ -95,10 +98,16 @@ public class Organization extends Procucev {
 	@Column(name="contact_person")
 	private String contactPerson;
 	
+	@Transient
+	private String contactDesignation;
+	
 	@Column(name="sub_category")
 	private String subCategory;
 	
 	private String website;
+
+	@Transient
+	private String cin;
 
 	@Column(name = "client_category")
 	private String clientCategory;
@@ -113,6 +122,9 @@ public class Organization extends Procucev {
 	private String clientSector;
 
 	private String others;
+
+	@Transient
+	private String annualTurnover;
 
 	@ManyToOne
 	private MasterStatus vendorStatus;
@@ -334,6 +346,50 @@ public class Organization extends Procucev {
 	public Organization() {
 		super();
 		// TODO Auto-generated constructor stub
+	}
+
+	public String getBrandName() {
+		return this.brandName != null ? this.brandName : this.refference;
+	}
+
+	public void setBrandName(String brandName) {
+		this.brandName = brandName;
+		if (brandName != null) {
+			this.refference = brandName;
+		}
+	}
+
+	public String getCin() {
+		return this.cin != null ? this.cin : this.crn;
+	}
+
+	public void setCin(String cin) {
+		this.cin = cin;
+		if (cin != null) {
+			this.crn = cin;
+		}
+	}
+
+	public String getAnnualTurnover() {
+		return this.annualTurnover != null ? this.annualTurnover : this.others;
+	}
+
+	public void setAnnualTurnover(String annualTurnover) {
+		this.annualTurnover = annualTurnover;
+		if (annualTurnover != null) {
+			this.others = annualTurnover;
+		}
+	}
+
+	public String getContactDesignation() {
+		return this.contactDesignation != null ? this.contactDesignation : this.subCategory;
+	}
+
+	public void setContactDesignation(String contactDesignation) {
+		this.contactDesignation = contactDesignation;
+		if (contactDesignation != null) {
+			this.subCategory = contactDesignation;
+		}
 	}
 
 }

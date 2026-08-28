@@ -30,6 +30,12 @@ public class BuyerVendorServiceImpl implements BuyerVendorService {
     private BuyerVendorAiProfileDao buyerVendorAiProfileDao;
 
     @Autowired
+    private com.portal.procucev.dao.OrgDao orgDao;
+
+    @Autowired
+    private com.portal.procucev.dao.OrgTypeDao orgTypeDao;
+
+    @Autowired
     private JdbcTemplate jdbcTemplate;
 
 
@@ -137,9 +143,14 @@ public class BuyerVendorServiceImpl implements BuyerVendorService {
     @Override
     public BuyerVendor createVendor(BuyerVendor vendor) {
         ensureTableExists();
-        if (buyerVendorDao.existsByVendorCodeAndBuyerOrgId(vendor.getVendorCode(), vendor.getBuyerOrgId())) {
-            throw new IllegalArgumentException("Vendor code '" + vendor.getVendorCode() + "' already exists for this organization");
+        String rawCode = vendor.getVendorCode() != null ? vendor.getVendorCode().trim() : "VND-1001";
+        String finalCode = rawCode;
+        int counter = 1;
+        while (buyerVendorDao.existsByVendorCodeAndBuyerOrgId(finalCode, vendor.getBuyerOrgId())) {
+            finalCode = rawCode + "_" + counter;
+            counter++;
         }
+        vendor.setVendorCode(finalCode);
         return buyerVendorDao.save(vendor);
     }
 
@@ -274,9 +285,6 @@ public class BuyerVendorServiceImpl implements BuyerVendorService {
         log.info("Bulk deleted {} vendors for buyerOrgId: {}", deletedCount, buyerOrgId);
         return deletedCount;
     }
-
-    @Override
-
     public java.util.Map<String, Object> bulkCreateVendors(java.util.List<BuyerVendor> vendors, String buyerOrgId, String createdBy) {
         ensureTableExists();
         java.util.List<BuyerVendor> toSave = new java.util.ArrayList<>();
@@ -311,13 +319,16 @@ public class BuyerVendorServiceImpl implements BuyerVendorService {
                 continue;
             }
 
-            // Track normalized codes in a request-local set to avoid intra-batch duplicate constraint violations
-            if (!seenCodes.add(normalizedCode)) {
-                skippedCodes.add(rawCode);
-                continue;
+            // Ensure unique vendor code without overwriting existing data
+            String finalCode = rawCode;
+            int counter = 1;
+            while (seenCodes.contains(finalCode.toUpperCase(java.util.Locale.ROOT)) || buyerVendorDao.existsByVendorCodeAndBuyerOrgId(finalCode, buyerOrgId)) {
+                finalCode = rawCode + "_" + counter;
+                counter++;
             }
+            seenCodes.add(finalCode.toUpperCase(java.util.Locale.ROOT));
 
-            v.setVendorCode(rawCode);
+            v.setVendorCode(finalCode);
             v.setBuyerOrgId(buyerOrgId);
             v.setCreatedBy(createdBy);
 
@@ -331,16 +342,7 @@ public class BuyerVendorServiceImpl implements BuyerVendorService {
                 v.setCountry("IN");
             }
 
-            try {
-                if (buyerVendorDao.existsByVendorCodeAndBuyerOrgId(rawCode, buyerOrgId)) {
-                    skippedCodes.add(rawCode);
-                } else {
-                    toSave.add(v);
-                }
-            } catch (Exception ex) {
-                log.warn("Check exists failed: {}, attempting save", ex.getMessage());
-                toSave.add(v);
-            }
+            toSave.add(v);
         }
 
         if (!toSave.isEmpty()) {
@@ -354,5 +356,89 @@ public class BuyerVendorServiceImpl implements BuyerVendorService {
             "skippedCodes", skippedCodes,
             "errors", errors
         );
+    }
+
+    @Override
+    public java.util.List<java.util.Map<String, Object>> getProcucevRecommendations(String category, int limit) {
+        ensureTableExists();
+        int maxLimit = limit > 0 ? limit : 100;
+        java.util.List<java.util.Map<String, Object>> result = new java.util.ArrayList<>();
+        java.util.Set<String> addedKeys = new java.util.HashSet<>();
+
+        try {
+            org.springframework.data.domain.Pageable pageable = org.springframework.data.domain.PageRequest.of(0, maxLimit);
+            
+            // 1. Query verified platform vendors from the Organization table
+            com.portal.procucev.model.OrgType vendorType = orgTypeDao.findByTypeName("VENDOR");
+            if (vendorType == null) {
+                vendorType = orgTypeDao.findByTypeName("Vendor");
+            }
+            if (vendorType != null) {
+                org.springframework.data.domain.Page<com.portal.procucev.Dto.VendorRFQDto> platformVendors = orgDao.getAllVendor(vendorType, pageable);
+                if (platformVendors != null && platformVendors.hasContent()) {
+                    int scoreBase = 96;
+                    double ratingBase = 4.9;
+                    for (com.portal.procucev.Dto.VendorRFQDto v : platformVendors.getContent()) {
+                        String key = (v.getCompanyName() != null ? v.getCompanyName() : v.getId()).toLowerCase();
+                        if (!addedKeys.contains(key)) {
+                            addedKeys.add(key);
+                            java.util.Map<String, Object> map = new java.util.HashMap<>();
+                            map.put("id", v.getId() != null ? v.getId() : ("PRC-" + (1000 + result.size())));
+                            map.put("vendorCode", v.getVendorId() != null ? ("PRC-" + v.getVendorId()) : ("PRC-" + (1000 + result.size())));
+                            map.put("name", v.getCompanyName());
+                            map.put("category", category != null && !category.isEmpty() ? category : "Industrial Supplies");
+                            map.put("location", v.getCity() != null ? v.getCity() + ", India" : "India");
+                            map.put("rating", Math.round((ratingBase - (result.size() * 0.05)) * 10.0) / 10.0);
+                            map.put("matchScore", Math.max(85, scoreBase - (result.size() * 2)));
+                            map.put("proximity", v.getCity() != null ? "Local Hub (" + v.getCity() + ")" : "Regional Hub (<500km)");
+                            map.put("status", "Active");
+                            map.put("sourcingScope", "Procucev Network");
+                            map.put("isProcucevVendor", true);
+                            map.put("origin", "Procucev Network");
+                            result.add(map);
+                            if (result.size() >= maxLimit) {
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+
+            // 2. Query all Category Manager network suppliers from buyer_vendor table
+            java.util.List<BuyerVendor> allDbVendors = buyerVendorDao.findAllProcucevNetworkVendors(pageable);
+            if (allDbVendors != null && !allDbVendors.isEmpty()) {
+                int scoreBase = 96;
+                double ratingBase = 4.8;
+                for (BuyerVendor v : allDbVendors) {
+                    String key = (v.getVendorName() != null ? v.getVendorName() : v.getVendorCode()).toLowerCase();
+                    if (!addedKeys.contains(key)) {
+                        addedKeys.add(key);
+                        java.util.Map<String, Object> map = new java.util.HashMap<>();
+                        String vCode = v.getVendorCode() != null ? (v.getVendorCode().startsWith("PRC-") ? v.getVendorCode() : ("PRC-" + v.getVendorCode())) : ("PRC-" + (2000 + result.size()));
+                        map.put("id", v.getId() != null ? v.getId() : vCode);
+                        map.put("vendorCode", vCode);
+                        map.put("name", v.getVendorName());
+                        map.put("category", v.getTypeOfIndustry() != null ? v.getTypeOfIndustry() : (v.getTypeOfBusiness() != null ? v.getTypeOfBusiness() : "Industrial Supplies"));
+                        String loc = (v.getCity() != null ? v.getCity() : "") + (v.getRegionCode() != null ? ", " + v.getRegionCode() : "");
+                        map.put("location", !loc.trim().isEmpty() ? loc : (v.getCity() != null ? v.getCity() : "India"));
+                        map.put("rating", Math.round((ratingBase - (result.size() * 0.05)) * 10.0) / 10.0);
+                        map.put("matchScore", Math.max(82, scoreBase - (result.size() * 2)));
+                        map.put("proximity", v.getCity() != null ? "Local Hub (" + v.getCity() + ")" : "Regional Hub (<500km)");
+                        map.put("status", v.getStatus());
+                        map.put("sourcingScope", "Procucev Network");
+                        map.put("isProcucevVendor", true);
+                        map.put("origin", "Procucev Network");
+                        result.add(map);
+                        if (result.size() >= maxLimit) {
+                            break;
+                        }
+                    }
+                }
+            }
+        } catch (Exception ex) {
+            log.warn("Could not query DB for Procucev recommendations: {}", ex.getMessage());
+        }
+
+        return result;
     }
 }

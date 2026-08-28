@@ -125,6 +125,9 @@ public class Rfq extends Procucev {
 	private List<Organization> vendors;
 
 	@Transient
+	private List<RfqVendor> vendorDetails;
+
+	@Transient
 	int numberOfItems;
 
 	@Transient
@@ -140,6 +143,9 @@ public class Rfq extends Procucev {
 	private String rfqId;
 
 	private String description;
+	
+	@Column(name = "sourcing_strategy_mode")
+	private String sourcingStrategyMode;
 	
 	@Transient
 	private String requestType;

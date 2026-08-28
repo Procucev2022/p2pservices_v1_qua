@@ -729,7 +729,7 @@ public class ProcUserServiceImpl implements UserService {
 //	    }
 //	}
 
-	@Transactional
+	@Override
 	public boolean updateOrganization(Organization updatedOrg) {
 		if (updatedOrg == null) {
 			log.error("updatedOrg object is null in updateOrganization() ");
@@ -738,7 +738,7 @@ public class ProcUserServiceImpl implements UserService {
 			Organization existingOrg = orgDao.findById(updatedOrg.getId())
 					.orElseThrow(() -> new RuntimeException("Organization not found"));
 
-			// Overwrite only the fields you care about
+			// Overwrite only seller fields
 			if (updatedOrg.getCompanyName() != null)
 				existingOrg.setCompanyName(updatedOrg.getCompanyName());
 			if (updatedOrg.getDetails() != null)
@@ -760,26 +760,6 @@ public class ProcUserServiceImpl implements UserService {
 			if (updatedOrg.getOrganizationPhonenumber() != null)
 				existingOrg.setOrganizationPhonenumber(updatedOrg.getOrganizationPhonenumber());
 
-			if (updatedOrg.getSubscriptionPlan() != null) {
-				existingOrg.setSubscriptionPlan(updatedOrg.getSubscriptionPlan());
-			}
-
-			// Optional: if nested collections are passed, handle them
-			if (updatedOrg.getBranches() != null) {
-				existingOrg.getBranches().clear();
-				for (OrgBranches branch : updatedOrg.getBranches()) {
-					branch.setOrganization(existingOrg); // Set back reference
-					existingOrg.getBranches().add(branch);
-				}
-			}
-
-			if (updatedOrg.getDivisionCategories() != null) {
-				existingOrg.getDivisionCategories().clear();
-				for (OrgDivisionCategory divCat : updatedOrg.getDivisionCategories()) {
-					divCat.setOrganization(existingOrg); // Set back reference
-					existingOrg.getDivisionCategories().add(divCat);
-				}
-			}
 			orgDao.save(existingOrg);
 
 			return true;
@@ -788,7 +768,6 @@ public class ProcUserServiceImpl implements UserService {
 
 	@Override
 	public boolean updateBuyer(Organization updatedOrg) {
-		// TODO Auto-generated method stub
 		if (updatedOrg == null) {
 			log.error("updatedOrg object is null in updateBuyer() ");
 			return false;
@@ -796,15 +775,48 @@ public class ProcUserServiceImpl implements UserService {
 			Organization existingOrg = orgDao.findById(updatedOrg.getId())
 					.orElseThrow(() -> new RuntimeException("Organization not found"));
 
-			// Overwrite only the fields you care about
+			// Overwrite all profile fields
 			if (updatedOrg.getCompanyName() != null)
 				existingOrg.setCompanyName(updatedOrg.getCompanyName());
-			if (updatedOrg.getDetails() != null)
-				existingOrg.setDetails(updatedOrg.getDetails());
+			if (updatedOrg.getBrandName() != null) {
+				existingOrg.setBrandName(updatedOrg.getBrandName());
+				existingOrg.setRefference(updatedOrg.getBrandName());
+			} else if (updatedOrg.getRefference() != null) {
+				existingOrg.setBrandName(updatedOrg.getRefference());
+				existingOrg.setRefference(updatedOrg.getRefference());
+			}
+			if (updatedOrg.getType() != null)
+				existingOrg.setType(updatedOrg.getType());
+			if (updatedOrg.getPan() != null)
+				existingOrg.setPan(updatedOrg.getPan());
 			if (updatedOrg.getGstin() != null)
 				existingOrg.setGstin(updatedOrg.getGstin());
+			if (updatedOrg.getCin() != null) {
+				existingOrg.setCin(updatedOrg.getCin());
+				existingOrg.setCrn(updatedOrg.getCin());
+			} else if (updatedOrg.getCrn() != null) {
+				existingOrg.setCin(updatedOrg.getCrn());
+				existingOrg.setCrn(updatedOrg.getCrn());
+			}
+			if (updatedOrg.getWebsite() != null)
+				existingOrg.setWebsite(updatedOrg.getWebsite());
+			if (updatedOrg.getAnnualTurnover() != null) {
+				String val = updatedOrg.getAnnualTurnover().replace("₹", "INR ");
+				existingOrg.setAnnualTurnover(val);
+				existingOrg.setOthers(val);
+			} else if (updatedOrg.getOthers() != null) {
+				String val = updatedOrg.getOthers().replace("₹", "INR ");
+				existingOrg.setAnnualTurnover(val);
+				existingOrg.setOthers(val);
+			}
+			if (updatedOrg.getDetails() != null)
+				existingOrg.setDetails(updatedOrg.getDetails());
 			if (updatedOrg.getAddress1() != null)
 				existingOrg.setAddress1(updatedOrg.getAddress1());
+			if (updatedOrg.getAddress2() != null)
+				existingOrg.setAddress2(updatedOrg.getAddress2());
+			if (updatedOrg.getCountry() != null)
+				existingOrg.setCountry(updatedOrg.getCountry());
 			if (updatedOrg.getState() != null)
 				existingOrg.setState(updatedOrg.getState());
 			if (updatedOrg.getCity() != null)
@@ -813,10 +825,29 @@ public class ProcUserServiceImpl implements UserService {
 				existingOrg.setZipCode(updatedOrg.getZipCode());
 			if (updatedOrg.getContactPerson() != null)
 				existingOrg.setContactPerson(updatedOrg.getContactPerson());
+			if (updatedOrg.getContactDesignation() != null) {
+				existingOrg.setContactDesignation(updatedOrg.getContactDesignation());
+				existingOrg.setSubCategory(updatedOrg.getContactDesignation());
+			} else if (updatedOrg.getSubCategory() != null) {
+				existingOrg.setContactDesignation(updatedOrg.getSubCategory());
+				existingOrg.setSubCategory(updatedOrg.getSubCategory());
+			}
 			if (updatedOrg.getEmail() != null)
 				existingOrg.setEmail(updatedOrg.getEmail());
 			if (updatedOrg.getOrganizationPhonenumber() != null)
 				existingOrg.setOrganizationPhonenumber(updatedOrg.getOrganizationPhonenumber());
+
+			// Also update user's fullName if userId is present
+			if (updatedOrg.getUserId() != null) {
+				Optional<User> userOpt = userDao.findById(updatedOrg.getUserId());
+				if (userOpt.isPresent()) {
+					User u = userOpt.get();
+					if (updatedOrg.getContactPerson() != null) {
+						u.setFullName(updatedOrg.getContactPerson());
+					}
+					userDao.save(u);
+				}
+			}
 
 			// Update divisions
 			if (updatedOrg.getDivisionCategories() != null && !updatedOrg.getDivisionCategories().isEmpty()) {
