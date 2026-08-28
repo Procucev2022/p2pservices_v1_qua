@@ -78,6 +78,21 @@ public class RfqVendor extends Procucev {
 	private boolean newCommentAvailableVendor;
 
 
+	@Transient
+	private String vendorType;
+
+	@Transient
+	private String vendorCode;
+
+	@Transient
+	private String city;
+
+	@Transient
+	private String sourcingMatchStatus;
+
+	@Transient
+	private Date submissionDate;
+
 	@Column(name = "rfq_notified_to")
 	private String rfqNotifiedTo;
 

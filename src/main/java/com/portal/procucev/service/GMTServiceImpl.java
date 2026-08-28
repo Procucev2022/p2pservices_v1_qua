@@ -1394,39 +1394,74 @@ public class GMTServiceImpl implements GMTService {
 	
 	@Override
 	public List<RfqVendor> getVendorsbyRFQ(Rfq rfq) {
-		logger.info("Entered To Get Vefq.setndors By RFQ");
+		logger.info("Entered To Get Vendors By RFQ");
+		if (rfq == null || rfq.getId() == null) {
+			return Collections.emptyList();
+		}
 		Optional<Rfq> rfqList = rfqDao.findById(rfq.getId());
+		if (!rfqList.isPresent()) {
+			return Collections.emptyList();
+		}
 		List<RfqVendor> rfqvendor = rfqList.get().getRfqVendor();
 		List<RfqVendor> rfqvendorresult = new ArrayList<RfqVendor>();
 		if (!CollectionUtils.isEmpty(rfqvendor)) {
 			for (RfqVendor rfqVendor2 : rfqvendor) {
 				RfqVendor response = new RfqVendor();
-				response.setCompanyName(rfqVendor2.getOrganization().getCompanyName());
+				if (rfqVendor2.getOrganization() != null) {
+					Organization org = rfqVendor2.getOrganization();
+					response.setCompanyName(org.getCompanyName());
+					response.setVendorId(org.getId());
+					response.setCompanyId(org.getCompanyId());
+					response.setVendorCode(org.getCompanyId());
+					response.setVendorType(org.getVendorType() != null ? org.getVendorType() : "Buyer Uploaded");
+					response.setCity(org.getCity());
+					if (org.getOtherEmails() != null) {
+						response.setOtherEmails(org.getOtherEmails());
+					}
+					List<User> users = userDao.findByOrg(org);
+					if (!users.isEmpty()) {
+						response.setEmail(users.get(0).getUsername());
+						response.setPhone(users.get(0).getPhone());
+					} else {
+						response.setEmail(org.getEmail());
+						response.setPhone(org.getOrganizationPhonenumber());
+					}
+				}
 				response.setVendorResponseDate(rfqVendor2.getVendorResponseDate());
-				response.setVendorId(rfqVendor2.getOrganization().getId());
-				response.setCompanyId(rfqVendor2.getOrganization().getCompanyId());
 				response.setId(rfqVendor2.getId());
-				if (rfqVendor2.getOrganization().getOtherEmails() != null) {
-					response.setOtherEmails(rfqVendor2.getOrganization().getOtherEmails());
-				}
-				List<User> users = userDao.findByOrg(rfqVendor2.getOrganization());
-				// List<Poc> contact = pocdao.findByOrganization(rfqVendor2.getOrganization());
-				if (!users.isEmpty()) {
-					response.setEmail(users.get(0).getUsername());
-					response.setPhone(users.get(0).getPhone());
-
-				} else {
-					response.setEmail(rfqVendor2.getOrganization().getEmail());
-					response.setPhone(rfqVendor2.getOrganization().getOrganizationPhonenumber());
-
-				}
 				response.setVendorStatus(rfqVendor2.getVendorStatus());
 				response.setStatus(rfqVendor2.getStatus());
+				Date subDate = rfqVendor2.getCreatedTS() != null ? rfqVendor2.getCreatedTS() : rfqList.get().getCreatedTS();
+				response.setCreatedTS(subDate);
+				response.setSubmissionDate(subDate);
+				response.setRequestType(rfqVendor2.getRequestType());
 				rfqvendorresult.add(response);
 			}
 			return rfqvendorresult;
 		} else {
-			logger.info("No RFQ Vendors");
+			List<GmtRfqVendors> gmtVendors = gmtRfqVendorDao.findByRfq(rfqList.get());
+			if (!CollectionUtils.isEmpty(gmtVendors)) {
+				for (GmtRfqVendors gv : gmtVendors) {
+					if (gv.getVendor() != null) {
+						Organization org = gv.getVendor();
+						RfqVendor response = new RfqVendor();
+						response.setCompanyName(org.getCompanyName());
+						response.setVendorId(org.getId());
+						response.setCompanyId(org.getCompanyId());
+						response.setVendorCode(org.getCompanyId());
+						response.setVendorType(org.getVendorType() != null ? org.getVendorType() : "Buyer Uploaded");
+						response.setCity(org.getCity());
+						response.setEmail(org.getEmail());
+						response.setPhone(org.getOrganizationPhonenumber());
+						response.setVendorStatus(gv.getStatus());
+						response.setStatus(gv.getStatus());
+						Date subDate = gv.getRequestedDate() != null ? gv.getRequestedDate() : gv.getCreatedTS();
+						response.setCreatedTS(subDate);
+						response.setSubmissionDate(subDate);
+						rfqvendorresult.add(response);
+					}
+				}
+			}
 		}
 		return rfqvendorresult;
 	}
@@ -1729,85 +1764,106 @@ public class GMTServiceImpl implements GMTService {
 
 		if (!CollectionUtils.isEmpty(vendorList)) {
 			vendorList.forEach(vendor -> {
-				Organization savedVendor;
+				Organization savedVendor = null;
 
 				if (vendor.getId() == null) {
-					// Save the new organization
+					// Save the new organization or lookup existing
 					OrgType orgTypeObject = orgTypeDao.findByTypeName(ApplicationConstants.VENDOR);
 					MasterStatus vendorStatus = masterStatusDao.findByStatus(StatusConstants.VENDOR_ADDED);
 					MasterStatus evalStatus = masterStatusDao.findByStatus(StatusConstants.EVALUATION_NOT_STARTED);
 
 					if (selfRegistrationService.checkOrgexist(vendor.getCompanyName())) {
-						// Exception occurs when User is already associated to an Account/registered
-						throw new AppException(HttpStatus.INTERNAL_SERVER_ERROR.value(),
-								"Vendor Already Registered with name " + vendor.getCompanyName(),
-								ApplicationConstants.BUSSINESS_EXCEPTION, ApplicationConstants.FAILURE);
+						savedVendor = orgDao.findByCompanyName(vendor.getCompanyName());
 					}
-
-					vendor.setOrgType(orgTypeObject);
-					vendor.setVendorStatus(vendorStatus);
-					vendor.setStatus(evalStatus);
-					vendor.setVendorcategory(savedRfq.getCategory());
-					savedVendor = orgDao.save(vendor);
+					if (savedVendor == null) {
+						vendor.setOrgType(orgTypeObject);
+						vendor.setVendorStatus(vendorStatus);
+						vendor.setStatus(evalStatus);
+						if (vendor.getVendorcategory() == null) {
+							vendor.setVendorcategory(savedRfq.getCategory());
+						}
+						if (vendor.getVendorType() != null) {
+							vendor.setVendorType(vendor.getVendorType());
+						}
+						savedVendor = orgDao.save(vendor);
+					}
 				} else {
 					// Use the existing organization
 					logger.info("Saving the existing vendor with other email");
-					savedVendor = vendor;
-					if (vendor.getOtherEmails() != null) {
-						orgDao.updateOtherEmail(vendor.getOtherEmails(), vendor.getId());
+					Optional<Organization> existingOrg = orgDao.findById(vendor.getId());
+					if (existingOrg.isPresent()) {
+						savedVendor = existingOrg.get();
+					} else if (vendor.getCompanyName() != null) {
+						savedVendor = orgDao.findByCompanyName(vendor.getCompanyName());
+						if (savedVendor == null) {
+							vendor.setId(null);
+							savedVendor = orgDao.save(vendor);
+						}
+					}
+					if (savedVendor != null && vendor.getOtherEmails() != null) {
+						orgDao.updateOtherEmail(vendor.getOtherEmails(), savedVendor.getId());
 					}
 				}
 
-				// Build and save the RfqVendor object
-				// Build the RfqVendor object
-				savedVendor = orgDao.findById(savedVendor.getId()).get();
-				RfqVendor rfqVendor = new RfqVendor();
-				logger.info("setting vendor id to rfqvendor{}", savedVendor.getId());
-				rfqVendor.setOrganization(savedVendor);
-				rfqVendor.setRfq(savedRfq);
-				rfqVendor.setRequestType(vendor.getRequestType());
+				if (savedVendor != null) {
+					if (vendor.getVendorType() != null && (savedVendor.getVendorType() == null || savedVendor.getVendorType().isEmpty())) {
+						savedVendor.setVendorType(vendor.getVendorType());
+						orgDao.save(savedVendor);
+					}
+					if (vendor.getCompanyId() != null && (savedVendor.getCompanyId() == null || savedVendor.getCompanyId().isEmpty())) {
+						savedVendor.setCompanyId(vendor.getCompanyId());
+						orgDao.save(savedVendor);
+					}
 
-				// Collect RfqVendor object
-				rfqVendors.add(rfqVendor);
-				// ✅ STEP 2: Get status
-				MasterStatus resultStatus = masterStatusDao.findByStatus(StatusConstants.vendorApproved);
+					// Build the RfqVendor object
+					RfqVendor rfqVendor = new RfqVendor();
+					logger.info("setting vendor id to rfqvendor{}", savedVendor.getId());
+					rfqVendor.setOrganization(savedVendor);
+					rfqVendor.setRfq(savedRfq);
+					rfqVendor.setRequestType(vendor.getRequestType() != null ? vendor.getRequestType() : "Invite");
+					rfqVendor.setVendorType(vendor.getVendorType() != null ? vendor.getVendorType() : savedVendor.getVendorType());
+					rfqVendor.setVendorCode(savedVendor.getCompanyId());
+					rfqVendor.setVendorStatus(masterStatusDao.findByStatus(StatusConstants.vendorApproved));
+					rfqVendor.setStatus(masterStatusDao.findByStatus(StatusConstants.vendorApproved));
 
-//				Organization org = orgDao.findById(savedVendor.getId()).get();
-				// ✅ STEP 3: Check if record exists
-				GmtRfqVendors existing = gmtRfqVendorDao.findByVendorAndRfq(savedVendor,
-						savedRfq);
-				GmtRfqVendors gmtRfqVendors= new GmtRfqVendors();
-				
+					// Collect RfqVendor object
+					rfqVendors.add(rfqVendor);
 
-				// ✅ STEP 4: Insert or update
-				if (existing != null) {
-					logger.info("Updating status to Requested as record already exists");
-					
-				} else {
-					logger.info("Saving status to requested for the first time");
-					gmtRfqVendors.setStatus(resultStatus);
-					gmtRfqVendors.setRfq(savedRfq);
-					gmtRfqVendors.setVendor(savedVendor);
-					gmtRfqVendors.setRequestedDate(new Date());
-					gmtRfqVendorDao.save(gmtRfqVendors);
+					// ✅ STEP 2: GmtRfqVendors
+					MasterStatus resultStatus = masterStatusDao.findByStatus(StatusConstants.vendorApproved);
+					GmtRfqVendors existing = gmtRfqVendorDao.findByVendorAndRfq(savedVendor, savedRfq);
+					if (existing == null) {
+						logger.info("Saving status to requested for the first time");
+						GmtRfqVendors gmtRfqVendors = new GmtRfqVendors();
+						gmtRfqVendors.setStatus(resultStatus);
+						gmtRfqVendors.setRfq(savedRfq);
+						gmtRfqVendors.setVendor(savedVendor);
+						gmtRfqVendors.setRequestedDate(new Date());
+						gmtRfqVendorDao.save(gmtRfqVendors);
+					}
+
+					// ✅ STEP 3: Update RFQ count & credits
+					rfqDao.updateCount(savedRfq);
+					try {
+						orgDao.updateRfqCreditsAndUsage(savedVendor.getId());
+					} catch (Exception ex) {
+						logger.warn("Could not update RFQ credits for vendor {}: {}", savedVendor.getId(), ex.getMessage());
+					}
 				}
-
-				// ✅ STEP 5: Update RFQ count
-				rfqDao.updateCount(savedRfq);
-
-				// ✅ STEP 6: Deduct one RFQ credit
-				orgDao.updateRfqCreditsAndUsage(savedVendor.getId());
 			});
+
+			if (!rfqVendors.isEmpty()) {
+				rfqVendorDao.saveAll(rfqVendors);
+				savedRfq.setRfqVendor(rfqVendors);
+			}
 		}
 
-		// here need to set rfqvendors object
 		try {
 			sendRfqToVendors(rfqVendors, savedRfq);
-		} catch (MessagingException e) {
-			e.printStackTrace();
+		} catch (Exception e) {
+			logger.warn("Could not send mail to vendors: {}", e.getMessage());
 		}
 
-		// sendRfqToVendors(rfq.getRfqVendors());
 		logger.info("RFQ Created Successfully" + rfq.toString());
 		status = true;
 
@@ -2682,6 +2738,13 @@ public class GMTServiceImpl implements GMTService {
 
 			Rfq saved = rfqDao.save(rfq);
 			logger.info("Completed Saving RFQ with UUID: {}", saved.getId());
+
+			// Save and associate selected vendors for RFQ
+			try {
+				saveVendorsForRfq(rfq, saved);
+			} catch (Exception e) {
+				logger.warn("Could not save vendors for client RFQ: {}", e.getMessage());
+			}
 
 			// return both
 			result.put("rfqId", rfqId);
