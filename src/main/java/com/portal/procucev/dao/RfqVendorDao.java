@@ -47,4 +47,25 @@ public interface RfqVendorDao extends JpaRepository<RfqVendor, String> {
 		""")
 		long countCredentialEmailsSent(@Param("organizationId") String organizationId);
 
+	/**
+	 * RFQ invitations addressed to a vendor organization, newest first.
+	 * Backs the vendor opportunity feed.
+	 */
+	@Query("""
+		    SELECT r
+		    FROM RfqVendor r
+		    WHERE r.organization.id = :organizationId
+		    ORDER BY r.createdTS DESC
+		""")
+		List<RfqVendor> findInvitationsByVendorOrg(@Param("organizationId") String organizationId);
+
+	/** Count of quotations already submitted by a vendor organization. */
+	@Query("""
+		    SELECT COUNT(r)
+		    FROM RfqVendor r
+		    WHERE r.organization.id = :organizationId
+		      AND r.quotationReceived = true
+		""")
+		long countSubmittedQuotations(@Param("organizationId") String organizationId);
+
 }

@@ -3,6 +3,7 @@ package com.portal.procucev.utils;
 import java.util.Hashtable;
 import java.util.List;
 
+import javax.naming.NameNotFoundException;
 import javax.naming.directory.Attributes;
 import javax.naming.directory.DirContext;
 import javax.naming.directory.InitialDirContext;
@@ -10,54 +11,84 @@ import javax.naming.directory.InitialDirContext;
 import jakarta.mail.internet.InternetAddress;
 
 public class EmailValidatorUtil {
-	 // --- Validate email format + MX record ---
+
+    /** Keeps a slow or unreachable resolver from stalling the request thread. */
+    private static final String DNS_TIMEOUT_MS = "3000";
+    private static final String DNS_RETRIES = "1";
+
+    // --- Validate email format + deliverable domain ---
     public static void validateEmails(List<String> emails, List<String> invalidEmails) {
         if (emails != null) {
             for (String email : emails) {
-                if (email != null && !email.isBlank()) {
-                    try {
-                        // Validate format
-                        new InternetAddress(email, true);
-
-                        // Validate domain MX record
-                        if (!isDomainValid(email)) {
-                            invalidEmails.add(email);
-                        }
-                    } catch (Exception e) {
-                        invalidEmails.add(email);
-                    }
-                }
+                validateEmail(email, invalidEmails);
             }
         }
     }
 
-    private static boolean isDomainValid(String email) {
+    public static void validateEmail(String email, List<String> invalidEmails) {
+        if (email == null || email.isBlank()) {
+            return;
+        }
+
+        // 1. Format check
         try {
-            String domain = email.substring(email.indexOf("@") + 1);
-            Hashtable<String, String> env = new Hashtable<>();
-            env.put("java.naming.factory.initial", "com.sun.jndi.dns.DnsContextFactory");
-            DirContext ctx = new InitialDirContext(env);
-            Attributes attrs = ctx.getAttributes(domain, new String[]{"MX"});
-            return attrs != null && attrs.size() > 0;
+            new InternetAddress(email, true);
         } catch (Exception e) {
+            invalidEmails.add(email);
+            return;
+        }
+
+        // 2. Domain check
+        if (!isDomainValid(email)) {
+            invalidEmails.add(email);
+        }
+    }
+
+    /**
+     * Confirms the domain can receive mail.
+     *
+     * Per RFC 5321 section 5.1 a domain with no MX record is still deliverable if
+     * it resolves to an address record, so both are checked. A transient lookup
+     * failure is treated as valid so a DNS outage cannot lock users out; only a
+     * domain that definitively does not exist is rejected.
+     */
+    private static boolean isDomainValid(String email) {
+        int at = email.lastIndexOf('@');
+        if (at < 0 || at == email.length() - 1) {
             return false;
         }
-    }
-    
-    public static void validateEmail(String email, List<String> invalidEmails) {
-        if (email != null && !email.isBlank()) {
-            try {
-                // Validate format
-                new InternetAddress(email, true);
+        String domain = email.substring(at + 1);
 
-                // Validate domain MX record
-                if (!isDomainValid(email)) {
-                    invalidEmails.add(email);
+        DirContext ctx = null;
+        try {
+            Hashtable<String, String> env = new Hashtable<>();
+            env.put("java.naming.factory.initial", "com.sun.jndi.dns.DnsContextFactory");
+            env.put("com.sun.jndi.dns.timeout.initial", DNS_TIMEOUT_MS);
+            env.put("com.sun.jndi.dns.timeout.retries", DNS_RETRIES);
+            ctx = new InitialDirContext(env);
+
+            Attributes attrs = ctx.getAttributes(domain, new String[] { "MX", "A", "AAAA" });
+            if (attrs == null) {
+                return false;
+            }
+            return attrs.get("MX") != null
+                    || attrs.get("A") != null
+                    || attrs.get("AAAA") != null;
+
+        } catch (NameNotFoundException e) {
+            // Domain does not exist, so mail can never be delivered.
+            return false;
+        } catch (Exception e) {
+            // Resolver unreachable or timed out: do not block the user on infrastructure.
+            return true;
+        } finally {
+            if (ctx != null) {
+                try {
+                    ctx.close();
+                } catch (Exception ignored) {
+                    // Nothing actionable if the context fails to close.
                 }
-            } catch (Exception e) {
-                invalidEmails.add(email);
             }
         }
     }
-
 }

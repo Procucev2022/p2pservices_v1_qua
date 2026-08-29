@@ -20,11 +20,17 @@ import org.springframework.stereotype.Service;
 
 import com.portal.procucev.Dto.buyer.BuyerDashboardDto;
 import com.portal.procucev.dao.BuyerVendorDao;
+import com.portal.procucev.dao.OrgDao;
 import com.portal.procucev.dao.RfqDao;
+import com.portal.procucev.dao.SubscriptionPlanDao;
 import com.portal.procucev.model.BuyerVendor;
+import com.portal.procucev.model.Organization;
 import com.portal.procucev.model.Rfq;
 import com.portal.procucev.model.RfqItem;
 import com.portal.procucev.model.RfqVendor;
+import com.portal.procucev.model.SubscriptionPlan;
+import com.portal.procucev.utils.SubscriptionPlanAudience;
+import com.portal.procucev.utils.SubscriptionPlanCatalogue;
 import com.portal.procucev.rfq.entity.RFQEntity;
 import com.portal.procucev.rfq.repository.RFQRepository;
 
@@ -41,6 +47,18 @@ public class BuyerDashboardServiceImpl implements BuyerDashboardService {
 
     @Autowired(required = false)
     private BuyerVendorDao buyerVendorDao;
+
+    @Autowired(required = false)
+    private SubscriptionPlanDao subscriptionPlanDao;
+
+    @Autowired(required = false)
+    private OrgDao orgDao;
+
+    @Autowired
+    private SubscriptionPlanAudience planAudience;
+
+    @Autowired
+    private SubscriptionPlanCatalogue planCatalogue;
 
     @Override
     public BuyerDashboardDto.SummaryResponse getSummary(String buyerOrgId, String buyerId, String username) {
@@ -92,10 +110,42 @@ public class BuyerDashboardServiceImpl implements BuyerDashboardService {
                 .totalSMS(totalSMS)
                 .totalEmails(totalEmails)
                 .totalFollowupsToday(totalFollowups)
-                .activeSubscription("free_trial")
-                .remainingFreeRFQs(Math.max(0, 5 - totalActive))
-                .sourcingPlanName("Free Trial (Version 1 - Client Roster)")
+                .activeSubscription(resolvePlanName(buyerOrgId))
+                .remainingFreeRFQs(resolveRemainingQuota(buyerOrgId, totalActive))
+                .sourcingPlanName(resolvePlanName(buyerOrgId))
                 .build();
+    }
+
+    /** Active plan name from the org's linked subscription_plan row. */
+    private String resolvePlanName(String buyerOrgId) {
+        try {
+            if (orgDao != null && buyerOrgId != null && !buyerOrgId.isBlank()) {
+                Organization org = orgDao.findById(buyerOrgId).orElse(null);
+                if (org != null && org.getSubscriptionPlan() != null
+                        && org.getSubscriptionPlan().getPlanName() != null) {
+                    return org.getSubscriptionPlan().getPlanName();
+                }
+            }
+        } catch (Exception e) {
+            log.debug("Could not resolve plan name for {}: {}", buyerOrgId, e.getMessage());
+        }
+        return "";
+    }
+
+    /** Remaining RFQs against the plan's bundle size. */
+    private int resolveRemainingQuota(String buyerOrgId, int usedRfqs) {
+        try {
+            if (orgDao != null && buyerOrgId != null && !buyerOrgId.isBlank()) {
+                Organization org = orgDao.findById(buyerOrgId).orElse(null);
+                if (org != null && org.getSubscriptionPlan() != null) {
+                    int bundle = org.getSubscriptionPlan().getRfqBundleSize();
+                    return Math.max(0, bundle - usedRfqs);
+                }
+            }
+        } catch (Exception e) {
+            log.debug("Could not resolve quota for {}: {}", buyerOrgId, e.getMessage());
+        }
+        return 0;
     }
 
     @Override
@@ -127,8 +177,8 @@ public class BuyerDashboardServiceImpl implements BuyerDashboardService {
                                 : (rfq.getDivision() != null ? rfq.getDivision() + " Procurement" : "Procurement Event");
                         String cat = rfq.getDivision() != null ? rfq.getDivision() : (rfq.getCategory() != null ? rfq.getCategory() : "General Procurement");
                         String status = rfq.getClientStatus() != null ? rfq.getClientStatus().getStatus() : (rfq.isQuotationReceived() ? "AI Recommended" : "In Evaluation");
-                        String dateStr = rfq.getRfqClosingDate() != null ? sdf.format(rfq.getRfqClosingDate()) : "15-Sep-2026";
-                        String createdDateStr = rfq.getCreatedTS() != null ? sdf.format(rfq.getCreatedTS()) : "18-Aug-2026";
+                        String dateStr = rfq.getRfqClosingDate() != null ? sdf.format(rfq.getRfqClosingDate()) : "";
+                        String createdDateStr = rfq.getCreatedTS() != null ? sdf.format(rfq.getCreatedTS()) : "";
 
                         // Real extracted line items
                         List<BuyerDashboardDto.ExtractedEntityDto> entities = new ArrayList<>();
@@ -145,10 +195,10 @@ public class BuyerDashboardServiceImpl implements BuyerDashboardService {
                                             .id(item.getId() != null ? item.getId() : "e-" + item.getSerialNo())
                                             .itemName(itemDesc)
                                             .quantity(qty)
-                                            .unit(item.getUnitofMeasures() != null ? item.getUnitofMeasures() : "Units")
+                                            .unit(item.getUnitofMeasures() != null ? item.getUnitofMeasures() : "")
                                             .targetDate(dateStr)
-                                            .technicalSpecs(item.getBrand() != null ? item.getBrand() : "Standard Specifications")
-                                            .confidence(96.0)
+                                            .technicalSpecs(item.getBrand() != null ? item.getBrand() : "")
+                                            .confidence(0)
                                             .category(item.getCategory() != null ? item.getCategory() : cat)
                                             .build());
                                 }
@@ -157,71 +207,59 @@ public class BuyerDashboardServiceImpl implements BuyerDashboardService {
                             log.debug("Could not fetch line items for rfq: {}", e.getMessage());
                         }
 
-                        if (entities.isEmpty()) {
-                            entities.add(BuyerDashboardDto.ExtractedEntityDto.builder()
-                                    .id("e-1")
-                                    .itemName(title)
-                                    .quantity(1.0)
-                                    .unit("Lot")
-                                    .targetDate(dateStr)
-                                    .technicalSpecs(rfq.getSpecialInstruction() != null ? rfq.getSpecialInstruction() : "Standard Terms")
-                                    .confidence(95.0)
-                                    .category(cat)
-                                    .build());
-                        }
-
-                        if (calculatedBudget == 0.0) {
-                            calculatedBudget = 145000.0;
-                        }
-
                         // Real invited vendors & quotes
                         List<BuyerDashboardDto.QuoteComparisonDto> quoteList = new ArrayList<>();
                         List<BuyerDashboardDto.VendorFollowUpDto> vendorFollowUps = new ArrayList<>();
                         int invitedCount = 0;
                         int respCount = 0;
+                        int notifiedCount = 0;
 
                         try {
                             if (rfq.getRfqVendor() != null && !rfq.getRfqVendor().isEmpty()) {
                                 invitedCount = rfq.getRfqVendor().size();
                                 for (RfqVendor rv : rfq.getRfqVendor()) {
                                     String vName = rv.getCompanyName() != null ? rv.getCompanyName()
-                                            : (rv.getOrganization() != null ? rv.getOrganization().getName() : "Invited Supplier");
-                                    String vPhone = rv.getPhone() != null ? rv.getPhone() : "+91 98201 00000";
-                                    String vEmail = rv.getEmail() != null ? rv.getEmail() : "supplier@procucev.com";
+                                            : (rv.getOrganization() != null ? rv.getOrganization().getCompanyName() : "");
+                                    String vPhone = rv.getPhone() != null ? rv.getPhone() : "";
                                     boolean hasQuote = rv.isQuotationReceived();
                                     if (hasQuote) respCount++;
+                                    if (rv.getIsRfqNotified() == 1) notifiedCount++;
 
-                                    quoteList.add(BuyerDashboardDto.QuoteComparisonDto.builder()
-                                            .vendorId(rv.getId() != null ? rv.getId() : "v-" + UUID.randomUUID().toString().substring(0, 6))
-                                            .vendorName(vName)
-                                            .vendorCategory(rfq.isByClient() ? "Client Roster" : "Procucev Network")
-                                            .unitPrice(calculatedBudget > 0 ? (calculatedBudget / 10) : 2850.0)
-                                            .totalPrice(calculatedBudget)
-                                            .leadTimeDays(14)
-                                            .aiMatchScore(94.0)
-                                            .isBestPrice(quoteList.isEmpty())
-                                            .isPreferred(true)
-                                            .warrantyYears(2)
-                                            .complianceStatus(hasQuote ? "Fully Compliant" : "Pending Bid")
-                                            .paymentTerms("Net 30 Days")
-                                            .remarks(rfq.getSpecialInstruction() != null ? rfq.getSpecialInstruction() : "Standard Terms")
-                                            .build());
+                                    // Only vendors who actually submitted appear in the comparison matrix.
+                                    if (hasQuote) {
+                                        quoteList.add(BuyerDashboardDto.QuoteComparisonDto.builder()
+                                                .vendorId(rv.getId())
+                                                .vendorName(vName)
+                                                .vendorCategory(rfq.isByClient() ? "Client Roster" : "Procucev Network")
+                                                .unitPrice(0)
+                                                .totalPrice(0)
+                                                .leadTimeDays(0)
+                                                .aiMatchScore(0)
+                                                .isBestPrice(false)
+                                                .isPreferred(false)
+                                                .warrantyYears(0)
+                                                .complianceStatus("")
+                                                .paymentTerms("")
+                                                .remarks("")
+                                                .build());
+                                    }
 
                                     vendorFollowUps.add(BuyerDashboardDto.VendorFollowUpDto.builder()
-                                            .vendorId(rv.getId() != null ? rv.getId() : "v-" + UUID.randomUUID().toString().substring(0, 6))
+                                            .vendorId(rv.getId())
                                             .vendorName(vName)
                                             .phone(vPhone)
                                             .contactPerson(vName)
-                                            .callStatus(hasQuote ? "connected" : "scheduled")
-                                            .callDuration(hasQuote ? "1m 30s" : "0s")
-                                            .callLastAttempt("Today")
-                                            .whatsappStatus(hasQuote ? "read" : "delivered")
-                                            .whatsappLastAttempt("Today")
-                                            .smsStatus("delivered")
-                                            .emailStatus("delivered")
-                                            .overallStatus(hasQuote ? "Responded" : "Follow-up Active")
-                                            .lastInteraction("Today")
-                                            .attemptsCount(1)
+                                            .callStatus("")
+                                            .callDuration("")
+                                            .callLastAttempt("")
+                                            .whatsappStatus("")
+                                            .whatsappLastAttempt("")
+                                            .smsStatus("")
+                                            .emailStatus(rv.getIsRfqNotified() == 1 ? "sent" : "")
+                                            .overallStatus(hasQuote ? "Responded" : "Awaiting Bid")
+                                            .lastInteraction(rv.getVendorResponseDate() != null
+                                                    ? sdf.format(rv.getVendorResponseDate()) : "")
+                                            .attemptsCount(0)
                                             .bidStatus(hasQuote ? "Submitted" : "Pending")
                                             .build());
                                 }
@@ -230,12 +268,7 @@ public class BuyerDashboardServiceImpl implements BuyerDashboardService {
                             log.debug("Could not fetch vendors for rfq: {}", e.getMessage());
                         }
 
-                        if (invitedCount == 0) {
-                            invitedCount = rfq.getCount() > 0 ? rfq.getCount() : 1;
-                            respCount = rfq.isQuotationReceived() ? 1 : 0;
-                        }
-
-                        int quotesCount = rfq.getCount() > 0 ? rfq.getCount() : (rfq.isQuotationReceived() ? 1 : 0);
+                        int quotesCount = respCount > 0 ? respCount : rfq.getCount();
                         String resolvedSourcingMode = rfq.getSourcingStrategyMode() != null && !rfq.getSourcingStrategyMode().isBlank()
                                 ? rfq.getSourcingStrategyMode()
                                 : (rfq.isByClient() ? "mode_1" : "mode_2");
@@ -251,25 +284,27 @@ public class BuyerDashboardServiceImpl implements BuyerDashboardService {
                                 .targetDeliveryDate(dateStr)
                                 .budget(calculatedBudget)
                                 .createdAt(createdDateStr)
-                                .aiScore(94.0)
+                                .aiScore(null)
                                 .chasingActive(!rfq.isQuotationReceived())
-                                .chaserMethod("Multi-Channel")
+                                .chaserMethod("")
                                 .extractedEntities(entities)
                                 .quotes(quoteList)
                                 .followUpData(BuyerDashboardDto.RFQFollowUpBreakdownDto.builder()
                                         .rfqNumber(rfqNum)
                                         .totalInvited(invitedCount)
                                         .respondedCount(respCount)
-                                        .callTotal(invitedCount)
-                                        .callConnected(respCount)
-                                        .callAvgDuration("1m 45s")
-                                        .whatsappTotal(invitedCount)
-                                        .whatsappRead(respCount)
-                                        .smsTotal(invitedCount)
-                                        .smsDelivered(invitedCount)
-                                        .emailTotal(1)
+                                        // Channel counters stay at zero until a chaser
+                                        // dispatch log is available to read from.
+                                        .callTotal(0)
+                                        .callConnected(0)
+                                        .callAvgDuration("")
+                                        .whatsappTotal(0)
+                                        .whatsappRead(0)
+                                        .smsTotal(0)
+                                        .smsDelivered(0)
+                                        .emailTotal(notifiedCount)
                                         .autoChasingEnabled(!rfq.isQuotationReceived())
-                                        .nextScheduledChaser("Today, 17:30 IST")
+                                        .nextScheduledChaser("")
                                         .vendors(vendorFollowUps)
                                         .build())
                                 .build());
@@ -293,22 +328,21 @@ public class BuyerDashboardServiceImpl implements BuyerDashboardService {
 
                 if (entities != null && !entities.isEmpty()) {
                     for (RFQEntity entity : entities) {
-                        String rfqNum = entity.getRfqNumber() != null ? entity.getRfqNumber() : "RFQ-2026-00421";
-                        String title = entity.getRawSubject() != null ? entity.getRawSubject() : "Centrifugal Water Pumps & Industrial Valves";
+                        if (entity.getRfqNumber() == null || entity.getRfqNumber().isBlank()) {
+                            continue;
+                        }
                         list.add(BuyerDashboardDto.RFQPipelineItemDto.builder()
                                 .id(String.valueOf(entity.getId()))
-                                .rfqNumber(rfqNum)
-                                .title(title)
-                                .category("Heavy Mechanical & Flow Dynamics")
-                                .sourcingMode("mode_2")
-                                .status(entity.getStatus() != null ? entity.getStatus() : "AI Recommended")
-                                .quotesCount(4)
-                                .targetDeliveryDate(entity.getDeliveryDate() != null ? entity.getDeliveryDate() : "15-Sep-2026")
-                                .budget(145000.0)
-                                .createdAt("18-Aug-2026")
-                                .aiScore(96.0)
-                                .chasingActive(true)
-                                .chaserMethod("Multi-Channel")
+                                .rfqNumber(entity.getRfqNumber())
+                                .title(entity.getRawSubject() != null ? entity.getRawSubject() : entity.getRfqNumber())
+                                .category("")
+                                .sourcingMode("")
+                                .status(entity.getStatus() != null ? entity.getStatus() : "")
+                                .quotesCount(0)
+                                .targetDeliveryDate(entity.getDeliveryDate())
+                                .budget(0)
+                                .createdAt("")
+                                .chasingActive(false)
                                 .build());
                     }
                 }
@@ -330,40 +364,17 @@ public class BuyerDashboardServiceImpl implements BuyerDashboardService {
             if (count >= 5) break;
             count++;
 
+            // One entry per RFQ reflecting its real pipeline state. Per-channel
+            // dispatch events will be added once a chaser log table exists.
             feed.add(BuyerDashboardDto.LiveFeedItemDto.builder()
-                    .id("feed-" + count + "-call")
-                    .type("call")
-                    .channel("call")
-                    .title("Voice Follow-Up: " + rfq.getRfqNumber())
-                    .message("Autonomous voice agent checked response readiness for " + rfq.getTitle())
-                    .timestamp("10m ago")
-                    .rfqNumber(rfq.getRfqNumber())
-                    .recipient(rfq.getTitle())
-                    .duration("1m 30s")
-                    .status("completed")
-                    .build());
-
-            feed.add(BuyerDashboardDto.LiveFeedItemDto.builder()
-                    .id("feed-" + count + "-wa")
-                    .type("whatsapp")
-                    .channel("whatsapp")
-                    .title("WhatsApp Quote Link Delivered")
-                    .message("Digital specification link delivered to invited suppliers for " + rfq.getRfqNumber())
-                    .timestamp("25m ago")
-                    .rfqNumber(rfq.getRfqNumber())
-                    .status("read")
-                    .build());
-        }
-
-        if (feed.isEmpty()) {
-            feed.add(BuyerDashboardDto.LiveFeedItemDto.builder()
-                    .id("feed-sys-1")
+                    .id("feed-" + count)
                     .type("system")
                     .channel("system")
-                    .title("AI Sourcing Agent Ready")
-                    .message("Multi-channel follow-up engines active. Monitoring vendor quotes and deadlines.")
-                    .timestamp("Just now")
-                    .status("info")
+                    .title(rfq.getRfqNumber() + ": " + rfq.getStatus())
+                    .message(rfq.getTitle())
+                    .timestamp(rfq.getCreatedAt())
+                    .rfqNumber(rfq.getRfqNumber())
+                    .status(rfq.getStatus())
                     .build());
         }
 
@@ -394,7 +405,8 @@ public class BuyerDashboardServiceImpl implements BuyerDashboardService {
                 request.getTotalAmount() + "|" + System.currentTimeMillis();
 
         String sha256 = generateSha256(rawPayload);
-        String poNumber = "PO-2026-" + (request.getRfqNumber() != null ? request.getRfqNumber().replace("RFQ-2026-", "") : "00421");
+        String poNumber = "PO-" + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"))
+                + "-" + sha256.substring(0, 8).toUpperCase();
 
         return BuyerDashboardDto.PoApprovalResponseDto.builder()
                 .poNumber(poNumber)
@@ -423,19 +435,15 @@ public class BuyerDashboardServiceImpl implements BuyerDashboardService {
                                 .vendorName(bv.getVendorName())
                                 .category(bv.getTypeOfIndustry() != null ? bv.getTypeOfIndustry() : "Industrial Sourcing")
                                 .location(loc)
-                                .overallScore(bv.getStatus() != null && bv.getStatus().equalsIgnoreCase("Active") ? 94.0 : 78.0)
-                                .commercialScore(92.0)
-                                .technicalScore(94.0)
-                                .qualityScore(95.0)
-                                .esgScore(90.0)
-                                .riskRating(bv.getStatus() != null && bv.getStatus().equalsIgnoreCase("Active") ? "Low Risk" : "Medium Risk")
-                                .status(bv.getStatus() != null && bv.getStatus().equalsIgnoreCase("Active") ? "QUALIFIED" : "UNDER_REVIEW")
-                                .evaluatedDate("18-Aug-2026")
-                                .keyHighlights(Map.of(
-                                        "technical", "Verified Registered Supplier",
-                                        "capacity", "Enterprise Master Roster",
-                                        "financial", "GSTIN/PAN Verified"
-                                ))
+                                // Scores are populated by Mode 3 qualification; unscored vendors report 0.
+                                .overallScore(0)
+                                .commercialScore(0)
+                                .technicalScore(0)
+                                .qualityScore(0)
+                                .esgScore(0)
+                                .riskRating("")
+                                .status(bv.getStatus() != null ? bv.getStatus() : "")
+                                .evaluatedDate("")
                                 .build());
                     }
                 }
@@ -447,69 +455,107 @@ public class BuyerDashboardServiceImpl implements BuyerDashboardService {
         return list;
     }
 
+    /**
+     * Buyer plans are read from the subscription_plan table so the ids returned
+     * here are the same ids the Zoho payment link service prices against.
+     */
+    /**
+     * Buyer sourcing tiers (Version 1, 2, 3).
+     *
+     * Copy comes from the approved plan catalogue. Where a matching
+     * subscription_plan row exists its id and price are used, so the plan is
+     * payable through the Zoho link. Tiers with no row yet are listed for
+     * comparison and marked unavailable rather than being hidden.
+     */
     @Override
     public List<BuyerDashboardDto.SubscriptionPlanDto> getSubscriptionPlans(String buyerOrgId) {
         List<BuyerDashboardDto.SubscriptionPlanDto> plans = new ArrayList<>();
 
-        plans.add(BuyerDashboardDto.SubscriptionPlanDto.builder()
-                .id("plan-v1")
-                .code("version_1")
-                .name("Version 1: Client Roster Sourcing")
-                .price("$0 (Trial)")
-                .period("5 Free RFQs")
-                .description("Source directly from your uploaded vendor roster with automated entity extraction and multi-channel chasers.")
-                .isCurrent(true)
-                .remainingQuota(5)
-                .totalQuota(5)
-                .features(List.of(
-                        "Excel / Email BOQ Entity Extraction",
-                        "Client Vendor Roster Management",
-                        "Multi-channel Chasers (Voice, WhatsApp, SMS)",
-                        "Side-by-side Quote Comparison Matrix",
-                        "Cryptographic SHA-256 PO Generation"
-                ))
-                .build());
+        String currentPlanId = null;
+        try {
+            if (orgDao != null && buyerOrgId != null && !buyerOrgId.isBlank()) {
+                Organization org = orgDao.findById(buyerOrgId).orElse(null);
+                if (org != null && org.getSubscriptionPlan() != null) {
+                    currentPlanId = org.getSubscriptionPlan().getId();
+                }
+            }
+        } catch (Exception e) {
+            log.debug("Could not resolve current buyer plan for {}: {}", buyerOrgId, e.getMessage());
+        }
 
-        plans.add(BuyerDashboardDto.SubscriptionPlanDto.builder()
-                .id("plan-v2")
-                .code("version_2")
-                .name("Version 2: Hybrid Sourcing")
-                .price("$499")
-                .period("/ month")
-                .description("Combine your internal roster with Procucev verified vendor recommendations and category intelligence.")
-                .isCurrent(false)
-                .remainingQuota(0)
-                .totalQuota(50)
-                .features(List.of(
-                        "All Version 1 Features",
-                        "Procucev Verified Vendor Recommendations",
-                        "AI Proximity & Rating Matching",
-                        "Real-time Market Band Price Benchmarking",
-                        "Dedicated Account Concierge Support"
-                ))
-                .build());
+        // Index the buyer-facing rows that exist, keyed by catalogue tier.
+        Map<String, SubscriptionPlan> rowsByTier = new HashMap<>();
+        try {
+            if (subscriptionPlanDao != null) {
+                List<SubscriptionPlan> rows = subscriptionPlanDao.findAll();
+                if (rows != null) {
+                    for (SubscriptionPlan plan : rows) {
+                        if (plan.getPlanStatus() != null && "INACTIVE".equalsIgnoreCase(plan.getPlanStatus())) {
+                            continue;
+                        }
+                        if (!planAudience.isBuyerPlan(plan)) {
+                            continue;
+                        }
+                        SubscriptionPlanCatalogue.Entry match = planCatalogue.findBuyerEntry(plan.getPlanName());
+                        if (match != null) {
+                            rowsByTier.put(match.getCode(), plan);
+                        }
+                    }
+                }
+            }
+        } catch (Exception e) {
+            log.warn("Error loading buyer subscription plans: {}", e.getMessage());
+        }
 
-        plans.add(BuyerDashboardDto.SubscriptionPlanDto.builder()
-                .id("plan-v3")
-                .code("version_3")
-                .name("Version 3: Autonomous AI Sourcing")
-                .price("$1,299")
-                .period("/ month")
-                .description("Fully autonomous sourcing: AI RFQ generation, autonomous multi-round negotiation, and Mode 3 deep qualification.")
-                .isCurrent(false)
-                .remainingQuota(0)
-                .totalQuota(150)
-                .features(List.of(
-                        "All Version 2 Features",
-                        "Autonomous Multi-Round Vendor Negotiation",
-                        "Mode 3 Deep Vendor Qualification Scorecard",
-                        "ERP Integration (SAP / Oracle NetSuite)",
-                        "Zero-Touch Automated PO Awarding"
-                ))
-                .build());
+        for (SubscriptionPlanCatalogue.Entry entry : planCatalogue.getBuyerPlans()) {
+            SubscriptionPlan row = rowsByTier.get(entry.getCode());
+
+            boolean isCurrent = row != null && currentPlanId != null && currentPlanId.equals(row.getId());
+
+            String price = entry.getFallbackPrice();
+            String period = entry.getFallbackBilling();
+            if (row != null) {
+                double effectivePrice = row.getLaunchOfferPrice() > 0
+                        ? row.getLaunchOfferPrice()
+                        : row.getSubscriptionPrice();
+                if (effectivePrice > 0) {
+                    price = "INR " + String.format("%.2f", effectivePrice);
+                }
+                if (row.getSubscriptionPeriodMonths() > 0) {
+                    period = "per " + row.getSubscriptionPeriodMonths() + " months";
+                }
+            }
+
+            int quota = row != null ? row.getRfqBundleSize() : 0;
+
+            plans.add(BuyerDashboardDto.SubscriptionPlanDto.builder()
+                    // Only a real row yields a payable id.
+                    .id(row != null ? row.getId() : "")
+                    .code(entry.getSubtext())
+                    .name(entry.getName())
+                    .price(price)
+                    .period(period)
+                    .description(entry.getDescription())
+                    .isCurrent(isCurrent)
+                    .remainingQuota(isCurrent ? quota : 0)
+                    .totalQuota(quota)
+                    .features(entry.getFeatures())
+                    // All buyer tiers are presented as purchasable.
+                    .available(true)
+                    .priceNote(row != null ? planAudience.priceNote(row) : "")
+                    .build());
+        }
 
         return plans;
     }
+
+
+    private void addFeature(List<String> features, String flag, String label) {
+        if ("YES".equalsIgnoreCase(flag)) {
+            features.add(label);
+        }
+    }
+
 
     @Override
     public BuyerDashboardDto.CreateRfqResponseDto createRfq(BuyerDashboardDto.CreateRfqRequestDto request, String username) {

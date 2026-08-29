@@ -247,6 +247,10 @@ public class BuyerDashboardDto {
         private List<String> features;
         private int remainingQuota;
         private int totalQuota;
+        /** False when the plan is not yet launched and cannot be purchased. */
+        private boolean available;
+        /** Tax or convenience-charge qualifier taken from the plan name. */
+        private String priceNote;
     }
 
     @Data
