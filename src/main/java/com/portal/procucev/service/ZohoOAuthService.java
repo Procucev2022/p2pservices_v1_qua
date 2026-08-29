@@ -65,10 +65,33 @@ public class ZohoOAuthService {
         HttpEntity<MultiValueMap<String, String>> request =
                 new HttpEntity<>(body, headers);
 
-        ResponseEntity<ZohoTokenResponse> response =
-                restTemplate.postForEntity(tokenUrl, request, ZohoTokenResponse.class);
+        ZohoTokenResponse r;
+        try {
+            ResponseEntity<ZohoTokenResponse> response =
+                    restTemplate.postForEntity(tokenUrl, request, ZohoTokenResponse.class);
+            r = response.getBody();
+        } catch (Exception e) {
+            log.error("Zoho token refresh call failed: {}", e.getMessage(), e);
+            throw new IllegalStateException(
+                    "Could not reach the Zoho token service: " + e.getMessage(), e);
+        }
 
-        ZohoTokenResponse r = response.getBody();
+        if (r == null) {
+            throw new IllegalStateException("Zoho token service returned an empty response");
+        }
+
+        // Zoho answers a rejected refresh with HTTP 200 and an error body, so the
+        // failure has to be detected here. Without this the null token was saved
+        // and the stale one sent onward, surfacing later as an opaque 401.
+        if (r.getError() != null && !r.getError().isBlank()) {
+            log.error("Zoho rejected the token refresh: {}", r.getError());
+            throw new IllegalStateException(describeTokenError(r.getError()));
+        }
+
+        if (r.getAccessToken() == null || r.getAccessToken().isBlank()) {
+            throw new IllegalStateException(
+                    "Zoho did not return an access token. Check the Zoho payments credentials.");
+        }
 
         token.setAccessToken(r.getAccessToken());
         token.setExpiryTime(Instant.now().plusSeconds(r.getExpiresIn()));
@@ -76,8 +99,26 @@ public class ZohoOAuthService {
 
         repo.save(token);
 
-        log.info("Zoho access token refreshed");
+        log.info("Zoho access token refreshed, valid for {} seconds", r.getExpiresIn());
 
         return token.getAccessToken();
+    }
+
+    /** Turns a Zoho error code into a message that names the setting to fix. */
+    private String describeTokenError(String error) {
+        switch (error) {
+            case "invalid_client_secret":
+                return "Zoho rejected the client secret. Set ZOHO_CLIENT_SECRET to the secret "
+                        + "for client id " + clientId + " from the Zoho API Console.";
+            case "invalid_client":
+                return "Zoho rejected the client id. Check zoho.client.id and ZOHO_CLIENT_SECRET "
+                        + "belong to the same Zoho application.";
+            case "invalid_code":
+            case "invalid_grant":
+                return "The Zoho refresh token is no longer valid. Generate a new one and update "
+                        + "the zoho_oauth_token record.";
+            default:
+                return "Zoho token refresh failed: " + error;
+        }
     }
 }

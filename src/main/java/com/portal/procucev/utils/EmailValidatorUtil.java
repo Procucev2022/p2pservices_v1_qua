@@ -31,9 +31,7 @@ public class EmailValidatorUtil {
         }
 
         // 1. Format check
-        try {
-            new InternetAddress(email, true);
-        } catch (Exception e) {
+        if (!isFormatValid(email)) {
             invalidEmails.add(email);
             return;
         }
@@ -42,6 +40,31 @@ public class EmailValidatorUtil {
         if (!isDomainValid(email)) {
             invalidEmails.add(email);
         }
+    }
+
+    /**
+     * Syntax-only check, with no DNS lookup.
+     *
+     * Use this where a malformed address should be rejected but an
+     * undeliverable one should not block the operation, such as taking a
+     * payment where the user is redirected to the gateway in their browser
+     * and the receipt email is only a convenience.
+     */
+    public static boolean isFormatValid(String email) {
+        if (email == null || email.isBlank()) {
+            return false;
+        }
+        try {
+            new InternetAddress(email, true);
+            return true;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    /** True when the address is syntactically valid but its domain cannot receive mail. */
+    public static boolean isDeliverable(String email) {
+        return isFormatValid(email) && isDomainValid(email);
     }
 
     /**

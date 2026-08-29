@@ -12,8 +12,6 @@ import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Objects;
 
 @RestController
@@ -44,12 +42,17 @@ public class PaymentLinkController {
             throw new AppException("User email is required");
         }
 
-        List<String> invalidEmails = new ArrayList<>();
-        EmailValidatorUtil.validateEmail(request.getUserEmail(), invalidEmails);
+        // Only malformed addresses are rejected. An address on a domain that
+        // cannot receive mail is allowed through: checkout completes in the
+        // browser via the returned payment URL, so a missing receipt email must
+        // not stop the user from paying. The gap is logged for follow-up.
+        if (!EmailValidatorUtil.isFormatValid(request.getUserEmail())) {
+            throw new AppException("Invalid email address: " + request.getUserEmail());
+        }
 
-        if (!invalidEmails.isEmpty()) {
-            log.info("Invalid email found: {}", invalidEmails);
-            throw new AppException("Invalid email address: " + invalidEmails.get(0));
+        if (!EmailValidatorUtil.isDeliverable(request.getUserEmail())) {
+            log.warn("Payment link requested for undeliverable email {}. Proceeding, "
+                    + "but the Zoho notification will not arrive.", request.getUserEmail());
         }
 
         return paymentLinkService.createPaymentLink(request.getPlanId(), PhoneNumberUtils.normalize(request.getUserPhone()), request.getUserEmail(), redirectUrl+"/categorymgr/payment-success");
