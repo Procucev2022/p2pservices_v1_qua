@@ -557,6 +557,63 @@ public class BuyerDashboardServiceImpl implements BuyerDashboardService {
     }
 
 
+    /**
+     * Creates an RfqVendor invitation per targeted supplier.
+     *
+     * Each invitation must carry the vendor's organization, because the vendor
+     * opportunity feed selects from rfq_vendors by organization_uuid. A row
+     * saved without one is invisible to every vendor, so names that cannot be
+     * resolved to a registered organization are skipped and logged rather than
+     * written as an orphan.
+     */
+    private void attachVendorInvitations(Rfq rfq, List<String> vendorNames, String username) {
+        if (vendorNames == null || vendorNames.isEmpty()) {
+            log.warn("RFQ {} created with no targeted vendors; no supplier will see it",
+                    rfq.getRfqId());
+            return;
+        }
+        if (orgDao == null) {
+            log.warn("Organization lookup unavailable; cannot attach vendor invitations to {}",
+                    rfq.getRfqId());
+            return;
+        }
+
+        List<RfqVendor> invitations = new ArrayList<>();
+        List<String> unresolved = new ArrayList<>();
+
+        for (String name : vendorNames) {
+            if (name == null || name.isBlank()) {
+                continue;
+            }
+            Organization vendorOrg = null;
+            try {
+                vendorOrg = orgDao.findByCompanyName(name.trim());
+            } catch (Exception e) {
+                log.debug("Vendor organization lookup failed for '{}': {}", name, e.getMessage());
+            }
+
+            if (vendorOrg == null) {
+                unresolved.add(name);
+                continue;
+            }
+
+            RfqVendor invitation = new RfqVendor();
+            invitation.setOrganization(vendorOrg);
+            invitation.setRfqId(rfq.getRfqId());
+            invitation.setQuotationReceived(false);
+            invitation.setCreatedBy(username);
+            invitation.setCreatedTS(new java.util.Date());
+            invitations.add(invitation);
+        }
+
+        if (!unresolved.isEmpty()) {
+            log.warn("RFQ {}: {} targeted vendor(s) are not registered organizations and were "
+                    + "not invited: {}", rfq.getRfqId(), unresolved.size(), unresolved);
+        }
+
+        rfq.setRfqVendor(invitations);
+    }
+
     @Override
     public BuyerDashboardDto.CreateRfqResponseDto createRfq(BuyerDashboardDto.CreateRfqRequestDto request, String username) {
         try {
@@ -602,13 +659,19 @@ public class BuyerDashboardServiceImpl implements BuyerDashboardService {
             }
 
             if (rfqDao != null) {
+                // Vendor invitations must be persisted with the RFQ, otherwise the
+                // targeted suppliers never see it in their opportunity feed.
+                attachVendorInvitations(rfq, request.getTargetedVendorNames(), username);
+
                 Rfq saved = rfqDao.save(rfq);
+                int invited = saved.getRfqVendor() != null ? saved.getRfqVendor().size() : 0;
+
                 return BuyerDashboardDto.CreateRfqResponseDto.builder()
                         .id(saved.getId())
                         .rfqNumber(saved.getRfqId())
                         .sourcingStrategyMode(saved.getSourcingStrategyMode())
                         .status("Success")
-                        .message("RFQ created and sourcing strategy mode persisted successfully")
+                        .message("RFQ created and dispatched to " + invited + " vendor(s)")
                         .build();
             }
 

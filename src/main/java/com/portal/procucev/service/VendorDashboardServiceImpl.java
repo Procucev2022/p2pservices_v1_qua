@@ -220,9 +220,16 @@ public class VendorDashboardServiceImpl implements VendorDashboardService {
         return null;
     }
 
+    /**
+     * Days until the RFQ closes, or -1 when no closing date is recorded.
+     *
+     * Returning 0 for a missing date would render every such RFQ as closing
+     * today and trigger the urgent banner, so "unknown" is kept distinct from
+     * "closes today".
+     */
     private int daysUntil(Date closingDate) {
         if (closingDate == null) {
-            return 0;
+            return -1;
         }
         long diff = closingDate.getTime() - System.currentTimeMillis();
         if (diff <= 0) {
