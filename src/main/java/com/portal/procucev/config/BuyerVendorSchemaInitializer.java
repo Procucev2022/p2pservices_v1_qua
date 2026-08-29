@@ -105,9 +105,16 @@ public class BuyerVendorSchemaInitializer {
                     type_of_business VARCHAR(255),
                     vendor_group VARCHAR(255),
                     sourcing_scope VARCHAR(255) DEFAULT 'Client Only',
-                    ai_raw_response TEXT
+                    ai_raw_response TEXT,
+                    CONSTRAINT uk_buyer_vendor_ai_code UNIQUE (vendor_code, buyer_org_id)
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
             """);
+
+            try {
+                jdbcTemplate.execute("ALTER TABLE buyer_vendor_ai_profile ADD CONSTRAINT uk_buyer_vendor_ai_code UNIQUE (vendor_code, buyer_org_id)");
+            } catch (Exception alterEx) {
+                log.debug("AI profile unique constraint check note: {}", alterEx.getMessage());
+            }
 
             log.info("Buyer Vendor tables verified/created successfully.");
         } catch (Exception e) {

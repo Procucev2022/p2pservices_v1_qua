@@ -9,6 +9,7 @@ import com.portal.procucev.model.BuyerVendorAiProfile;
 import com.portal.procucev.rfq.client.GeminiApiClient;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -68,9 +69,15 @@ public class VendorAiProcessingServiceImpl implements VendorAiProcessingService 
                     type_of_business VARCHAR(255),
                     vendor_group VARCHAR(255),
                     sourcing_scope VARCHAR(255) DEFAULT 'Client Only',
-                    ai_raw_response TEXT
+                    ai_raw_response TEXT,
+                    CONSTRAINT uk_buyer_vendor_ai_code UNIQUE (vendor_code, buyer_org_id)
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
             """);
+            try {
+                jdbcTemplate.execute("ALTER TABLE buyer_vendor_ai_profile ADD CONSTRAINT uk_buyer_vendor_ai_code UNIQUE (vendor_code, buyer_org_id)");
+            } catch (Exception alterEx) {
+                log.debug("AI profile unique constraint check note: {}", alterEx.getMessage());
+            }
         } catch (Exception e) {
             log.warn("Table verification note: {}", e.getMessage());
         }
@@ -100,7 +107,19 @@ public class VendorAiProcessingServiceImpl implements VendorAiProcessingService 
                 results.add(aiProfileDao.save(toUpdate));
             } else {
                 profile.setCreatedBy(username);
-                results.add(aiProfileDao.save(profile));
+                try {
+                    results.add(aiProfileDao.save(profile));
+                } catch (DataIntegrityViolationException ex) {
+                    Optional<BuyerVendorAiProfile> raced = aiProfileDao.findByVendorCodeAndBuyerOrgId(profile.getVendorCode(), buyerOrgId);
+                    if (raced.isPresent()) {
+                        BuyerVendorAiProfile toUpdate = raced.get();
+                        copyFields(profile, toUpdate);
+                        toUpdate.setLastModifiedBy(username);
+                        results.add(aiProfileDao.save(toUpdate));
+                    } else {
+                        throw ex;
+                    }
+                }
             }
         }
         return results;
@@ -124,7 +143,11 @@ public class VendorAiProcessingServiceImpl implements VendorAiProcessingService 
         Optional<BuyerVendor> vendorOpt = buyerVendorDao.findByVendorCodeAndBuyerOrgId(vendorCode, buyerOrgId);
         if (vendorOpt.isPresent()) {
             BuyerVendorAiProfile profile = analyzeSingleVendor(vendorOpt.get(), buyerOrgId, "system-ai");
-            return Optional.of(aiProfileDao.save(profile));
+            try {
+                return Optional.of(aiProfileDao.save(profile));
+            } catch (DataIntegrityViolationException ex) {
+                return aiProfileDao.findByVendorCodeAndBuyerOrgId(vendorCode, buyerOrgId);
+            }
         }
 
         return Optional.empty();
@@ -209,21 +232,28 @@ public class VendorAiProcessingServiceImpl implements VendorAiProcessingService 
     }
 
     private void applyDeterministicQualification(BuyerVendorAiProfile profile, BuyerVendor vendor) {
-        boolean hasGstin = vendor.getGstin() != null && !vendor.getGstin().isBlank();
-        boolean hasPan = vendor.getPan() != null && !vendor.getPan().isBlank();
-        boolean hasPhone = vendor.getPhone1() != null && !vendor.getPhone1().isBlank();
+        String gstin = vendor.getGstin() == null ? "" : vendor.getGstin().trim().toUpperCase(Locale.ROOT);
+        String pan = vendor.getPan() == null ? "" : vendor.getPan().trim().toUpperCase(Locale.ROOT);
+        String phone = vendor.getPhone1() == null ? "" : vendor.getPhone1().trim();
+
+        boolean hasGstin = !gstin.isEmpty();
+        boolean hasPan = !pan.isEmpty();
+        boolean hasPhone = !phone.isEmpty();
         boolean hasAddress = vendor.getAddressLine() != null && !vendor.getAddressLine().isBlank();
         boolean hasCity = vendor.getCity() != null && !vendor.getCity().isBlank();
+        boolean gstinVerified = gstin.matches("^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[A-Z0-9]{3}$");
+        boolean panVerified = pan.matches("^[A-Z]{5}[0-9]{4}[A-Z]$");
+        boolean contactInfoVerified = phone.matches("^[0-9]{10}$");
 
-        profile.setGstinVerified(hasGstin);
-        profile.setPanVerified(hasPan);
+        profile.setGstinVerified(gstinVerified);
+        profile.setPanVerified(panVerified);
         profile.setCompanyInfoVerified(hasAddress && hasCity);
-        profile.setContactInfoVerified(hasPhone);
+        profile.setContactInfoVerified(contactInfoVerified);
 
         // Score Calculation based on actual data completeness (baseline 50, max 95)
         int score = 50;
-        if (hasGstin) score += 20;
-        if (hasPan) score += 10;
+        if (gstinVerified) score += 20;
+        if (panVerified) score += 10;
         if (hasPhone) score += 5;
         if (hasAddress && hasCity) score += 5;
         if (vendor.getTypeOfBusiness() != null && !vendor.getTypeOfBusiness().isBlank()) score += 3;
@@ -234,12 +264,12 @@ public class VendorAiProcessingServiceImpl implements VendorAiProcessingService 
         profile.setAiScore(score);
         profile.setFinancialStability(Math.min(score + 2, 95));
         profile.setOperationalScope(Math.max(score - 1, 40));
-        profile.setComplianceScore(hasGstin && hasPan ? 95 : (hasGstin || hasPan ? 75 : 60));
+        profile.setComplianceScore(gstinVerified && panVerified ? 95 : (gstinVerified || panVerified ? 75 : 60));
         profile.setSupplyReliability(score);
 
         if (score >= 85) {
             profile.setQualification("Qualified");
-            profile.setVerificationStatus(hasGstin && hasPan ? "100% Provided" : "80% Provided");
+            profile.setVerificationStatus(gstinVerified && panVerified ? "100% Provided" : "80% Provided");
             profile.setComplianceStatus("Compliant");
         } else if (score >= 70) {
             profile.setQualification("Pending");
@@ -279,6 +309,7 @@ public class VendorAiProcessingServiceImpl implements VendorAiProcessingService 
         dest.setCity(src.getCity());
         dest.setState(src.getState());
         dest.setPostalCode(src.getPostalCode());
+        dest.setCountry(src.getCountry());
         dest.setTypeOfBusiness(src.getTypeOfBusiness());
         dest.setVendorGroup(src.getVendorGroup());
         dest.setSourcingScope(src.getSourcingScope());

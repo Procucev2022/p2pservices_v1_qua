@@ -12,13 +12,10 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
-import org.springframework.dao.DataAccessException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
-import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.*;
 
@@ -35,9 +32,6 @@ class BuyerVendorServiceImplTest {
 
     @Mock
     private BuyerVendorAiProfileDao buyerVendorAiProfileDao;
-
-    @Mock
-    private JdbcTemplate jdbcTemplate;
 
     @InjectMocks
     private BuyerVendorServiceImpl service;
@@ -160,6 +154,7 @@ class BuyerVendorServiceImplTest {
         updatedData.setSourcingScope("Global");
 
         when(buyerVendorDao.findByIdAndBuyerOrgId("uuid-123", "ORG-999")).thenReturn(Optional.of(sampleVendor));
+        when(buyerVendorDao.findByVendorCodeAndBuyerOrgId("VND-001-NEW", "ORG-999")).thenReturn(Optional.empty());
         when(buyerVendorDao.save(any(BuyerVendor.class))).thenAnswer(i -> i.getArgument(0));
 
         BuyerVendor result = service.updateVendor("uuid-123", updatedData, "ORG-999");
@@ -167,6 +162,23 @@ class BuyerVendorServiceImplTest {
         assertEquals("Acme Updated", result.getVendorName());
         assertEquals("Pune", result.getCity());
         assertEquals("Global", result.getSourcingScope());
+    }
+
+    @Test
+    void testUpdateVendorDuplicateCodeThrowsException() {
+        BuyerVendor updatedData = new BuyerVendor();
+        updatedData.setVendorCode("VND-EXISTING");
+
+        BuyerVendor anotherVendor = new BuyerVendor();
+        anotherVendor.setId("uuid-999");
+        anotherVendor.setVendorCode("VND-EXISTING");
+
+        when(buyerVendorDao.findByIdAndBuyerOrgId("uuid-123", "ORG-999")).thenReturn(Optional.of(sampleVendor));
+        when(buyerVendorDao.findByVendorCodeAndBuyerOrgId("VND-EXISTING", "ORG-999")).thenReturn(Optional.of(anotherVendor));
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+                () -> service.updateVendor("uuid-123", updatedData, "ORG-999"));
+        assertTrue(ex.getMessage().contains("already exists"));
     }
 
     @Test
@@ -356,10 +368,13 @@ class BuyerVendorServiceImplTest {
 
         Map<String, Object> result = service.bulkCreateVendors(list, "ORG-999", "admin");
         assertNotNull(result);
-        assertEquals(3, result.get("savedCount")); // vDup1, vValid, vExistsException
+        assertEquals(2, result.get("savedCount")); // vDup1, vValid
         assertEquals(2, result.get("skippedCount")); // vDup2 (batch dup), vExistsInDb (db dup)
         assertEquals(11, result.get("totalCount"));
         verify(buyerVendorDao).saveAll(anyList());
+        @SuppressWarnings("unchecked")
+        List<String> errors = (List<String>) result.get("errors");
+        assertTrue(errors.stream().anyMatch(e -> e.contains("VND-007")));
 
         assertEquals("Active", vValid.getStatus());
         assertEquals("Client Only", vValid.getSourcingScope());
@@ -367,27 +382,5 @@ class BuyerVendorServiceImplTest {
         assertEquals("Pending", vDup1.getStatus());
         assertEquals("Global", vDup1.getSourcingScope());
         assertEquals("USA", vDup1.getCountry());
-    }
-
-    @Test
-    void testEnsureTableExistsAlterExceptionHandled() {
-        doAnswer(invocation -> {
-            String sql = invocation.getArgument(0);
-            if (sql.startsWith("ALTER TABLE")) {
-                throw new DataAccessException("Alter error") {};
-            }
-            return null;
-        }).when(jdbcTemplate).execute(anyString());
-
-        ReflectionTestUtils.invokeMethod(service, "ensureTableExists");
-    }
-
-    @Test
-    void testEnsureTableExistsExceptionHandled() {
-        doThrow(new RuntimeException("DB Connection failed")).when(jdbcTemplate).execute(anyString());
-        Pageable pageable = PageRequest.of(0, 10);
-        when(buyerVendorDao.findByBuyerOrgFiltered(any(), any(), any(), any(), any())).thenReturn(new PageImpl<>(List.of()));
-
-        assertDoesNotThrow(() -> service.getVendors("ORG-999", null, null, null, pageable));
     }
 }

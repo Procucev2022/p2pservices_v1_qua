@@ -21,17 +21,23 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
@@ -443,6 +449,49 @@ class BuyerVendorControllerTest {
 
         ResponseEntity<MessageResponse> response = controller.getVendors(null, null, null, 0, 10);
         assertEquals(HttpStatus.OK, response.getStatusCode());
+    }
+
+    @Test
+    void testGetLoggedInBuyerOrgIdIgnoresInactiveLatestUser() {
+        User latestInactive = new User();
+        latestInactive.setActive(false);
+        Organization wrongOrg = new Organization();
+        wrongOrg.setId("ORG-INACTIVE");
+        latestInactive.setOrg(wrongOrg);
+
+        User fallbackActive = new User();
+        fallbackActive.setActive(true);
+        fallbackActive.setOrg(sampleOrg);
+
+        when(userDao.findByLatestUserName("testuser")).thenReturn(latestInactive);
+        when(userDao.findByUsername("testuser")).thenReturn(List.of(fallbackActive));
+
+        Page<BuyerVendor> page = new PageImpl<>(List.of(sampleVendor));
+        when(buyerVendorService.getVendors(eq("ORG-123"), any(), any(), any(), any(Pageable.class))).thenReturn(page);
+
+        ResponseEntity<MessageResponse> response = controller.getVendors(null, null, null, 0, 10);
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+    }
+
+    @Test
+    void testBulkDeleteRouteMappings() throws Exception {
+        when(buyerVendorService.bulkDeleteVendors(anyList(), eq("ORG-123"))).thenReturn(0);
+        MockMvc mockMvc = MockMvcBuilders.standaloneSetup(controller).build();
+
+        mockMvc.perform(delete("/rest/buyer/vendors/bulk")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("[]"))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(delete("/rest/buyer/vendors/bulk-delete")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("[]"))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/rest/buyer/vendors/bulk-delete")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("[]"))
+                .andExpect(status().isOk());
     }
 
     @Test

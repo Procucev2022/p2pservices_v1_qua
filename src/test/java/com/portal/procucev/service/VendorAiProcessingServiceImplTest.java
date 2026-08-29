@@ -13,6 +13,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.util.ReflectionTestUtils;
 
@@ -117,6 +118,7 @@ class VendorAiProcessingServiceImplTest {
         BuyerVendorAiProfile existingProfile = new BuyerVendorAiProfile();
         existingProfile.setVendorCode("VND-HIGH");
         existingProfile.setBuyerOrgId("ORG-1");
+        existingProfile.setCountry("OLD");
 
         when(aiProfileDao.findByVendorCodeAndBuyerOrgId("VND-HIGH", "ORG-1")).thenReturn(Optional.of(existingProfile));
         when(aiProfileDao.findByVendorCodeAndBuyerOrgId("VND-MED", "ORG-1")).thenReturn(Optional.empty());
@@ -137,6 +139,7 @@ class VendorAiProcessingServiceImplTest {
         assertEquals("100% Provided", profile1.getVerificationStatus());
         assertTrue(profile1.isGstinVerified());
         assertTrue(profile1.isPanVerified());
+        assertEquals("India", profile1.getCountry());
         assertEquals("admin", profile1.getLastModifiedBy());
 
         BuyerVendorAiProfile profile2 = results.get(1);
@@ -294,6 +297,41 @@ class VendorAiProcessingServiceImplTest {
         assertTrue(res.isPresent());
         assertEquals("VND-HIGH", res.get().getVendorCode());
         assertEquals("IT & Software", res.get().getIndustry());
+    }
+
+    @Test
+    void testGetVendorAiProfileHandlesConcurrentCreateRace() throws Exception {
+        when(aiProfileDao.findByVendorCodeAndBuyerOrgId("VND-HIGH", "ORG-1"))
+                .thenReturn(Optional.empty())
+                .thenReturn(Optional.of(new BuyerVendorAiProfile()));
+        when(buyerVendorDao.findByVendorCodeAndBuyerOrgId("VND-HIGH", "ORG-1")).thenReturn(Optional.of(vendorHighQuality));
+        when(geminiApiClient.generateContent(anyString(), anyList(), any())).thenReturn("{\"industry\":\"IT\",\"category\":\"Infra\"}");
+        when(aiProfileDao.save(any(BuyerVendorAiProfile.class))).thenThrow(new DataIntegrityViolationException("duplicate"));
+
+        Optional<BuyerVendorAiProfile> res = service.getVendorAiProfile("VND-HIGH", "ORG-1");
+        assertTrue(res.isPresent());
+    }
+
+    @Test
+    void testDeterministicQualificationUsesFormatValidationForVerifiedFlags() throws Exception {
+        BuyerVendor invalidIdentity = new BuyerVendor();
+        invalidIdentity.setVendorCode("VND-BAD");
+        invalidIdentity.setVendorName("Bad Identity");
+        invalidIdentity.setGstin("INVALID");
+        invalidIdentity.setPan("NOTPAN");
+        invalidIdentity.setPhone1("abcd123");
+        invalidIdentity.setAddressLine("Line 1");
+        invalidIdentity.setCity("Pune");
+
+        when(geminiApiClient.generateContent(anyString(), anyList(), any())).thenReturn("{\"industry\":\"Gen\",\"category\":\"Cat\"}");
+        when(aiProfileDao.findByVendorCodeAndBuyerOrgId(anyString(), anyString())).thenReturn(Optional.empty());
+        when(aiProfileDao.save(any(BuyerVendorAiProfile.class))).thenAnswer(i -> i.getArgument(0));
+
+        List<BuyerVendorAiProfile> profiles = service.processVendorsWithAi(List.of(invalidIdentity), "ORG-1", "admin");
+        BuyerVendorAiProfile profile = profiles.get(0);
+        assertFalse(profile.isGstinVerified());
+        assertFalse(profile.isPanVerified());
+        assertFalse(profile.isContactInfoVerified());
     }
 
     @Test

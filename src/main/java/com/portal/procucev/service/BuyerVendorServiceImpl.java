@@ -5,7 +5,6 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
 import com.portal.procucev.dao.BuyerVendorAiProfileDao;
@@ -16,6 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 
 @Service
@@ -29,105 +29,8 @@ public class BuyerVendorServiceImpl implements BuyerVendorService {
     @Autowired
     private BuyerVendorAiProfileDao buyerVendorAiProfileDao;
 
-    @Autowired
-    private JdbcTemplate jdbcTemplate;
-
-
-    private void ensureTableExists() {
-        try {
-            jdbcTemplate.execute("""
-                CREATE TABLE IF NOT EXISTS buyer_vendor (
-                    uuid VARCHAR(255) NOT NULL PRIMARY KEY,
-                    created_by VARCHAR(255),
-                    last_modified_by VARCHAR(255),
-                    created_ts DATETIME,
-                    last_modified_ts DATETIME,
-                    vendor_code VARCHAR(255) NOT NULL,
-                    vendor_name VARCHAR(255) NOT NULL,
-                    search_term VARCHAR(255),
-                    pan VARCHAR(50),
-                    gstin VARCHAR(50),
-                    country VARCHAR(100) DEFAULT 'IN',
-                    region_code VARCHAR(255),
-                    address_line VARCHAR(255),
-                    city VARCHAR(255),
-                    district VARCHAR(255),
-                    postal_code VARCHAR(50),
-                    phone_1 VARCHAR(50),
-                    phone_2 VARCHAR(50),
-                    type_of_business VARCHAR(255),
-                    type_of_industry VARCHAR(255),
-                    vendor_group VARCHAR(255),
-                    status VARCHAR(255) NOT NULL DEFAULT 'Active',
-                    sourcing_scope VARCHAR(255) DEFAULT 'Client Only',
-                    buyer_org_id VARCHAR(255) NOT NULL,
-                    CONSTRAINT uk_buyer_vendor_code UNIQUE (vendor_code, buyer_org_id)
-                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
-            """);
-
-            try {
-                jdbcTemplate.execute("ALTER TABLE buyer_vendor MODIFY COLUMN region_code VARCHAR(255)");
-                jdbcTemplate.execute("ALTER TABLE buyer_vendor MODIFY COLUMN country VARCHAR(100)");
-                jdbcTemplate.execute("ALTER TABLE buyer_vendor MODIFY COLUMN postal_code VARCHAR(50)");
-                jdbcTemplate.execute("ALTER TABLE buyer_vendor MODIFY COLUMN pan VARCHAR(50)");
-                jdbcTemplate.execute("ALTER TABLE buyer_vendor MODIFY COLUMN gstin VARCHAR(50)");
-                jdbcTemplate.execute("ALTER TABLE buyer_vendor MODIFY COLUMN phone_1 VARCHAR(50)");
-                jdbcTemplate.execute("ALTER TABLE buyer_vendor MODIFY COLUMN phone_2 VARCHAR(50)");
-            } catch (Exception alterEx) {
-                log.debug("Column alter check note: {}", alterEx.getMessage());
-            }
-
-            jdbcTemplate.execute("""
-                CREATE TABLE IF NOT EXISTS buyer_vendor_ai_profile (
-                    uuid VARCHAR(255) NOT NULL PRIMARY KEY,
-                    created_by VARCHAR(255),
-                    last_modified_by VARCHAR(255),
-                    created_ts DATETIME,
-                    last_modified_ts DATETIME,
-                    vendor_code VARCHAR(255) NOT NULL,
-                    vendor_name VARCHAR(255) NOT NULL,
-                    buyer_org_id VARCHAR(255) NOT NULL,
-                    industry VARCHAR(255),
-                    category VARCHAR(255),
-                    sub_categories_json TEXT,
-                    capabilities_json TEXT,
-                    suitable_categories_json TEXT,
-                    gstin VARCHAR(255),
-                    pan VARCHAR(255),
-                    gstin_verified TINYINT(1) DEFAULT 1,
-                    pan_verified TINYINT(1) DEFAULT 1,
-                    company_info_verified TINYINT(1) DEFAULT 1,
-                    contact_info_verified TINYINT(1) DEFAULT 1,
-                    qualification VARCHAR(50) DEFAULT 'Qualified',
-                    ai_score INT DEFAULT 90,
-                    financial_stability INT DEFAULT 90,
-                    operational_scope INT DEFAULT 90,
-                    compliance_score INT DEFAULT 95,
-                    supply_reliability INT DEFAULT 88,
-                    verification_status VARCHAR(100) DEFAULT '100% Verified',
-                    compliance_status VARCHAR(100) DEFAULT 'Fully Compliant',
-                    phone_1 VARCHAR(50),
-                    phone_2 VARCHAR(50),
-                    email VARCHAR(255),
-                    address_line VARCHAR(255),
-                    city VARCHAR(100),
-                    state VARCHAR(100),
-                    postal_code VARCHAR(50),
-                    country VARCHAR(100) DEFAULT 'India',
-                    type_of_business VARCHAR(255),
-                    vendor_group VARCHAR(255),
-                    sourcing_scope VARCHAR(255) DEFAULT 'Client Only',
-                    ai_raw_response TEXT
-                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
-            """);
-        } catch (Exception e) {
-            log.warn("Table verification note: {}", e.getMessage());
-        }
-    }
-
     @Override
     public Page<BuyerVendor> getVendors(String buyerOrgId, String status, String industry, String search, Pageable pageable) {
-        ensureTableExists();
         String statusParam = (status != null && !status.isEmpty()) ? status : null;
         String industryParam = (industry != null && !industry.isEmpty()) ? industry : null;
         String searchParam = (search != null && !search.isEmpty()) ? search : null;
@@ -136,7 +39,6 @@ public class BuyerVendorServiceImpl implements BuyerVendorService {
 
     @Override
     public BuyerVendor createVendor(BuyerVendor vendor) {
-        ensureTableExists();
         if (buyerVendorDao.existsByVendorCodeAndBuyerOrgId(vendor.getVendorCode(), vendor.getBuyerOrgId())) {
             throw new IllegalArgumentException("Vendor code '" + vendor.getVendorCode() + "' already exists for this organization");
         }
@@ -145,7 +47,6 @@ public class BuyerVendorServiceImpl implements BuyerVendorService {
 
     @Override
     public Optional<BuyerVendor> getVendorById(String idOrCode, String buyerOrgId) {
-        ensureTableExists();
         // First try by database UUID primary key
         Optional<BuyerVendor> byId = buyerVendorDao.findByIdAndBuyerOrgId(idOrCode, buyerOrgId);
         if (byId.isPresent()) {
@@ -157,13 +58,19 @@ public class BuyerVendorServiceImpl implements BuyerVendorService {
 
     @Override
     public BuyerVendor updateVendor(String idOrCode, BuyerVendor vendor, String buyerOrgId) {
-        ensureTableExists();
         Optional<BuyerVendor> existing = getVendorById(idOrCode, buyerOrgId);
         if (existing.isEmpty()) {
             throw new IllegalArgumentException("Vendor not found");
         }
         BuyerVendor entity = existing.get();
-        entity.setVendorCode(vendor.getVendorCode());
+        String requestedCode = vendor.getVendorCode();
+        if (!Objects.equals(entity.getVendorCode(), requestedCode)) {
+            Optional<BuyerVendor> codeOwner = buyerVendorDao.findByVendorCodeAndBuyerOrgId(requestedCode, buyerOrgId);
+            if (codeOwner.isPresent() && !Objects.equals(codeOwner.get().getId(), entity.getId())) {
+                throw new IllegalArgumentException("Vendor code '" + requestedCode + "' already exists for this organization");
+            }
+        }
+        entity.setVendorCode(requestedCode);
         entity.setVendorName(vendor.getVendorName());
         entity.setSearchTerm(vendor.getSearchTerm());
         entity.setPan(vendor.getPan());
@@ -185,7 +92,6 @@ public class BuyerVendorServiceImpl implements BuyerVendorService {
 
     @Override
     public boolean updateStatus(String idOrCode, String buyerOrgId, String status) {
-        ensureTableExists();
         Optional<BuyerVendor> vendorOpt = getVendorById(idOrCode, buyerOrgId);
         if (vendorOpt.isPresent()) {
             BuyerVendor v = vendorOpt.get();
@@ -199,7 +105,6 @@ public class BuyerVendorServiceImpl implements BuyerVendorService {
     @Override
     @Transactional
     public boolean deleteVendor(String idOrCode, String buyerOrgId) {
-        ensureTableExists();
         if (idOrCode == null || idOrCode.trim().isEmpty()) {
             return false;
         }
@@ -257,7 +162,6 @@ public class BuyerVendorServiceImpl implements BuyerVendorService {
     @Override
     @Transactional
     public int bulkDeleteVendors(java.util.List<String> idsOrCodes, String buyerOrgId) {
-        ensureTableExists();
         if (idsOrCodes == null || idsOrCodes.isEmpty()) {
             return 0;
         }
@@ -278,7 +182,6 @@ public class BuyerVendorServiceImpl implements BuyerVendorService {
     @Override
 
     public java.util.Map<String, Object> bulkCreateVendors(java.util.List<BuyerVendor> vendors, String buyerOrgId, String createdBy) {
-        ensureTableExists();
         java.util.List<BuyerVendor> toSave = new java.util.ArrayList<>();
         java.util.List<String> skippedCodes = new java.util.ArrayList<>();
         java.util.List<String> errors = new java.util.ArrayList<>();
@@ -338,8 +241,8 @@ public class BuyerVendorServiceImpl implements BuyerVendorService {
                     toSave.add(v);
                 }
             } catch (Exception ex) {
-                log.warn("Check exists failed: {}, attempting save", ex.getMessage());
-                toSave.add(v);
+                log.warn("Check exists failed for vendor code {}: {}", rawCode, ex.getMessage());
+                errors.add("Vendor '" + rawCode + "' could not be checked for duplicates and was skipped.");
             }
         }
 

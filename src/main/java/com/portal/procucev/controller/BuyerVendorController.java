@@ -332,9 +332,17 @@ public class BuyerVendorController {
      * DELETE /rest/buyer/vendors/bulk
      * DELETE /rest/buyer/vendors/bulk-delete
      */
-    @RequestMapping(value = {"/bulk-delete"}, method = {RequestMethod.POST, RequestMethod.DELETE})
-    @DeleteMapping("/bulk")
+    @DeleteMapping({"/bulk", "/bulk-delete"})
     public ResponseEntity<MessageResponse> bulkDeleteVendors(@RequestBody(required = false) Object payload) {
+        return handleBulkDelete(payload);
+    }
+
+    @PostMapping("/bulk-delete")
+    public ResponseEntity<MessageResponse> bulkDeleteVendorsLegacyPost(@RequestBody(required = false) Object payload) {
+        return handleBulkDelete(payload);
+    }
+
+    private ResponseEntity<MessageResponse> handleBulkDelete(Object payload) {
         try {
             String buyerOrgId = getLoggedInBuyerOrgId();
             List<String> idsOrCodes = new java.util.ArrayList<>();
@@ -377,7 +385,7 @@ public class BuyerVendorController {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         String username = auth.getName();
         User user = userDao.findByLatestUserName(username);
-        if (user != null && user.getOrg() != null) {
+        if (user != null && user.isActive() && user.getOrg() != null) {
             return user.getOrg().getId();
         }
         List<User> users = userDao.findByUsername(username);

@@ -7,9 +7,13 @@ import lombok.EqualsAndHashCode;
 @Data
 @EqualsAndHashCode(callSuper = true)
 @Entity
-@Table(name = "buyer_vendor_ai_profile", indexes = {
-    @Index(name = "idx_ai_buyer_vendor", columnList = "vendor_code, buyer_org_id")
-})
+@Table(
+    name = "buyer_vendor_ai_profile",
+    uniqueConstraints = @UniqueConstraint(name = "uk_buyer_vendor_ai_code", columnNames = {"vendor_code", "buyer_org_id"}),
+    indexes = {
+        @Index(name = "idx_ai_buyer_vendor", columnList = "vendor_code, buyer_org_id")
+    }
+)
 public class BuyerVendorAiProfile extends Procucev {
 
     private static final long serialVersionUID = 1L;

@@ -1,6 +1,7 @@
 package com.portal.procucev.rfq;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.portal.procucev.rfq.client.GeminiApiClient;
 import com.portal.procucev.rfq.exception.ApplicationException;
 import com.portal.procucev.rfq.model.InlineImage;
@@ -432,5 +433,37 @@ public class GeminiApiClientTest {
         Mockito.when(restTemplate.postForEntity(anyString(), any(), eq(String.class)))
                 .thenReturn(new ResponseEntity<>(nonArrayCandidates, HttpStatus.OK));
         assertThrows(ApplicationException.class, () -> client.generateContent("prompt"));
+    }
+
+    @Test
+    @DisplayName("Test request body includes responseSchema when provided")
+    void testGenerateContentIncludesResponseSchemaInRequestBody() throws Exception {
+        String okResponse = "{\"candidates\": [{\"content\": {\"parts\": [{\"text\": \"OK\"}]}}]}";
+        org.mockito.ArgumentCaptor<org.springframework.http.HttpEntity<String>> entityCaptor =
+                org.mockito.ArgumentCaptor.forClass(org.springframework.http.HttpEntity.class);
+
+        Mockito.when(restTemplate.postForEntity(anyString(), entityCaptor.capture(), eq(String.class)))
+                .thenReturn(new ResponseEntity<>(okResponse, HttpStatus.OK));
+
+        client.generateContent("Prompt", List.of(), GeminiApiClient.getVendorCategorizationSchema());
+
+        JsonNode requestJson = objectMapper.readTree(entityCaptor.getValue().getBody());
+        assertTrue(requestJson.path("generationConfig").has("responseSchema"));
+    }
+
+    @Test
+    @DisplayName("Test request body omits responseSchema when null")
+    void testGenerateContentOmitsResponseSchemaWhenNull() throws Exception {
+        String okResponse = "{\"candidates\": [{\"content\": {\"parts\": [{\"text\": \"OK\"}]}}]}";
+        org.mockito.ArgumentCaptor<org.springframework.http.HttpEntity<String>> entityCaptor =
+                org.mockito.ArgumentCaptor.forClass(org.springframework.http.HttpEntity.class);
+
+        Mockito.when(restTemplate.postForEntity(anyString(), entityCaptor.capture(), eq(String.class)))
+                .thenReturn(new ResponseEntity<>(okResponse, HttpStatus.OK));
+
+        client.generateContent("Prompt", List.of(), null);
+
+        JsonNode requestJson = objectMapper.readTree(entityCaptor.getValue().getBody());
+        assertFalse(requestJson.path("generationConfig").has("responseSchema"));
     }
 }
