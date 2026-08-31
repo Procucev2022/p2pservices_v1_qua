@@ -182,6 +182,45 @@ class BuyerVendorServiceImplTest {
     }
 
     @Test
+    void testUpdateVendorSameCodeSkipsDuplicateCheck() {
+        BuyerVendor updatedData = new BuyerVendor();
+        updatedData.setVendorCode("VND-001");
+        updatedData.setVendorName("Acme Renamed");
+        updatedData.setCity("Nagpur");
+
+        when(buyerVendorDao.findByIdAndBuyerOrgId("uuid-123", "ORG-999")).thenReturn(Optional.of(sampleVendor));
+        when(buyerVendorDao.save(any(BuyerVendor.class))).thenAnswer(i -> i.getArgument(0));
+
+        BuyerVendor result = service.updateVendor("uuid-123", updatedData, "ORG-999");
+
+        assertEquals("Acme Renamed", result.getVendorName());
+        assertEquals("Nagpur", result.getCity());
+        verify(buyerVendorDao, never()).findByVendorCodeAndBuyerOrgId("VND-001", "ORG-999");
+    }
+
+    @Test
+    void testUpdateVendorNewCodeOwnedBySameEntityIsAllowed() {
+        BuyerVendor updatedData = new BuyerVendor();
+        updatedData.setVendorCode("VND-001-ALIAS");
+        updatedData.setVendorName("Acme Alias");
+
+        // Code lookup resolves to the very same record being updated -> no conflict
+        BuyerVendor selfOwner = new BuyerVendor();
+        selfOwner.setId("uuid-123");
+        selfOwner.setVendorCode("VND-001-ALIAS");
+
+        when(buyerVendorDao.findByIdAndBuyerOrgId("uuid-123", "ORG-999")).thenReturn(Optional.of(sampleVendor));
+        when(buyerVendorDao.findByVendorCodeAndBuyerOrgId("VND-001-ALIAS", "ORG-999")).thenReturn(Optional.of(selfOwner));
+        when(buyerVendorDao.save(any(BuyerVendor.class))).thenAnswer(i -> i.getArgument(0));
+
+        BuyerVendor result = service.updateVendor("uuid-123", updatedData, "ORG-999");
+
+        assertEquals("VND-001-ALIAS", result.getVendorCode());
+        assertEquals("Acme Alias", result.getVendorName());
+        verify(buyerVendorDao).save(sampleVendor);
+    }
+
+    @Test
     void testUpdateVendorNotFound() {
         when(buyerVendorDao.findByIdAndBuyerOrgId("unknown", "ORG-999")).thenReturn(Optional.empty());
         when(buyerVendorDao.findByVendorCodeAndBuyerOrgId("unknown", "ORG-999")).thenReturn(Optional.empty());
@@ -297,6 +336,46 @@ class BuyerVendorServiceImplTest {
 
         Map<String, Object> resEmpty = service.bulkCreateVendors(List.of(), "ORG-999", "admin");
         assertEquals(0, resEmpty.get("savedCount"));
+    }
+
+    @Test
+    void testBulkCreateVendorsAppliesDefaultsForBlankValues() {
+        BuyerVendor vBlankDefaults = new BuyerVendor();
+        vBlankDefaults.setVendorCode("VND-100");
+        vBlankDefaults.setVendorName("Blank Defaults Vendor");
+        vBlankDefaults.setPhone1("9876543210");
+        vBlankDefaults.setStatus("   ");
+        vBlankDefaults.setSourcingScope("  ");
+        vBlankDefaults.setCountry(" ");
+
+        when(buyerVendorDao.existsByVendorCodeAndBuyerOrgId("VND-100", "ORG-999")).thenReturn(false);
+
+        Map<String, Object> result = service.bulkCreateVendors(List.of(vBlankDefaults), "ORG-999", "admin");
+
+        assertEquals(1, result.get("savedCount"));
+        assertEquals("Active", vBlankDefaults.getStatus());
+        assertEquals("Client Only", vBlankDefaults.getSourcingScope());
+        assertEquals("IN", vBlankDefaults.getCountry());
+        assertEquals("ORG-999", vBlankDefaults.getBuyerOrgId());
+        assertEquals("admin", vBlankDefaults.getCreatedBy());
+        verify(buyerVendorDao).saveAll(anyList());
+    }
+
+    @Test
+    void testBulkCreateVendorsSkipsSaveAllWhenNothingToSave() {
+        BuyerVendor vAlreadyExists = new BuyerVendor();
+        vAlreadyExists.setVendorCode("VND-200");
+        vAlreadyExists.setVendorName("Already Present Vendor");
+        vAlreadyExists.setPhone1("9876543210");
+
+        when(buyerVendorDao.existsByVendorCodeAndBuyerOrgId("VND-200", "ORG-999")).thenReturn(true);
+
+        Map<String, Object> result = service.bulkCreateVendors(List.of(vAlreadyExists), "ORG-999", "admin");
+
+        assertEquals(0, result.get("savedCount"));
+        assertEquals(1, result.get("skippedCount"));
+        assertEquals(1, result.get("totalCount"));
+        verify(buyerVendorDao, never()).saveAll(anyList());
     }
 
     @Test
