@@ -37,6 +37,14 @@ public class AnalyticsController {
         return ResponseEntity.ok(analyticsService.getFunnelStageDetails(type, stage, q));
     }
 
+    @GetMapping("/funnel/dropoff")
+    public ResponseEntity<Map<String, Object>> getFunnelDropoffDetails(
+            @RequestParam(defaultValue = "buyer") String type,
+            @RequestParam(defaultValue = "2") Integer stage,
+            @RequestParam(required = false, defaultValue = "") String q) {
+        return ResponseEntity.ok(analyticsService.getFunnelDropoffDetails(type, stage, q));
+    }
+
     @GetMapping("/calendar")
     public ResponseEntity<Map<String, Object>> getCalendarData(
             @RequestParam(required = false) Integer year,

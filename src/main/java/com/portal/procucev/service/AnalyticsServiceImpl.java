@@ -98,8 +98,19 @@ public class AnalyticsServiceImpl implements AnalyticsService {
             int sellerPrev = queryForInt("SELECT count(*) FROM organization WHERE (org_type_uuid = '3003' OR client_vendor = 1) AND created_ts >= DATE_SUB(NOW(), INTERVAL 60 DAY) AND created_ts < DATE_SUB(NOW(), INTERVAL 30 DAY)");
 
             int totalUsers = queryForInt("SELECT count(*) FROM user");
-            int activeBuyers = queryForInt("SELECT count(*) FROM user WHERE is_active = 1");
-            int inactiveBuyers = Math.max(0, totalUsers - activeBuyers);
+            int activeBuyers = queryForInt(
+                "SELECT count(DISTINCT o.uuid) FROM organization o " +
+                "JOIN user u ON (o.uuid = u.org_uuid OR o.uuid = u.org) " +
+                "WHERE (o.org_type_uuid = '3001' OR o.client_vendor = 0) AND u.is_active = 1"
+            );
+            if (activeBuyers == 0) {
+                activeBuyers = queryForInt("SELECT count(*) FROM user WHERE is_active = 1");
+            }
+            if (activeBuyers > totalBuyers) {
+                activeBuyers = totalBuyers;
+            }
+            int inactiveBuyers = Math.max(0, totalBuyers - activeBuyers);
+
             int inactiveRecent = queryForInt("SELECT count(*) FROM user WHERE (is_active = 0 OR is_active IS NULL) AND created_ts >= DATE_SUB(NOW(), INTERVAL 30 DAY)");
             int inactivePrev = queryForInt("SELECT count(*) FROM user WHERE (is_active = 0 OR is_active IS NULL) AND created_ts >= DATE_SUB(NOW(), INTERVAL 60 DAY) AND created_ts < DATE_SUB(NOW(), INTERVAL 30 DAY)");
 
@@ -136,10 +147,6 @@ public class AnalyticsServiceImpl implements AnalyticsService {
             );
             if (rfqsWithin48h < rfqsWithin24h) {
                 rfqsWithin48h = rfqsWithin24h;
-            }
-            if (rfqsWithQuotes > 0 && rfqsWithin48h == 0) {
-                rfqsWithin24h = (int) Math.round(rfqsWithQuotes * 0.6);
-                rfqsWithin48h = (int) Math.round(rfqsWithQuotes * 0.85);
             }
             int pendingRfqs = rfqsWithoutQuotes;
 
@@ -224,7 +231,8 @@ public class AnalyticsServiceImpl implements AnalyticsService {
             metrics.put("totalBuyers", Map.of("value", totalBuyers, "change", buyerGrowth.get("change"), "isPositive", buyerGrowth.get("isPositive")));
             metrics.put("totalSellers", Map.of("value", totalSellers, "change", sellerGrowth.get("change"), "isPositive", sellerGrowth.get("isPositive")));
             metrics.put("activeBuyers", Map.of("value", activeBuyers, "percentOfTotal", activePercent + "% of Total"));
-            metrics.put("inactiveBuyers", Map.of("value", inactiveBuyers, "change", inactiveGrowth.get("change")));
+            int inactivePercent = Math.max(0, 100 - activePercent);
+            metrics.put("inactiveBuyers", Map.of("value", inactiveBuyers, "percentOfTotal", inactivePercent + "% of Total", "change", inactivePercent + "% of Total"));
             metrics.put("totalRfqs", Map.of("value", totalRfqs, "change", rfqGrowth.get("change"), "isPositive", rfqGrowth.get("isPositive")));
             metrics.put("rfqsWithQuotes", Map.of("value", rfqsWithQuotes, "tag", totalRfqs > 0 ? (Math.round(((double) rfqsWithQuotes / totalRfqs) * 100) + "% Quoted") : "0% Quoted", "isPositive", true));
             metrics.put("sellerSubmissions", Map.of("value", totalSellerSubmissions, "change", submissionGrowth.get("change"), "isPositive", submissionGrowth.get("isPositive")));
@@ -407,23 +415,32 @@ public class AnalyticsServiceImpl implements AnalyticsService {
                 int totalSellers = queryForInt("SELECT count(*) FROM organization WHERE org_type_uuid = '3003' OR client_vendor = 1");
                 int categoryLinked = queryForInt(
                     "SELECT count(DISTINCT o.uuid) FROM organization o " +
+                    "LEFT JOIN org_division_category odc ON odc.organization_id = o.uuid " +
+                    "LEFT JOIN vendor_catalogue vc ON vc.org_uuid = o.uuid " +
                     "WHERE (o.org_type_uuid = '3003' OR o.client_vendor = 1) " +
-                    "AND (o.uuid IN (SELECT DISTINCT organization_id FROM org_division_category WHERE category IS NOT NULL AND category != '') " +
-                    "     OR (o.vendorcategory IS NOT NULL AND o.vendorcategory != '') " +
-                    "     OR o.uuid IN (SELECT DISTINCT org_id FROM vendor_catalogue WHERE category IS NOT NULL AND category != ''))"
+                    "AND (odc.category IS NOT NULL OR o.vendorcategory IS NOT NULL OR vc.material_description IS NOT NULL)"
                 );
-                if (categoryLinked == 0) {
-                    categoryLinked = queryForInt("SELECT count(DISTINCT vendor_uuid) FROM gmt_rfq_vendors");
-                }
                 categoryLinked = Math.min(totalSellers, categoryLinked);
 
-                int quoted = queryForInt("SELECT count(distinct vendor_uuid) FROM gmt_rfq_vendors WHERE quote_submitted_date IS NOT NULL");
-                int subs = queryForInt("SELECT count(*) FROM organization WHERE subscription_plan_uuid IS NOT NULL OR bfs_name IS NOT NULL");
-                subs = Math.min(quoted, subs);
+                int quoted = queryForInt(
+                    "SELECT count(DISTINCT o.uuid) FROM organization o " +
+                    "JOIN gmt_rfq_vendors v ON (o.uuid = v.vendor_uuid OR o.organization_name = v.vendor_name) " +
+                    "WHERE v.quote_submitted_date IS NOT NULL AND (o.org_type_uuid = '3003' OR o.client_vendor = 1)"
+                );
+                if (quoted == 0) {
+                    quoted = queryForInt("SELECT count(DISTINCT vendor_uuid) FROM gmt_rfq_vendors WHERE quote_submitted_date IS NOT NULL");
+                }
+                quoted = Math.min(totalSellers, quoted);
+
+                int subs = queryForInt(
+                    "SELECT count(DISTINCT o.uuid) FROM organization o " +
+                    "WHERE (o.org_type_uuid = '3003' OR o.client_vendor = 1) AND (o.subscription_plan_uuid IS NOT NULL OR o.bfs_name IS NOT NULL)"
+                );
+                subs = Math.min(totalSellers, subs);
 
                 int depletedCreditSellers = queryForInt(
-                    "SELECT count(*) FROM organization " +
-                    "WHERE (org_type_uuid = '3003' OR client_vendor = 1) AND (rfq_credits <= 0 OR rfq_credits IS NULL)"
+                    "SELECT count(DISTINCT o.uuid) FROM organization o " +
+                    "WHERE (o.org_type_uuid = '3003' OR o.client_vendor = 1) AND (o.rfq_credits <= 0 OR o.rfq_credits IS NULL)"
                 );
 
                 int drop1 = Math.max(0, totalSellers - categoryLinked);
@@ -448,8 +465,17 @@ public class AnalyticsServiceImpl implements AnalyticsService {
             } else {
                 int totalUsers = queryForInt("SELECT count(*) FROM user");
                 int active = queryForInt("SELECT count(*) FROM user WHERE is_active = 1");
-                int rfqUsers = queryForInt("SELECT count(distinct user) FROM rfq_header");
-                int repeat = queryForInt("SELECT count(*) FROM (SELECT user, count(*) as cnt FROM rfq_header GROUP BY user HAVING cnt > 1) as t");
+                int rfqUsers = queryForInt(
+                    "SELECT count(DISTINCT u.uuid) FROM user u " +
+                    "JOIN rfq_header r ON (u.uuid = r.user OR u.username = r.user)"
+                );
+                int repeat = queryForInt(
+                    "SELECT count(*) FROM (" +
+                    "  SELECT u.uuid FROM user u " +
+                    "  JOIN rfq_header r ON (u.uuid = r.user OR u.username = r.user) " +
+                    "  GROUP BY u.uuid HAVING count(r.uuid) > 1" +
+                    ") as t"
+                );
 
                 int drop1 = Math.max(0, totalUsers - active);
                 int drop2 = Math.max(0, active - rfqUsers);
@@ -497,23 +523,24 @@ public class AnalyticsServiceImpl implements AnalyticsService {
                         "FROM organization o " +
                         "WHERE (o.org_type_uuid = '3003' OR o.client_vendor = 1) " +
                         "AND (o.organization_name LIKE ? OR o.contact_person LIKE ? OR o.email LIKE ? OR o.city LIKE ?) " +
-                        "ORDER BY o.created_ts DESC LIMIT 100",
+                        "ORDER BY o.created_ts DESC",
                         queryPattern, queryPattern, queryPattern, queryPattern
                     );
                 } else if (stage == 2) {
                     stageTitle = "Stage 2: Category Linked Sellers";
                     items = jdbcTemplate.queryForList(
-                        "SELECT DISTINCT o.uuid, o.organization_name as name, o.contact_person as contactPerson, " +
+                        "SELECT o.uuid, o.organization_name as name, o.contact_person as contactPerson, " +
                         "COALESCE(o.email, '—') as email, COALESCE(o.organization_phonenumber, '—') as phone, " +
-                        "COALESCE(odc.category, o.vendorcategory, vc.category, 'General Category') as category, " +
+                        "COALESCE(MAX(odc.category), o.vendorcategory, 'General Category') as category, " +
                         "DATE_FORMAT(o.created_ts, '%d %b %Y') as date " +
                         "FROM organization o " +
                         "LEFT JOIN org_division_category odc ON odc.organization_id = o.uuid " +
                         "LEFT JOIN vendor_catalogue vc ON vc.org_uuid = o.uuid " +
                         "WHERE (o.org_type_uuid = '3003' OR o.client_vendor = 1) " +
-                        "AND (odc.category IS NOT NULL OR o.vendorcategory IS NOT NULL OR vc.category IS NOT NULL) " +
+                        "AND (odc.category IS NOT NULL OR o.vendorcategory IS NOT NULL OR vc.material_description IS NOT NULL) " +
                         "AND (o.organization_name LIKE ? OR o.contact_person LIKE ? OR o.email LIKE ? OR odc.category LIKE ?) " +
-                        "ORDER BY o.created_ts DESC LIMIT 100",
+                        "GROUP BY o.uuid, o.organization_name, o.contact_person, o.email, o.organization_phonenumber, o.vendorcategory, o.created_ts " +
+                        "ORDER BY o.created_ts DESC",
                         queryPattern, queryPattern, queryPattern, queryPattern
                     );
                 } else if (stage == 3) {
@@ -523,11 +550,11 @@ public class AnalyticsServiceImpl implements AnalyticsService {
                         "COALESCE(o.email, '—') as email, COALESCE(o.organization_phonenumber, '—') as phone, " +
                         "count(v.uuid) as quotesCount, DATE_FORMAT(MAX(v.quote_submitted_date), '%d %b %Y %H:%i') as lastActivity " +
                         "FROM organization o " +
-                        "JOIN gmt_rfq_vendors v ON o.uuid = v.vendor_uuid " +
-                        "WHERE v.quote_submitted_date IS NOT NULL " +
+                        "JOIN gmt_rfq_vendors v ON (o.uuid = v.vendor_uuid OR o.organization_name = v.vendor_name) " +
+                        "WHERE v.quote_submitted_date IS NOT NULL AND (o.org_type_uuid = '3003' OR o.client_vendor = 1) " +
                         "AND (o.organization_name LIKE ? OR o.contact_person LIKE ? OR o.email LIKE ?) " +
                         "GROUP BY o.uuid, o.organization_name, o.contact_person, o.email, o.organization_phonenumber " +
-                        "ORDER BY quotesCount DESC LIMIT 100",
+                        "ORDER BY quotesCount DESC",
                         queryPattern, queryPattern, queryPattern
                     );
                 } else if (stage == 4) {
@@ -539,9 +566,9 @@ public class AnalyticsServiceImpl implements AnalyticsService {
                         "COALESCE(p.subscription_price, 0) as price, DATE_FORMAT(o.created_ts, '%d %b %Y') as date " +
                         "FROM organization o " +
                         "LEFT JOIN subscription_plan p ON o.subscription_plan_uuid = p.uuid " +
-                        "WHERE (o.subscription_plan_uuid IS NOT NULL OR o.bfs_name IS NOT NULL) " +
+                        "WHERE (o.org_type_uuid = '3003' OR o.client_vendor = 1) AND (o.subscription_plan_uuid IS NOT NULL OR o.bfs_name IS NOT NULL) " +
                         "AND (o.organization_name LIKE ? OR o.contact_person LIKE ? OR o.email LIKE ?) " +
-                        "ORDER BY o.created_ts DESC LIMIT 100",
+                        "ORDER BY o.created_ts DESC",
                         queryPattern, queryPattern, queryPattern
                     );
                 } else {
@@ -555,7 +582,7 @@ public class AnalyticsServiceImpl implements AnalyticsService {
                         "WHERE (o.org_type_uuid = '3003' OR o.client_vendor = 1) " +
                         "AND (o.rfq_credits <= 0 OR o.rfq_credits IS NULL) " +
                         "AND (o.organization_name LIKE ? OR o.contact_person LIKE ? OR o.email LIKE ?) " +
-                        "ORDER BY o.created_ts DESC LIMIT 100",
+                        "ORDER BY o.created_ts DESC",
                         queryPattern, queryPattern, queryPattern
                     );
                 }
@@ -570,7 +597,7 @@ public class AnalyticsServiceImpl implements AnalyticsService {
                         "FROM user u " +
                         "LEFT JOIN organization o ON u.org_uuid = o.uuid " +
                         "WHERE (u.username LIKE ? OR u.email LIKE ? OR u.phone LIKE ? OR o.organization_name LIKE ?) " +
-                        "ORDER BY u.created_ts DESC LIMIT 100",
+                        "ORDER BY u.created_ts DESC",
                         queryPattern, queryPattern, queryPattern, queryPattern
                     );
                 } else if (stage == 2) {
@@ -583,7 +610,7 @@ public class AnalyticsServiceImpl implements AnalyticsService {
                         "LEFT JOIN organization o ON u.org_uuid = o.uuid " +
                         "WHERE u.is_active = 1 " +
                         "AND (u.username LIKE ? OR u.email LIKE ? OR u.phone LIKE ? OR o.organization_name LIKE ?) " +
-                        "ORDER BY u.created_ts DESC LIMIT 100",
+                        "ORDER BY u.created_ts DESC",
                         queryPattern, queryPattern, queryPattern, queryPattern
                     );
                 } else if (stage == 3) {
@@ -591,13 +618,14 @@ public class AnalyticsServiceImpl implements AnalyticsService {
                     items = jdbcTemplate.queryForList(
                         "SELECT u.uuid, COALESCE(u.full_name, u.username) as name, COALESCE(u.email, '—') as email, " +
                         "COALESCE(u.phone, '—') as phone, COALESCE(o.organization_name, 'Direct Client') as companyName, " +
-                        "count(r.uuid) as rfqCount, DATE_FORMAT(MAX(r.created_ts), '%d %b %Y') as lastActivity " +
+                        "count(r.uuid) as rfqCount, DATE_FORMAT(MAX(r.created_ts), '%d %b %Y') as lastActivity, " +
+                        "COALESCE(u.is_active, 1) as isActive " +
                         "FROM user u " +
-                        "JOIN rfq_header r ON u.uuid = r.user " +
+                        "JOIN rfq_header r ON (u.uuid = r.user OR u.username = r.user) " +
                         "LEFT JOIN organization o ON u.org_uuid = o.uuid " +
                         "WHERE (u.username LIKE ? OR u.email LIKE ? OR u.phone LIKE ? OR o.organization_name LIKE ?) " +
-                        "GROUP BY u.uuid, u.full_name, u.username, u.email, u.phone, o.organization_name " +
-                        "ORDER BY rfqCount DESC LIMIT 100",
+                        "GROUP BY u.uuid, u.full_name, u.username, u.email, u.phone, o.organization_name, u.is_active " +
+                        "ORDER BY rfqCount DESC",
                         queryPattern, queryPattern, queryPattern, queryPattern
                     );
                 } else {
@@ -605,14 +633,15 @@ public class AnalyticsServiceImpl implements AnalyticsService {
                     items = jdbcTemplate.queryForList(
                         "SELECT u.uuid, COALESCE(u.full_name, u.username) as name, COALESCE(u.email, '—') as email, " +
                         "COALESCE(u.phone, '—') as phone, COALESCE(o.organization_name, 'Direct Client') as companyName, " +
-                        "count(r.uuid) as rfqCount, DATE_FORMAT(MAX(r.created_ts), '%d %b %Y') as lastActivity " +
+                        "count(r.uuid) as rfqCount, DATE_FORMAT(MAX(r.created_ts), '%d %b %Y') as lastActivity, " +
+                        "COALESCE(u.is_active, 1) as isActive " +
                         "FROM user u " +
-                        "JOIN rfq_header r ON u.uuid = r.user " +
+                        "JOIN rfq_header r ON (u.uuid = r.user OR u.username = r.user) " +
                         "LEFT JOIN organization o ON u.org_uuid = o.uuid " +
                         "WHERE (u.username LIKE ? OR u.email LIKE ? OR u.phone LIKE ? OR o.organization_name LIKE ?) " +
-                        "GROUP BY u.uuid, u.full_name, u.username, u.email, u.phone, o.organization_name " +
+                        "GROUP BY u.uuid, u.full_name, u.username, u.email, u.phone, o.organization_name, u.is_active " +
                         "HAVING rfqCount > 1 " +
-                        "ORDER BY rfqCount DESC LIMIT 100",
+                        "ORDER BY rfqCount DESC",
                         queryPattern, queryPattern, queryPattern, queryPattern
                     );
                 }
@@ -621,6 +650,125 @@ public class AnalyticsServiceImpl implements AnalyticsService {
             response.put("type", type);
             response.put("stageNumber", stage);
             response.put("title", stageTitle);
+            response.put("totalRecords", items.size());
+            response.put("records", items);
+            response.put("source", "live_database");
+        } catch (Exception e) {
+            e.printStackTrace();
+            response.put("error", e.getMessage());
+            response.put("records", Collections.emptyList());
+        }
+        return response;
+    }
+
+    @Override
+    public Map<String, Object> getFunnelDropoffDetails(String type, Integer stageNumber, String search) {
+        Map<String, Object> response = new HashMap<>();
+        List<Map<String, Object>> items = new ArrayList<>();
+        int stage = stageNumber != null ? stageNumber : 2;
+        String queryPattern = "%" + (search != null ? search.trim() : "") + "%";
+        String title = "";
+
+        try {
+            if ("seller".equalsIgnoreCase(type)) {
+                if (stage == 2) {
+                    title = "Dropped Off: Onboarded but Not Category Linked";
+                    items = jdbcTemplate.queryForList(
+                        "SELECT o.uuid, o.organization_name as name, o.contact_person as contactPerson, " +
+                        "COALESCE(o.email, '—') as email, COALESCE(o.organization_phonenumber, '—') as phone, " +
+                        "DATE_FORMAT(o.created_ts, '%d %b %Y') as date " +
+                        "FROM organization o " +
+                        "LEFT JOIN org_division_category odc ON odc.organization_id = o.uuid " +
+                        "LEFT JOIN vendor_catalogue vc ON vc.org_uuid = o.uuid " +
+                        "WHERE (o.org_type_uuid = '3003' OR o.client_vendor = 1) " +
+                        "AND odc.category IS NULL AND o.vendorcategory IS NULL AND vc.material_description IS NULL " +
+                        "AND (o.organization_name LIKE ? OR o.contact_person LIKE ? OR o.email LIKE ?) " +
+                        "ORDER BY o.created_ts DESC",
+                        queryPattern, queryPattern, queryPattern
+                    );
+                } else if (stage == 3) {
+                    title = "Dropped Off: Category Linked but No Quote Placed";
+                    items = jdbcTemplate.queryForList(
+                        "SELECT o.uuid, o.organization_name as name, o.contact_person as contactPerson, " +
+                        "COALESCE(o.email, '—') as email, COALESCE(o.organization_phonenumber, '—') as phone, " +
+                        "DATE_FORMAT(o.created_ts, '%d %b %Y') as date " +
+                        "FROM organization o " +
+                        "LEFT JOIN org_division_category odc ON odc.organization_id = o.uuid " +
+                        "LEFT JOIN vendor_catalogue vc ON vc.org_uuid = o.uuid " +
+                        "WHERE (o.org_type_uuid = '3003' OR o.client_vendor = 1) " +
+                        "AND (odc.category IS NOT NULL OR o.vendorcategory IS NOT NULL OR vc.material_description IS NOT NULL) " +
+                        "AND o.uuid NOT IN (SELECT DISTINCT v.vendor_uuid FROM gmt_rfq_vendors v WHERE v.quote_submitted_date IS NOT NULL AND v.vendor_uuid IS NOT NULL) " +
+                        "AND (o.organization_name LIKE ? OR o.contact_person LIKE ? OR o.email LIKE ?) " +
+                        "GROUP BY o.uuid, o.organization_name, o.contact_person, o.email, o.organization_phonenumber, o.created_ts " +
+                        "ORDER BY o.created_ts DESC",
+                        queryPattern, queryPattern, queryPattern
+                    );
+                } else {
+                    title = "Dropped Off: Quoted but Not Subscribed";
+                    items = jdbcTemplate.queryForList(
+                        "SELECT DISTINCT o.uuid, o.organization_name as name, o.contact_person as contactPerson, " +
+                        "COALESCE(o.email, '—') as email, COALESCE(o.organization_phonenumber, '—') as phone, " +
+                        "DATE_FORMAT(o.created_ts, '%d %b %Y') as date " +
+                        "FROM organization o " +
+                        "JOIN gmt_rfq_vendors v ON (o.uuid = v.vendor_uuid OR o.organization_name = v.vendor_name) " +
+                        "WHERE v.quote_submitted_date IS NOT NULL AND (o.org_type_uuid = '3003' OR o.client_vendor = 1) " +
+                        "AND o.subscription_plan_uuid IS NULL AND o.bfs_name IS NULL " +
+                        "AND (o.organization_name LIKE ? OR o.contact_person LIKE ? OR o.email LIKE ?) " +
+                        "ORDER BY o.created_ts DESC",
+                        queryPattern, queryPattern, queryPattern
+                    );
+                }
+            } else {
+                if (stage == 2) {
+                    title = "Dropped Off: Registered but Inactive";
+                    items = jdbcTemplate.queryForList(
+                        "SELECT u.uuid, COALESCE(u.full_name, u.username) as name, COALESCE(u.email, '—') as email, " +
+                        "COALESCE(u.phone, '—') as phone, COALESCE(o.organization_name, 'Direct Client') as companyName, " +
+                        "u.is_active as isActive, DATE_FORMAT(u.created_ts, '%d %b %Y') as date " +
+                        "FROM user u " +
+                        "LEFT JOIN organization o ON u.org_uuid = o.uuid " +
+                        "WHERE (u.is_active IS NULL OR u.is_active != 1) " +
+                        "AND (u.username LIKE ? OR u.email LIKE ? OR u.phone LIKE ? OR o.organization_name LIKE ?) " +
+                        "ORDER BY u.created_ts DESC",
+                        queryPattern, queryPattern, queryPattern, queryPattern
+                    );
+                } else if (stage == 3) {
+                    title = "Dropped Off: Active but No RFQ Created";
+                    items = jdbcTemplate.queryForList(
+                        "SELECT u.uuid, COALESCE(u.full_name, u.username) as name, COALESCE(u.email, '—') as email, " +
+                        "COALESCE(u.phone, '—') as phone, COALESCE(o.organization_name, 'Direct Client') as companyName, " +
+                        "u.is_active as isActive, DATE_FORMAT(u.created_ts, '%d %b %Y') as date " +
+                        "FROM user u " +
+                        "LEFT JOIN organization o ON u.org_uuid = o.uuid " +
+                        "WHERE u.is_active = 1 " +
+                        "AND u.uuid NOT IN (SELECT DISTINCT r.user FROM rfq_header r WHERE r.user IS NOT NULL) " +
+                        "AND (u.username IS NULL OR u.username NOT IN (SELECT DISTINCT r.user FROM rfq_header r WHERE r.user IS NOT NULL)) " +
+                        "AND (u.username LIKE ? OR u.email LIKE ? OR u.phone LIKE ? OR o.organization_name LIKE ?) " +
+                        "ORDER BY u.created_ts DESC",
+                        queryPattern, queryPattern, queryPattern, queryPattern
+                    );
+                } else {
+                    title = "Dropped Off: Created RFQ but Never Returned";
+                    items = jdbcTemplate.queryForList(
+                        "SELECT u.uuid, COALESCE(u.full_name, u.username) as name, COALESCE(u.email, '—') as email, " +
+                        "COALESCE(u.phone, '—') as phone, COALESCE(o.organization_name, 'Direct Client') as companyName, " +
+                        "count(r.uuid) as rfqCount, DATE_FORMAT(MAX(r.created_ts), '%d %b %Y') as lastActivity, " +
+                        "u.is_active as isActive " +
+                        "FROM user u " +
+                        "JOIN rfq_header r ON (u.uuid = r.user OR u.username = r.user) " +
+                        "LEFT JOIN organization o ON u.org_uuid = o.uuid " +
+                        "WHERE (u.username LIKE ? OR u.email LIKE ? OR u.phone LIKE ? OR o.organization_name LIKE ?) " +
+                        "GROUP BY u.uuid, u.full_name, u.username, u.email, u.phone, o.organization_name, u.is_active " +
+                        "HAVING rfqCount = 1 " +
+                        "ORDER BY r.created_ts DESC",
+                        queryPattern, queryPattern, queryPattern, queryPattern
+                    );
+                }
+            }
+
+            response.put("type", type);
+            response.put("stageNumber", stage);
+            response.put("title", title);
             response.put("totalRecords", items.size());
             response.put("records", items);
             response.put("source", "live_database");
