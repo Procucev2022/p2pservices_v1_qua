@@ -28,6 +28,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -78,7 +79,7 @@ class GMTServiceImplTest {
     private JavaMailSender javaMailSender;
     @Mock
     private AutomaticRfqService automaticRfqService;
-    @Mock
+
     private MimeMessage mimeMessage;
 
     @InjectMocks
@@ -91,6 +92,7 @@ class GMTServiceImplTest {
 
     @BeforeEach
     void setUp() {
+        mimeMessage = new MimeMessage((jakarta.mail.Session) null);
         ReflectionTestUtils.setField(service, "host", "http://localhost");
         ReflectionTestUtils.setField(service, "mailFom", "from@test.com");
 
@@ -116,6 +118,7 @@ class GMTServiceImplTest {
 
         when(javaMailSender.createMimeMessage()).thenReturn(mimeMessage);
         doNothing().when(javaMailSender).send(any(MimeMessage.class));
+        doNothing().when(javaMailSender).send(any(SimpleMailMessage.class));
         when(subscriptionPlanDao.findById("2001")).thenReturn(Optional.of(new SubscriptionPlan()));
         when(userDao.findById(anyString())).thenReturn(Optional.of(user));
         when(userDao.findByUsernameAndPhoneAndActive(anyString(), anyString(), eq(true))).thenReturn(user);
@@ -847,29 +850,36 @@ class GMTServiceImplTest {
 
     @Test
     void testSendEmailNormalInvalidAttachmentAndFailure() {
-        EmailRequest request = new EmailRequest();
-        request.setTo(List.of("valid@example.com"));
-        request.setCc(List.of("copy@example.com"));
-        request.setBcc(List.of("blind@example.com"));
-        request.setSubject("subject");
-        request.setBody("body");
-        assertNotNull(service.sendEmail(request));
+        try (org.mockito.MockedStatic<com.portal.procucev.utils.EmailValidatorUtil> emailValidator =
+                     mockStatic(com.portal.procucev.utils.EmailValidatorUtil.class)) {
+            // Bypass DNS MX lookups that cause network hang in unit tests
+            emailValidator.when(() -> com.portal.procucev.utils.EmailValidatorUtil.validateEmails(any(), any()))
+                    .then(invocation -> null);
 
-        request.setTo(List.of("invalid-address"));
-        assertNotNull(service.sendEmail(request));
+            EmailRequest request = new EmailRequest();
+            request.setTo(List.of("valid@example.com"));
+            request.setCc(List.of("copy@example.com"));
+            request.setBcc(List.of("blind@example.com"));
+            request.setSubject("subject");
+            request.setBody("body");
+            assertNotNull(service.sendEmail(request));
 
-        request.setTo(List.of("valid@example.com"));
-        EmailAttachment attachment = new EmailAttachment();
-        attachment.setFileName("a.txt");
-        attachment.setContentType("text/plain");
-        attachment.setFileData(Base64.getEncoder().encodeToString("data".getBytes()));
-        request.setAttachments(List.of(attachment));
-        assertNotNull(service.sendEmail(request));
+            request.setTo(List.of("invalid-address"));
+            assertNotNull(service.sendEmail(request));
 
-        attachment.setFileData(" ");
-        assertNotNull(service.sendEmail(request));
-        attachment.setFileData("%%%not-base64%%%");
-        assertNotNull(service.sendEmail(request));
+            request.setTo(List.of("valid@example.com"));
+            EmailAttachment attachment = new EmailAttachment();
+            attachment.setFileName("a.txt");
+            attachment.setContentType("text/plain");
+            attachment.setFileData(Base64.getEncoder().encodeToString("data".getBytes()));
+            request.setAttachments(List.of(attachment));
+            assertNotNull(service.sendEmail(request));
+
+            attachment.setFileData(" ");
+            assertNotNull(service.sendEmail(request));
+            attachment.setFileData("%%%not-base64%%%");
+            assertNotNull(service.sendEmail(request));
+        }
     }
 
     @Test

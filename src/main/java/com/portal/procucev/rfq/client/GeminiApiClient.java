@@ -126,15 +126,67 @@ public class GeminiApiClient {
         return models;
     }
 
+    public static Map<String, Object> getRfqExtractionSchema() {
+        Map<String, Object> itemSchema = new HashMap<>();
+        itemSchema.put("type", "OBJECT");
+        itemSchema.put("properties", Map.of(
+                "itemDescription", Map.of("type", "STRING"),
+                "partCode", Map.of("type", "STRING"),
+                "specification", Map.of("type", "STRING"),
+                "quantity", Map.of("type", "NUMBER"),
+                "uom", Map.of("type", "STRING"),
+                "brand", Map.of("type", "STRING"),
+                "category", Map.of("type", "STRING"),
+                "deliveryDate", Map.of("type", "STRING"),
+                "deliveryLocation", Map.of("type", "STRING")
+        ));
+
+        return Map.of(
+                "type", "OBJECT",
+                "properties", Map.of(
+                        "buyerEmail", Map.of("type", "STRING"),
+                        "category", Map.of("type", "STRING"),
+                        "deliveryLocation", Map.of("type", "STRING"),
+                        "deliveryCity", Map.of("type", "STRING"),
+                        "deliveryState", Map.of("type", "STRING"),
+                        "deliveryPincode", Map.of("type", "STRING"),
+                        "deliveryDate", Map.of("type", "STRING"),
+                        "items", Map.of(
+                                "type", "ARRAY",
+                                "items", itemSchema
+                        )
+                ),
+                "required", List.of("items")
+        );
+    }
+
+    public static Map<String, Object> getVendorCategorizationSchema() {
+        return Map.of(
+                "type", "OBJECT",
+                "properties", Map.of(
+                        "industry", Map.of("type", "STRING"),
+                        "category", Map.of("type", "STRING"),
+                        "subCategories", Map.of("type", "ARRAY", "items", Map.of("type", "STRING")),
+                        "capabilities", Map.of("type", "ARRAY", "items", Map.of("type", "STRING")),
+                        "suitableProcurementCategories", Map.of("type", "ARRAY", "items", Map.of("type", "STRING"))
+                ),
+                "required", List.of("industry", "category", "subCategories", "capabilities", "suitableProcurementCategories")
+        );
+    }
+
     public String generateContent(String promptText) {
-        return generateContent(promptText, List.of());
+        return generateContent(promptText, List.of(), null);
     }
 
     public String generateContentWithSpecificModel(String model, String promptText, List<InlineImage> images) throws Exception {
+        return generateContentWithSpecificModel(model, promptText, images, null);
+    }
+
+    public String generateContentWithSpecificModel(String model, String promptText, List<InlineImage> images, Map<String, Object> responseSchema) throws Exception {
         String currentApiKey = getNextApiKey();
         List<InlineImage> inlineImages = images != null ? images : List.<InlineImage>of();
         log.info("Sending request to Gemini API (Model: {}, inline images: {})...", model, inlineImages.size());
-        return callGeminiModel(model, promptText, inlineImages, currentApiKey);
+        return callGeminiModel(model, promptText, inlineImages, responseSchema, currentApiKey);
     }
 
     /**
@@ -142,6 +194,10 @@ public class GeminiApiClient {
      * Any downtime, 503, 429, or network failure automatically falls back to the next model.
      */
     public String generateContent(String promptText, List<InlineImage> images) {
+        return generateContent(promptText, images, null);
+    }
+
+    public String generateContent(String promptText, List<InlineImage> images, Map<String, Object> responseSchema) {
         List<String> models = getAllConfiguredModels();
         List<InlineImage> inlineImages = images != null ? images : List.<InlineImage>of();
         String currentApiKey = getNextApiKey();
@@ -151,7 +207,7 @@ public class GeminiApiClient {
             String model = models.get(i);
             try {
                 log.info("Attempting Gemini API call with model [{}/{}: {}]...", i + 1, models.size(), model);
-                return callGeminiModel(model, promptText, inlineImages, currentApiKey);
+                return callGeminiModel(model, promptText, inlineImages, responseSchema, currentApiKey);
             } catch (Exception e) {
                 lastException = e;
                 log.warn("Gemini model ({}) failed: {}. Proceeding to next backup model in chain...",
@@ -163,7 +219,7 @@ public class GeminiApiClient {
                 + (lastException != null ? lastException.getMessage() : "Unknown error"), lastException);
     }
 
-    private String callGeminiModel(String model, String promptText, List<InlineImage> images, String currentApiKey) throws Exception {
+    private String callGeminiModel(String model, String promptText, List<InlineImage> images, Map<String, Object> responseSchema, String currentApiKey) throws Exception {
         String url = String.format("%s/%s:generateContent", baseUrl, model);
 
         Map<String, Object> textPart = new HashMap<>();
@@ -186,45 +242,14 @@ public class GeminiApiClient {
         Map<String, Object> requestBody = new HashMap<>();
         requestBody.put("contents", List.of(contentsObj));
 
-        Map<String, Object> itemSchema = new HashMap<>();
-        itemSchema.put("type", "OBJECT");
-        itemSchema.put("properties", Map.of(
-                "itemDescription", Map.of("type", "STRING"),
-                "partCode", Map.of("type", "STRING"),
-                "specification", Map.of("type", "STRING"),
-                "quantity", Map.of("type", "NUMBER"),
-                "uom", Map.of("type", "STRING"),
-                "brand", Map.of("type", "STRING"),
-                "category", Map.of("type", "STRING"),
-                "deliveryDate", Map.of("type", "STRING"),
-                "deliveryLocation", Map.of("type", "STRING")
-        ));
-
-        Map<String, Object> responseSchema = Map.of(
-                "type", "OBJECT",
-                "properties", Map.of(
-                        "buyerEmail", Map.of("type", "STRING"),
-                        "category", Map.of("type", "STRING"),
-                        "deliveryLocation", Map.of("type", "STRING"),
-                        "deliveryCity", Map.of("type", "STRING"),
-                        "deliveryState", Map.of("type", "STRING"),
-                        "deliveryPincode", Map.of("type", "STRING"),
-                        "deliveryDate", Map.of("type", "STRING"),
-                        "items", Map.of(
-                                "type", "ARRAY",
-                                "items", itemSchema
-                        )
-                ),
-                "required", List.of("items")
-        );
-
         Map<String, Object> generationConfig = new HashMap<>();
         generationConfig.put("temperature", 0.1);
         generationConfig.put("responseMimeType", "application/json");
-        generationConfig.put("responseSchema", responseSchema);
-        // A requirement sheet with a hundred-plus line items needs far more output budget than the
-        // model default. Without this the response is cut mid-array and the JSON fails to parse.
         generationConfig.put("maxOutputTokens", maxOutputTokens);
+
+        if (responseSchema != null && !responseSchema.isEmpty()) {
+            generationConfig.put("responseSchema", responseSchema);
+        }
 
         requestBody.put("generationConfig", generationConfig);
 
@@ -241,17 +266,12 @@ public class GeminiApiClient {
             if (candidates.isArray() && candidates.size() > 0) {
                 JsonNode candidate = candidates.get(0);
 
-                // finishReason was previously ignored, so a truncated or filtered generation was
-                // handed back as though it were complete. Surfacing it turns a silent partial
-                // extraction into a diagnosable failure.
                 String finishReason = candidate.path("finishReason").asText("");
                 if (!finishReason.isEmpty() && !"STOP".equalsIgnoreCase(finishReason)) {
-                    log.warn("Gemini model {} stopped with finishReason={} (maxOutputTokens={}). The extraction may be incomplete.",
+                    log.warn("Gemini model {} stopped with finishReason={} (maxOutputTokens={}).",
                             model, finishReason, maxOutputTokens);
                     if ("MAX_TOKENS".equalsIgnoreCase(finishReason)) {
-                        throw new ApplicationException("Gemini response was truncated (finishReason=MAX_TOKENS). "
-                                + "The request likely exceeded the output budget of " + maxOutputTokens
-                                + " tokens; raise app.gemini.max-output-tokens or split the attachment.");
+                        throw new ApplicationException("Gemini response was truncated (finishReason=MAX_TOKENS).");
                     }
                 }
 

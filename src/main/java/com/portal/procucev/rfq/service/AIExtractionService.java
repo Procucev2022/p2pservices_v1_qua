@@ -167,7 +167,15 @@ public class AIExtractionService {
 
     private String executeModelCall(String model, String attemptPrompt, List<InlineImage> inlineImages) throws Exception {
         try {
-            String res = geminiApiClient.generateContentWithSpecificModel(model, attemptPrompt, inlineImages);
+            String res = geminiApiClient.generateContentWithSpecificModel(model, attemptPrompt, inlineImages, GeminiApiClient.getRfqExtractionSchema());
+            if (res != null) {
+                return res;
+            }
+        } catch (NoSuchMethodError | UnsupportedOperationException e) {
+            // Fallback for mock environments
+        }
+        try {
+            String res = geminiApiClient.generateContent(attemptPrompt, inlineImages, GeminiApiClient.getRfqExtractionSchema());
             if (res != null) {
                 return res;
             }
