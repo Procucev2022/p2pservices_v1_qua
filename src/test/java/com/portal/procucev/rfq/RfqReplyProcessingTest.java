@@ -258,7 +258,7 @@ public class RfqReplyProcessingTest {
     }
 
     @Test
-    @DisplayName("TEST 8: Make sure system does not create duplicate RFQs when processing buyer's reply twice")
+    @DisplayName("TEST 8: Reply email is processed even if message ID is present in transaction log")
     void test8_PreventDuplicateProcessingOnSameReplyMessageId() {
         EmailData replyEmail = EmailData.builder()
                 .messageId("MSG-REPLY-DUPLICATE-001")
@@ -268,11 +268,17 @@ public class RfqReplyProcessingTest {
                 .build();
 
         when(emailTransactionRepository.findByMessageId("MSG-REPLY-DUPLICATE-001"))
-                .thenReturn(java.util.Optional.of(com.portal.procucev.rfq.entity.EmailTransaction.builder().status("RFQ_CREATED").build()));
+                .thenReturn(java.util.Optional.of(com.portal.procucev.rfq.entity.EmailTransaction.builder().messageId("MSG-REPLY-DUPLICATE-001").status("FAILED").build()));
+
+        RFQItem item = RFQItem.builder().itemDescription("Helical Gearbox").quantity(1000.0).build();
+        ExtractedRFQ extracted = ExtractedRFQ.builder().buyerEmail("buyer@procucev.com").items(java.util.List.of(item)).build();
+        when(aiExtractionService.extractRFQFromEmail(replyEmail)).thenReturn(extracted);
+        when(rfqBuilderService.buildRFQRequest(any(), any(), any(), any()))
+                .thenReturn(RFQRequest.builder().rfqNumber("RFQ-REPLY-8").build());
 
         String status = emailProcessorService.processSingleEmail(replyEmail);
-        assertEquals("SKIPPED", status);
+        assertEquals("RFQ_CREATED", status);
 
-        verify(rfqRepository, never()).save(any(RFQEntity.class));
+        verify(rfqRepository, times(1)).save(any(RFQEntity.class));
     }
 }

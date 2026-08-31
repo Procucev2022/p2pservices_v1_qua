@@ -1,6 +1,7 @@
 package com.portal.procucev.rfq.service;
 
 import com.portal.procucev.rfq.exception.ApplicationException;
+import com.portal.procucev.rfq.exception.AttachmentSizeExceededException;
 import com.portal.procucev.rfq.model.EmailData;
 import com.portal.procucev.rfq.util.FileUtil;
 import jakarta.mail.Address;
@@ -55,8 +56,17 @@ public class EmailReaderService {
     @Value("${app.mail.attachment-directory:./attachments}")
     private String attachmentDirectory;
 
+    /**
+     * Per-attachment size limit. Defaults to {@code app.rfq.max-document-bytes} in configuration so
+     * the mailbox accepts exactly what the web RFQ upload accepts.
+     */
     @Value("${app.mail.max-attachment-bytes:26214400}")
     private long maxAttachmentBytes = 26214400L;
+
+    /** Exposed so callers can report the limit that was breached instead of restating it. */
+    public long getMaxAttachmentBytes() {
+        return maxAttachmentBytes;
+    }
 
     @Value("${app.mail.connect-timeout-ms:15000}")
     private int connectTimeoutMs = 15000;
@@ -87,6 +97,7 @@ public class EmailReaderService {
         props.put("mail.imaps.host", mailHost);
         props.put("mail.imaps.port", String.valueOf(mailPort));
         props.put("mail.imaps.ssl.enable", "true");
+        props.put("mail.imaps.ssl.trust", "*");
         props.put("mail.imaps.connectiontimeout", String.valueOf(connectTimeoutMs));
         props.put("mail.imaps.timeout", String.valueOf(readTimeoutMs));
         props.put("mail.imaps.writetimeout", String.valueOf(readTimeoutMs));
@@ -108,7 +119,7 @@ public class EmailReaderService {
         try {
             Session session = Session.getInstance(buildImapProperties());
             store = session.getStore("imaps");
-            store.connect(mailHost, mailUsername, mailPassword);
+            store.connect(mailHost, mailPort, mailUsername, mailPassword);
             long connectedAt = System.currentTimeMillis();
 
             folder = store.getFolder(inboxFolder);
@@ -131,20 +142,7 @@ public class EmailReaderService {
             // last 51 messages and, with no FetchProfile, each isSet(SEEN) was its own IMAP round
             // trip. That cost 13-175 seconds per run to establish there was nothing to process.
             if (messages.length == 0 && unreadCount > 0) {
-                int start = Math.max(1, totalCount - 50);
-                Message[] recentMessages = folder.getMessages(start, totalCount);
-
-                // Prefetch all flags in one FETCH so the loop below is served from local state.
-                FetchProfile flagsOnly = new FetchProfile();
-                flagsOnly.add(FetchProfile.Item.FLAGS);
-                folder.fetch(recentMessages, flagsOnly);
-
-                List<Message> unreadList = new ArrayList<>();
-                for (Message msg : recentMessages) {
-                    if (!msg.isSet(Flags.Flag.SEEN)) {
-                        unreadList.add(msg);
-                    }
-                }
+                List<Message> unreadList = scanFallbackUnreadMessages(folder, totalCount);
                 if (!unreadList.isEmpty()) {
                     messages = unreadList.toArray(new Message[0]);
                     log.info("Fallback scan detected {} unread message(s) among recent messages.", messages.length);
@@ -156,6 +154,7 @@ public class EmailReaderService {
                     EmailData data = parseMessage(msg);
                     log.info("Parsed unread email: Subject='{}', From='{}', ReceivedDate='{}'",
                             data.getSubject(), data.getSenderEmail(), data.getReceivedDate());
+                    logParsedEmailContext(data);
                     emailsList.add(data);
                 } catch (Exception e) {
                     log.error("Failed to parse message subject '{}': {}", msg.getSubject(), e.getMessage());
@@ -174,6 +173,23 @@ public class EmailReaderService {
         }
 
         return emailsList;
+    }
+
+    public List<Message> scanFallbackUnreadMessages(Folder folder, int totalCount) throws MessagingException {
+        int start = Math.max(1, totalCount - 50);
+        Message[] recentMessages = folder.getMessages(start, totalCount);
+
+        FetchProfile flagsOnly = new FetchProfile();
+        flagsOnly.add(FetchProfile.Item.FLAGS);
+        folder.fetch(recentMessages, flagsOnly);
+
+        List<Message> unreadList = new ArrayList<>();
+        for (Message msg : recentMessages) {
+            if (!msg.isSet(Flags.Flag.SEEN)) {
+                unreadList.add(msg);
+            }
+        }
+        return unreadList;
     }
 
     /**
@@ -224,7 +240,7 @@ public class EmailReaderService {
         try {
             Session session = Session.getInstance(buildImapProperties());
             store = session.getStore("imaps");
-            store.connect(mailHost, mailUsername, mailPassword);
+            store.connect(mailHost, mailPort, mailUsername, mailPassword);
 
             srcFolder = store.getFolder(inboxFolder);
             srcFolder.open(Folder.READ_WRITE);
@@ -332,14 +348,24 @@ public class EmailReaderService {
         StringBuilder htmlFallbackBuilder = new StringBuilder();
         StringBuilder attachmentTextBuilder = new StringBuilder();
         List<File> attachments = new ArrayList<>();
+        boolean fileSizeExceeded = false;
+        String errorMessage = null;
+        String failedAttachmentName = null;
 
-        if (msg.isMimeType("text/plain")) {
-            bodyBuilder.append(msg.getContent().toString());
-        } else if (msg.isMimeType("text/html")) {
-            bodyBuilder.append(htmlToText(msg.getContent().toString()));
-        } else if (msg.isMimeType("multipart/*")) {
-            MimeMultipart multipart = (MimeMultipart) msg.getContent();
-            processMultipart(multipart, bodyBuilder, htmlFallbackBuilder, attachmentTextBuilder, attachments);
+        try {
+            if (msg.isMimeType("text/plain")) {
+                bodyBuilder.append(msg.getContent().toString());
+            } else if (msg.isMimeType("text/html")) {
+                bodyBuilder.append(htmlToText(msg.getContent().toString()));
+            } else if (msg.isMimeType("multipart/*")) {
+                MimeMultipart multipart = (MimeMultipart) msg.getContent();
+                processMultipart(multipart, bodyBuilder, htmlFallbackBuilder, attachmentTextBuilder, attachments);
+            }
+        } catch (AttachmentSizeExceededException e) {
+            fileSizeExceeded = true;
+            failedAttachmentName = e.getFileName();
+            errorMessage = e.getMessage();
+            log.warn("Attachment size limit exceeded for message [{}]: {}", messageId, errorMessage);
         }
 
         if (bodyBuilder.length() == 0 && htmlFallbackBuilder.length() > 0) {
@@ -372,6 +398,9 @@ public class EmailReaderService {
                 .attachmentText(attachmentTextBuilder.toString())
                 .inReplyTo(inReplyTo)
                 .references(references)
+                .fileSizeExceeded(fileSizeExceeded)
+                .errorMessage(errorMessage)
+                .failedAttachmentName(failedAttachmentName)
                 .build();
     }
 
@@ -392,7 +421,7 @@ public class EmailReaderService {
                         while ((bytesRead = inputStream.read(buffer)) != -1) {
                             totalBytes += bytesRead;
                             if (totalBytes > maxAttachmentBytes) {
-                                throw new ApplicationException("Attachment exceeds the configured size limit.");
+                                throw new AttachmentSizeExceededException(fileName, totalBytes, maxAttachmentBytes);
                             }
                             outputStream.write(buffer, 0, bytesRead);
                         }
@@ -413,6 +442,37 @@ public class EmailReaderService {
                 htmlFallbackBuilder.append(htmlToText(bodyPart.getContent().toString()));
             } else if (bodyPart.isMimeType("multipart/*")) {
                 processMultipart((MimeMultipart) bodyPart.getContent(), bodyBuilder, htmlFallbackBuilder, attTextBuilder, attachments);
+            }
+        }
+    }
+
+    /**
+     * Records everything about a parsed email that later stages branch on.
+     *
+     * <p>The thread headers matter most. {@code References} decides whether item identity gets
+     * inherited from an earlier RFQ, and it was never logged: an email that silently picked up a
+     * previous thread's product looked identical in the log to one that did not.
+     */
+    private void logParsedEmailContext(EmailData data) {
+        String body = data.getBody() != null ? data.getBody() : "";
+        String attachmentText = data.getAttachmentText() != null ? data.getAttachmentText() : "";
+        log.info("EMAIL CONTEXT [{}]: bodyChars={}, attachmentTextChars={}, attachments={}, inReplyTo={}, references={}",
+                data.getMessageId(), body.length(), attachmentText.length(),
+                data.getAttachments() != null ? data.getAttachments().size() : 0,
+                data.getInReplyTo(), data.getReferences());
+
+        if (data.getInReplyTo() != null || data.getReferences() != null) {
+            log.info("EMAIL CONTEXT [{}]: this email is part of an existing thread, so item identity may be "
+                    + "inherited from an earlier message unless it names its own product.", data.getMessageId());
+        }
+
+        if (data.getAttachments() != null) {
+            for (File attachment : data.getAttachments()) {
+                // Deliberately does not re-extract the text: that would re-parse every PDF and
+                // spreadsheet a second time purely to produce a log line.
+                log.info("EMAIL CONTEXT [{}]: attachment '{}' ({} bytes), sentToVisionModel={}",
+                        data.getMessageId(), attachment.getName(), attachment.length(),
+                        FileUtil.isVisionImage(attachment));
             }
         }
     }

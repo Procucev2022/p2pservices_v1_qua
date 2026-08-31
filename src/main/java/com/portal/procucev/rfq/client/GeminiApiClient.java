@@ -18,9 +18,11 @@ import org.springframework.web.client.RestTemplate;
 
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 
 @Slf4j
 @Component
@@ -32,11 +34,14 @@ public class GeminiApiClient {
 
     private RestTemplate restTemplate;
 
-    @Value("${app.gemini.primary-model:gemini-1.5-flash}")
-    private String primaryModel;
+    @Value("${app.gemini.primary-model:gemini-3.7-flash}")
+    private String primaryModel = "gemini-3.7-flash";
 
-    @Value("${app.gemini.fallback-model:gemini-2.0-flash}")
-    private String fallbackModel;
+    @Value("${app.gemini.backup-models:gemini-3.6-flash,gemini-3.5-flash,gemini-3.5-flash-lite,gemini-3.1-flash-lite}")
+    private String backupModels = "gemini-3.6-flash,gemini-3.5-flash,gemini-3.5-flash-lite,gemini-3.1-flash-lite";
+
+    @Value("${app.gemini.fallback-model:gemini-3.6-flash}")
+    private String fallbackModel = "gemini-3.6-flash";
 
     @Value("${app.gemini.base-url:https://generativelanguage.googleapis.com/v1beta/models}")
     private String baseUrl;
@@ -53,46 +58,169 @@ public class GeminiApiClient {
     @Value("${app.gemini.max-output-tokens:65536}")
     private int maxOutputTokens = 65536;
 
+    private String lastParsedApiKey = null;
+    private List<String> apiKeys = List.of();
+    private final AtomicInteger keyIndex = new AtomicInteger(0);
+
     @PostConstruct
     void init() {
         this.restTemplate = restTemplateBuilder
                 .setConnectTimeout(Duration.ofMillis(connectTimeoutMs))
                 .setReadTimeout(Duration.ofMillis(readTimeoutMs))
                 .build();
+        refreshApiKeys();
     }
 
-    public String generateContent(String promptText) {
-        return generateContent(promptText, List.of());
+    public synchronized void refreshApiKeys() {
+        this.lastParsedApiKey = null;
+        getApiKeys();
     }
 
-    /**
-     * Sends the prompt, optionally with image attachments as inline data.
-     */
-    public String generateContent(String promptText, List<InlineImage> images) {
+    public synchronized List<String> getApiKeys() {
         if (apiKey == null || apiKey.isBlank()) {
+            this.apiKeys = List.of();
+            this.lastParsedApiKey = apiKey;
+            return this.apiKeys;
+        }
+        if (!apiKey.equals(lastParsedApiKey)) {
+            this.apiKeys = Arrays.stream(apiKey.split(","))
+                    .map(String::trim)
+                    .filter(k -> !k.isEmpty())
+                    .toList();
+            this.lastParsedApiKey = apiKey;
+            log.info("Initialized GeminiApiClient with {} API key(s) for round-robin rotation.", this.apiKeys.size());
+        }
+        return this.apiKeys;
+    }
+
+    private String getNextApiKey() {
+        List<String> keys = getApiKeys();
+        if (keys.isEmpty()) {
             throw new ApplicationException(
                     "Gemini API key is not configured. Set the GEMINI_API_KEY environment variable "
                             + "(or the app.gemini.api-key property) to enable AI extraction.");
         }
-        List<InlineImage> inlineImages = images != null ? images : List.<InlineImage>of();
-        log.info("Sending request to Gemini API (Primary Model: {}, inline images: {})...",
-                primaryModel, inlineImages.size());
-        try {
-            return callGeminiModel(primaryModel, promptText, inlineImages);
-        } catch (Exception e) {
-            log.warn("Primary Gemini model ({}) failed: {}. Retrying with Fallback Model ({})...",
-                    primaryModel, e.getMessage(), fallbackModel);
-            try {
-                return callGeminiModel(fallbackModel, promptText, inlineImages);
-            } catch (Exception ex) {
-                log.error("Fallback Gemini model ({}) call also failed: {}", fallbackModel, ex.getMessage());
-                throw new ApplicationException("Gemini AI API calls failed on both primary (" + primaryModel + ") and fallback (" + fallbackModel + ") models: " + ex.getMessage(), ex);
-            }
-        }
+        int index = Math.floorMod(keyIndex.getAndIncrement(), keys.size());
+        return keys.get(index);
     }
 
-    private String callGeminiModel(String model, String promptText, List<InlineImage> images) throws Exception {
-        String url = String.format("%s/%s:generateContent?key=%s", baseUrl, model, apiKey.trim());
+    public List<String> getAllConfiguredModels() {
+        List<String> models = new ArrayList<>();
+        if (primaryModel != null && !primaryModel.isBlank()) {
+            models.add(primaryModel.trim());
+        }
+        if (backupModels != null && !backupModels.isBlank()) {
+            for (String m : backupModels.split(",")) {
+                String trimmed = m.trim();
+                if (!trimmed.isEmpty() && !models.contains(trimmed)) {
+                    models.add(trimmed);
+                }
+            }
+        }
+        if (fallbackModel != null && !fallbackModel.isBlank() && !models.contains(fallbackModel.trim())) {
+            models.add(fallbackModel.trim());
+        }
+        if (models.isEmpty()) {
+            models.addAll(List.of("gemini-3.7-flash", "gemini-3.6-flash", "gemini-3.5-flash", "gemini-3.5-flash-lite", "gemini-3.1-flash-lite"));
+        }
+        return models;
+    }
+
+    public static Map<String, Object> getRfqExtractionSchema() {
+        Map<String, Object> itemSchema = new HashMap<>();
+        itemSchema.put("type", "OBJECT");
+        itemSchema.put("properties", Map.of(
+                "itemDescription", Map.of("type", "STRING"),
+                "partCode", Map.of("type", "STRING"),
+                "specification", Map.of("type", "STRING"),
+                "quantity", Map.of("type", "NUMBER"),
+                "uom", Map.of("type", "STRING"),
+                "brand", Map.of("type", "STRING"),
+                "category", Map.of("type", "STRING"),
+                "deliveryDate", Map.of("type", "STRING"),
+                "deliveryLocation", Map.of("type", "STRING")
+        ));
+
+        return Map.of(
+                "type", "OBJECT",
+                "properties", Map.of(
+                        "buyerEmail", Map.of("type", "STRING"),
+                        "category", Map.of("type", "STRING"),
+                        "deliveryLocation", Map.of("type", "STRING"),
+                        "deliveryCity", Map.of("type", "STRING"),
+                        "deliveryState", Map.of("type", "STRING"),
+                        "deliveryPincode", Map.of("type", "STRING"),
+                        "deliveryDate", Map.of("type", "STRING"),
+                        "items", Map.of(
+                                "type", "ARRAY",
+                                "items", itemSchema
+                        )
+                ),
+                "required", List.of("items")
+        );
+    }
+
+    public static Map<String, Object> getVendorCategorizationSchema() {
+        return Map.of(
+                "type", "OBJECT",
+                "properties", Map.of(
+                        "industry", Map.of("type", "STRING"),
+                        "category", Map.of("type", "STRING"),
+                        "subCategories", Map.of("type", "ARRAY", "items", Map.of("type", "STRING")),
+                        "capabilities", Map.of("type", "ARRAY", "items", Map.of("type", "STRING")),
+                        "suitableProcurementCategories", Map.of("type", "ARRAY", "items", Map.of("type", "STRING"))
+                ),
+                "required", List.of("industry", "category", "subCategories", "capabilities", "suitableProcurementCategories")
+        );
+    }
+
+    public String generateContent(String promptText) {
+        return generateContent(promptText, List.of(), null);
+    }
+
+    public String generateContentWithSpecificModel(String model, String promptText, List<InlineImage> images) throws Exception {
+        return generateContentWithSpecificModel(model, promptText, images, null);
+    }
+
+    public String generateContentWithSpecificModel(String model, String promptText, List<InlineImage> images, Map<String, Object> responseSchema) throws Exception {
+        String currentApiKey = getNextApiKey();
+        List<InlineImage> inlineImages = images != null ? images : List.<InlineImage>of();
+        log.info("Sending request to Gemini API (Model: {}, inline images: {})...", model, inlineImages.size());
+        return callGeminiModel(model, promptText, inlineImages, responseSchema, currentApiKey);
+    }
+
+    /**
+     * Sends the prompt through the configured model chain (Primary -> 1st Backup -> 2nd Backup -> ...).
+     * Any downtime, 503, 429, or network failure automatically falls back to the next model.
+     */
+    public String generateContent(String promptText, List<InlineImage> images) {
+        return generateContent(promptText, images, null);
+    }
+
+    public String generateContent(String promptText, List<InlineImage> images, Map<String, Object> responseSchema) {
+        List<String> models = getAllConfiguredModels();
+        List<InlineImage> inlineImages = images != null ? images : List.<InlineImage>of();
+        String currentApiKey = getNextApiKey();
+
+        Exception lastException = null;
+        for (int i = 0; i < models.size(); i++) {
+            String model = models.get(i);
+            try {
+                log.info("Attempting Gemini API call with model [{}/{}: {}]...", i + 1, models.size(), model);
+                return callGeminiModel(model, promptText, inlineImages, responseSchema, currentApiKey);
+            } catch (Exception e) {
+                lastException = e;
+                log.warn("Gemini model ({}) failed: {}. Proceeding to next backup model in chain...",
+                        model, e.getMessage());
+            }
+        }
+        log.error("All Gemini models in chain failed: {}", models);
+        throw new ApplicationException("All Gemini AI API calls failed across models " + models + ": "
+                + (lastException != null ? lastException.getMessage() : "Unknown error"), lastException);
+    }
+
+    private String callGeminiModel(String model, String promptText, List<InlineImage> images, Map<String, Object> responseSchema, String currentApiKey) throws Exception {
+        String url = String.format("%s/%s:generateContent", baseUrl, model);
 
         Map<String, Object> textPart = new HashMap<>();
         textPart.put("text", promptText);
@@ -119,39 +247,7 @@ public class GeminiApiClient {
         generationConfig.put("responseMimeType", "application/json");
         generationConfig.put("maxOutputTokens", maxOutputTokens);
 
-        // Attach strict RFQ extraction responseSchema only when images/RFQ extraction are present
-        if (!images.isEmpty()) {
-            Map<String, Object> itemSchema = new HashMap<>();
-            itemSchema.put("type", "OBJECT");
-            itemSchema.put("properties", Map.of(
-                    "itemDescription", Map.of("type", "STRING"),
-                    "partCode", Map.of("type", "STRING"),
-                    "specification", Map.of("type", "STRING"),
-                    "quantity", Map.of("type", "NUMBER"),
-                    "uom", Map.of("type", "STRING"),
-                    "brand", Map.of("type", "STRING"),
-                    "category", Map.of("type", "STRING"),
-                    "deliveryDate", Map.of("type", "STRING"),
-                    "deliveryLocation", Map.of("type", "STRING")
-            ));
-
-            Map<String, Object> responseSchema = Map.of(
-                    "type", "OBJECT",
-                    "properties", Map.of(
-                            "buyerEmail", Map.of("type", "STRING"),
-                            "category", Map.of("type", "STRING"),
-                            "deliveryLocation", Map.of("type", "STRING"),
-                            "deliveryCity", Map.of("type", "STRING"),
-                            "deliveryState", Map.of("type", "STRING"),
-                            "deliveryPincode", Map.of("type", "STRING"),
-                            "deliveryDate", Map.of("type", "STRING"),
-                            "items", Map.of(
-                                    "type", "ARRAY",
-                                    "items", itemSchema
-                            )
-                    ),
-                    "required", List.of("items")
-            );
+        if (responseSchema != null && !responseSchema.isEmpty()) {
             generationConfig.put("responseSchema", responseSchema);
         }
 
@@ -159,7 +255,7 @@ public class GeminiApiClient {
 
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
-        headers.set("x-goog-api-key", apiKey.trim());
+        headers.set("x-goog-api-key", currentApiKey);
 
         HttpEntity<String> entity = new HttpEntity<>(objectMapper.writeValueAsString(requestBody), headers);
         ResponseEntity<String> response = restTemplate.postForEntity(url, entity, String.class);

@@ -300,11 +300,92 @@ public class BuyerVendorController {
         }
     }
 
+    /**
+     * DELETE /rest/buyer/vendors/:id
+     */
+    @DeleteMapping("/{id}")
+    public ResponseEntity<MessageResponse> deleteVendor(@PathVariable String id) {
+        try {
+            String buyerOrgId = getLoggedInBuyerOrgId();
+            boolean deleted = buyerVendorService.deleteVendor(id, buyerOrgId);
+            if (!deleted) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
+                    MessageResponse.error("Vendor not found", List.of("VENDOR_NOT_FOUND"))
+                );
+            }
+
+            MessageResponse response = MessageResponse.success(
+                "Vendor deleted successfully",
+                Map.of("id", id)
+            );
+            return ResponseEntity.ok(response);
+        } catch (Exception ex) {
+            log.error("Error deleting vendor", ex);
+            return ResponseEntity.internalServerError().body(
+                new MessageResponse("500", "Internal server error", List.of(ex.getMessage()), new Date(), "Failure", "SYSTEM_ERROR")
+            );
+        }
+    }
+
+    /**
+     * POST /rest/buyer/vendors/bulk-delete
+     * DELETE /rest/buyer/vendors/bulk
+     * DELETE /rest/buyer/vendors/bulk-delete
+     */
+    @DeleteMapping({"/bulk", "/bulk-delete"})
+    public ResponseEntity<MessageResponse> bulkDeleteVendors(@RequestBody(required = false) Object payload) {
+        return handleBulkDelete(payload);
+    }
+
+    @PostMapping("/bulk-delete")
+    public ResponseEntity<MessageResponse> bulkDeleteVendorsLegacyPost(@RequestBody(required = false) Object payload) {
+        return handleBulkDelete(payload);
+    }
+
+    private ResponseEntity<MessageResponse> handleBulkDelete(Object payload) {
+        try {
+            String buyerOrgId = getLoggedInBuyerOrgId();
+            List<String> idsOrCodes = new java.util.ArrayList<>();
+
+            if (payload instanceof List<?> list) {
+                for (Object item : list) {
+                    if (item != null) {
+                        idsOrCodes.add(item.toString());
+                    }
+                }
+            } else if (payload instanceof Map<?, ?> map) {
+                Object codes = map.containsKey("vendorCodes") ? map.get("vendorCodes") : map.get("ids");
+                if (codes instanceof List<?> list) {
+                    for (Object item : list) {
+                        if (item != null) {
+                            idsOrCodes.add(item.toString());
+                        }
+                    }
+                }
+            }
+
+            int deletedCount = buyerVendorService.bulkDeleteVendors(idsOrCodes, buyerOrgId);
+
+            MessageResponse response = MessageResponse.success(
+                deletedCount + " vendor(s) deleted successfully",
+                Map.of("deletedCount", deletedCount, "totalRequested", idsOrCodes.size())
+            );
+            return ResponseEntity.ok(response);
+        } catch (Exception ex) {
+            log.error("Error bulk deleting vendors", ex);
+            return ResponseEntity.internalServerError().body(
+                new MessageResponse("500", "Internal server error", List.of(ex.getMessage()), new Date(), "Failure", "SYSTEM_ERROR")
+            );
+        }
+    }
+
     private String getLoggedInBuyerOrgId() {
+
+
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         String username = auth.getName();
         User user = userDao.findByLatestUserName(username);
-        if (user != null && user.getOrg() != null) {
+        if (user != null && user.isActive() && user.getOrg() != null) {
             return user.getOrg().getId();
         }
         List<User> users = userDao.findByUsername(username);
