@@ -14,6 +14,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.*;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -106,10 +107,65 @@ public class VendorAiProcessingServiceImpl implements VendorAiProcessingService 
         return results;
     }
 
+    /**
+     * Every vendor on the buyer's roster, with AI enrichment where it exists.
+     *
+     * The directory previously read only the AI profile table, so a vendor whose
+     * enrichment had not run or had failed was absent from the page while still
+     * present in the master list. Any such vendor is backfilled here with a
+     * profile built from its own fields, so the directory always reflects the
+     * roster.
+     */
     @Override
+    @Transactional
     public List<BuyerVendorAiProfile> getAnalyzedVendors(String buyerOrgId) {
         ensureTableExists();
-        return aiProfileDao.findByBuyerOrgIdOrderByCreatedTSDesc(buyerOrgId);
+
+        List<BuyerVendorAiProfile> profiles = aiProfileDao.findByBuyerOrgIdOrderByCreatedTSDesc(buyerOrgId);
+
+        List<BuyerVendor> master;
+        try {
+            master = buyerVendorDao.findByBuyerOrgId(buyerOrgId);
+        } catch (Exception e) {
+            log.warn("Could not read the vendor master list for {}: {}", buyerOrgId, e.getMessage());
+            return profiles;
+        }
+        if (master == null || master.isEmpty()) {
+            return profiles;
+        }
+
+        Set<String> haveProfile = profiles.stream()
+                .map(BuyerVendorAiProfile::getVendorCode)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+
+        List<BuyerVendorAiProfile> added = new ArrayList<>();
+        for (BuyerVendor vendor : master) {
+            if (vendor.getVendorCode() == null || haveProfile.contains(vendor.getVendorCode())) {
+                continue;
+            }
+            try {
+                BuyerVendorAiProfile placeholder = createBaseProfile(vendor, buyerOrgId, "system-backfill");
+                placeholder.setIndustry(vendor.getTypeOfIndustry() != null ? vendor.getTypeOfIndustry() : "");
+                placeholder.setCategory("");
+                placeholder.setSubCategoriesJson("[]");
+                placeholder.setCapabilitiesJson("[]");
+                placeholder.setSuitableCategoriesJson("[]");
+                applyDeterministicQualification(placeholder, vendor);
+                added.add(aiProfileDao.save(placeholder));
+            } catch (Exception e) {
+                log.warn("Could not backfill a directory entry for vendor {}: {}",
+                        vendor.getVendorCode(), e.getMessage());
+            }
+        }
+
+        if (!added.isEmpty()) {
+            log.info("Backfilled {} vendor(s) missing an AI profile for buyer {}", added.size(), buyerOrgId);
+            added.addAll(profiles);
+            return added;
+        }
+
+        return profiles;
     }
 
     @Override
@@ -177,8 +233,18 @@ public class VendorAiProcessingServiceImpl implements VendorAiProcessingService 
             profile.setAiRawResponse(sanitized);
             log.info("Gemini AI successfully classified vendor {}: Industry={}, Category={}", vendor.getVendorName(), industry, category);
         } catch (Exception ex) {
-            log.error("Gemini AI execution failed for vendor {}: {}", vendor.getVendorName(), ex.getMessage(), ex);
-            throw new RuntimeException("Gemini AI execution failed for vendor " + vendor.getVendorName() + ": " + ex.getMessage(), ex);
+            // Categorisation is an enrichment, not a prerequisite for the vendor
+            // existing. Failing hard here removed the vendor from the directory
+            // altogether, and inside the parallel stream one bad call aborted the
+            // whole batch. Fall back to the buyer-supplied values instead.
+            log.error("Gemini AI categorisation failed for vendor {}: {}. Saving profile with "
+                    + "buyer-supplied classification.", vendor.getVendorName(), ex.getMessage());
+            profile.setIndustry(vendor.getTypeOfIndustry() != null ? vendor.getTypeOfIndustry() : "");
+            profile.setCategory("");
+            profile.setSubCategoriesJson("[]");
+            profile.setCapabilitiesJson("[]");
+            profile.setSuitableCategoriesJson("[]");
+            profile.setAiRawResponse("categorisation unavailable: " + ex.getMessage());
         }
 
         // Apply qualification verification based on actual vendor fields
