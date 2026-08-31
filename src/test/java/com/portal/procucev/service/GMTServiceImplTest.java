@@ -847,29 +847,44 @@ class GMTServiceImplTest {
 
     @Test
     void testSendEmailNormalInvalidAttachmentAndFailure() {
+        MimeMessage mimeMessage = new MimeMessage((jakarta.mail.Session) null);
+        when(javaMailSender.createMimeMessage()).thenReturn(mimeMessage);
         EmailRequest request = new EmailRequest();
         request.setTo(List.of("valid@example.com"));
         request.setCc(List.of("copy@example.com"));
         request.setBcc(List.of("blind@example.com"));
         request.setSubject("subject");
         request.setBody("body");
-        assertNotNull(service.sendEmail(request));
 
-        request.setTo(List.of("invalid-address"));
-        assertNotNull(service.sendEmail(request));
+        try (org.mockito.MockedStatic<com.portal.procucev.utils.EmailValidatorUtil> validator =
+                     mockStatic(com.portal.procucev.utils.EmailValidatorUtil.class)) {
+            assertNotNull(service.sendEmail(request));
 
-        request.setTo(List.of("valid@example.com"));
-        EmailAttachment attachment = new EmailAttachment();
-        attachment.setFileName("a.txt");
-        attachment.setContentType("text/plain");
-        attachment.setFileData(Base64.getEncoder().encodeToString("data".getBytes()));
-        request.setAttachments(List.of(attachment));
-        assertNotNull(service.sendEmail(request));
+            validator.when(() -> com.portal.procucev.utils.EmailValidatorUtil.validateEmails(any(), any()))
+                    .thenAnswer(invocation -> {
+                        List<String> invalid = invocation.getArgument(1);
+                        invalid.add("invalid-address");
+                        return null;
+                    });
+            request.setTo(List.of("invalid-address"));
+            assertNotNull(service.sendEmail(request));
 
-        attachment.setFileData(" ");
-        assertNotNull(service.sendEmail(request));
-        attachment.setFileData("%%%not-base64%%%");
-        assertNotNull(service.sendEmail(request));
+            validator.when(() -> com.portal.procucev.utils.EmailValidatorUtil.validateEmails(any(), any()))
+                    .thenAnswer(invocation -> null);
+
+            request.setTo(List.of("valid@example.com"));
+            EmailAttachment attachment = new EmailAttachment();
+            attachment.setFileName("a.txt");
+            attachment.setContentType("text/plain");
+            attachment.setFileData(Base64.getEncoder().encodeToString("data".getBytes()));
+            request.setAttachments(List.of(attachment));
+            assertNotNull(service.sendEmail(request));
+
+            attachment.setFileData(" ");
+            assertNotNull(service.sendEmail(request));
+            attachment.setFileData("%%%not-base64%%%");
+            assertNotNull(service.sendEmail(request));
+        }
     }
 
     @Test
