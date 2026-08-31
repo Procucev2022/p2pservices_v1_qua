@@ -345,16 +345,21 @@ public class BuyerVendorServiceImpl implements BuyerVendorService {
             toSave.add(v);
         }
 
+        java.util.List<BuyerVendor> saved = new java.util.ArrayList<>();
         if (!toSave.isEmpty()) {
-            buyerVendorDao.saveAll(toSave);
+            saved = buyerVendorDao.saveAll(toSave);
         }
 
+        // The saved records are returned so the caller can enrich them using the
+        // final vendor codes. Codes are suffixed on collision, so enriching the
+        // submitted payload instead would target the wrong master record.
         return java.util.Map.of(
             "savedCount", toSave.size(),
             "skippedCount", skippedCodes.size(),
             "totalCount", vendors.size(),
             "skippedCodes", skippedCodes,
-            "errors", errors
+            "errors", errors,
+            "vendors", saved
         );
     }
 

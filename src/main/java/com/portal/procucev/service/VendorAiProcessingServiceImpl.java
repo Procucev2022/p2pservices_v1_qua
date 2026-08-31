@@ -93,18 +93,40 @@ public class VendorAiProcessingServiceImpl implements VendorAiProcessingService 
 
         List<BuyerVendorAiProfile> results = new ArrayList<>();
         for (BuyerVendorAiProfile profile : analyzedProfiles) {
-            Optional<BuyerVendorAiProfile> existing = aiProfileDao.findByVendorCodeAndBuyerOrgId(profile.getVendorCode(), buyerOrgId);
-            if (existing.isPresent()) {
+            Optional<BuyerVendorAiProfile> existing =
+                    aiProfileDao.findByVendorCodeAndBuyerOrgId(profile.getVendorCode(), buyerOrgId);
+
+            // Only refresh an existing profile when it belongs to the same master
+            // record. A caller passing a code that is already taken by a different
+            // vendor would otherwise overwrite that vendor's profile instead of
+            // creating its own.
+            if (existing.isPresent() && sameMasterVendor(existing.get(), profile, buyerOrgId)) {
                 BuyerVendorAiProfile toUpdate = existing.get();
                 copyFields(profile, toUpdate);
                 toUpdate.setLastModifiedBy(username);
                 results.add(aiProfileDao.save(toUpdate));
+            } else if (existing.isPresent()) {
+                log.warn("Vendor code {} already has an AI profile for a different vendor ({} vs {}). "
+                        + "Skipping to avoid overwriting it.",
+                        profile.getVendorCode(), existing.get().getVendorName(), profile.getVendorName());
             } else {
                 profile.setCreatedBy(username);
                 results.add(aiProfileDao.save(profile));
             }
         }
         return results;
+    }
+
+    /**
+     * True when an existing profile and an incoming one describe the same master
+     * vendor. Vendor code is unique per buyer organization, so a name mismatch
+     * means the code has been reused for a different supplier.
+     */
+    private boolean sameMasterVendor(BuyerVendorAiProfile existing, BuyerVendorAiProfile incoming, String buyerOrgId) {
+        if (existing.getVendorName() == null || incoming.getVendorName() == null) {
+            return true;
+        }
+        return existing.getVendorName().trim().equalsIgnoreCase(incoming.getVendorName().trim());
     }
 
     /**
