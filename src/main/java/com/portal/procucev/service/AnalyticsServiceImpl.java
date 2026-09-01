@@ -958,15 +958,13 @@ public class AnalyticsServiceImpl implements AnalyticsService {
                 int weekRegB = 0;
                 int weekRegS = 0;
 
-                if (startDayNum <= totalDays && endDayNum >= 1 && (startCell + 1 > startDayOffset || endCell - startDayOffset >= 0)) {
+                if (startDayNum <= endDayNum && startDayNum <= totalDays && endDayNum >= 1) {
                     for (int d = startDayNum; d <= endDayNum; d++) {
-                        if (d >= 1 && d <= days.size()) {
-                            Map<String, Object> dayObj = days.get(d - 1);
-                            weekRfqs += getInt(dayObj, "rfqs");
-                            weekSubmissions += getInt(dayObj, "sellerSubmissions");
-                            weekRegB += getInt(dayObj, "regB");
-                            weekRegS += getInt(dayObj, "regS");
-                        }
+                        Map<String, Object> dayObj = days.get(d - 1);
+                        weekRfqs += getInt(dayObj, "rfqs");
+                        weekSubmissions += getInt(dayObj, "sellerSubmissions");
+                        weekRegB += getInt(dayObj, "regB");
+                        weekRegS += getInt(dayObj, "regS");
                     }
                 }
 
@@ -988,13 +986,12 @@ public class AnalyticsServiceImpl implements AnalyticsService {
                 ));
             }
 
+            response.put("days", days);
+            response.put("weeks", weeks);
             response.put("month", monthName);
             response.put("year", y);
             response.put("monthNumber", m);
-            response.put("totalDays", totalDays);
             response.put("startDayOffset", startDayOffset);
-            response.put("days", days);
-            response.put("weeks", weeks);
             response.put("availableMonths", availableMonths);
             response.put("source", "live_database");
         } catch (Exception e) {
@@ -1069,9 +1066,11 @@ public class AnalyticsServiceImpl implements AnalyticsService {
                 );
                 for (Map<String, Object> acc : accountRows) {
                     String ou = getString(acc, "org_uuid", "");
-                    List<Map<String, Object>> list = accountsByOrg.computeIfAbsent(ou, k -> new ArrayList<>());
-                    if (list.size() < 10) {
-                        list.add(acc);
+                    if (!ou.isEmpty()) {
+                        List<Map<String, Object>> list = accountsByOrg.computeIfAbsent(ou, k -> new ArrayList<>());
+                        if (list.size() < 10) {
+                            list.add(acc);
+                        }
                     }
                 }
             }
@@ -1081,30 +1080,22 @@ public class AnalyticsServiceImpl implements AnalyticsService {
             Map<String, Integer> prevGrowthMap = new HashMap<>();
             if (!orgUuids.isEmpty()) {
                 String inOrgSql = String.join(",", Collections.nCopies(orgUuids.size(), "?"));
-                List<Object> growthParams = new ArrayList<>();
-                growthParams.addAll(orgUuids);
-                growthParams.addAll(orgUuids);
                 List<Map<String, Object>> growthRows = jdbcTemplate.queryForList(
-                    "SELECT org_uuid, user, " +
+                    "SELECT org_uuid, " +
                     "  SUM(CASE WHEN created_ts >= DATE_SUB(NOW(), INTERVAL 30 DAY) THEN 1 ELSE 0 END) as recent_cnt, " +
                     "  SUM(CASE WHEN created_ts >= DATE_SUB(NOW(), INTERVAL 60 DAY) AND created_ts < DATE_SUB(NOW(), INTERVAL 30 DAY) THEN 1 ELSE 0 END) as prev_cnt " +
                     "FROM rfq_header " +
-                    "WHERE org_uuid IN (" + inOrgSql + ") OR user IN (" + inOrgSql + ") " +
-                    "GROUP BY org_uuid, user",
-                    growthParams.toArray()
+                    "WHERE org_uuid IN (" + inOrgSql + ") " +
+                    "GROUP BY org_uuid",
+                    orgUuids.toArray()
                 );
                 for (Map<String, Object> gr : growthRows) {
                     String ou = getString(gr, "org_uuid", "");
-                    String u = getString(gr, "user", "");
                     int rc = getInt(gr, "recent_cnt");
                     int pc = getInt(gr, "prev_cnt");
                     if (!ou.isEmpty()) {
-                        recentGrowthMap.merge(ou, rc, Integer::sum);
-                        prevGrowthMap.merge(ou, pc, Integer::sum);
-                    }
-                    if (!u.isEmpty() && !u.equals(ou)) {
-                        recentGrowthMap.merge(u, rc, Integer::sum);
-                        prevGrowthMap.merge(u, pc, Integer::sum);
+                        recentGrowthMap.put(ou, rc);
+                        prevGrowthMap.put(ou, pc);
                     }
                 }
             }
@@ -1114,28 +1105,18 @@ public class AnalyticsServiceImpl implements AnalyticsService {
             Set<String> allRfqUuids = new HashSet<>();
             if (!orgUuids.isEmpty()) {
                 String inOrgSql = String.join(",", Collections.nCopies(orgUuids.size(), "?"));
-                List<Object> rfqParams = new ArrayList<>();
-                rfqParams.addAll(orgUuids);
-                rfqParams.addAll(orgUuids);
                 List<Map<String, Object>> allRfqRows = jdbcTemplate.queryForList(
-                    "SELECT uuid, rfq_id, project_desc, created_ts, quote_count, quotation_received, org_uuid, user FROM rfq_header WHERE org_uuid IN (" + inOrgSql + ") OR user IN (" + inOrgSql + ") ORDER BY created_ts DESC",
-                    rfqParams.toArray()
+                    "SELECT uuid, rfq_id, project_desc, created_ts, quote_count, quotation_received, org_uuid FROM rfq_header WHERE org_uuid IN (" + inOrgSql + ") ORDER BY created_ts DESC",
+                    orgUuids.toArray()
                 );
                 for (Map<String, Object> r : allRfqRows) {
                     String ou = getString(r, "org_uuid", "");
-                    String u = getString(r, "user", "");
                     String rfqUuid = getString(r, "uuid", "");
                     if (!rfqUuid.isEmpty()) {
                         allRfqUuids.add(rfqUuid);
                     }
                     if (!ou.isEmpty()) {
                         List<Map<String, Object>> list = rfqRowsByOrg.computeIfAbsent(ou, k -> new ArrayList<>());
-                        if (list.size() < 15) {
-                            list.add(r);
-                        }
-                    }
-                    if (!u.isEmpty() && !u.equals(ou)) {
-                        List<Map<String, Object>> list = rfqRowsByOrg.computeIfAbsent(u, k -> new ArrayList<>());
                         if (list.size() < 15) {
                             list.add(r);
                         }
@@ -1163,9 +1144,6 @@ public class AnalyticsServiceImpl implements AnalyticsService {
             Map<String, List<Map<String, Object>>> quotesByOrg = new HashMap<>();
             if (!orgUuids.isEmpty()) {
                 String inOrgSql = String.join(",", Collections.nCopies(orgUuids.size(), "?"));
-                List<Object> quoteParams = new ArrayList<>();
-                quoteParams.addAll(orgUuids);
-                quoteParams.addAll(orgUuids);
                 List<Map<String, Object>> quotesRows = jdbcTemplate.queryForList(
                     "SELECT " +
                     "  v.uuid as quote_uuid, " +
@@ -1181,7 +1159,7 @@ public class AnalyticsServiceImpl implements AnalyticsService {
                     "LEFT JOIN organization o ON v.vendor_uuid = o.uuid " +
                     "WHERE (v.vendor_uuid IN (" + inOrgSql + ") OR r.org_uuid IN (" + inOrgSql + ")) AND v.quote_submitted_date IS NOT NULL " +
                     "ORDER BY v.quote_submitted_date DESC",
-                    quoteParams.toArray()
+                    orgUuids.toArray()
                 );
                 for (Map<String, Object> q : quotesRows) {
                     String vu = getString(q, "vendor_uuid", "");
@@ -1235,7 +1213,7 @@ public class AnalyticsServiceImpl implements AnalyticsService {
                     planPrice = getDouble(pr, "subscription_price");
                 }
                 if (planName.isEmpty()) {
-                    planName = (org.get("subscription_plan_uuid") != null || org.get("bfs_name") != null) ? "Pro Enterprise" : "Growth Standard Tier";
+                    planName = !planUuid.isEmpty() ? "Pro Enterprise" : "Growth Standard Tier";
                 }
                 String tier = planName;
 
@@ -1330,7 +1308,7 @@ public class AnalyticsServiceImpl implements AnalyticsService {
                 comp.put("subscription", Map.of(
                     "planName", planName,
                     "price", planPrice > 0 ? String.format("₹%,.0f", planPrice) : "Standard",
-                    "status", (org.get("subscription_plan_uuid") != null || org.get("bfs_name") != null) ? "Active Plan" : "Free Plan",
+                    "status", !planUuid.isEmpty() || !getString(org, "bfs_name", "").isEmpty() ? "Active Plan" : "Free Plan",
                     "registeredDate", regDate
                 ));
 
@@ -1365,8 +1343,8 @@ public class AnalyticsServiceImpl implements AnalyticsService {
     @Override
     public Map<String, Object> processChat(Map<String, Object> requestPayload) {
         Map<String, Object> response = new HashMap<>();
-        String prompt = requestPayload != null && requestPayload.get("prompt") != null ? String.valueOf(requestPayload.get("prompt")) : "";
-        String companyId = requestPayload != null && requestPayload.get("companyId") != null ? String.valueOf(requestPayload.get("companyId")) : "default";
+        String prompt = (requestPayload != null && requestPayload.get("prompt") != null) ? String.valueOf(requestPayload.get("prompt")) : "";
+        String companyId = (requestPayload != null && requestPayload.get("companyId") != null) ? String.valueOf(requestPayload.get("companyId")) : "default";
 
         String replyText = "Received your message: \"" + prompt + "\". Our procurement team will assist you shortly.";
         if (prompt.toLowerCase().contains("rfq")) {

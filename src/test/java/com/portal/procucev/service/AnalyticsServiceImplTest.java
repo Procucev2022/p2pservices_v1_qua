@@ -540,6 +540,43 @@ class AnalyticsServiceImplTest {
         assertNotNull(result2);
         assertEquals(now.getYear(), result2.get("year"));
         assertEquals(now.getMonthValue(), result2.get("monthNumber"));
+
+        Map<String, Object> result3 = analyticsService.getCalendarData(2025, 0);
+        assertNotNull(result3);
+        assertEquals(2025, result3.get("year"));
+        assertEquals(now.getMonthValue(), result3.get("monthNumber"));
+    }
+
+    @Test
+    void testGetCalendarDataDifferentStatusLevelsAndFallbacks() {
+        List<Map<String, Object>> dailyRfqs = List.of(
+            Map.of("day", 1, "rfqs", 12),
+            Map.of("day", 2, "rfqs", 0),
+            Map.of("day", 3, "rfqs", 0),
+            Map.of("day", 4, "rfqs", 5)
+        );
+        List<Map<String, Object>> dailyOrgs = List.of(
+            Map.of("day", 2, "regB", 0, "regS", 0, "totalCount", 15, "whatsappCount", 5, "webCount", 5, "otherCount", 5),
+            Map.of("day", 3, "regB", 2, "regS", 1, "totalCount", 3, "whatsappCount", 0, "webCount", 3, "otherCount", 0)
+        );
+        List<Map<String, Object>> dailySubs = List.of(Map.of("day", 1, "subs", 1));
+        List<Map<String, Object>> dailySubmissions = List.of(
+            Map.of("day", 2, "submissions", 8),
+            Map.of("day", 3, "submissions", 2)
+        );
+        List<Map<String, Object>> rfqLogs = Collections.emptyList(); // Trigger fallbackText on all days
+
+        when(jdbcTemplate.queryForList(anyString(), anyInt(), anyInt()))
+                .thenReturn(dailyRfqs, dailyOrgs, dailySubs, dailySubmissions, rfqLogs);
+
+        List<Map<String, Object>> avail = List.of(Map.of("yr", 2026, "mo", 8, "cnt", 10));
+        when(jdbcTemplate.queryForList(anyString())).thenReturn(avail);
+
+        Map<String, Object> result = analyticsService.getCalendarData(2026, 8);
+        assertNotNull(result);
+        List<Map<String, Object>> days = (List<Map<String, Object>>) result.get("days");
+        assertNotNull(days);
+        assertTrue(days.size() >= 4);
     }
 
     @Test
@@ -596,67 +633,60 @@ class AnalyticsServiceImplTest {
         org4.put("created_ts", null);
 
         List<Map<String, Object>> orgRows = List.of(org1, org2, org3, org4);
-        List<Map<String, Object>> planRows = List.of(Map.of("uuid", "plan-uuid-1", "plan_name", "Custom Plan", "subscription_price", 9999.0));
-        List<Map<String, Object>> accountRows = List.of(Map.of("org_uuid", "org-1", "name", "Account 1"));
 
-        Map<String, Object> rfqMap1 = new HashMap<>();
-        rfqMap1.put("uuid", "rfq-uuid-1");
-        rfqMap1.put("org_uuid", "org-1");
-        rfqMap1.put("rfq_id", "RFQ-101");
-        rfqMap1.put("quote_count", 2);
-        rfqMap1.put("quotation_received", 1);
-        rfqMap1.put("project_desc", "Requirement 1");
-        rfqMap1.put("created_ts", "2026-08-10 10:00:00");
-        rfqMap1.put("user", "org-1");
+        List<Map<String, Object>> planRows = List.of(
+            Map.of("uuid", "plan-uuid-1", "plan_name", "Custom Plan", "subscription_price", 9999.0),
+            Map.of("uuid", "", "plan_name", "Empty UUID Plan", "subscription_price", 0.0)
+        );
 
-        Map<String, Object> rfqMap2 = new HashMap<>();
-        rfqMap2.put("uuid", "rfq-uuid-2");
-        rfqMap2.put("rfq_id", "RFQ-102");
-        rfqMap2.put("quote_count", 0);
-        rfqMap2.put("quotation_received", 0);
-        rfqMap2.put("project_desc", "Requirement 2");
-        rfqMap2.put("created_ts", null);
-        rfqMap2.put("org_uuid", "org-2");
-        rfqMap2.put("user", "org-2");
+        List<Map<String, Object>> accountRows = new ArrayList<>();
+        for (int i = 0; i < 12; i++) {
+            accountRows.add(Map.of("org_uuid", "org-1", "name", "Account " + i));
+        }
 
-        List<Map<String, Object>> rfqRows = List.of(rfqMap1, rfqMap2);
+        List<Map<String, Object>> rfqRows = new ArrayList<>();
+        for (int i = 0; i < 18; i++) {
+            Map<String, Object> r = new HashMap<>();
+            r.put("uuid", "rfq-uuid-" + i);
+            r.put("org_uuid", "org-1");
+            r.put("rfq_id", "RFQ-" + (100 + i));
+            r.put("quote_count", i % 2);
+            r.put("quotation_received", i % 2);
+            r.put("project_desc", "Requirement " + i);
+            r.put("created_ts", i == 0 ? null : "2026-08-10 10:00:00");
+            rfqRows.add(r);
+        }
 
         List<Map<String, Object>> growthRows = List.of(
-            Map.of("org_uuid", "org-1", "user", "org-1", "recent_cnt", 2, "prev_cnt", 1)
+            Map.of("org_uuid", "org-1", "recent_cnt", 2, "prev_cnt", 1),
+            Map.of("org_uuid", "", "recent_cnt", 0, "prev_cnt", 0)
         );
 
         List<Map<String, Object>> itemRows = List.of(
-            Map.of("rfq_uuid", "rfq-uuid-1", "category", "Metals", "totalamount", 55000.0)
+            Map.of("rfq_uuid", "rfq-uuid-1", "category", "Metals", "totalamount", 55000.0),
+            Map.of("rfq_uuid", "", "category", "Empty", "totalamount", 0.0)
         );
 
-        Map<String, Object> quoteMap1 = new HashMap<>();
-        quoteMap1.put("quote_uuid", "q-1");
-        quoteMap1.put("vendor_uuid", "org-1");
-        quoteMap1.put("rfq_id", "RFQ-101");
-        quoteMap1.put("vendor_name", "Vendor Alpha");
-        quoteMap1.put("quote_amount", 54000.0);
-        quoteMap1.put("quotation_received", 1);
-        quoteMap1.put("sub_date", "15 Aug 2026");
-        quoteMap1.put("org_uuid", "org-1");
-
-        Map<String, Object> quoteMap2 = new HashMap<>();
-        quoteMap2.put("quote_uuid", "q-2");
-        quoteMap2.put("rfq_id", "RFQ-102");
-        quoteMap2.put("vendor_name", "Vendor Beta");
-        quoteMap2.put("quote_amount", 0.0);
-        quoteMap2.put("quotation_received", 0);
-        quoteMap2.put("sub_date", "16 Aug 2026");
-        quoteMap2.put("vendor_uuid", "org-2");
-        quoteMap2.put("org_uuid", "org-2");
-
-        List<Map<String, Object>> quoteRows = List.of(quoteMap1, quoteMap2);
+        List<Map<String, Object>> quoteRows = new ArrayList<>();
+        for (int i = 0; i < 12; i++) {
+            Map<String, Object> q = new HashMap<>();
+            q.put("quote_uuid", "q-" + i);
+            q.put("vendor_uuid", "org-1");
+            q.put("org_uuid", "org-2");
+            q.put("rfq_id", "RFQ-" + (100 + i));
+            q.put("vendor_name", "Vendor " + i);
+            q.put("quote_amount", i == 0 ? 0.0 : 5000.0 * i);
+            q.put("quotation_received", i % 2);
+            q.put("sub_date", "15 Aug 2026");
+            quoteRows.add(q);
+        }
         when(jdbcTemplate.queryForList(contains("FROM organization WHERE organization_name"), any(Object[].class)))
                 .thenReturn(orgRows);
         when(jdbcTemplate.queryForList(contains("FROM subscription_plan WHERE uuid IN"), any(Object[].class)))
                 .thenReturn(planRows);
         when(jdbcTemplate.queryForList(contains("FROM user WHERE org_uuid IN"), any(Object[].class)))
                 .thenReturn(accountRows);
-        when(jdbcTemplate.queryForList(contains("GROUP BY org_uuid, user"), any(Object[].class)))
+        when(jdbcTemplate.queryForList(contains("FROM rfq_header WHERE org_uuid IN"), any(Object[].class)))
                 .thenReturn(growthRows);
         when(jdbcTemplate.queryForList(contains("SELECT uuid, rfq_id, project_desc"), any(Object[].class)))
                 .thenReturn(rfqRows);
@@ -725,5 +755,13 @@ class AnalyticsServiceImplTest {
         // Prompt general
         Map<String, Object> resGeneral = analyticsService.processChat(Map.of("prompt", "Hello there"));
         assertTrue(((String) resGeneral.get("text")).contains("Received your message"));
+
+        // Payload with null prompt and null companyId
+        Map<String, Object> mapWithNulls = new HashMap<>();
+        mapWithNulls.put("prompt", null);
+        mapWithNulls.put("companyId", null);
+        Map<String, Object> resNullEntries = analyticsService.processChat(mapWithNulls);
+        assertNotNull(resNullEntries);
+        assertEquals("default", resNullEntries.get("companyId"));
     }
 }
