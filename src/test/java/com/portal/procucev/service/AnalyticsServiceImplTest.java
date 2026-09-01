@@ -654,9 +654,9 @@ class AnalyticsServiceImplTest {
                 .thenReturn(planRows);
         when(jdbcTemplate.queryForList(contains("FROM user WHERE org_uuid IN"), any(Object[].class)))
                 .thenReturn(accountRows);
-        when(jdbcTemplate.queryForList(contains("SUM(CASE WHEN created_ts >= DATE_SUB(NOW(), INTERVAL 30 DAY)"), any(Object[].class)))
+        when(jdbcTemplate.queryForList(contains("GROUP BY org_uuid, user"), any(Object[].class)))
                 .thenReturn(growthRows);
-        when(jdbcTemplate.queryForList(contains("FROM rfq_header WHERE org_uuid IN"), any(Object[].class)))
+        when(jdbcTemplate.queryForList(contains("SELECT uuid, rfq_id, project_desc"), any(Object[].class)))
                 .thenReturn(rfqRows);
         when(jdbcTemplate.queryForList(contains("FROM rfq_items WHERE rfq_uuid IN"), any(Object[].class)))
                 .thenReturn(itemRows);
