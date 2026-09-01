@@ -1091,7 +1091,7 @@ public class AnalyticsServiceImpl implements AnalyticsService {
                     );
                     String itemCat = !itemRows.isEmpty() ? getString(itemRows.get(0), "category", "General Procurement") : "General Procurement";
                     double itemAmt = !itemRows.isEmpty() ? getDouble(itemRows.get(0), "totalamount") : 0.0;
-                    String valStr = itemAmt > 0 ? String.format("₹%,.0f", itemAmt) : "₹50,000";
+                    String valStr = itemAmt > 0 ? String.format("₹%,.0f", itemAmt) : "₹0";
                     String projDesc = getString(r, "project_desc", itemCat + " Requirement");
                     String crDate = r.get("created_ts") != null ? r.get("created_ts").toString().substring(0, Math.min(10, r.get("created_ts").toString().length())) : "";
 
