@@ -326,7 +326,7 @@ public class AnalyticsServiceImpl implements AnalyticsService {
                 );
 
                 List<Map<String, Object>> recentRfqRows = jdbcTemplate.queryForList(
-                    "SELECT DISTINCT r.rfq_id, r.quote_count, r.quotation_received " +
+                    "SELECT DISTINCT r.rfq_id, r.quote_count, r.quotation_received, r.created_ts " +
                     "FROM rfq_items i " +
                     "JOIN rfq_header r ON i.rfq_uuid = r.uuid " +
                     "WHERE i.category = ? AND r.rfq_id IS NOT NULL AND r.rfq_id != '' " +
