@@ -650,8 +650,10 @@ class AnalyticsServiceImplTest {
             r.put("uuid", "rfq-uuid-" + i);
             r.put("org_uuid", "org-1");
             r.put("rfq_id", "RFQ-" + (100 + i));
-            r.put("quote_count", i % 2);
-            r.put("quotation_received", i % 2);
+            int qc = (i % 4 == 0) ? 2 : (i % 4 == 1) ? 0 : (i % 4 == 2) ? 0 : 3;
+            int qr = (i % 4 == 0) ? 0 : (i % 4 == 1) ? 1 : (i % 4 == 2) ? 0 : 1;
+            r.put("quote_count", qc);
+            r.put("quotation_received", qr);
             r.put("project_desc", "Requirement " + i);
             r.put("created_ts", i == 0 ? null : "2026-08-10 10:00:00");
             rfqRows.add(r);

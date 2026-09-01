@@ -362,7 +362,7 @@ public class AnalyticsServiceImpl implements AnalyticsService {
                         "buyers", subBuyers,
                         "sellers", subSellers,
                         "rfqs", cnt,
-                        "recentRfqs", realRecentRfqs.isEmpty() ? List.of() : realRecentRfqs.subList(0, Math.min(realRecentRfqs.size(), 2))
+                        "recentRfqs", realRecentRfqs.subList(0, Math.min(realRecentRfqs.size(), 2))
                     ));
                 }
 
@@ -388,7 +388,7 @@ public class AnalyticsServiceImpl implements AnalyticsService {
             }
 
             Map<String, Object> stats = Map.of(
-                "totalCategories", totalCats != null ? totalCats : categories.size(),
+                "totalCategories", totalCats,
                 "activeBuyers", activeBuyers,
                 "registeredSellers", regSellers,
                 "openRfqs", openRfqs
