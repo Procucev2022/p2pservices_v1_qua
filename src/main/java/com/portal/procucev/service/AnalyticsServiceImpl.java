@@ -100,12 +100,9 @@ public class AnalyticsServiceImpl implements AnalyticsService {
             int totalUsers = queryForInt("SELECT count(*) FROM user");
             int activeBuyers = queryForInt(
                 "SELECT count(DISTINCT o.uuid) FROM organization o " +
-                "JOIN user u ON (o.uuid = u.org_uuid OR o.uuid = u.org) " +
+                "JOIN user u ON o.uuid = u.org_uuid " +
                 "WHERE (o.org_type_uuid = '3001' OR o.client_vendor = 0) AND u.is_active = 1"
             );
-            if (activeBuyers == 0) {
-                activeBuyers = queryForInt("SELECT count(*) FROM user WHERE is_active = 1");
-            }
             if (activeBuyers > totalBuyers) {
                 activeBuyers = totalBuyers;
             }
