@@ -1406,6 +1406,12 @@ class GMTServiceImplCoverageTest {
         emptyIdReq.setRfqId("");
         MessageResponse resp2 = service.updateDeliveryLocation(emptyIdReq);
         assertEquals("400", resp2.getStatusCode());
+
+        DeliveryLocationUpdateRequest nullBothReq = new DeliveryLocationUpdateRequest();
+        nullBothReq.setId(null);
+        nullBothReq.setRfqId(null);
+        MessageResponse resp3 = service.updateDeliveryLocation(nullBothReq);
+        assertEquals("400", resp3.getStatusCode());
     }
 
     @Test
@@ -1423,6 +1429,38 @@ class GMTServiceImplCoverageTest {
         req.setCity("Raigarh");
         MessageResponse resp = service.updateDeliveryLocation(req);
         assertEquals("403", resp.getStatusCode());
+
+        // Test Admin role authorized
+        role.setRoleName("Admin");
+        Rfq dummyRfq = new Rfq();
+        dummyRfq.setId("RFQ-123");
+        dummyRfq.setClientdeliverylocationrfq(new ArrayList<>());
+        when(rfqDao.findById("RFQ-123")).thenReturn(Optional.of(dummyRfq));
+        MessageResponse respAdmin = service.updateDeliveryLocation(req);
+        assertEquals("200", respAdmin.getStatusCode());
+
+        // Test ROLE_ADMIN role authorized
+        role.setRoleName("ROLE_ADMIN");
+        MessageResponse respRoleAdmin = service.updateDeliveryLocation(req);
+        assertEquals("200", respRoleAdmin.getStatusCode());
+
+        // Test ADMIN uppercase role authorized
+        role.setRoleName("ADMIN");
+        MessageResponse respUpperAdmin = service.updateDeliveryLocation(req);
+        assertEquals("200", respUpperAdmin.getStatusCode());
+
+        // Test null role / null user
+        when(userDao.findByUsernameAndActive("unauthorizedUser", true)).thenReturn(null);
+        MessageResponse respNullUser = service.updateDeliveryLocation(req);
+        assertEquals("200", respNullUser.getStatusCode());
+
+        User userNoRole = new User();
+        userNoRole.setUsername("unauthorizedUser");
+        userNoRole.setRole(null);
+        when(userDao.findByUsernameAndActive("unauthorizedUser", true)).thenReturn(userNoRole);
+        MessageResponse respNoRole = service.updateDeliveryLocation(req);
+        assertEquals("200", respNoRole.getStatusCode());
+
         SecurityContextHolder.clearContext();
     }
 
@@ -1435,6 +1473,11 @@ class GMTServiceImplCoverageTest {
         role.setRoleName("CategoryManager");
         cmUser.setRole(role);
         when(userDao.findByUsernameAndActive("cmUser", true)).thenReturn(cmUser);
+
+        Rfq rfqNoCity = new Rfq();
+        rfqNoCity.setId("RFQ-123");
+        rfqNoCity.setClientdeliverylocationrfq(new ArrayList<>());
+        when(rfqDao.findById("RFQ-123")).thenReturn(Optional.of(rfqNoCity));
 
         DeliveryLocationUpdateRequest missingCityReq = new DeliveryLocationUpdateRequest();
         missingCityReq.setId("RFQ-123");
@@ -1535,6 +1578,45 @@ class GMTServiceImplCoverageTest {
         assertNull(createdLoc.getPincode());
         assertNull(createdLoc.getAddress());
         verify(rfqDao).save(existing);
+    }
+
+    @Test
+    void testUpdateDeliveryLocation_PartialUpdate_PreservesCity() {
+        authenticate("cmUser");
+        User cmUser = new User();
+        cmUser.setUsername("cmUser");
+        Role role = new Role();
+        role.setRoleName("CategoryManagerBasic");
+        cmUser.setRole(role);
+        when(userDao.findByUsernameAndActive("cmUser", true)).thenReturn(cmUser);
+
+        Rfq existing = new Rfq();
+        existing.setId("RFQ-PARTIAL-1");
+        existing.setRfqId("RFQ-PARTIAL-BUS");
+        ClientDeliveryLocationRfq loc = new ClientDeliveryLocationRfq();
+        loc.setCity("Pune");
+        loc.setState("Maharashtra");
+        loc.setPincode("411001");
+        existing.setClientdeliverylocationrfq(new ArrayList<>(List.of(loc)));
+
+        when(rfqDao.findById("RFQ-PARTIAL-1")).thenReturn(Optional.of(existing));
+
+        Date updatedDate = new Date();
+        DeliveryLocationUpdateRequest req = new DeliveryLocationUpdateRequest();
+        req.setId("RFQ-PARTIAL-1");
+        req.setState("Karnataka");
+        req.setPincode("560001");
+        req.setDeliveryDate(updatedDate);
+
+        MessageResponse resp = service.updateDeliveryLocation(req);
+        assertEquals("200", resp.getStatusCode());
+        assertEquals("Pune", loc.getCity());
+        assertEquals("Karnataka", loc.getState());
+        assertEquals("560001", loc.getPincode());
+        assertEquals(updatedDate, existing.getDeliveryDate());
+        verify(rfqDao).save(existing);
+
+        SecurityContextHolder.clearContext();
     }
 
     @Test
