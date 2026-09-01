@@ -596,13 +596,13 @@ class AnalyticsServiceImplTest {
         org4.put("created_ts", null);
 
         List<Map<String, Object>> orgRows = List.of(org1, org2, org3, org4);
-        when(jdbcTemplate.queryForList(anyString(), any(Object[].class))).thenReturn(orgRows);
 
-        List<Map<String, Object>> planRows = List.of(Map.of("plan_name", "Custom Plan", "subscription_price", 9999.0));
-        List<Map<String, Object>> accountRows = List.of(Map.of("name", "Account 1"));
+        List<Map<String, Object>> planRows = List.of(Map.of("uuid", "plan-uuid-1", "plan_name", "Custom Plan", "subscription_price", 9999.0));
+        List<Map<String, Object>> accountRows = List.of(Map.of("org_uuid", "org-1", "name", "Account 1"));
 
         Map<String, Object> rfqMap1 = new HashMap<>();
         rfqMap1.put("uuid", "rfq-uuid-1");
+        rfqMap1.put("org_uuid", "org-1");
         rfqMap1.put("rfq_id", "RFQ-101");
         rfqMap1.put("quote_count", 2);
         rfqMap1.put("quotation_received", 1);
@@ -611,6 +611,7 @@ class AnalyticsServiceImplTest {
 
         Map<String, Object> rfqMap2 = new HashMap<>();
         rfqMap2.put("uuid", "rfq-uuid-2");
+        rfqMap2.put("org_uuid", "org-1");
         rfqMap2.put("rfq_id", "RFQ-102");
         rfqMap2.put("quote_count", 0);
         rfqMap2.put("quotation_received", 0);
@@ -619,11 +620,17 @@ class AnalyticsServiceImplTest {
 
         List<Map<String, Object>> rfqRows = List.of(rfqMap1, rfqMap2);
 
-        List<Map<String, Object>> itemRows1 = List.of(Map.of("category", "Metals", "totalamount", 55000.0));
-        List<Map<String, Object>> itemRows2 = Collections.emptyList();
+        List<Map<String, Object>> growthRows = List.of(
+            Map.of("org_uuid", "org-1", "user", "org-1", "recent_cnt", 2, "prev_cnt", 1)
+        );
+
+        List<Map<String, Object>> itemRows = List.of(
+            Map.of("rfq_uuid", "rfq-uuid-1", "category", "Metals", "totalamount", 55000.0)
+        );
 
         Map<String, Object> quoteMap1 = new HashMap<>();
         quoteMap1.put("quote_uuid", "q-1");
+        quoteMap1.put("vendor_uuid", "org-1");
         quoteMap1.put("rfq_id", "RFQ-101");
         quoteMap1.put("vendor_name", "Vendor Alpha");
         quoteMap1.put("quote_amount", 54000.0);
@@ -632,6 +639,7 @@ class AnalyticsServiceImplTest {
 
         Map<String, Object> quoteMap2 = new HashMap<>();
         quoteMap2.put("quote_uuid", "q-2");
+        quoteMap2.put("vendor_uuid", "org-1");
         quoteMap2.put("rfq_id", "RFQ-102");
         quoteMap2.put("vendor_name", "Vendor Beta");
         quoteMap2.put("quote_amount", 0.0);
@@ -640,22 +648,20 @@ class AnalyticsServiceImplTest {
 
         List<Map<String, Object>> quoteRows = List.of(quoteMap1, quoteMap2);
 
-        when(jdbcTemplate.queryForList(eq("SELECT plan_name, subscription_price FROM subscription_plan WHERE uuid = ?"), any(Object[].class)))
-                .thenReturn(planRows, Collections.emptyList());
-
-        when(jdbcTemplate.queryForList(eq("SELECT uuid, COALESCE(full_name, username) as name, COALESCE(email, '—') as email, COALESCE(phone, '—') as phone, is_active as isActive, DATE_FORMAT(created_ts, '%d %b %Y') as joinedDate FROM user WHERE org_uuid = ? LIMIT 10"), any(Object[].class)))
-                .thenReturn(accountRows, Collections.emptyList());
-
-        when(jdbcTemplate.queryForList(eq("SELECT uuid, rfq_id, project_desc, created_ts, quote_count, quotation_received FROM rfq_header WHERE org_uuid = ? OR user = ? ORDER BY created_ts DESC LIMIT 15"), any(Object[].class)))
-                .thenReturn(rfqRows, Collections.emptyList());
-
-        when(jdbcTemplate.queryForList(eq("SELECT category, totalamount FROM rfq_items WHERE rfq_uuid = ? LIMIT 1"), any(Object[].class)))
-                .thenReturn(itemRows1, itemRows2);
-
+        when(jdbcTemplate.queryForList(contains("FROM organization WHERE organization_name"), any(Object[].class)))
+                .thenReturn(orgRows);
+        when(jdbcTemplate.queryForList(contains("FROM subscription_plan WHERE uuid IN"), any(Object[].class)))
+                .thenReturn(planRows);
+        when(jdbcTemplate.queryForList(contains("FROM user WHERE org_uuid IN"), any(Object[].class)))
+                .thenReturn(accountRows);
+        when(jdbcTemplate.queryForList(contains("SUM(CASE WHEN created_ts >= DATE_SUB(NOW(), INTERVAL 30 DAY)"), any(Object[].class)))
+                .thenReturn(growthRows);
+        when(jdbcTemplate.queryForList(contains("FROM rfq_header WHERE org_uuid IN"), any(Object[].class)))
+                .thenReturn(rfqRows);
+        when(jdbcTemplate.queryForList(contains("FROM rfq_items WHERE rfq_uuid IN"), any(Object[].class)))
+                .thenReturn(itemRows);
         when(jdbcTemplate.queryForList(contains("FROM gmt_rfq_vendors v"), any(Object[].class)))
-                .thenReturn(quoteRows, Collections.emptyList());
-
-        when(jdbcTemplate.queryForObject(anyString(), eq(Integer.class), any(Object[].class))).thenReturn(2);
+                .thenReturn(quoteRows);
 
         Map<String, Object> result = analyticsService.searchCompanies("Alpha");
         assertNotNull(result);

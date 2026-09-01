@@ -1023,6 +1023,185 @@ public class AnalyticsServiceImpl implements AnalyticsService {
             List<Map<String, Object>> orgRows = jdbcTemplate.queryForList(sql, params.toArray());
             List<Map<String, Object>> companies = new ArrayList<>();
 
+            if (orgRows.isEmpty()) {
+                response.put("companies", companies);
+                response.put("total", 0);
+                response.put("source", "live_database");
+                return response;
+            }
+
+            // Collect IDs for batch loading
+            List<String> orgUuids = new ArrayList<>();
+            Set<String> planUuids = new HashSet<>();
+            for (Map<String, Object> org : orgRows) {
+                String u = getString(org, "uuid", "");
+                if (!u.isEmpty()) {
+                    orgUuids.add(u);
+                }
+                String planUuid = getString(org, "subscription_plan_uuid", "");
+                if (!planUuid.isEmpty()) {
+                    planUuids.add(planUuid);
+                }
+            }
+
+            // 1. Batch Subscription Plans
+            Map<String, Map<String, Object>> planByUuid = new HashMap<>();
+            if (!planUuids.isEmpty()) {
+                String inPlanSql = String.join(",", Collections.nCopies(planUuids.size(), "?"));
+                List<Map<String, Object>> pRows = jdbcTemplate.queryForList(
+                    "SELECT uuid, plan_name, subscription_price FROM subscription_plan WHERE uuid IN (" + inPlanSql + ")",
+                    planUuids.toArray()
+                );
+                for (Map<String, Object> pr : pRows) {
+                    String pu = getString(pr, "uuid", "");
+                    if (!pu.isEmpty()) {
+                        planByUuid.put(pu, pr);
+                    }
+                }
+            }
+
+            // 2. Batch Accounts (User table)
+            Map<String, List<Map<String, Object>>> accountsByOrg = new HashMap<>();
+            if (!orgUuids.isEmpty()) {
+                String inOrgSql = String.join(",", Collections.nCopies(orgUuids.size(), "?"));
+                List<Map<String, Object>> accountRows = jdbcTemplate.queryForList(
+                    "SELECT org_uuid, uuid, COALESCE(full_name, username) as name, COALESCE(email, '—') as email, COALESCE(phone, '—') as phone, is_active as isActive, DATE_FORMAT(created_ts, '%d %b %Y') as joinedDate FROM user WHERE org_uuid IN (" + inOrgSql + ")",
+                    orgUuids.toArray()
+                );
+                for (Map<String, Object> acc : accountRows) {
+                    String ou = getString(acc, "org_uuid", "");
+                    List<Map<String, Object>> list = accountsByOrg.computeIfAbsent(ou, k -> new ArrayList<>());
+                    if (list.size() < 10) {
+                        list.add(acc);
+                    }
+                }
+            }
+
+            // 3. Batch 30-day & 60-day Growth Counts
+            Map<String, Integer> recentGrowthMap = new HashMap<>();
+            Map<String, Integer> prevGrowthMap = new HashMap<>();
+            if (!orgUuids.isEmpty()) {
+                String inOrgSql = String.join(",", Collections.nCopies(orgUuids.size(), "?"));
+                List<Object> growthParams = new ArrayList<>();
+                growthParams.addAll(orgUuids);
+                growthParams.addAll(orgUuids);
+                List<Map<String, Object>> growthRows = jdbcTemplate.queryForList(
+                    "SELECT org_uuid, user, " +
+                    "  SUM(CASE WHEN created_ts >= DATE_SUB(NOW(), INTERVAL 30 DAY) THEN 1 ELSE 0 END) as recent_cnt, " +
+                    "  SUM(CASE WHEN created_ts >= DATE_SUB(NOW(), INTERVAL 60 DAY) AND created_ts < DATE_SUB(NOW(), INTERVAL 30 DAY) THEN 1 ELSE 0 END) as prev_cnt " +
+                    "FROM rfq_header " +
+                    "WHERE org_uuid IN (" + inOrgSql + ") OR user IN (" + inOrgSql + ") " +
+                    "GROUP BY org_uuid, user",
+                    growthParams.toArray()
+                );
+                for (Map<String, Object> gr : growthRows) {
+                    String ou = getString(gr, "org_uuid", "");
+                    String u = getString(gr, "user", "");
+                    int rc = getInt(gr, "recent_cnt");
+                    int pc = getInt(gr, "prev_cnt");
+                    if (!ou.isEmpty()) {
+                        recentGrowthMap.merge(ou, rc, Integer::sum);
+                        prevGrowthMap.merge(ou, pc, Integer::sum);
+                    }
+                    if (!u.isEmpty() && !u.equals(ou)) {
+                        recentGrowthMap.merge(u, rc, Integer::sum);
+                        prevGrowthMap.merge(u, pc, Integer::sum);
+                    }
+                }
+            }
+
+            // 4. Batch RFQs
+            Map<String, List<Map<String, Object>>> rfqRowsByOrg = new HashMap<>();
+            Set<String> allRfqUuids = new HashSet<>();
+            if (!orgUuids.isEmpty()) {
+                String inOrgSql = String.join(",", Collections.nCopies(orgUuids.size(), "?"));
+                List<Object> rfqParams = new ArrayList<>();
+                rfqParams.addAll(orgUuids);
+                rfqParams.addAll(orgUuids);
+                List<Map<String, Object>> allRfqRows = jdbcTemplate.queryForList(
+                    "SELECT uuid, rfq_id, project_desc, created_ts, quote_count, quotation_received, org_uuid, user FROM rfq_header WHERE org_uuid IN (" + inOrgSql + ") OR user IN (" + inOrgSql + ") ORDER BY created_ts DESC",
+                    rfqParams.toArray()
+                );
+                for (Map<String, Object> r : allRfqRows) {
+                    String ou = getString(r, "org_uuid", "");
+                    String u = getString(r, "user", "");
+                    String rfqUuid = getString(r, "uuid", "");
+                    if (!rfqUuid.isEmpty()) {
+                        allRfqUuids.add(rfqUuid);
+                    }
+                    if (!ou.isEmpty()) {
+                        List<Map<String, Object>> list = rfqRowsByOrg.computeIfAbsent(ou, k -> new ArrayList<>());
+                        if (list.size() < 15) {
+                            list.add(r);
+                        }
+                    }
+                    if (!u.isEmpty() && !u.equals(ou)) {
+                        List<Map<String, Object>> list = rfqRowsByOrg.computeIfAbsent(u, k -> new ArrayList<>());
+                        if (list.size() < 15) {
+                            list.add(r);
+                        }
+                    }
+                }
+            }
+
+            // 5. Batch RFQ Items
+            Map<String, Map<String, Object>> itemByRfqUuid = new HashMap<>();
+            if (!allRfqUuids.isEmpty()) {
+                String inItemSql = String.join(",", Collections.nCopies(allRfqUuids.size(), "?"));
+                List<Map<String, Object>> allItemRows = jdbcTemplate.queryForList(
+                    "SELECT rfq_uuid, category, totalamount FROM rfq_items WHERE rfq_uuid IN (" + inItemSql + ")",
+                    allRfqUuids.toArray()
+                );
+                for (Map<String, Object> ir : allItemRows) {
+                    String ru = getString(ir, "rfq_uuid", "");
+                    if (!ru.isEmpty()) {
+                        itemByRfqUuid.putIfAbsent(ru, ir);
+                    }
+                }
+            }
+
+            // 6. Batch Quotes
+            Map<String, List<Map<String, Object>>> quotesByOrg = new HashMap<>();
+            if (!orgUuids.isEmpty()) {
+                String inOrgSql = String.join(",", Collections.nCopies(orgUuids.size(), "?"));
+                List<Object> quoteParams = new ArrayList<>();
+                quoteParams.addAll(orgUuids);
+                quoteParams.addAll(orgUuids);
+                List<Map<String, Object>> quotesRows = jdbcTemplate.queryForList(
+                    "SELECT " +
+                    "  v.uuid as quote_uuid, " +
+                    "  COALESCE(r.rfq_id, 'RFQ') as rfq_id, " +
+                    "  COALESCE(o.organization_name, 'Vendor') as vendor_name, " +
+                    "  (SELECT COALESCE(SUM(i.totalamount), 0) FROM rfq_items i WHERE i.rfq_uuid = v.rfq_uuid) as quote_amount, " +
+                    "  DATE_FORMAT(v.quote_submitted_date, '%d %b %Y') as sub_date, " +
+                    "  v.quotation_received, " +
+                    "  v.vendor_uuid, " +
+                    "  r.org_uuid " +
+                    "FROM gmt_rfq_vendors v " +
+                    "LEFT JOIN rfq_header r ON v.rfq_uuid = r.uuid " +
+                    "LEFT JOIN organization o ON v.vendor_uuid = o.uuid " +
+                    "WHERE (v.vendor_uuid IN (" + inOrgSql + ") OR r.org_uuid IN (" + inOrgSql + ")) AND v.quote_submitted_date IS NOT NULL " +
+                    "ORDER BY v.quote_submitted_date DESC",
+                    quoteParams.toArray()
+                );
+                for (Map<String, Object> q : quotesRows) {
+                    String vu = getString(q, "vendor_uuid", "");
+                    String ro = getString(q, "org_uuid", "");
+                    if (!vu.isEmpty()) {
+                        List<Map<String, Object>> list = quotesByOrg.computeIfAbsent(vu, k -> new ArrayList<>());
+                        if (list.size() < 10) {
+                            list.add(q);
+                        }
+                    }
+                    if (!ro.isEmpty() && !ro.equals(vu)) {
+                        List<Map<String, Object>> list = quotesByOrg.computeIfAbsent(ro, k -> new ArrayList<>());
+                        if (list.size() < 10) {
+                            list.add(q);
+                        }
+                    }
+                }
+            }
+
             for (Map<String, Object> org : orgRows) {
                 String uuid = getString(org, "uuid", "");
                 String orgName = getString(org, "organization_name", "Organization");
@@ -1050,15 +1229,11 @@ public class AnalyticsServiceImpl implements AnalyticsService {
                 // Subscription Info
                 String planName = getString(org, "bfs_name", "");
                 double planPrice = 0.0;
-                if (planName.isEmpty() && org.get("subscription_plan_uuid") != null) {
-                    List<Map<String, Object>> pRows = jdbcTemplate.queryForList(
-                        "SELECT plan_name, subscription_price FROM subscription_plan WHERE uuid = ?",
-                        org.get("subscription_plan_uuid")
-                    );
-                    if (!pRows.isEmpty()) {
-                        planName = getString(pRows.get(0), "plan_name", "Pro Tier");
-                        planPrice = getDouble(pRows.get(0), "subscription_price");
-                    }
+                String planUuid = getString(org, "subscription_plan_uuid", "");
+                if (planName.isEmpty() && !planUuid.isEmpty() && planByUuid.containsKey(planUuid)) {
+                    Map<String, Object> pr = planByUuid.get(planUuid);
+                    planName = getString(pr, "plan_name", "Pro Tier");
+                    planPrice = getDouble(pr, "subscription_price");
                 }
                 if (planName.isEmpty()) {
                     planName = (org.get("subscription_plan_uuid") != null || org.get("bfs_name") != null) ? "Pro Enterprise" : "Growth Standard Tier";
@@ -1066,30 +1241,20 @@ public class AnalyticsServiceImpl implements AnalyticsService {
                 String tier = planName;
 
                 // Total accounts from Company (user table)
-                List<Map<String, Object>> accountRows = jdbcTemplate.queryForList(
-                    "SELECT uuid, COALESCE(full_name, username) as name, COALESCE(email, '—') as email, COALESCE(phone, '—') as phone, is_active as isActive, DATE_FORMAT(created_ts, '%d %b %Y') as joinedDate FROM user WHERE org_uuid = ? LIMIT 10",
-                    uuid
-                );
+                List<Map<String, Object>> accountRows = accountsByOrg.getOrDefault(uuid, Collections.emptyList());
 
                 // Real RFQs for this organization
-                List<Map<String, Object>> rfqRows = jdbcTemplate.queryForList(
-                    "SELECT uuid, rfq_id, project_desc, created_ts, quote_count, quotation_received FROM rfq_header WHERE org_uuid = ? OR user = ? ORDER BY created_ts DESC LIMIT 15",
-                    uuid, uuid
-                );
-
+                List<Map<String, Object>> rawRfqs = rfqRowsByOrg.getOrDefault(uuid, Collections.emptyList());
                 List<Map<String, Object>> rfqs = new ArrayList<>();
-                for (Map<String, Object> r : rfqRows) {
+                for (Map<String, Object> r : rawRfqs) {
                     String rfqUuid = getString(r, "uuid", "");
                     String rfqId = getString(r, "rfq_id", "RFQ-LIVE");
                     int qc = getInt(r, "quote_count");
                     int qr = getInt(r, "quotation_received");
 
-                    List<Map<String, Object>> itemRows = jdbcTemplate.queryForList(
-                        "SELECT category, totalamount FROM rfq_items WHERE rfq_uuid = ? LIMIT 1",
-                        rfqUuid
-                    );
-                    String itemCat = !itemRows.isEmpty() ? getString(itemRows.get(0), "category", "General Procurement") : "General Procurement";
-                    double itemAmt = !itemRows.isEmpty() ? getDouble(itemRows.get(0), "totalamount") : 0.0;
+                    Map<String, Object> itemRow = itemByRfqUuid.get(rfqUuid);
+                    String itemCat = itemRow != null ? getString(itemRow, "category", "General Procurement") : "General Procurement";
+                    double itemAmt = itemRow != null ? getDouble(itemRow, "totalamount") : 0.0;
                     String valStr = itemAmt > 0 ? String.format("₹%,.0f", itemAmt) : "₹0";
                     String projDesc = getString(r, "project_desc", itemCat + " Requirement");
                     String crDate = r.get("created_ts") != null ? r.get("created_ts").toString().substring(0, Math.min(10, r.get("created_ts").toString().length())) : "";
@@ -1107,28 +1272,14 @@ public class AnalyticsServiceImpl implements AnalyticsService {
                 }
 
                 // Real 30-day RFQ growth for this org
-                int recentOrgRfqs = queryForInt("SELECT count(*) FROM rfq_header WHERE (org_uuid = ? OR user = ?) AND created_ts >= DATE_SUB(NOW(), INTERVAL 30 DAY)", uuid, uuid);
-                int prevOrgRfqs = queryForInt("SELECT count(*) FROM rfq_header WHERE (org_uuid = ? OR user = ?) AND created_ts >= DATE_SUB(NOW(), INTERVAL 60 DAY) AND created_ts < DATE_SUB(NOW(), INTERVAL 30 DAY)", uuid, uuid);
+                int recentOrgRfqs = recentGrowthMap.getOrDefault(uuid, 0);
+                int prevOrgRfqs = prevGrowthMap.getOrDefault(uuid, 0);
                 Map<String, Object> orgGrowth = calculateGrowth(recentOrgRfqs, prevOrgRfqs);
 
                 // Real quotes submitted/downloaded history
-                List<Map<String, Object>> quotesRows = jdbcTemplate.queryForList(
-                    "SELECT " +
-                    "  v.uuid as quote_uuid, " +
-                    "  COALESCE(r.rfq_id, 'RFQ') as rfq_id, " +
-                    "  COALESCE(o.organization_name, 'Vendor') as vendor_name, " +
-                    "  (SELECT COALESCE(SUM(i.totalamount), 0) FROM rfq_items i WHERE i.rfq_uuid = v.rfq_uuid) as quote_amount, " +
-                    "  DATE_FORMAT(v.quote_submitted_date, '%d %b %Y') as sub_date, " +
-                    "  v.quotation_received " +
-                    "FROM gmt_rfq_vendors v " +
-                    "LEFT JOIN rfq_header r ON v.rfq_uuid = r.uuid " +
-                    "LEFT JOIN organization o ON v.vendor_uuid = o.uuid " +
-                    "WHERE (v.vendor_uuid = ? OR r.org_uuid = ?) AND v.quote_submitted_date IS NOT NULL " +
-                    "ORDER BY v.quote_submitted_date DESC LIMIT 10",
-                    uuid, uuid
-                );
+                List<Map<String, Object>> rawQuotes = quotesByOrg.getOrDefault(uuid, Collections.emptyList());
                 List<Map<String, Object>> quotes = new ArrayList<>();
-                for (Map<String, Object> q : quotesRows) {
+                for (Map<String, Object> q : rawQuotes) {
                     String rfqIdStr = getString(q, "rfq_id", "RFQ");
                     String vName = getString(q, "vendor_name", orgName);
                     double qAmt = getDouble(q, "quote_amount");
