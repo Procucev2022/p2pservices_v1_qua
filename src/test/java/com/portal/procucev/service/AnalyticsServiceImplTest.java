@@ -596,7 +596,6 @@ class AnalyticsServiceImplTest {
         org4.put("created_ts", null);
 
         List<Map<String, Object>> orgRows = List.of(org1, org2, org3, org4);
-
         List<Map<String, Object>> planRows = List.of(Map.of("uuid", "plan-uuid-1", "plan_name", "Custom Plan", "subscription_price", 9999.0));
         List<Map<String, Object>> accountRows = List.of(Map.of("org_uuid", "org-1", "name", "Account 1"));
 
@@ -608,15 +607,17 @@ class AnalyticsServiceImplTest {
         rfqMap1.put("quotation_received", 1);
         rfqMap1.put("project_desc", "Requirement 1");
         rfqMap1.put("created_ts", "2026-08-10 10:00:00");
+        rfqMap1.put("user", "org-1");
 
         Map<String, Object> rfqMap2 = new HashMap<>();
         rfqMap2.put("uuid", "rfq-uuid-2");
-        rfqMap2.put("org_uuid", "org-1");
         rfqMap2.put("rfq_id", "RFQ-102");
         rfqMap2.put("quote_count", 0);
         rfqMap2.put("quotation_received", 0);
         rfqMap2.put("project_desc", "Requirement 2");
         rfqMap2.put("created_ts", null);
+        rfqMap2.put("org_uuid", "org-2");
+        rfqMap2.put("user", "org-2");
 
         List<Map<String, Object>> rfqRows = List.of(rfqMap1, rfqMap2);
 
@@ -636,18 +637,19 @@ class AnalyticsServiceImplTest {
         quoteMap1.put("quote_amount", 54000.0);
         quoteMap1.put("quotation_received", 1);
         quoteMap1.put("sub_date", "15 Aug 2026");
+        quoteMap1.put("org_uuid", "org-1");
 
         Map<String, Object> quoteMap2 = new HashMap<>();
         quoteMap2.put("quote_uuid", "q-2");
-        quoteMap2.put("vendor_uuid", "org-1");
         quoteMap2.put("rfq_id", "RFQ-102");
         quoteMap2.put("vendor_name", "Vendor Beta");
         quoteMap2.put("quote_amount", 0.0);
         quoteMap2.put("quotation_received", 0);
         quoteMap2.put("sub_date", "16 Aug 2026");
+        quoteMap2.put("vendor_uuid", "org-2");
+        quoteMap2.put("org_uuid", "org-2");
 
         List<Map<String, Object>> quoteRows = List.of(quoteMap1, quoteMap2);
-
         when(jdbcTemplate.queryForList(contains("FROM organization WHERE organization_name"), any(Object[].class)))
                 .thenReturn(orgRows);
         when(jdbcTemplate.queryForList(contains("FROM subscription_plan WHERE uuid IN"), any(Object[].class)))
@@ -667,6 +669,11 @@ class AnalyticsServiceImplTest {
         assertNotNull(result);
         assertEquals("live_database", result.get("source"));
         assertEquals(4, result.get("total"));
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> companies = (List<Map<String, Object>>) result.get("companies");
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> quotes = (List<Map<String, Object>>) companies.get(1).get("quotes");
+        assertEquals("₹0", quotes.get(0).get("amount"));
     }
 
     @Test
