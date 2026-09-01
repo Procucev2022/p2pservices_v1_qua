@@ -781,8 +781,9 @@ public class AnalyticsServiceImpl implements AnalyticsService {
     public Map<String, Object> getCalendarData(Integer year, Integer month) {
         Map<String, Object> response = new HashMap<>();
         try {
-            int y = (year != null && year > 2000) ? year : 2026;
-            int m = (month != null && month >= 1 && month <= 12) ? month : 8;
+            LocalDate now = LocalDate.now();
+            int y = (year != null && year > 2000) ? year : now.getYear();
+            int m = (month != null && month >= 1 && month <= 12) ? month : now.getMonthValue();
 
             LocalDate firstDay = LocalDate.of(y, m, 1);
             String monthName = firstDay.getMonth().getDisplayName(TextStyle.FULL, Locale.ENGLISH) + " " + y;

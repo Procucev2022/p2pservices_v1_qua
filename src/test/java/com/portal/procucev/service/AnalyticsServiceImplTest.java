@@ -8,6 +8,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 import java.lang.reflect.Method;
+import java.time.LocalDate;
 import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -510,15 +511,17 @@ class AnalyticsServiceImplTest {
 
         when(jdbcTemplate.queryForList(anyString())).thenReturn(Collections.emptyList());
 
+        LocalDate now = LocalDate.now();
+
         Map<String, Object> result1 = analyticsService.getCalendarData(1990, 15);
         assertNotNull(result1);
-        assertEquals(2026, result1.get("year"));
-        assertEquals(8, result1.get("monthNumber"));
+        assertEquals(now.getYear(), result1.get("year"));
+        assertEquals(now.getMonthValue(), result1.get("monthNumber"));
 
         Map<String, Object> result2 = analyticsService.getCalendarData(null, null);
         assertNotNull(result2);
-        assertEquals(2026, result2.get("year"));
-        assertEquals(8, result2.get("monthNumber"));
+        assertEquals(now.getYear(), result2.get("year"));
+        assertEquals(now.getMonthValue(), result2.get("monthNumber"));
     }
 
     @Test
