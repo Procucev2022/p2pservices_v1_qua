@@ -4,6 +4,7 @@ import java.time.LocalDate;
 import java.time.format.TextStyle;
 import java.util.*;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
@@ -1242,7 +1243,7 @@ public class AnalyticsServiceImpl implements AnalyticsService {
                 val = jdbcTemplate.queryForObject(sql, Integer.class);
             }
             return val != null ? val : 0;
-        } catch (Exception e) {
+        } catch (EmptyResultDataAccessException e) {
             return 0;
         }
     }

@@ -7,9 +7,11 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.jdbc.core.JdbcTemplate;
 
+import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.time.LocalDate;
 import java.util.*;
+import org.springframework.dao.EmptyResultDataAccessException;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -128,8 +130,13 @@ class AnalyticsServiceImplTest {
         when(jdbcTemplate.queryForObject(eq("SELECT ? null"), eq(Integer.class), any(Object[].class))).thenReturn(null);
         assertEquals(0, queryForIntMethod.invoke(analyticsService, "SELECT ? null", new Object[]{1}));
 
+        when(jdbcTemplate.queryForObject(eq("SELECT empty"), eq(Integer.class))).thenThrow(new EmptyResultDataAccessException(1));
+        assertEquals(0, queryForIntMethod.invoke(analyticsService, "SELECT empty", new Object[0]));
+
         when(jdbcTemplate.queryForObject(eq("SELECT error"), eq(Integer.class))).thenThrow(new RuntimeException("DB error"));
-        assertEquals(0, queryForIntMethod.invoke(analyticsService, "SELECT error", new Object[0]));
+        InvocationTargetException ite = assertThrows(InvocationTargetException.class,
+                () -> queryForIntMethod.invoke(analyticsService, "SELECT error", new Object[0]));
+        assertEquals("DB error", ite.getCause().getMessage());
     }
 
     // ---------------------------------------------------------
@@ -218,6 +225,17 @@ class AnalyticsServiceImplTest {
         Map<String, Object> result = analyticsService.getDashboardData();
         assertNotNull(result);
         assertTrue(result.containsKey("error"));
+    }
+
+    @Test
+    void testGetDashboardDataScalarQueryException() {
+        when(jdbcTemplate.queryForObject(anyString(), eq(Integer.class))).thenThrow(new RuntimeException("Database down"));
+
+        Map<String, Object> result = analyticsService.getDashboardData();
+        assertNotNull(result);
+        assertTrue(result.containsKey("error"));
+        assertEquals("Database down", result.get("error"));
+        assertNull(result.get("source"));
     }
 
     // ---------------------------------------------------------
