@@ -19,6 +19,7 @@ class DtoTest {
             BFSItemDto.class,
             BFSItemMainDetailsDTO.class,
             BfsDTO.class,
+            AnalyticsDashboardDto.class,
             BuyerCategoryReportDto.class,
             BuyerReportDto.class,
             BuyerSellerReportDto.class,
