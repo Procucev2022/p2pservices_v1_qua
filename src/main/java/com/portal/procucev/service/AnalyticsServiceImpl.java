@@ -1144,6 +1144,8 @@ public class AnalyticsServiceImpl implements AnalyticsService {
             Map<String, List<Map<String, Object>>> quotesByOrg = new HashMap<>();
             if (!orgUuids.isEmpty()) {
                 String inOrgSql = String.join(",", Collections.nCopies(orgUuids.size(), "?"));
+                List<Object> quoteParams = new ArrayList<>(orgUuids);
+                quoteParams.addAll(orgUuids);
                 List<Map<String, Object>> quotesRows = jdbcTemplate.queryForList(
                     "SELECT " +
                     "  v.uuid as quote_uuid, " +
@@ -1159,7 +1161,7 @@ public class AnalyticsServiceImpl implements AnalyticsService {
                     "LEFT JOIN organization o ON v.vendor_uuid = o.uuid " +
                     "WHERE (v.vendor_uuid IN (" + inOrgSql + ") OR r.org_uuid IN (" + inOrgSql + ")) AND v.quote_submitted_date IS NOT NULL " +
                     "ORDER BY v.quote_submitted_date DESC",
-                    orgUuids.toArray()
+                    quoteParams.toArray()
                 );
                 for (Map<String, Object> q : quotesRows) {
                     String vu = getString(q, "vendor_uuid", "");
