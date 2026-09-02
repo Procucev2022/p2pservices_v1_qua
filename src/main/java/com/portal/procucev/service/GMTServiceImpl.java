@@ -1616,9 +1616,11 @@ public class GMTServiceImpl implements GMTService {
 	@Override
 	public List<VendorRFQDto> getAllVendorsSearch(String searchType, String searchValue) {
 		 OrgType orgTypeObject = orgTypeDao.findByTypeName(ApplicationConstants.VENDOR);
+		 String cleanSearchType = searchType != null ? searchType.trim() : "";
+		 String cleanSearchValue = searchValue != null ? searchValue.trim() : "";
 		
 		List<VendorRFQDto> vendorList =
-	            orgDao.searchVendorByType(orgTypeObject,searchType,searchValue);
+	            orgDao.searchVendorByType(orgTypeObject, cleanSearchType, cleanSearchValue);
 	    
 	    if (CollectionUtils.isEmpty(vendorList)) {
 
