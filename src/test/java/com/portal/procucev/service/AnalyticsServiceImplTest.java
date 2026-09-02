@@ -2,6 +2,7 @@ package com.portal.procucev.service;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -694,7 +695,8 @@ class AnalyticsServiceImplTest {
                 .thenReturn(rfqRows);
         when(jdbcTemplate.queryForList(contains("FROM rfq_items WHERE rfq_uuid IN"), any(Object[].class)))
                 .thenReturn(itemRows);
-        when(jdbcTemplate.queryForList(contains("FROM gmt_rfq_vendors v"), any(Object[].class)))
+        ArgumentCaptor<Object[]> quoteQueryParamsCaptor = ArgumentCaptor.forClass(Object[].class);
+        when(jdbcTemplate.queryForList(contains("FROM gmt_rfq_vendors v"), quoteQueryParamsCaptor.capture()))
                 .thenReturn(quoteRows);
 
         Map<String, Object> result = analyticsService.searchCompanies("Alpha");
@@ -706,6 +708,13 @@ class AnalyticsServiceImplTest {
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> quotes = (List<Map<String, Object>>) companies.get(1).get("quotes");
         assertEquals("₹0", quotes.get(0).get("amount"));
+
+        Object[] quoteQueryParams = quoteQueryParamsCaptor.getValue();
+        assertEquals(8, quoteQueryParams.length);
+        assertArrayEquals(
+            new Object[]{"org-1", "org-2", "org-3", "org-4", "org-1", "org-2", "org-3", "org-4"},
+            quoteQueryParams
+        );
     }
 
     @Test
