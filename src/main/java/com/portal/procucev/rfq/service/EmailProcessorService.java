@@ -182,6 +182,16 @@ public class EmailProcessorService {
 
             log.info("Buyer validation successful: buyerId={}, email={}", buyer.getUserId(), buyer.getEmail());
 
+            // STEP 1.5: CHECK FOR CONVERSATIONAL / ACKNOWLEDGEMENT REPLIES TO CREATED RFQS
+            if (isConversationalReplyToCreatedRfq(email)) {
+                log.info("Conversational reply / acknowledgement message detected for subject: '{}'. Skipping RFQ creation.", email.getSubject());
+                emailReaderService.moveMessageToFolder(email.getMessageId(), processedFolder);
+
+                transaction.setStatus("SKIPPED_REPLY_ACKNOWLEDGEMENT");
+                emailTransactionRepository.save(transaction);
+                return "SKIPPED_REPLY_ACKNOWLEDGEMENT";
+            }
+
             // STEP 2: GEMINI AI EXTRACTION FOR VALIDATED BUYER
             log.info("Starting AI extraction for validated buyer: {}", buyer.getEmail());
             transaction.setStatus("AI_PROCESSING");
@@ -703,6 +713,10 @@ public class EmailProcessorService {
             if (prior.isEmpty() || prior.get().getExtractionJson() == null) {
                 continue;
             }
+            if ("RFQ_CREATED".equalsIgnoreCase(prior.get().getStatus())) {
+                log.info("Prior email in thread (msgId={}) already created an RFQ. Historical items will not be re-merged.", messageId);
+                break;
+            }
             try {
                 ExtractedRFQ historical = objectMapper.readValue(prior.get().getExtractionJson(), ExtractedRFQ.class);
 
@@ -815,6 +829,9 @@ public class EmailProcessorService {
 
     private String extractProductFromSubject(String subject) {
         if (subject == null || subject.isBlank()) return "";
+        if (isAcknowledgementSubject(subject)) {
+            return "";
+        }
         String clean = subject.replaceAll("(?i)^(?:re|fwd|rfq|request for quotation|inquiry for|inquiry)[:\\-–—\\s]+", "").trim();
         if (clean.equalsIgnoreCase("rfq") || clean.equalsIgnoreCase("request for quotation")
                 || clean.equalsIgnoreCase("inquiry") || clean.equalsIgnoreCase("(no subject)")
@@ -1176,4 +1193,96 @@ public class EmailProcessorService {
         
         return false;
     }
+
+    private boolean isConversationalReplyToCreatedRfq(EmailData email) {
+        if (email == null) {
+            return false;
+        }
+
+        boolean isAckSubject = isAcknowledgementSubject(email.getSubject());
+        boolean isReplyToCreatedRfq = false;
+
+        List<String> messageIds = new ArrayList<>();
+        if (email.getInReplyTo() != null) {
+            messageIds.add(email.getInReplyTo().trim());
+        }
+        if (email.getReferences() != null) {
+            messageIds.addAll(Arrays.asList(email.getReferences().trim().split("\\s+")));
+        }
+
+        for (String msgId : messageIds) {
+            Optional<EmailTransaction> prior = emailTransactionRepository.findByMessageId(msgId);
+            if (prior.isPresent() && "RFQ_CREATED".equalsIgnoreCase(prior.get().getStatus())) {
+                isReplyToCreatedRfq = true;
+                break;
+            }
+        }
+
+        if (!isAckSubject && !isReplyToCreatedRfq) {
+            return false;
+        }
+
+        if (email.getAttachments() != null && !email.getAttachments().isEmpty()) {
+            return false;
+        }
+
+        String newContent = extractNewReplyContent(email.getBody());
+        if (hasExplicitPurchaseQuantityInText(email.getSubject(), newContent, email.getAttachmentText())) {
+            return false;
+        }
+
+        if (newContent.length() < 250) {
+            String lowerContent = newContent.toLowerCase().trim();
+            if (lowerContent.isEmpty() || isConversationalPhrase(lowerContent)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private boolean isAcknowledgementSubject(String subject) {
+        if (subject == null || subject.isBlank()) {
+            return false;
+        }
+        String lower = subject.toLowerCase();
+        return lower.contains("your rfq")
+                || lower.contains("your rfqs")
+                || lower.contains("is live")
+                || lower.contains("suppliers notified")
+                || lower.contains("some rfqs were created")
+                || lower.contains("one quick detail needed")
+                || lower.contains("could not process your rfq")
+                || lower.contains("duplicate request received")
+                || lower.contains("file size exceeded")
+                || lower.contains("rfq acknowledgement")
+                || lower.contains("rfq created");
+    }
+
+    private boolean isConversationalPhrase(String text) {
+        if (text.isEmpty()) {
+            return true;
+        }
+        return text.matches("(?i).*(?:thanks|thank\\s+you|thx|ok|okay|got\\s+it|noted|received|looking\\s+forward|please\\s+expedite|please\\s+send\\s+quotes|will\\s+wait|confirmed|acknowledged|great|awesome|sure|agree|understood|fine|no\\s+problem|all\\s+good|will\\s+check|we\\s+will\\s+check|thankyou).*");
+    }
+
+    private String extractNewReplyContent(String body) {
+        if (body == null || body.isBlank()) {
+            return "";
+        }
+        StringBuilder sb = new StringBuilder();
+        String[] lines = body.split("\\r?\\n");
+        for (String line : lines) {
+            String trimmed = line.trim();
+            if (trimmed.startsWith(">")) {
+                continue;
+            }
+            if (trimmed.toLowerCase().matches("(?i)^(?:on\\s+.*wrote:?|from:.*|sent:.*|to:.*|subject:.*|-----original message-----|_+)")) {
+                break;
+            }
+            sb.append(trimmed).append(" ");
+        }
+        return sb.toString().trim();
+    }
 }
+
