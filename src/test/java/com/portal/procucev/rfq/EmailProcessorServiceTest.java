@@ -3209,5 +3209,90 @@ public class EmailProcessorServiceTest {
         String scannedAttach = ReflectionTestUtils.invokeMethod(emailProcessorService, "scanFieldFromEmail", emailWithAttachProduct, "Product:\\s*([^\n\r,;]+)");
         assertEquals("Aluminum Rod", scannedAttach);
     }
+
+    @Test
+    @DisplayName("Test new helper methods for conversational reply detection and subject filtering to ensure Jacoco coverage")
+    void testConversationalReplyAndSubjectFilteringCoverage() throws Exception {
+        // 1. isAcknowledgementSubject
+        assertTrue((Boolean) ReflectionTestUtils.invokeMethod(emailProcessorService, "isAcknowledgementSubject", "🚀 Your RFQ #RFQ-100 is Live — Suppliers Notified!"));
+        assertTrue((Boolean) ReflectionTestUtils.invokeMethod(emailProcessorService, "isAcknowledgementSubject", "Your RFQs are Live"));
+        assertTrue((Boolean) ReflectionTestUtils.invokeMethod(emailProcessorService, "isAcknowledgementSubject", "Some RFQs Were Created"));
+        assertTrue((Boolean) ReflectionTestUtils.invokeMethod(emailProcessorService, "isAcknowledgementSubject", "One Quick Detail Needed"));
+        assertTrue((Boolean) ReflectionTestUtils.invokeMethod(emailProcessorService, "isAcknowledgementSubject", "Could Not Process Your RFQ"));
+        assertTrue((Boolean) ReflectionTestUtils.invokeMethod(emailProcessorService, "isAcknowledgementSubject", "Duplicate Request Received"));
+        assertTrue((Boolean) ReflectionTestUtils.invokeMethod(emailProcessorService, "isAcknowledgementSubject", "File Size Exceeded"));
+        assertTrue((Boolean) ReflectionTestUtils.invokeMethod(emailProcessorService, "isAcknowledgementSubject", "RFQ Acknowledgement"));
+        assertTrue((Boolean) ReflectionTestUtils.invokeMethod(emailProcessorService, "isAcknowledgementSubject", "RFQ Created"));
+        assertFalse((Boolean) ReflectionTestUtils.invokeMethod(emailProcessorService, "isAcknowledgementSubject", (String) null));
+        assertFalse((Boolean) ReflectionTestUtils.invokeMethod(emailProcessorService, "isAcknowledgementSubject", ""));
+        assertFalse((Boolean) ReflectionTestUtils.invokeMethod(emailProcessorService, "isAcknowledgementSubject", "Requirement for Laptops"));
+
+        // 2. extractProductFromSubject with acknowledgement subjects
+        assertEquals("", ReflectionTestUtils.invokeMethod(emailProcessorService, "extractProductFromSubject", "Re: 🚀 Your RFQ #RFQ-100 is Live — Suppliers Notified!"));
+        assertEquals("", ReflectionTestUtils.invokeMethod(emailProcessorService, "extractProductFromSubject", "Re: ⚡ One Quick Detail Needed to Process Your RFQ"));
+        assertEquals("Laptops", ReflectionTestUtils.invokeMethod(emailProcessorService, "extractProductFromSubject", "Re: Laptops"));
+
+        // 3. isConversationalPhrase
+        assertTrue((Boolean) ReflectionTestUtils.invokeMethod(emailProcessorService, "isConversationalPhrase", ""));
+        assertTrue((Boolean) ReflectionTestUtils.invokeMethod(emailProcessorService, "isConversationalPhrase", "thanks"));
+        assertTrue((Boolean) ReflectionTestUtils.invokeMethod(emailProcessorService, "isConversationalPhrase", "thank you so much"));
+        assertTrue((Boolean) ReflectionTestUtils.invokeMethod(emailProcessorService, "isConversationalPhrase", "ok, got it"));
+        assertTrue((Boolean) ReflectionTestUtils.invokeMethod(emailProcessorService, "isConversationalPhrase", "noted and received"));
+        assertTrue((Boolean) ReflectionTestUtils.invokeMethod(emailProcessorService, "isConversationalPhrase", "please send quotes"));
+        assertFalse((Boolean) ReflectionTestUtils.invokeMethod(emailProcessorService, "isConversationalPhrase", "delivery location is bangalore plant and pincode is 560058"));
+
+        // 4. extractNewReplyContent
+        assertEquals("", ReflectionTestUtils.invokeMethod(emailProcessorService, "extractNewReplyContent", (String) null));
+        assertEquals("", ReflectionTestUtils.invokeMethod(emailProcessorService, "extractNewReplyContent", ""));
+        String threadBody = "Thanks team!\n> Quoted line 1\n> Quoted line 2\nOn Tue, Sep 1 wrote:\nOriginal Message";
+        assertEquals("Thanks team!", ReflectionTestUtils.invokeMethod(emailProcessorService, "extractNewReplyContent", threadBody));
+        String threadBodyFrom = "Got it!\nFrom: support@procucev.com\nSent: Monday";
+        assertEquals("Got it!", ReflectionTestUtils.invokeMethod(emailProcessorService, "extractNewReplyContent", threadBodyFrom));
+
+        // 5. isConversationalReplyToCreatedRfq branches
+        assertFalse((Boolean) ReflectionTestUtils.invokeMethod(emailProcessorService, "isConversationalReplyToCreatedRfq", (EmailData) null));
+        
+        EmailData regularEmail = EmailData.builder().subject("Requirement for Steel Pipes").body("Need 500 meters").build();
+        assertFalse((Boolean) ReflectionTestUtils.invokeMethod(emailProcessorService, "isConversationalReplyToCreatedRfq", regularEmail));
+
+        EmailData emailWithAttach = EmailData.builder()
+                .subject("Re: Your RFQ #RFQ-100 is Live")
+                .body("Thanks")
+                .attachments(List.of(new File("test.txt")))
+                .build();
+        assertFalse((Boolean) ReflectionTestUtils.invokeMethod(emailProcessorService, "isConversationalReplyToCreatedRfq", emailWithAttach));
+
+        EmailData emailWithQty = EmailData.builder()
+                .subject("Re: Your RFQ #RFQ-100 is Live")
+                .body("Quantity: 1000 Nos")
+                .build();
+        assertFalse((Boolean) ReflectionTestUtils.invokeMethod(emailProcessorService, "isConversationalReplyToCreatedRfq", emailWithQty));
+
+        EmailData emailLongContent = EmailData.builder()
+                .subject("Re: Your RFQ #RFQ-100 is Live")
+                .body("A".repeat(300))
+                .build();
+        assertFalse((Boolean) ReflectionTestUtils.invokeMethod(emailProcessorService, "isConversationalReplyToCreatedRfq", emailLongContent));
+
+        EmailData emailAckShortConv = EmailData.builder()
+                .subject("Re: 🚀 Your RFQ #RFQ-100 is Live — Suppliers Notified!")
+                .body("Thanks!")
+                .build();
+        assertTrue((Boolean) ReflectionTestUtils.invokeMethod(emailProcessorService, "isConversationalReplyToCreatedRfq", emailAckShortConv));
+
+        // 6. mergeThreadContext when prior transaction status is RFQ_CREATED
+        EmailData emailThreadCreated = EmailData.builder().inReplyTo("MSG-ALREADY-CREATED").build();
+        EmailTransaction txCreated = new EmailTransaction();
+        txCreated.setMessageId("MSG-ALREADY-CREATED");
+        txCreated.setStatus("RFQ_CREATED");
+        txCreated.setExtractionJson(new ObjectMapper().writeValueAsString(ExtractedRFQ.builder().items(List.of(RFQItem.builder().itemDescription("Old Item").build())).build()));
+        Mockito.when(emailTransactionRepository.findByMessageId("MSG-ALREADY-CREATED")).thenReturn(Optional.of(txCreated));
+
+        ExtractedRFQ current = ExtractedRFQ.builder().items(new ArrayList<>()).build();
+        ExtractedRFQ mergedCreated = ReflectionTestUtils.invokeMethod(emailProcessorService, "mergeThreadContext", emailThreadCreated, current);
+        assertNotNull(mergedCreated);
+        assertTrue(mergedCreated.getItems().isEmpty());
+    }
 }
+
 

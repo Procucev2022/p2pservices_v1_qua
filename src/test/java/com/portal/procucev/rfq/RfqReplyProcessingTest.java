@@ -281,4 +281,56 @@ public class RfqReplyProcessingTest {
 
         verify(rfqRepository, times(1)).save(any(RFQEntity.class));
     }
+
+    @Test
+    @DisplayName("TEST 9: Conversational reply ('Thanks') to RFQ creation acknowledgement -> SKIPPED_REPLY_ACKNOWLEDGEMENT, no duplicate RFQ created")
+    void test9_ConversationalReplyToAcknowledgementSkipped() {
+        EmailData replyEmail = EmailData.builder()
+                .messageId("MSG-REPLY-ACK-001")
+                .senderEmail("buyer@procucev.com")
+                .subject("Re: 🚀 Your RFQ #RFQ-2027 is Live — Suppliers Notified!")
+                .body("Thanks!")
+                .inReplyTo("MSG-ORIGINAL-001")
+                .attachments(new ArrayList<>())
+                .build();
+
+        when(emailTransactionRepository.findByMessageId("MSG-ORIGINAL-001"))
+                .thenReturn(java.util.Optional.of(com.portal.procucev.rfq.entity.EmailTransaction.builder()
+                        .messageId("MSG-ORIGINAL-001")
+                        .status("RFQ_CREATED")
+                        .build()));
+
+        String status = emailProcessorService.processSingleEmail(replyEmail);
+        assertEquals("SKIPPED_REPLY_ACKNOWLEDGEMENT", status);
+
+        verify(rfqRepository, never()).save(any(RFQEntity.class));
+        verify(aiExtractionService, never()).extractRFQFromEmail(any());
+        verify(mailSender, never()).send(any(SimpleMailMessage.class));
+    }
+
+    @Test
+    @DisplayName("TEST 10: Buyer replies 'Got it, thank you team' to created RFQ thread -> SKIPPED_REPLY_ACKNOWLEDGEMENT")
+    void test10_BuyerReplyGotItSkipped() {
+        EmailData replyEmail = EmailData.builder()
+                .messageId("MSG-REPLY-ACK-002")
+                .senderEmail("buyer@procucev.com")
+                .subject("Re: Helical Gearbox Requirement")
+                .body("Got it, thank you team!\n\nOn Tue, Sep 1, 2026, rfq@procucev.com wrote:\n> Hi John, Great news! Your requirement has been converted into RFQ...")
+                .inReplyTo("MSG-ORIGINAL-002")
+                .attachments(new ArrayList<>())
+                .build();
+
+        when(emailTransactionRepository.findByMessageId("MSG-ORIGINAL-002"))
+                .thenReturn(java.util.Optional.of(com.portal.procucev.rfq.entity.EmailTransaction.builder()
+                        .messageId("MSG-ORIGINAL-002")
+                        .status("RFQ_CREATED")
+                        .build()));
+
+        String status = emailProcessorService.processSingleEmail(replyEmail);
+        assertEquals("SKIPPED_REPLY_ACKNOWLEDGEMENT", status);
+
+        verify(rfqRepository, never()).save(any(RFQEntity.class));
+        verify(aiExtractionService, never()).extractRFQFromEmail(any());
+    }
 }
+
