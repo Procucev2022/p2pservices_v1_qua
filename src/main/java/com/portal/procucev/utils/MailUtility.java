@@ -706,50 +706,8 @@ public class MailUtility {
 			String mailId2, String password, String vendorId,String vendorMobileNumber) throws MessagingException {
 		LOGGER.info("Entered To Send Email To Vendor Regarding RFQ");
 		try {
-			JavaMailSender javaMailSender2 = getJavaMailSender(mailId2, password);
-
-			// -----------------------------------------------------------------
-			// Email 1: Vendor Login Credentials
-			// -----------------------------------------------------------------
-			try {
-				String credSubject = subjectPrefix + " Login Credentials for QUA Seller Account - " + vendorId;
-				StringBuilder credEmail = new StringBuilder();
-				credEmail.append("<html><body>");
-				credEmail.append("Dear Partner,<br><br>");
-				credEmail.append("Please login now to your QUA seller account at ");
-				credEmail.append("<a href=\"https://qua.procucev.com/login\">https://qua.procucev.com/login</a> ");
-				credEmail.append("to view full details and download the RFQ instantly. ");
-				credEmail.append("This is a live enquiry, do not miss it.<br><br>");
-
-				credEmail.append("<b>Your login details:</b><br>");
-				credEmail.append("Username: <b>" + mailId + "</b><br>");
-				credEmail.append("Mobile: <b>" + vendorMobileNumber + "</b><br>");
-				credEmail.append("Password: <b>Welcome@123</b><br>");
-				credEmail.append("(Use this password to log in for the first time to create your new password.)<br><br>");
-
-				credEmail.append("<b>Thanks,</b><br>");
-				if (fullName != null && !fullName.trim().isEmpty()) {
-					credEmail.append(fullName).append("<br><br>");
-				}
-				credEmail.append("Team GMT<br>");
-				credEmail.append("Procucev");
-				credEmail.append("</body></html>");
-
-				MimeBodyPart credBodyPart = new MimeBodyPart();
-				credBodyPart.setContent(credEmail.toString(), "text/html");
-				MimeMultipart credMultipart = new MimeMultipart();
-				credMultipart.addBodyPart(credBodyPart);
-
-				emailNotifierGenericNoPRBySenderList(credSubject, mailId, javaMailSender2, fromAddress, ccAdd, credMultipart, mailId2);
-				LOGGER.info("Sent separate login credentials email to vendor {}", mailId);
-			} catch (Exception ex) {
-				LOGGER.error("Error sending credentials email to " + mailId, ex);
-			}
-
-			// -----------------------------------------------------------------
-			// Email 2: RFQ Requirement Details and Description
-			// -----------------------------------------------------------------
 			String subject =  subjectPrefix + " You have an Enquiry RFQ No " + rfqData.getRfqId() + " - " + vendorId;
+			String message;
 			String pincode = null;
 			int i = 1;
 			String address = null;
@@ -770,6 +728,18 @@ public class MailUtility {
 				    + "Please check the details below and send your quotation by replying to this email. "
 				    + "Please do not change the subject line while replying.</b><br><br>\n\n"
 				);
+			
+			
+			email.append("Please login now to your QUA seller account at ");
+			email.append("<a href=\"https://qua.procucev.com/login\">https://qua.procucev.com/login</a> ");
+			email.append("to view full details and download the RFQ instantly. ");
+			email.append("This is a live enquiry, do not miss it.<br><br>");
+			
+			email.append("<b>Your login details:</b><br>");
+			email.append("Username: <b>" + mailId + "</b><br>");
+			email.append("Mobile: <b>" + vendorMobileNumber + "</b><br>");
+			email.append("Password: <b>" + "Welcome@123" + "</b><br>");
+			email.append("(Use this password to log in for the first time to create your new password.)<br><br>");	
 			
 			email.append("Rfq Due Date: " + rfqDueDate + "</b><br><br>\n\n");
 			email.append("<b>Project Description/Reference: " + rfqData.getProjectDesc() + "</b><br><br>\n\n");
@@ -832,6 +802,7 @@ public class MailUtility {
 			email.append("</table>"); // Close the table
 			email.append("<br><br>");
 			email.append("<br><br>");
+			// Assuming email is a StringBuilder or similar
 			email.append("Delivery Address: " + address + "<br>");
 			email.append("Pincode : " + pincode + "<br>");
 			email.append("<b>Delivery Date:" + rfqData.getDeliveryDate() + "</b><br><br>\n\n");
@@ -849,6 +820,12 @@ public class MailUtility {
 			email.append("<br><br>");
 			email.append("Team GMT<br>");
 			email.append("Procucev");
+//			if (phonenumber != null) {
+//				email.append("T: +91" + phonenumber);
+//			}
+//			email.append("<br>");
+//			email.append("A: "
+//					+ "302,1st Floor,Sharda,<br>Above Axis Bank,<br>ACES Layout,Kundalahalli,<br>Bengaluru,Karnataka");
 			email.append("<br><br>");
 
 			List<RFQDocument> documentList = rfqData.getRfqDocument();
@@ -872,8 +849,9 @@ public class MailUtility {
 				}
 			}
 
+			JavaMailSender javaMailSender2 = getJavaMailSender(mailId2, password);
 			// Custom from address
-			LOGGER.info("Going to emailNotifierGenericNoPRBySenderList() to send RFQ requirement details email");
+			LOGGER.info("Going to emailNotifierGenericNoPRBySenderList() to send email ");
 			emailNotifierGenericNoPRBySenderList(subject, mailId, javaMailSender2, fromAddress, ccAdd, multipart,
 					mailId2);
 
