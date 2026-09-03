@@ -15,6 +15,9 @@ public class SellerReportDto {
     @JsonProperty("RfqId")
     private String rfqId;
 
+    @JsonProperty("Category")
+    private String category;
+
     @JsonProperty("SellerCompanyName")
     private String sellerCompanyName;
 
@@ -47,6 +50,7 @@ public class SellerReportDto {
 
     public SellerReportDto(Date rfqDate,
                            String rfqId,
+                           String category,
                            String sellerCompanyName,
                            String email,
                            String mobileNo,
@@ -60,6 +64,7 @@ public class SellerReportDto {
 
         this.rfqDate = rfqDate;
         this.rfqId = rfqId;
+        this.category = category;
         this.sellerCompanyName = sellerCompanyName;
         this.email = email;
         this.mobileNo = mobileNo;
