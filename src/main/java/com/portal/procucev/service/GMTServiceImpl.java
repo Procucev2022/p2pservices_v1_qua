@@ -93,6 +93,7 @@ import com.portal.procucev.dao.RFQItemsDao;
 import com.portal.procucev.dao.RfqDao;
 import com.portal.procucev.dao.RfqVendorDao;
 import com.portal.procucev.dao.RoleDao;
+import com.portal.procucev.dao.SearchRepository;
 import com.portal.procucev.dao.SubscriptionPlanDao;
 import com.portal.procucev.dao.UserDao;
 import com.portal.procucev.model.CategoryDivision;
@@ -144,6 +145,9 @@ public class GMTServiceImpl implements GMTService {
 
 	@Autowired
 	private RfqDao rfqDao;
+
+	@Autowired
+	private SearchRepository searchRepository;
 	
 	@Autowired
 	private RFQItemsDao rfqItemsDao;
@@ -1613,29 +1617,72 @@ public class GMTServiceImpl implements GMTService {
 	    );
 	}
 	
+	public static List<String> parseSearchValues(String searchValue) {
+		if (searchValue == null || searchValue.trim().isEmpty()) {
+			return Collections.emptyList();
+		}
+		String[] tokens = searchValue.split("[,;\\r\\n\\t]+");
+		List<String> result = new ArrayList<>();
+		for (String token : tokens) {
+			String trimmed = token.trim();
+			if (trimmed.isEmpty()) continue;
+			if (trimmed.contains(" ") && trimmed.indexOf('@') != trimmed.lastIndexOf('@')) {
+				String[] subTokens = trimmed.split("\\s+");
+				for (String st : subTokens) {
+					if (!st.trim().isEmpty()) {
+						result.add(st.trim());
+					}
+				}
+			} else {
+				result.add(trimmed);
+			}
+		}
+		return result.stream().distinct().limit(100).collect(Collectors.toList());
+	}
+
 	@Override
 	public List<VendorRFQDto> getAllVendorsSearch(String searchType, String searchValue) {
-		 OrgType orgTypeObject = orgTypeDao.findByTypeName(ApplicationConstants.VENDOR);
-		 String cleanSearchType = searchType != null ? searchType.trim() : "";
-		 String cleanSearchValue = searchValue != null ? searchValue.trim() : "";
-		
-		List<VendorRFQDto> vendorList =
-	            orgDao.searchVendorByType(orgTypeObject, cleanSearchType, cleanSearchValue);
-	    
-	    if (CollectionUtils.isEmpty(vendorList)) {
+		OrgType orgTypeObject = orgTypeDao.findByTypeName(ApplicationConstants.VENDOR);
+		String cleanSearchType = searchType != null ? searchType.trim() : "";
+		String cleanSearchValue = searchValue != null ? searchValue.trim() : "";
 
-	        logger.error("No Vendors available in the Database");
+		List<String> searchValues = parseSearchValues(cleanSearchValue);
+		List<VendorRFQDto> vendorList = null;
 
-	        throw new AppException(
-	                HttpStatus.NO_CONTENT.value(),
-	                ApplicationConstants.NO_DATA_FOUND,
-	                ApplicationConstants.BUSSINESS_EXCEPTION,
-	                ApplicationConstants.FAILURE);
-	    }
+		if (searchRepository != null && !CollectionUtils.isEmpty(searchValues)) {
+			try {
+				vendorList = searchRepository.searchVendorsByMultipleValues(orgTypeObject, cleanSearchType, searchValues);
+			} catch (Exception e) {
+				logger.warn("Exception in SearchRepository multi-vendor search, falling back to orgDao: {}", e.getMessage());
+			}
+		}
 
-	    logger.info("Completed and Returning response");
+		if (CollectionUtils.isEmpty(vendorList)) {
+			vendorList = orgDao.searchVendorByType(orgTypeObject, cleanSearchType, cleanSearchValue);
+		}
 
-	    return vendorList;
+		if (CollectionUtils.isEmpty(vendorList)) {
+			logger.error("No Vendors available in the Database for search criteria: {} - {}", cleanSearchType, cleanSearchValue);
+			throw new AppException(
+					HttpStatus.NO_CONTENT.value(),
+					ApplicationConstants.NO_DATA_FOUND,
+					ApplicationConstants.BUSSINESS_EXCEPTION,
+					ApplicationConstants.FAILURE);
+		}
+
+		Set<Object> seenKey = new LinkedHashSet<>();
+		List<VendorRFQDto> distinctVendorList = new ArrayList<>();
+		for (VendorRFQDto dto : vendorList) {
+			if (dto != null) {
+				Object key = dto.getId() != null ? dto.getId() : dto;
+				if (seenKey.add(key)) {
+					distinctVendorList.add(dto);
+				}
+			}
+		}
+
+		logger.info("Completed getAllVendorsSearch and returning {} unique vendors", distinctVendorList.size());
+		return distinctVendorList;
 	}
 	
 	

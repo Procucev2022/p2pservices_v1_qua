@@ -80,6 +80,8 @@ class GMTServiceImplTest {
     private AutomaticRfqService automaticRfqService;
     @Mock
     private MimeMessage mimeMessage;
+    @Mock
+    private SearchRepository searchRepository;
 
     @InjectMocks
     private GMTServiceImpl service;
@@ -1523,5 +1525,38 @@ class GMTServiceImplTest {
                 .thenReturn(List.<Object[]>of(sellerRowWithCount, sellerRowWithoutCount));
         assertDoesNotThrow(() -> service.dailyReportEmailForwarder());
         verify(javaMailSender, atLeastOnce()).send(any(MimeMessage.class));
+    }
+
+    @Test
+    void testBulkVendorSearchAndParseSearchValues() {
+        // Test parseSearchValues static helper
+        assertTrue(GMTServiceImpl.parseSearchValues(null).isEmpty());
+        assertTrue(GMTServiceImpl.parseSearchValues("   ").isEmpty());
+
+        List<String> parsed = GMTServiceImpl.parseSearchValues("v1@example.com; v2@example.com, v3@example.com\nv4@example.com");
+        assertEquals(4, parsed.size());
+        assertTrue(parsed.contains("v1@example.com"));
+
+        // Test searchRepository flow in getAllVendorsSearch
+        OrgType vendorType = new OrgType();
+        when(orgTypeDao.findByTypeName(ApplicationConstants.VENDOR)).thenReturn(vendorType);
+
+        VendorRFQDto dto1 = new VendorRFQDto("id1", "Vendor 1", "v1", "123", "City1", "v1@example.com");
+        VendorRFQDto dto2 = new VendorRFQDto("id2", "Vendor 2", "v2", "456", "City2", "v2@example.com");
+
+        when(searchRepository.searchVendorsByMultipleValues(eq(vendorType), eq("email"), anyList()))
+                .thenReturn(List.of(dto1, dto2));
+
+        List<VendorRFQDto> results = service.getAllVendorsSearch("email", "v1@example.com; v2@example.com");
+        assertEquals(2, results.size());
+
+        // Test fallback to orgDao when searchRepository returns empty
+        when(searchRepository.searchVendorsByMultipleValues(any(), anyString(), anyList()))
+                .thenReturn(Collections.emptyList());
+        when(orgDao.searchVendorByType(eq(vendorType), eq("email"), anyString()))
+                .thenReturn(List.of(dto1));
+
+        List<VendorRFQDto> fallbackResults = service.getAllVendorsSearch("email", "single@example.com");
+        assertEquals(1, fallbackResults.size());
     }
 }
