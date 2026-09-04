@@ -91,7 +91,7 @@ public interface GmtRfqVendorDao extends JpaRepository<GmtRfqVendors, String> {
 		    SELECT new com.portal.procucev.Dto.SellerReportDto(
 		        r.createdTS,
 		        r.rfqId,
-		        r.category,
+		        COALESCE(NULLIF(r.category, ''), (SELECT MAX(ri.category) FROM RfqItem ri WHERE ri.rfq = r AND ri.category IS NOT NULL AND ri.category <> ''), o.vendorcategory),
 		        o.companyName,
 		        o.email,
 		        o.organizationPhonenumber,
