@@ -6,9 +6,11 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -436,8 +438,36 @@ public class GMTController {
 	public ResponseEntity<?> getAllVendorsSearch(@RequestParam String searchType,@RequestParam String searchValue) {
 		 Map<String, Object> response = new HashMap<>();
 		 try {
-		List<VendorRFQDto> responseList = gmtService.getAllVendorsSearch(searchType,searchValue);
-		 // ✅ Correct empty check
+			List<VendorRFQDto> responseList = gmtService.getAllVendorsSearch(searchType,searchValue);
+			List<String> notFoundEmails = new ArrayList<>();
+			if ("email".equalsIgnoreCase(searchType != null ? searchType.trim() : "") && searchValue != null && !searchValue.trim().isEmpty()) {
+				String[] rawTokens = searchValue.trim().split("[\\r\\n,;]+|\\s+");
+				List<String> requestedEmails = new ArrayList<>();
+				for (String token : rawTokens) {
+					String trimmed = token.trim().toLowerCase();
+					if (!trimmed.isEmpty() && !requestedEmails.contains(trimmed)) {
+						requestedEmails.add(trimmed);
+					}
+				}
+				if (requestedEmails.size() > 20) {
+					requestedEmails = requestedEmails.subList(0, 20);
+				}
+
+				Set<String> foundEmails = new HashSet<>();
+				if (responseList != null) {
+					for (VendorRFQDto dto : responseList) {
+						if (dto.getEmail() != null) {
+							foundEmails.add(dto.getEmail().trim().toLowerCase());
+						}
+					}
+				}
+				for (String reqEmail : requestedEmails) {
+					if (!foundEmails.contains(reqEmail)) {
+						notFoundEmails.add(reqEmail);
+					}
+				}
+			}
+
 	        if (responseList == null || responseList.isEmpty()) {
 
 	            response.put("statusCode", StatusCodes.OK_VENDOR_CODE);
@@ -445,6 +475,9 @@ public class GMTController {
 	            response.put("message", "No vendors found");
 	            response.put("totalRecords", 0);
 	            response.put("data", Collections.emptyList());
+	            if (!notFoundEmails.isEmpty()) {
+	                response.put("notFoundEmails", notFoundEmails);
+	            }
 
 	            return ResponseEntity.ok(response);
 	        }
@@ -454,6 +487,9 @@ public class GMTController {
 	        response.put("status", "Success");
 	        response.put("totalRecords", responseList.size());
 	        response.put("data", responseList);
+	        if (!notFoundEmails.isEmpty()) {
+	            response.put("notFoundEmails", notFoundEmails);
+	        }
 
 	        return ResponseEntity.ok(response);
 

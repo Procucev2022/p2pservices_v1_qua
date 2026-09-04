@@ -1619,8 +1619,30 @@ public class GMTServiceImpl implements GMTService {
 		 String cleanSearchType = searchType != null ? searchType.trim() : "";
 		 String cleanSearchValue = searchValue != null ? searchValue.trim() : "";
 		
-		List<VendorRFQDto> vendorList =
-	            orgDao.searchVendorByType(orgTypeObject, cleanSearchType, cleanSearchValue);
+		 List<VendorRFQDto> vendorList;
+		 if ("email".equalsIgnoreCase(cleanSearchType) && !cleanSearchValue.isEmpty()) {
+			 String[] rawTokens = cleanSearchValue.split("[\\r\\n,;]+|\\s+");
+			 List<String> emailList = new ArrayList<>();
+			 for (String token : rawTokens) {
+				 String trimmed = token.trim().toLowerCase();
+				 if (!trimmed.isEmpty() && !emailList.contains(trimmed)) {
+					 emailList.add(trimmed);
+				 }
+			 }
+			 if (emailList.size() > 20) {
+				 emailList = emailList.subList(0, 20);
+			 }
+
+			 if (emailList.size() > 1) {
+				 vendorList = orgDao.searchVendorByEmails(orgTypeObject, emailList);
+			 } else if (emailList.size() == 1 && (cleanSearchValue.contains(",") || cleanSearchValue.contains("\n") || cleanSearchValue.contains(";"))) {
+				 vendorList = orgDao.searchVendorByEmails(orgTypeObject, emailList);
+			 } else {
+				 vendorList = orgDao.searchVendorByType(orgTypeObject, cleanSearchType, cleanSearchValue);
+			 }
+		 } else {
+			 vendorList = orgDao.searchVendorByType(orgTypeObject, cleanSearchType, cleanSearchValue);
+		 }
 	    
 	    if (CollectionUtils.isEmpty(vendorList)) {
 

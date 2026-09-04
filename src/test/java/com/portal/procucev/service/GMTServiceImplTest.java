@@ -769,6 +769,8 @@ class GMTServiceImplTest {
         assertThrows(AppException.class, () -> service.getAllVendorsSearch("company", "Co"));
         when(orgDao.searchVendorByType(type, "company", "Co")).thenReturn(List.of(dto));
         assertEquals(1, service.getAllVendorsSearch("company", "Co").size());
+        when(orgDao.searchVendorByEmails(eq(type), anyList())).thenReturn(List.of(dto));
+        assertEquals(1, service.getAllVendorsSearch("email", "v1@test.com, v2@test.com").size());
         when(orgDao.getAllVendorByCategory(any())).thenReturn(Collections.emptyList());
         assertThrows(AppException.class, () -> service.getAllVendorsByCategory(org));
         when(orgDao.getAllVendorByCategory(any())).thenReturn(List.of(dto));
