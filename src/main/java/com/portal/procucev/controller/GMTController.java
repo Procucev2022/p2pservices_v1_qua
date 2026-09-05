@@ -434,37 +434,103 @@ public class GMTController {
 		}
 	}
 	
-	@GetMapping("/getAllVendorsSearch")
-	public ResponseEntity<?> getAllVendorsSearch(@RequestParam String searchType,@RequestParam String searchValue) {
+	@GetMapping("/getCitiesByVendorCategory")
+	public ResponseEntity<?> getCitiesByVendorCategory(@RequestParam String category) {
 		 Map<String, Object> response = new HashMap<>();
 		 try {
-			List<VendorRFQDto> responseList = gmtService.getAllVendorsSearch(searchType,searchValue);
-			List<String> notFoundEmails = new ArrayList<>();
-			if ("email".equalsIgnoreCase(searchType != null ? searchType.trim() : "") && searchValue != null && !searchValue.trim().isEmpty()) {
-				String[] rawTokens = searchValue.trim().split("[\\r\\n,;]+|\\s+");
-				List<String> requestedEmails = new ArrayList<>();
-				for (String token : rawTokens) {
-					String trimmed = token.trim().toLowerCase();
-					if (!trimmed.isEmpty() && !requestedEmails.contains(trimmed)) {
-						requestedEmails.add(trimmed);
-					}
-				}
-				if (requestedEmails.size() > 20) {
-					requestedEmails = requestedEmails.subList(0, 20);
-				}
+			List<String> cities = gmtService.getCitiesByVendorCategory(category);
+			response.put("statusCode", StatusCodes.OK_VENDOR_CODE);
+			response.put("status", "Success");
+			response.put("data", cities != null ? cities : Collections.emptyList());
+			return ResponseEntity.ok(response);
+		 } catch (Exception e) {
+			response.put("statusCode", StatusCodes.SERVER_ERROR);
+			response.put("status", "Failure");
+			response.put("message", "Failed to fetch cities by vendor category");
+			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
+		 }
+	}
 
-				Set<String> foundEmails = new HashSet<>();
-				if (responseList != null) {
-					for (VendorRFQDto dto : responseList) {
-						if (dto.getEmail() != null) {
-							foundEmails.add(dto.getEmail().trim().toLowerCase());
+	public ResponseEntity<?> getAllVendorsSearch(String searchType, String searchValue) {
+		return getAllVendorsSearch(searchType, searchValue, null, null);
+	}
+
+	@GetMapping("/getAllVendorsSearch")
+	public ResponseEntity<?> getAllVendorsSearch(
+			@RequestParam String searchType,
+			@RequestParam String searchValue,
+			@RequestParam(required = false) String city,
+			@RequestParam(required = false) String state
+	) {
+		 Map<String, Object> response = new HashMap<>();
+		 try {
+			List<VendorRFQDto> responseList = gmtService.getAllVendorsSearch(searchType, searchValue, city, state);
+			List<String> notFoundEmails = new ArrayList<>();
+			List<String> notFoundItems = new ArrayList<>();
+			int totalEntered = 0;
+
+			String cleanType = searchType != null ? searchType.trim() : "";
+			String cleanValue = searchValue != null ? searchValue.trim() : "";
+
+			if (!cleanValue.isEmpty()) {
+				if ("email".equalsIgnoreCase(cleanType)) {
+					String[] rawTokens = cleanValue.split("[\\r\\n,;]+|\\s+");
+					List<String> requestedEmails = new ArrayList<>();
+					for (String token : rawTokens) {
+						String trimmed = token.trim().toLowerCase();
+						if (!trimmed.isEmpty() && !requestedEmails.contains(trimmed)) {
+							requestedEmails.add(trimmed);
 						}
 					}
-				}
-				for (String reqEmail : requestedEmails) {
-					if (!foundEmails.contains(reqEmail)) {
-						notFoundEmails.add(reqEmail);
+					if (requestedEmails.size() > 20) {
+						requestedEmails = requestedEmails.subList(0, 20);
 					}
+					totalEntered = requestedEmails.size();
+
+					Set<String> foundEmails = new HashSet<>();
+					if (responseList != null) {
+						for (VendorRFQDto dto : responseList) {
+							if (dto.getEmail() != null) {
+								foundEmails.add(dto.getEmail().trim().toLowerCase());
+							}
+						}
+					}
+					for (String reqEmail : requestedEmails) {
+						if (!foundEmails.contains(reqEmail)) {
+							notFoundEmails.add(reqEmail);
+							notFoundItems.add(reqEmail);
+						}
+					}
+				} else if (cleanValue.contains(",") || cleanValue.contains("\n") || cleanValue.contains(";")) {
+					String[] rawTokens = cleanValue.split("[\\r\\n,;]+");
+					List<String> requestedNames = new ArrayList<>();
+					for (String token : rawTokens) {
+						String trimmed = token.trim();
+						if (!trimmed.isEmpty() && !requestedNames.contains(trimmed)) {
+							requestedNames.add(trimmed);
+						}
+					}
+					if (requestedNames.size() > 20) {
+						requestedNames = requestedNames.subList(0, 20);
+					}
+					totalEntered = requestedNames.size();
+
+					for (String reqName : requestedNames) {
+						boolean found = false;
+						if (responseList != null) {
+							for (VendorRFQDto dto : responseList) {
+								if (dto.getCompanyName() != null && dto.getCompanyName().toLowerCase().contains(reqName.toLowerCase())) {
+									found = true;
+									break;
+								}
+							}
+						}
+						if (!found) {
+							notFoundItems.add(reqName);
+						}
+					}
+				} else {
+					totalEntered = 1;
 				}
 			}
 
@@ -474,9 +540,13 @@ public class GMTController {
 	            response.put("status", "Success");
 	            response.put("message", "No vendors found");
 	            response.put("totalRecords", 0);
+	            response.put("totalEntered", totalEntered);
 	            response.put("data", Collections.emptyList());
 	            if (!notFoundEmails.isEmpty()) {
 	                response.put("notFoundEmails", notFoundEmails);
+	            }
+	            if (!notFoundItems.isEmpty()) {
+	                response.put("notFoundItems", notFoundItems);
 	            }
 
 	            return ResponseEntity.ok(response);
@@ -486,9 +556,13 @@ public class GMTController {
 	        response.put("statusCode", StatusCodes.OK_VENDOR_CODE);
 	        response.put("status", "Success");
 	        response.put("totalRecords", responseList.size());
+	        response.put("totalEntered", totalEntered > 0 ? totalEntered : responseList.size());
 	        response.put("data", responseList);
 	        if (!notFoundEmails.isEmpty()) {
 	            response.put("notFoundEmails", notFoundEmails);
+	        }
+	        if (!notFoundItems.isEmpty()) {
+	            response.put("notFoundItems", notFoundItems);
 	        }
 
 	        return ResponseEntity.ok(response);

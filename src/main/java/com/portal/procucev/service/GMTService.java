@@ -167,6 +167,12 @@ public interface GMTService {
 	void dailyReportEmailForwarder();
 
 	List<VendorRFQDto> getAllVendorsSearch(String searchType, String searchValue);
+
+	List<VendorRFQDto> getAllVendorsSearch(String searchType, String searchValue, String city);
+
+	List<VendorRFQDto> getAllVendorsSearch(String searchType, String searchValue, String city, String state);
+
+	List<String> getCitiesByVendorCategory(String category);
 	
 	MessageResponse updateDeliveryLocation(DeliveryLocationUpdateRequest request);
 

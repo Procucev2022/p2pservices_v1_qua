@@ -18,6 +18,7 @@ import java.util.Calendar;
 import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -1615,12 +1616,44 @@ public class GMTServiceImpl implements GMTService {
 	
 	@Override
 	public List<VendorRFQDto> getAllVendorsSearch(String searchType, String searchValue) {
+		return getAllVendorsSearch(searchType, searchValue, null, null);
+	}
+
+	@Override
+	public List<VendorRFQDto> getAllVendorsSearch(String searchType, String searchValue, String city) {
+		return getAllVendorsSearch(searchType, searchValue, city, null);
+	}
+
+	@Override
+	public List<VendorRFQDto> getAllVendorsSearch(String searchType, String searchValue, String city, String state) {
 		 OrgType orgTypeObject = orgTypeDao.findByTypeName(ApplicationConstants.VENDOR);
 		 String cleanSearchType = searchType != null ? searchType.trim() : "";
 		 String cleanSearchValue = searchValue != null ? searchValue.trim() : "";
+		 String cleanCity = city != null ? city.trim() : "";
+		 String cleanState = state != null ? state.trim() : "";
+		 if ("ALL".equalsIgnoreCase(cleanCity) || "Select All City".equalsIgnoreCase(cleanCity) || "All Cities".equalsIgnoreCase(cleanCity)) {
+			 cleanCity = "";
+		 }
+		 if ("ALL".equalsIgnoreCase(cleanState) || "Select All State".equalsIgnoreCase(cleanState) || "All States".equalsIgnoreCase(cleanState)) {
+			 cleanState = "";
+		 }
 		
-		 List<VendorRFQDto> vendorList;
-		 if ("email".equalsIgnoreCase(cleanSearchType) && !cleanSearchValue.isEmpty()) {
+		 List<VendorRFQDto> vendorList = new ArrayList<>();
+		 if (("vendorcategory".equalsIgnoreCase(cleanSearchType) || "category".equalsIgnoreCase(cleanSearchType)) && !cleanSearchValue.isEmpty()) {
+			 if (!cleanState.isEmpty() || !cleanCity.isEmpty()) {
+				 vendorList = orgDao.searchVendorByCategoryStateAndCity(orgTypeObject, cleanSearchValue, cleanState, cleanCity);
+				 if (vendorList == null || vendorList.isEmpty()) {
+					 if (!cleanState.isEmpty()) {
+						 vendorList = orgDao.searchVendorByCategoryStateAndCity(orgTypeObject, cleanSearchValue, cleanState, "");
+					 }
+				 }
+				 if (vendorList == null || vendorList.isEmpty()) {
+					 vendorList = orgDao.searchVendorByType(orgTypeObject, cleanSearchType, cleanSearchValue);
+				 }
+			 } else {
+				 vendorList = orgDao.searchVendorByType(orgTypeObject, cleanSearchType, cleanSearchValue);
+			 }
+		 } else if ("email".equalsIgnoreCase(cleanSearchType) && !cleanSearchValue.isEmpty()) {
 			 String[] rawTokens = cleanSearchValue.split("[\\r\\n,;]+|\\s+");
 			 List<String> emailList = new ArrayList<>();
 			 for (String token : rawTokens) {
@@ -1640,24 +1673,56 @@ public class GMTServiceImpl implements GMTService {
 			 } else {
 				 vendorList = orgDao.searchVendorByType(orgTypeObject, cleanSearchType, cleanSearchValue);
 			 }
+		 } else if (isCompanyNameSearchType(cleanSearchType) && !cleanSearchValue.isEmpty() && (cleanSearchValue.contains(",") || cleanSearchValue.contains("\n") || cleanSearchValue.contains(";"))) {
+			 String[] rawTokens = cleanSearchValue.split("[\\r\\n,;]+");
+			 List<String> nameTokens = new ArrayList<>();
+			 for (String token : rawTokens) {
+				 String trimmed = token.trim();
+				 if (!trimmed.isEmpty() && !nameTokens.contains(trimmed)) {
+					 nameTokens.add(trimmed);
+				 }
+			 }
+			 if (nameTokens.size() > 20) {
+				 nameTokens = nameTokens.subList(0, 20);
+			 }
+			 Set<String> addedVendorIds = new HashSet<>();
+			 for (String token : nameTokens) {
+				 List<VendorRFQDto> matches = orgDao.searchVendorByType(orgTypeObject, cleanSearchType, token);
+				 if (matches != null) {
+					 for (VendorRFQDto dto : matches) {
+						 if (dto != null && dto.getId() != null && !addedVendorIds.contains(dto.getId())) {
+							 addedVendorIds.add(dto.getId());
+							 vendorList.add(dto);
+						 }
+					 }
+				 }
+			 }
 		 } else {
 			 vendorList = orgDao.searchVendorByType(orgTypeObject, cleanSearchType, cleanSearchValue);
 		 }
 	    
 	    if (CollectionUtils.isEmpty(vendorList)) {
-
 	        logger.error("No Vendors available in the Database");
-
-	        throw new AppException(
-	                HttpStatus.NO_CONTENT.value(),
-	                ApplicationConstants.NO_DATA_FOUND,
-	                ApplicationConstants.BUSSINESS_EXCEPTION,
-	                ApplicationConstants.FAILURE);
+	        return Collections.emptyList();
 	    }
 
 	    logger.info("Completed and Returning response");
-
 	    return vendorList;
+	}
+
+	@Override
+	public List<String> getCitiesByVendorCategory(String category) {
+		OrgType orgTypeObject = orgTypeDao.findByTypeName(ApplicationConstants.VENDOR);
+		if (category == null || category.trim().isEmpty()) {
+			return Collections.emptyList();
+		}
+		return orgDao.findCitiesByVendorCategory(orgTypeObject, category.trim());
+	}
+
+	private boolean isCompanyNameSearchType(String searchType) {
+		if (searchType == null) return false;
+		String lower = searchType.trim().toLowerCase();
+		return lower.contains("company") || lower.contains("vendor") || lower.contains("seller") || lower.equals("name");
 	}
 	
 	
