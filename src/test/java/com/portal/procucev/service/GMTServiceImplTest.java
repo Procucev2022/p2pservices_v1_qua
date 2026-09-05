@@ -29,7 +29,9 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.mail.javamail.JavaMailSender;
+import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.io.ByteArrayOutputStream;
@@ -766,7 +768,7 @@ class GMTServiceImplTest {
         assertEquals(1, service.getAllVendors(pageable).getData().size());
 
         when(orgDao.searchVendorByType(type, "company", "Co")).thenReturn(Collections.emptyList());
-        assertThrows(AppException.class, () -> service.getAllVendorsSearch("company", "Co"));
+        assertTrue(service.getAllVendorsSearch("company", "Co").isEmpty());
         when(orgDao.searchVendorByType(type, "company", "Co")).thenReturn(List.of(dto));
         assertEquals(1, service.getAllVendorsSearch("company", "Co").size());
         when(orgDao.searchVendorByEmails(eq(type), anyList())).thenReturn(List.of(dto));
@@ -1123,6 +1125,10 @@ class GMTServiceImplTest {
             assertNotNull(nearDate);
             assertNotNull(cappedDate);
 
+            MasterStatus clientStatus = new MasterStatus();
+            clientStatus.setId("CS1");
+            clientStatus.setStatus("NEW");
+            rfq.setClientStatus(clientStatus);
             when(userDao.getFullName("buyer@example.com")).thenReturn("Buyer");
             when(rfqDao.getRfqsByNoPrFlagIsTrue("Buyer")).thenReturn(List.of(rfq));
             assertEquals(1, service.getRFQsForNoPR().size());
@@ -1278,7 +1284,9 @@ class GMTServiceImplTest {
 
         GmtItems gmtItem = new GmtItems();
         gmtItem.setRfqItemId("ITEM1");
-        when(rfqDao.findById("EDIT")).thenReturn(Optional.of(new Rfq()));
+        Rfq existingInDb = new Rfq();
+        existingInDb.setDeliveryDate(new Date());
+        when(rfqDao.findById("EDIT")).thenReturn(Optional.of(existingInDb));
         when(masterStatusDao.findByStatus(anyString())).thenReturn(masterStatus);
         when(gmtItemsDao.findByRfqItemIdIn(anyList())).thenReturn(List.of(gmtItem));
         when(rfqVendorDao.findDataByRfqId("EDIT")).thenReturn(List.of(persistedVendor));
@@ -1540,5 +1548,202 @@ class GMTServiceImplTest {
                 .thenReturn(List.<Object[]>of(sellerRowWithCount, sellerRowWithoutCount));
         assertDoesNotThrow(() -> service.dailyReportEmailForwarder());
         verify(javaMailSender, atLeastOnce()).send(any(MimeMessage.class));
+    }
+
+    @Test
+    void testGetAllVendorsSearch_MultiTierFallbacks_AndNormalizations() {
+        OrgType vType = new OrgType();
+        vType.setTypeName(ApplicationConstants.VENDOR);
+        when(orgTypeDao.findByTypeName(ApplicationConstants.VENDOR)).thenReturn(vType);
+
+        VendorRFQDto dto = new VendorRFQDto();
+        dto.setId("V100");
+
+        // Overloads: 2-arg and 3-arg
+        when(orgDao.searchVendorByType(eq(vType), eq("company"), eq("ABC"))).thenReturn(List.of(dto));
+        assertEquals(1, service.getAllVendorsSearch("company", "ABC").size());
+        assertEquals(1, service.getAllVendorsSearch("company", "ABC", "City").size());
+
+        // State & City normalizations ("ALL", "Select All State", "All States", "Select All City", "All Cities")
+        assertEquals(1, service.getAllVendorsSearch("company", "ABC", "ALL", "ALL").size());
+        assertEquals(1, service.getAllVendorsSearch("company", "ABC", "Select All City", "Select All State").size());
+        assertEquals(1, service.getAllVendorsSearch("company", "ABC", "All Cities", "All States").size());
+
+        // Category search with both State & City empty -> Tier 3
+        when(orgDao.searchVendorByType(eq(vType), eq("category"), eq("IT"))).thenReturn(List.of(dto));
+        assertEquals(1, service.getAllVendorsSearch("category", "IT", "", "").size());
+
+        // Category search Tier 1 hit
+        when(orgDao.searchVendorByCategoryStateAndCity(eq(vType), eq("IT"), eq("MH"), eq("Pune"))).thenReturn(List.of(dto));
+        assertEquals(1, service.getAllVendorsSearch("category", "IT", "Pune", "MH").size());
+
+        // Category search Tier 2 hit (Tier 1 returns empty, fallback to State)
+        when(orgDao.searchVendorByCategoryStateAndCity(eq(vType), eq("IT"), eq("MH"), eq("Nagpur"))).thenReturn(Collections.emptyList());
+        when(orgDao.searchVendorByCategoryStateAndCity(eq(vType), eq("IT"), eq("MH"), eq(""))).thenReturn(List.of(dto));
+        assertEquals(1, service.getAllVendorsSearch("vendorcategory", "IT", "Nagpur", "MH").size());
+
+        // Category search Tier 3 hit (Tier 1 & Tier 2 return empty)
+        when(orgDao.searchVendorByCategoryStateAndCity(eq(vType), eq("IT"), eq("KA"), eq("Bangalore"))).thenReturn(Collections.emptyList());
+        when(orgDao.searchVendorByCategoryStateAndCity(eq(vType), eq("IT"), eq("KA"), eq(""))).thenReturn(Collections.emptyList());
+        when(orgDao.searchVendorByType(eq(vType), eq("category"), eq("IT"))).thenReturn(List.of(dto));
+        assertEquals(1, service.getAllVendorsSearch("category", "IT", "Bangalore", "KA").size());
+
+        // Category search with only City non-empty (State empty) -> Tier 1 empty, skips Tier 2, calls Tier 3
+        when(orgDao.searchVendorByCategoryStateAndCity(eq(vType), eq("IT"), eq(""), eq("Goa"))).thenReturn(Collections.emptyList());
+        assertEquals(1, service.getAllVendorsSearch("category", "IT", "Goa", "").size());
+    }
+
+    @Test
+    void testGetAllVendorsSearch_EmailAndCompanyNameBranches() {
+        OrgType vType = new OrgType();
+        vType.setTypeName(ApplicationConstants.VENDOR);
+        when(orgTypeDao.findByTypeName(ApplicationConstants.VENDOR)).thenReturn(vType);
+
+        VendorRFQDto dto1 = new VendorRFQDto();
+        dto1.setId("V1");
+        VendorRFQDto dto2 = new VendorRFQDto();
+        dto2.setId("V2");
+
+        // 1. Email search with multiple emails, whitespace, comma, semicolon, newline, duplicates
+        String emailInput = "v1@test.com, v2@test.com\nv1@TEST.com; v3@test.com";
+        when(orgDao.searchVendorByEmails(eq(vType), anyList())).thenReturn(List.of(dto1, dto2));
+        assertEquals(2, service.getAllVendorsSearch("email", emailInput).size());
+
+        // 2. Email search with > 20 emails
+        List<String> twentyFiveEmails = new ArrayList<>();
+        for (int i = 1; i <= 25; i++) {
+            twentyFiveEmails.add("v" + i + "@test.com");
+        }
+        assertEquals(2, service.getAllVendorsSearch("email", String.join(", ", twentyFiveEmails)).size());
+
+        // 3. Email search with 1 email + delimiter
+        assertEquals(2, service.getAllVendorsSearch("email", "v1@test.com,").size());
+        assertEquals(2, service.getAllVendorsSearch("email", "v1@test.com\n,").size());
+        assertEquals(2, service.getAllVendorsSearch("email", "v1@test.com;").size());
+
+        // 4. Email search with 1 email without delimiter -> searchVendorByType
+        when(orgDao.searchVendorByType(eq(vType), eq("email"), eq("single@test.com"))).thenReturn(List.of(dto1));
+        assertEquals(1, service.getAllVendorsSearch("email", "single@test.com").size());
+
+        // 5. Email search with empty tokens -> fallback to searchVendorByType
+        when(orgDao.searchVendorByType(eq(vType), eq("email"), anyString())).thenReturn(List.of(dto1));
+        assertEquals(1, service.getAllVendorsSearch("email", "   ,  ;  \n ").size());
+
+        // 6. Company name search type with delimiters ("company", "vendor", "seller", "name")
+        VendorRFQDto dtoNullId = new VendorRFQDto();
+        dtoNullId.setId(null);
+
+        when(orgDao.searchVendorByType(eq(vType), eq("companyName"), eq("Alpha"))).thenReturn(List.of(dto1, dtoNullId));
+        when(orgDao.searchVendorByType(eq(vType), eq("companyName"), eq("Beta"))).thenReturn(null);
+        when(orgDao.searchVendorByType(eq(vType), eq("companyName"), eq("Gamma"))).thenReturn(List.of(dto1, dto2)); // dto1 is duplicate
+
+        List<VendorRFQDto> nameResults = service.getAllVendorsSearch("companyName", "Alpha, Beta; Gamma\nAlpha");
+        assertEquals(2, nameResults.size()); // V1, V2
+
+        // > 20 company names
+        List<String> twentyFiveNames = new ArrayList<>();
+        for (int i = 1; i <= 25; i++) {
+            twentyFiveNames.add("Comp" + i);
+        }
+        when(orgDao.searchVendorByType(eq(vType), eq("vendor"), anyString())).thenReturn(List.of(dto1));
+        assertNotNull(service.getAllVendorsSearch("vendor", String.join(", ", twentyFiveNames)));
+
+        // Test other isCompanyNameSearchType keywords
+        when(orgDao.searchVendorByType(eq(vType), anyString(), anyString())).thenReturn(List.of(dto1));
+        assertNotNull(service.getAllVendorsSearch("seller", "S1, S2"));
+        assertNotNull(service.getAllVendorsSearch("name", "N1, N2"));
+        assertNotNull(service.getAllVendorsSearch(null, "Val"));
+
+        // Delimiter search with empty token, null dto, and duplicate dto
+        when(orgDao.searchVendorByType(eq(vType), eq("company"), eq("Alpha"))).thenReturn(Arrays.asList(dto1, null));
+        when(orgDao.searchVendorByType(eq(vType), eq("company"), eq("Beta"))).thenReturn(List.of(dto1));
+        assertNotNull(service.getAllVendorsSearch("company", "Alpha, , Beta"));
+
+        // Custom search type with delimiter (isCompanyNameSearchType is false)
+        when(orgDao.searchVendorByType(eq(vType), eq("custom"), eq("Val1, Val2"))).thenReturn(List.of(dto1));
+        assertEquals(1, service.getAllVendorsSearch("custom", "Val1, Val2").size());
+
+        // Company search type with empty search value
+        assertEquals(1, service.getAllVendorsSearch("company", "").size());
+
+        // Company search type without delimiter
+        when(orgDao.searchVendorByType(eq(vType), eq("company"), eq("Single"))).thenReturn(List.of(dto1));
+        assertEquals(1, service.getAllVendorsSearch("company", "Single").size());
+
+        // 7. Empty vendorList in database -> returns empty list
+        when(orgDao.searchVendorByType(eq(vType), eq("company"), eq("Empty"))).thenReturn(Collections.emptyList());
+        assertTrue(service.getAllVendorsSearch("company", "Empty").isEmpty());
+    }
+
+    @Test
+    void testGetCitiesByVendorCategory_Branches() {
+        OrgType vType = new OrgType();
+        vType.setTypeName(ApplicationConstants.VENDOR);
+        when(orgTypeDao.findByTypeName(ApplicationConstants.VENDOR)).thenReturn(vType);
+
+        assertTrue(service.getCitiesByVendorCategory(null).isEmpty());
+        assertTrue(service.getCitiesByVendorCategory("").isEmpty());
+        assertTrue(service.getCitiesByVendorCategory("   ").isEmpty());
+
+        when(orgDao.findCitiesByVendorCategory(eq(vType), eq("Construction"))).thenReturn(List.of("Mumbai", "Delhi"));
+        assertEquals(2, service.getCitiesByVendorCategory("Construction").size());
+    }
+
+    @Test
+    void testGetVendorsByGmtRfq_NullChecksAndDefaultStatus() {
+        assertThrows(NullPointerException.class, () -> service.getVendorsByGmtRfq(null));
+
+        Rfq testRfq = new Rfq();
+        testRfq.setId("RFQ999");
+
+        GmtRfqVendors vendorWithNullStatus = new GmtRfqVendors();
+        vendorWithNullStatus.setId("99");
+        vendorWithNullStatus.setStatus(null);
+        vendorWithNullStatus.setVendor(null);
+
+        MasterStatus defStatus = new MasterStatus();
+        defStatus.setStatus(StatusConstants.RFQ_NOTIFIED);
+        when(masterStatusDao.findByStatus(StatusConstants.RFQ_NOTIFIED)).thenReturn(defStatus);
+
+        when(gmtRfqVendorDao.findByRfq(testRfq)).thenReturn(List.of(vendorWithNullStatus));
+        List<GmtRfqSellerDto> sellers = service.getVendorsByGmtRfq(testRfq);
+        assertEquals(1, sellers.size());
+        assertEquals(defStatus, sellers.get(0).getStatus());
+    }
+
+    @Test
+    void testUpdateDeliveryLocation_AdminRoleAndEmptyFields() {
+        Authentication auth = mock(Authentication.class);
+        UserDetails userDetails = mock(UserDetails.class);
+        when(userDetails.getUsername()).thenReturn("adminUser");
+        when(auth.getPrincipal()).thenReturn(userDetails);
+        SecurityContextHolder.getContext().setAuthentication(auth);
+
+        User adminUser = new User();
+        adminUser.setUsername("adminUser");
+        Role adminRole = new Role();
+        adminRole.setRoleName("ADMIN");
+        adminUser.setRole(adminRole);
+        when(userDao.findByUsernameAndActive("adminUser", true)).thenReturn(adminUser);
+
+        Rfq rfq = new Rfq();
+        rfq.setId("RFQ_LOC");
+        rfq.setRfqId("RFQ_LOC_BIZ");
+        ClientDeliveryLocationRfq loc = new ClientDeliveryLocationRfq();
+        loc.setCity("ExistingCity");
+        rfq.setClientdeliverylocationrfq(new ArrayList<>(List.of(loc)));
+
+        when(rfqDao.findById("RFQ_LOC")).thenReturn(Optional.of(rfq));
+
+        DeliveryLocationUpdateRequest req = new DeliveryLocationUpdateRequest();
+        req.setId("RFQ_LOC");
+        req.setCity("");
+        req.setState("");
+        req.setPincode("");
+        req.setAddress("");
+
+        MessageResponse resp = service.updateDeliveryLocation(req);
+        assertEquals("200", resp.getStatusCode());
+        SecurityContextHolder.clearContext();
     }
 }
