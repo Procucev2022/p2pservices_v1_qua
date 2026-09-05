@@ -856,6 +856,95 @@ class ProcUserServiceImplTest {
         assertNotNull(service.getBuyerUserByEmail(buyerInputUser));
         assertNotNull(service.getBuyerByEmail(buyerInputUser));
     }
+
+    @Test
+    void testCoverage_ProcUserServiceImpl_AdditionalBranches() throws Exception {
+        OrgType vendorType = new OrgType();
+        vendorType.setId("VT1");
+        when(orgTypeDao.findByTypeName(ApplicationConstants.VENDOR)).thenReturn(vendorType);
+
+        Organization v1 = new Organization();
+        v1.setId("V_ID_1");
+        v1.setCompanyName("Vendor 1");
+        List<Organization> vList = Collections.singletonList(v1);
+
+        when(orgDao.findVendorsBySearchType(anyString(), anyString(), anyString())).thenReturn(vList);
+        when(orgDao.findVendorsByEmails(anyString(), anyList())).thenReturn(vList);
+        when(userDao.findLastLoginByOrgIds(anyList())).thenReturn(Collections.singletonList(new Object[]{"V_ID_1", new Date()}));
+
+        assertNotNull(service.getVendorSummarySearchResults(null, null));
+        assertNotNull(service.getVendorSummarySearchResults("email", "   "));
+        assertNotNull(service.getVendorSummarySearchResults("email", "vendor1@test.com"));
+        assertNotNull(service.getVendorSummarySearchResults("email", "vendor1@test.com,"));
+        assertNotNull(service.getVendorSummarySearchResults("email", "v1@test.com, v2@test.com; v1@test.com\nv3@test.com \r\n "));
+
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < 25; i++) {
+            sb.append("test").append(i).append("@test.com,");
+        }
+        assertNotNull(service.getVendorSummarySearchResults("email", sb.toString()));
+
+        assertNotNull(service.getVendorSummarySearchResults("companyName", "Test Co"));
+
+        when(orgDao.findVendorsByEmails(anyString(), anyList())).thenReturn(Collections.emptyList());
+        assertTrue(service.getVendorSummarySearchResults("email", "v1@test.com, v2@test.com").isEmpty());
+
+        User activeUser = new User();
+        activeUser.setId("USER_DEACT");
+        activeUser.setUsername("deact@test.com");
+        activeUser.setPhone("9876543210");
+        when(userDao.findByUsernameAndPhoneAndActive(eq("deact@test.com"), anyString(), eq(true))).thenReturn(activeUser);
+        when(userDao.findById("USER_DEACT")).thenReturn(Optional.of(activeUser));
+        when(userDao.findOrgIdByUser("USER_DEACT")).thenReturn("ORG_DEACT");
+        when(userDao.findByOrg("ORG_DEACT")).thenReturn(Collections.emptyList());
+
+        assertTrue(service.deactivateOrgUser(activeUser));
+        assertTrue(service.disableUser(activeUser));
+
+        Organization orgMissingPhone = new Organization();
+        orgMissingPhone.setEmail("test@test.com");
+        orgMissingPhone.setOrganizationPhonenumber(null);
+        orgMissingPhone.setEmailOtp("123456");
+        assertFalse(service.validateEmailOtp(orgMissingPhone));
+
+        Organization orgMissingOtp = new Organization();
+        orgMissingOtp.setEmail("test@test.com");
+        orgMissingOtp.setOrganizationPhonenumber("9876543210");
+        orgMissingOtp.setEmailOtp(null);
+        assertFalse(service.validateEmailOtp(orgMissingOtp));
+
+        User userWithEmailOnly = new User();
+        userWithEmailOnly.setUsername(null);
+        userWithEmailOnly.setEmail("buyer.email@test.com");
+        when(userDao.findActiveUsersByUsernameAndRoleNames(eq("buyer.email@test.com"), anyList()))
+                .thenReturn(List.of(activeUser));
+        assertNotNull(service.getBuyerUserByEmail(userWithEmailOnly));
+
+        User userWithWhitespaceUsername = new User();
+        userWithWhitespaceUsername.setUsername("   ");
+        assertNull(service.getBuyerUserByEmail(userWithWhitespaceUsername));
+
+        User userWithPerms = new User();
+        userWithPerms.setId("U_PERMS");
+        userWithPerms.setUsername("perms@test.com");
+        userWithPerms.setPhone("9876543210");
+        Role permRole = new Role();
+        Permission p1 = new Permission();
+        p1.setPermissionName("");
+        Permission p2 = new Permission();
+        p2.setPermissionName(null);
+        Permission p3 = new Permission();
+        p3.setPermissionName("VALID_PERM");
+        permRole.setPermission(List.of(p1, p2, p3));
+        userWithPerms.setRole(permRole);
+
+        when(userDao.findByUsernameAndPhoneAndActive(eq("perms@test.com"), anyString(), eq(true)))
+                .thenReturn(userWithPerms);
+        User resultUser = service.getUserByEmail(userWithPerms);
+        assertNotNull(resultUser);
+        assertEquals(1, resultUser.getListofPermission().size());
+        assertEquals("VALID_PERM", resultUser.getListofPermission().get(0));
+    }
 }
 
 

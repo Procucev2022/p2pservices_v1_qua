@@ -5,6 +5,7 @@ import com.portal.procucev.customexception.MessageResponse;
 import com.portal.procucev.customexception.RfqStatusResponse;
 import com.portal.procucev.model.*;
 import com.portal.procucev.service.GMTService;
+import com.portal.procucev.utils.ApplicationConstants;
 import com.portal.procucev.utils.StatusCodes;
 import jakarta.servlet.http.HttpServletRequest;
 import org.junit.jupiter.api.BeforeEach;
@@ -244,13 +245,13 @@ class GMTControllerTest {
 
     @Test
     void testGetAllVendorsSearch_Empty_Success_Exception() {
-        when(gmtService.getAllVendorsSearch(anyString(), anyString())).thenReturn(Collections.emptyList());
+        when(gmtService.getAllVendorsSearch(any(), any(), any(), any())).thenReturn(Collections.emptyList());
         assertEquals(HttpStatus.OK, controller.getAllVendorsSearch("type", "val").getStatusCode());
 
-        when(gmtService.getAllVendorsSearch(anyString(), anyString())).thenReturn(Collections.singletonList(new VendorRFQDto()));
+        when(gmtService.getAllVendorsSearch(any(), any(), any(), any())).thenReturn(Collections.singletonList(new VendorRFQDto()));
         assertEquals(HttpStatus.OK, controller.getAllVendorsSearch("type", "val").getStatusCode());
 
-        when(gmtService.getAllVendorsSearch(anyString(), anyString())).thenThrow(new RuntimeException("err"));
+        when(gmtService.getAllVendorsSearch(any(), any(), any(), any())).thenThrow(new RuntimeException("err"));
         assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, controller.getAllVendorsSearch("type", "val").getStatusCode());
     }
 
@@ -475,13 +476,13 @@ class GMTControllerTest {
         when(gmtService.getAllVendors(any())).thenThrow(new RuntimeException("err"));
         assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, controller.getAllVendors(0, 10).getStatusCode());
 
-        when(gmtService.getAllVendorsSearch(anyString(), anyString())).thenReturn(Collections.singletonList(new VendorRFQDto()));
+        when(gmtService.getAllVendorsSearch(any(), any(), any(), any())).thenReturn(Collections.singletonList(new VendorRFQDto()));
         assertEquals(HttpStatus.OK, controller.getAllVendorsSearch("type", "val").getStatusCode());
 
-        when(gmtService.getAllVendorsSearch(anyString(), anyString())).thenReturn(Collections.emptyList());
+        when(gmtService.getAllVendorsSearch(any(), any(), any(), any())).thenReturn(Collections.emptyList());
         assertEquals(HttpStatus.OK, controller.getAllVendorsSearch("type", "val").getStatusCode());
 
-        when(gmtService.getAllVendorsSearch(anyString(), anyString())).thenThrow(new RuntimeException("err"));
+        when(gmtService.getAllVendorsSearch(any(), any(), any(), any())).thenThrow(new RuntimeException("err"));
         assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, controller.getAllVendorsSearch("type", "val").getStatusCode());
 
         Rfq fRfq = new Rfq();
@@ -576,5 +577,96 @@ class GMTControllerTest {
 
         when(gmtService.updateDeliveryLocation(any())).thenReturn(null);
         assertEquals(HttpStatus.BAD_REQUEST, controller.updateDeliveryLocation(null).getStatusCode());
+
+        when(gmtService.updateDeliveryLocation(any())).thenReturn(new MessageResponse("500", "Success", null, "Success"));
+        assertEquals(HttpStatus.OK, controller.updateDeliveryLocation(req).getStatusCode());
+
+        when(gmtService.updateDeliveryLocation(any())).thenReturn(new MessageResponse(String.valueOf(ApplicationConstants.SUCCESS), "Done", null, "Done"));
+        assertEquals(HttpStatus.OK, controller.updateDeliveryLocation(req).getStatusCode());
+    }
+
+    @Test
+    void testGetCitiesByVendorCategory_AllBranches() {
+        when(gmtService.getCitiesByVendorCategory("IT")).thenReturn(List.of("Mumbai", "Pune"));
+        ResponseEntity<?> resp1 = controller.getCitiesByVendorCategory("IT");
+        assertEquals(HttpStatus.OK, resp1.getStatusCode());
+
+        when(gmtService.getCitiesByVendorCategory("IT")).thenReturn(null);
+        ResponseEntity<?> resp2 = controller.getCitiesByVendorCategory("IT");
+        assertEquals(HttpStatus.OK, resp2.getStatusCode());
+
+        when(gmtService.getCitiesByVendorCategory("IT")).thenThrow(new RuntimeException("Service failure"));
+        ResponseEntity<?> resp3 = controller.getCitiesByVendorCategory("IT");
+        assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, resp3.getStatusCode());
+    }
+
+    @Test
+    void testGetAllVendorsSearch_EmailSearchBranches() {
+        VendorRFQDto v1 = new VendorRFQDto();
+        v1.setEmail("v1@test.com");
+        VendorRFQDto vNullEmail = new VendorRFQDto();
+        vNullEmail.setEmail(null);
+
+        when(gmtService.getAllVendorsSearch(any(), any(), any(), any())).thenReturn(List.of(v1, vNullEmail));
+
+        // 1. Email search with multiple emails (comma, spaces, semicolons, newlines) and duplicates
+        String emailInput = "v1@test.com, v2@test.com; v3@test.com\nv1@TEST.com";
+        ResponseEntity<?> r1 = controller.getAllVendorsSearch("email", emailInput, "City", "State");
+        assertEquals(HttpStatus.OK, r1.getStatusCode());
+
+        // 2. Email search with > 20 emails
+        List<String> twentyFiveEmails = new ArrayList<>();
+        for (int i = 1; i <= 25; i++) {
+            twentyFiveEmails.add("vendor" + i + "@test.com");
+        }
+        String manyEmails = String.join(", ", twentyFiveEmails);
+        ResponseEntity<?> r2 = controller.getAllVendorsSearch("EMAIL", manyEmails, null, null);
+        assertEquals(HttpStatus.OK, r2.getStatusCode());
+
+        // 3. Email search when responseList is empty
+        when(gmtService.getAllVendorsSearch(any(), any(), any(), any())).thenReturn(Collections.emptyList());
+        ResponseEntity<?> r3 = controller.getAllVendorsSearch("email", "vNotFound@test.com", "City", "State");
+        assertEquals(HttpStatus.OK, r3.getStatusCode());
+    }
+
+    @Test
+    void testGetAllVendorsSearch_CompanyNameAndOtherBranches() {
+        VendorRFQDto v1 = new VendorRFQDto();
+        v1.setCompanyName("Alpha Technologies Pvt Ltd");
+        VendorRFQDto vNullName = new VendorRFQDto();
+        vNullName.setCompanyName(null);
+
+        when(gmtService.getAllVendorsSearch(any(), any(), any(), any())).thenReturn(List.of(v1, vNullName));
+
+        // 1. Delimited company name search with some matching and some not matching
+        String nameInput = "Alpha, Beta; Gamma\nDelta, Alpha";
+        ResponseEntity<?> r1 = controller.getAllVendorsSearch("companyName", nameInput, "City", "State");
+        assertEquals(HttpStatus.OK, r1.getStatusCode());
+
+        // 2. Company name search with > 20 names
+        List<String> twentyFiveNames = new ArrayList<>();
+        for (int i = 1; i <= 25; i++) {
+            twentyFiveNames.add("Company" + i);
+        }
+        String manyNames = String.join(", ", twentyFiveNames);
+        ResponseEntity<?> r2 = controller.getAllVendorsSearch("vendor", manyNames, null, null);
+        assertEquals(HttpStatus.OK, r2.getStatusCode());
+
+        // 3. Company name search when responseList is empty
+        when(gmtService.getAllVendorsSearch(any(), any(), any(), any())).thenReturn(Collections.emptyList());
+        ResponseEntity<?> r3 = controller.getAllVendorsSearch("seller", "UnknownCompany, AnotherCompany", null, null);
+        assertEquals(HttpStatus.OK, r3.getStatusCode());
+
+        // 4. Single item search without delimiters
+        when(gmtService.getAllVendorsSearch(any(), any(), any(), any())).thenReturn(List.of(v1));
+        ResponseEntity<?> r4 = controller.getAllVendorsSearch("category", "IT", null, null);
+        assertEquals(HttpStatus.OK, r4.getStatusCode());
+
+        // 5. Empty / null search value
+        ResponseEntity<?> r5 = controller.getAllVendorsSearch("category", "", null, null);
+        assertEquals(HttpStatus.OK, r5.getStatusCode());
+
+        ResponseEntity<?> r6 = controller.getAllVendorsSearch(null, null, null, null);
+        assertEquals(HttpStatus.OK, r6.getStatusCode());
     }
 }
