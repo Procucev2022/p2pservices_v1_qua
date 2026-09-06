@@ -8,8 +8,10 @@ import com.portal.procucev.model.RFQDocument;
 import com.portal.procucev.model.Rfq;
 import com.portal.procucev.model.RfqItem;
 import com.portal.procucev.model.User;
+import jakarta.mail.Message;
 import jakarta.mail.internet.InternetAddress;
 import jakarta.mail.internet.MimeMessage;
+import jakarta.mail.internet.MimeMultipart;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -17,7 +19,9 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.mail.javamail.JavaMailSender;
 
+import java.io.OutputStream;
 import java.util.Collections;
+import java.util.function.BiFunction;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -550,5 +554,79 @@ class MailUtilityTest {
                 javaMailSender, rfqWithoutPincode, "http://host", "to@test.com",
                 "from@test.com", null, "9876543210", "Full Name",
                 "mail2@test.com", "pass2", "9876543210"));
+    }
+
+    @Test
+    void testMailingVerificationLinkWithSelfUserLogin_EmailBranches() {
+        User userWithEmail = new User();
+        userWithEmail.setUsername("buyeruser");
+        userWithEmail.setEmail("buyer@procucev.com");
+        assertDoesNotThrow(() -> MailUtility.mailingVerificationLinkWithSelfUserLogin(
+                javaMailSender, "from@test.com", internetAddress, "pass", "http://host", userWithEmail));
+
+        User userBlankEmail = new User();
+        userBlankEmail.setUsername("buyeruser");
+        userBlankEmail.setEmail("   ");
+        assertDoesNotThrow(() -> MailUtility.mailingVerificationLinkWithSelfUserLogin(
+                javaMailSender, "from@test.com", internetAddress, "pass", "http://host", userBlankEmail));
+
+        assertDoesNotThrow(() -> MailUtility.mailingVerificationLinkWithSelfUserLogin(
+                null, "from@test.com", internetAddress, "pass", "http://host", userWithEmail));
+    }
+
+    @Test
+    void testBfsAcceptedMails_WithoutItemNumber() {
+        com.portal.procucev.model.BFSItems items = new com.portal.procucev.model.BFSItems();
+        items.setItemNumber(null);
+        items.setDescription("Item Without Number");
+        BFSUsers bfsUser = new BFSUsers();
+        bfsUser.setItems(items);
+        bfsUser.setAskPrice(100.0);
+
+        assertDoesNotThrow(() -> MailUtility.buyerEmailBFSAccepted(
+                "type", "to@test.com", javaMailSender, internetAddress, bfsUser, "http://host", "UNIQ1"));
+        assertDoesNotThrow(() -> MailUtility.emailBFSAccepted(
+                "type", "to@test.com", javaMailSender, internetAddress, bfsUser, "http://host", "UNIQ1"));
+        assertDoesNotThrow(() -> MailUtility.sellerEmailBFSAccepted(
+                "type", "to@test.com", javaMailSender, internetAddress, bfsUser, "http://host", "UNIQ1"));
+    }
+
+    @Test
+    void testGetJavaMailSender_DefaultSupplier() {
+        BiFunction<String, String, JavaMailSender> originalSupplier = MailUtility.customMailSenderSupplier;
+        try {
+            MailUtility.customMailSenderSupplier = null;
+            JavaMailSender sender = MailUtility.getJavaMailSender("testuser@procucev.com", "testpwd");
+            assertNotNull(sender);
+        } finally {
+            MailUtility.customMailSenderSupplier = originalSupplier;
+        }
+    }
+
+    @Test
+    void testForwardMessage_Branches() throws Exception {
+        Message multipartMsg = mock(Message.class);
+        when(multipartMsg.getSubject()).thenReturn("Test Multipart");
+        when(multipartMsg.getContent()).thenReturn(new MimeMultipart());
+
+        boolean resMultipart = MailUtility.forwardMessage(
+                "from@test.com", javaMailSender, "to@test.com", multipartMsg, "pwd");
+        assertTrue(resMultipart);
+
+        Message plainMsg = mock(Message.class);
+        when(plainMsg.getSubject()).thenReturn("Test Plain");
+        when(plainMsg.getContent()).thenReturn("Plain text body content");
+        doNothing().when(plainMsg).writeTo(any(OutputStream.class));
+
+        boolean resPlain = MailUtility.forwardMessage(
+                "from@test.com", javaMailSender, "to@test.com", plainMsg, "pwd");
+        assertTrue(resPlain);
+
+        Message throwingMsg = mock(Message.class);
+        when(throwingMsg.getSubject()).thenThrow(new RuntimeException("Subject extraction failed"));
+
+        boolean resThrow = MailUtility.forwardMessage(
+                "from@test.com", javaMailSender, "to@test.com", throwingMsg, "pwd");
+        assertFalse(resThrow);
     }
 }
