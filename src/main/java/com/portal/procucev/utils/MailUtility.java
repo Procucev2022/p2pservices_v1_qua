@@ -1044,18 +1044,6 @@ public class MailUtility {
 			email.append("We have a new enquiry from a corporate buyer that matches your category. ");
 			email.append("This is a verified business opportunity, please check the details below.<br><br>");
 
-			email.append("Please login now to your QUA seller account at ");
-			email.append("<a href=\"https://qua.procucev.com/login\">https://qua.procucev.com/login</a> ");
-			email.append("to view full details and download the RFQ instantly. ");
-			email.append("This is a live enquiry, do not miss it.<br><br>");
-			
-			email.append("<b>Your login details:</b><br>");
-			email.append("Username: <b>" + mailId + "</b><br>");
-			email.append("Mobile: <b>" + vendorMobileNumber + "</b><br>");
-			email.append("Password: <b>" + "Welcome@123" + "</b><br>");
-			email.append("(Use this password to log in for the first time to create your new password.)<br><br>");		
-		//	email.append("<b>Enquiry Details:</b><br><br>"); 
-// Build RFQ items table
 			email.append("<b>Enquiry Details:</b><br><br>");
 
 			// Simplified table with only Sl No, Item Description, Pin code
@@ -1218,6 +1206,53 @@ public class MailUtility {
 			email.append("<b>Team Procucev</b>");
 
 			email.append("</body></html>");
+			MimeBodyPart messageBodyPart = new MimeBodyPart();
+			messageBodyPart.setContent(email.toString(), "text/html");
+
+			MimeMultipart multipart = new MimeMultipart();
+			multipart.addBodyPart(messageBodyPart);
+
+			JavaMailSender javaMailSender2 = getJavaMailSender(mailId2, password);
+			emailNotifierGenericNoPRBySenderList(subject, mailId, javaMailSender2, fromAddress, ccAdd, multipart,
+					mailId2);
+
+			return true;
+		} catch (MessagingException e) {
+			e.printStackTrace();
+			return false;
+		}
+	}
+
+	public static boolean emailSendVendorLoginCredentials(JavaMailSender javaMailSender, String host, String mailId,
+			String fromAddress, String ccAdd, String phonenumber, String fullName, String mailId2, String password,
+			String vendorMobileNumber) throws MessagingException {
+		LOGGER.info("Entered to send QUA Seller Login Credentials Email to Vendor");
+		try {
+			String subject = "Your QUA Seller Account Login Details";
+			StringBuilder email = new StringBuilder();
+
+			email.append("<html><body>");
+
+			email.append("Dear Partner,<br><br>");
+
+			email.append("Greetings from <b>Procucev!</b><br><br>");
+
+			email.append("Please login now to your QUA seller account at ");
+			email.append("<a href=\"https://qua.procucev.com/login\">https://qua.procucev.com/login</a> ");
+			email.append("to view full details and download the RFQ instantly. ");
+			email.append("This is a live enquiry, do not miss it.<br><br>");
+
+			email.append("<b>Your login details:</b><br>");
+			email.append("Username: <b>" + mailId + "</b><br>");
+			email.append("Mobile: <b>" + vendorMobileNumber + "</b><br>");
+			email.append("Password: <b>" + "Welcome@123" + "</b><br>");
+			email.append("(Use this password to log in for the first time to create your new password.)<br><br>");
+
+			email.append("<b>Best Regards,</b><br>");
+			email.append("<b>Team Procucev</b>");
+
+			email.append("</body></html>");
+
 			MimeBodyPart messageBodyPart = new MimeBodyPart();
 			messageBodyPart.setContent(email.toString(), "text/html");
 

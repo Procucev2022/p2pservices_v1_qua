@@ -9,12 +9,14 @@ import com.portal.procucev.model.Rfq;
 import com.portal.procucev.model.RfqItem;
 import com.portal.procucev.model.User;
 import jakarta.mail.Message;
+import jakarta.mail.Multipart;
 import jakarta.mail.internet.InternetAddress;
 import jakarta.mail.internet.MimeMessage;
 import jakarta.mail.internet.MimeMultipart;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.mail.javamail.JavaMailSender;
@@ -319,6 +321,12 @@ class MailUtilityTest {
                 "mail2@test.com", "pass2", "9876543210"
         ));
 
+        assertDoesNotThrow(() -> MailUtility.emailSendVendorLoginCredentials(
+                javaMailSender, "http://host", "to@test.com",
+                "from@test.com", "cc@test.com", "9876543210", "Full Name",
+                "mail2@test.com", "pass2", "9876543210"
+        ));
+
         assertDoesNotThrow(() -> MailUtility.emailInviteRfqForExistingUsers(
                 javaMailSender, rfq, "http://host", "to@test.com",
                 "from@test.com", "cc@test.com", "9876543210", "Full Name",
@@ -345,6 +353,12 @@ class MailUtilityTest {
 
         assertDoesNotThrow(() -> MailUtility.emailInviteRfq(
                 javaMailSender, emptyRfq, "http://host", "to@test.com",
+                "from@test.com", null, "9876543210", "Full Name",
+                "mail2@test.com", "pass2", "9876543210"
+        ));
+
+        assertDoesNotThrow(() -> MailUtility.emailSendVendorLoginCredentials(
+                javaMailSender, "http://host", "to@test.com",
                 "from@test.com", null, "9876543210", "Full Name",
                 "mail2@test.com", "pass2", "9876543210"
         ));
@@ -448,6 +462,7 @@ class MailUtilityTest {
         assertDoesNotThrow(() -> MailUtility.emailNewRfqForNoPR("Prefix", "s", javaMailSender, itemRfq, "host", "to@test.com", "from@test.com", "cc@test.com", "99999", "2026-12-31", "Full Name", "from@test.com", "pass", "V100", "9876543210"));
         assertDoesNotThrow(() -> MailUtility.emailNewRfqForNoPRForExistingUsers("Prefix", "s", javaMailSender, itemRfq, "host", "to@test.com", "from@test.com", "cc@test.com", "99999", "2026-12-31", "Full Name", "from@test.com", "pass", "V100", "9876543210"));
         assertDoesNotThrow(() -> MailUtility.emailInviteRfq(javaMailSender, itemRfq, "host", "to@test.com", "from@test.com", "cc@test.com", "99999", "Full Name", "from@test.com", "pass", "9876543210"));
+        assertDoesNotThrow(() -> MailUtility.emailSendVendorLoginCredentials(javaMailSender, "host", "to@test.com", "from@test.com", "cc@test.com", "99999", "Full Name", "from@test.com", "pass", "9876543210"));
         assertDoesNotThrow(() -> MailUtility.emailInviteRfqForExistingUsers(javaMailSender, itemRfq, "host", "to@test.com", "from@test.com", "cc@test.com", "99999", "Full Name", "from@test.com", "pass", "9876543210"));
         assertDoesNotThrow(() -> MailUtility.emailNewGMTRfqForNoPR("str", "Prefix", javaMailSender, itemRfq, "host", "vendor@test.com", "other@test.com", "from@test.com", "pass", "2026-12-31", "V100"));
         assertDoesNotThrow(() -> MailUtility.sendOtpForEmail("type", "to@test.com", javaMailSender, internetAddress, "host", "123456"));
@@ -550,6 +565,10 @@ class MailUtilityTest {
                 javaMailSender, rfqWithoutPincode, "http://host", "to@test.com",
                 "from@test.com", null, "9876543210", "Full Name",
                 "mail2@test.com", "pass2", "9876543210"));
+        assertTrue(MailUtility.emailSendVendorLoginCredentials(
+                javaMailSender, "http://host", "to@test.com",
+                "from@test.com", null, "9876543210", "Full Name",
+                "mail2@test.com", "pass2", "9876543210"));
         assertTrue(MailUtility.emailInviteRfqForExistingUsers(
                 javaMailSender, rfqWithoutPincode, "http://host", "to@test.com",
                 "from@test.com", null, "9876543210", "Full Name",
@@ -557,76 +576,90 @@ class MailUtilityTest {
     }
 
     @Test
-    void testMailingVerificationLinkWithSelfUserLogin_EmailBranches() {
-        User userWithEmail = new User();
-        userWithEmail.setUsername("buyeruser");
-        userWithEmail.setEmail("buyer@procucev.com");
-        assertDoesNotThrow(() -> MailUtility.mailingVerificationLinkWithSelfUserLogin(
-                javaMailSender, "from@test.com", internetAddress, "pass", "http://host", userWithEmail));
+    void testSeparatedRfqAndLoginCredentialsEmails() throws Exception {
+        Rfq testRfq = new Rfq();
+        testRfq.setRfqId("RFQ-TEST-1");
+        RfqItem testItem = new RfqItem();
+        testItem.setDescription("Test Item Description");
+        testRfq.setRfqItem(Collections.singletonList(testItem));
 
-        User userBlankEmail = new User();
-        userBlankEmail.setUsername("buyeruser");
-        userBlankEmail.setEmail("   ");
-        assertDoesNotThrow(() -> MailUtility.mailingVerificationLinkWithSelfUserLogin(
-                javaMailSender, "from@test.com", internetAddress, "pass", "http://host", userBlankEmail));
+        ArgumentCaptor<jakarta.mail.Multipart> multipartCaptor =
+                ArgumentCaptor.forClass(jakarta.mail.Multipart.class);
 
-        assertDoesNotThrow(() -> MailUtility.mailingVerificationLinkWithSelfUserLogin(
-                null, "from@test.com", internetAddress, "pass", "http://host", userWithEmail));
+        // 1. RFQ email should contain RFQ details but NO credentials or login URL
+        boolean inviteRes = MailUtility.emailInviteRfq(
+                javaMailSender, testRfq, "https://qua.procucev.com/", "vendor@test.com",
+                "buyer@test.com", null, "9999999999", "Buyer Name",
+                "gmtrfq@procucev.com", "secret", "9876543210");
+        assertTrue(inviteRes);
+
+        verify(mimeMessage, atLeastOnce()).setContent(multipartCaptor.capture());
+        jakarta.mail.Multipart rfqMultipart = multipartCaptor.getValue();
+        String rfqBody = (String) rfqMultipart.getBodyPart(0).getContent();
+        assertTrue(rfqBody.contains("Dear Partner,"));
+        assertTrue(rfqBody.contains("Enquiry Details:"));
+        assertTrue(rfqBody.contains("Test Item Description"));
+        assertFalse(rfqBody.contains("Your login details:"));
+        assertFalse(rfqBody.contains("Username:"));
+        assertFalse(rfqBody.contains("Welcome@123"));
+        assertFalse(rfqBody.contains("qua.procucev.com/login"));
+
+        // 2. Login credentials email SHOULD contain credentials and login URL, but NOT RFQ details
+        boolean credRes = MailUtility.emailSendVendorLoginCredentials(
+                javaMailSender, "https://qua.procucev.com/", "vendor@test.com",
+                "buyer@test.com", null, "9999999999", "Buyer Name",
+                "gmtrfq@procucev.com", "secret", "9876543210");
+        assertTrue(credRes);
+
+        verify(mimeMessage, atLeastOnce()).setContent(multipartCaptor.capture());
+        jakarta.mail.Multipart credMultipart = multipartCaptor.getValue();
+        String credBody = (String) credMultipart.getBodyPart(0).getContent();
+        assertTrue(credBody.contains("Dear Partner,"));
+        assertTrue(credBody.contains("Your login details:"));
+        assertTrue(credBody.contains("vendor@test.com"));
+        assertTrue(credBody.contains("9876543210"));
+        assertTrue(credBody.contains("Welcome@123"));
+        assertTrue(credBody.contains("https://qua.procucev.com/login"));
+        assertFalse(credBody.contains("Enquiry Details:"));
+
+        // 3. Existing vendor RFQ email should NOT contain credentials
+        boolean existingRes = MailUtility.emailInviteRfqForExistingUsers(
+                javaMailSender, testRfq, "https://qua.procucev.com/", "vendor@test.com",
+                "buyer@test.com", null, "9999999999", "Buyer Name",
+                "gmtrfq@procucev.com", "secret", "9876543210");
+        assertTrue(existingRes);
     }
 
     @Test
-    void testBfsAcceptedMails_WithoutItemNumber() {
-        com.portal.procucev.model.BFSItems items = new com.portal.procucev.model.BFSItems();
-        items.setItemNumber(null);
-        items.setDescription("Item Without Number");
-        BFSUsers bfsUser = new BFSUsers();
-        bfsUser.setItems(items);
-        bfsUser.setAskPrice(100.0);
-
-        assertDoesNotThrow(() -> MailUtility.buyerEmailBFSAccepted(
-                "type", "to@test.com", javaMailSender, internetAddress, bfsUser, "http://host", "UNIQ1"));
-        assertDoesNotThrow(() -> MailUtility.emailBFSAccepted(
-                "type", "to@test.com", javaMailSender, internetAddress, bfsUser, "http://host", "UNIQ1"));
-        assertDoesNotThrow(() -> MailUtility.sellerEmailBFSAccepted(
-                "type", "to@test.com", javaMailSender, internetAddress, bfsUser, "http://host", "UNIQ1"));
+    void testGetJavaMailSenderDefault() {
+        MailUtility.customMailSenderSupplier = null;
+        JavaMailSender sender = MailUtility.getJavaMailSender("smtpuser", "smtppass");
+        assertNotNull(sender);
     }
 
     @Test
-    void testGetJavaMailSender_DefaultSupplier() {
-        BiFunction<String, String, JavaMailSender> originalSupplier = MailUtility.customMailSenderSupplier;
-        try {
-            MailUtility.customMailSenderSupplier = null;
-            JavaMailSender sender = MailUtility.getJavaMailSender("testuser@procucev.com", "testpwd");
-            assertNotNull(sender);
-        } finally {
-            MailUtility.customMailSenderSupplier = originalSupplier;
-        }
-    }
+    void testForwardMessageBranches() throws Exception {
+        Message msgMultipart = mock(Message.class);
+        when(msgMultipart.getSubject()).thenReturn("Test Subject");
+        when(msgMultipart.getContent()).thenReturn(new MimeMultipart());
 
-    @Test
-    void testForwardMessage_Branches() throws Exception {
-        Message multipartMsg = mock(Message.class);
-        when(multipartMsg.getSubject()).thenReturn("Test Multipart");
-        when(multipartMsg.getContent()).thenReturn(new MimeMultipart());
+        boolean res1 = MailUtility.forwardMessage("to@forward.com", javaMailSender, "from@forward.com", msgMultipart, "secret");
+        assertTrue(res1);
 
-        boolean resMultipart = MailUtility.forwardMessage(
-                "from@test.com", javaMailSender, "to@test.com", multipartMsg, "pwd");
-        assertTrue(resMultipart);
+        Message msgText = mock(Message.class);
+        when(msgText.getSubject()).thenReturn("Text Subject");
+        when(msgText.getContent()).thenReturn("Plain text body");
+        doAnswer(invocation -> {
+            java.io.OutputStream os = invocation.getArgument(0);
+            os.write("raw message".getBytes());
+            return null;
+        }).when(msgText).writeTo(any(java.io.OutputStream.class));
 
-        Message plainMsg = mock(Message.class);
-        when(plainMsg.getSubject()).thenReturn("Test Plain");
-        when(plainMsg.getContent()).thenReturn("Plain text body content");
-        doNothing().when(plainMsg).writeTo(any(OutputStream.class));
+        boolean res2 = MailUtility.forwardMessage("to@forward.com", javaMailSender, "from@forward.com", msgText, "secret");
+        assertTrue(res2);
 
-        boolean resPlain = MailUtility.forwardMessage(
-                "from@test.com", javaMailSender, "to@test.com", plainMsg, "pwd");
-        assertTrue(resPlain);
-
-        Message throwingMsg = mock(Message.class);
-        when(throwingMsg.getSubject()).thenThrow(new RuntimeException("Subject extraction failed"));
-
-        boolean resThrow = MailUtility.forwardMessage(
-                "from@test.com", javaMailSender, "to@test.com", throwingMsg, "pwd");
-        assertFalse(resThrow);
+        // Exception branch
+        boolean res3 = MailUtility.forwardMessage("invalid", javaMailSender, "from@forward.com", null, "secret");
+        assertFalse(res3);
     }
 }

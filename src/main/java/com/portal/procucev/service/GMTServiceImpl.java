@@ -2360,6 +2360,8 @@ public class GMTServiceImpl implements GMTService {
 		                          logger.info("New User Invite Email with credentials...");
 							        MailUtility.emailInviteRfq(javaMailSender, rfqData, host, vendor.getEmail(), username,
 											vendor.getOtherEmails(), phoneNumber, fullName, mailIdWrapper[0], passwordWrapper[0],vendor.getOrganizationPhonenumber());
+									MailUtility.emailSendVendorLoginCredentials(javaMailSender, host, vendor.getEmail(), username,
+											vendor.getOtherEmails(), phoneNumber, fullName, mailIdWrapper[0], passwordWrapper[0],vendor.getOrganizationPhonenumber());
 		                         }else {
 		                        	 logger.info("New User Invite Email without credentials...");
 		                        	 MailUtility.emailInviteRfqForExistingUsers(javaMailSender, rfqData, host, vendor.getEmail(), username,
