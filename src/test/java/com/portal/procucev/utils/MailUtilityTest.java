@@ -21,7 +21,9 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.mail.javamail.JavaMailSender;
 
+import java.io.OutputStream;
 import java.util.Collections;
+import java.util.function.BiFunction;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;

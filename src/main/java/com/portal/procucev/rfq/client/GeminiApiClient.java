@@ -3,6 +3,7 @@ package com.portal.procucev.rfq.client;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.portal.procucev.rfq.exception.ApplicationException;
+import com.portal.procucev.rfq.model.GeminiContentResponse;
 import com.portal.procucev.rfq.model.InlineImage;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
@@ -131,10 +132,15 @@ public class GeminiApiClient {
     }
 
     public String generateContentWithSpecificModel(String model, String promptText, List<InlineImage> images) throws Exception {
+        GeminiContentResponse resp = generateContentWithSpecificModelDetailed(model, promptText, images);
+        return resp != null ? resp.getText() : null;
+    }
+
+    public com.portal.procucev.rfq.model.GeminiContentResponse generateContentWithSpecificModelDetailed(String model, String promptText, List<InlineImage> images) throws Exception {
         String currentApiKey = getNextApiKey();
         List<InlineImage> inlineImages = images != null ? images : List.<InlineImage>of();
         log.info("Sending request to Gemini API (Model: {}, inline images: {})...", model, inlineImages.size());
-        return callGeminiModel(model, promptText, inlineImages, currentApiKey);
+        return callGeminiModelDetailed(model, promptText, inlineImages, currentApiKey);
     }
 
     /**
@@ -142,6 +148,11 @@ public class GeminiApiClient {
      * Any downtime, 503, 429, or network failure automatically falls back to the next model.
      */
     public String generateContent(String promptText, List<InlineImage> images) {
+        com.portal.procucev.rfq.model.GeminiContentResponse resp = generateContentDetailed(promptText, images);
+        return resp != null ? resp.getText() : null;
+    }
+
+    public com.portal.procucev.rfq.model.GeminiContentResponse generateContentDetailed(String promptText, List<InlineImage> images) {
         List<String> models = getAllConfiguredModels();
         List<InlineImage> inlineImages = images != null ? images : List.<InlineImage>of();
         String currentApiKey = getNextApiKey();
@@ -151,7 +162,7 @@ public class GeminiApiClient {
             String model = models.get(i);
             try {
                 log.info("Attempting Gemini API call with model [{}/{}: {}]...", i + 1, models.size(), model);
-                return callGeminiModel(model, promptText, inlineImages, currentApiKey);
+                return callGeminiModelDetailed(model, promptText, inlineImages, currentApiKey);
             } catch (Exception e) {
                 lastException = e;
                 log.warn("Gemini model ({}) failed: {}. Proceeding to next backup model in chain...",
@@ -164,6 +175,10 @@ public class GeminiApiClient {
     }
 
     private String callGeminiModel(String model, String promptText, List<InlineImage> images, String currentApiKey) throws Exception {
+        return callGeminiModelDetailed(model, promptText, images, currentApiKey).getText();
+    }
+
+    private com.portal.procucev.rfq.model.GeminiContentResponse callGeminiModelDetailed(String model, String promptText, List<InlineImage> images, String currentApiKey) throws Exception {
         String url = String.format("%s/%s:generateContent", baseUrl, model);
 
         Map<String, Object> textPart = new HashMap<>();
@@ -257,7 +272,21 @@ public class GeminiApiClient {
 
                 JsonNode partsNode = candidate.path("content").path("parts");
                 if (partsNode.isArray() && partsNode.size() > 0) {
-                    return partsNode.get(0).path("text").asText();
+                    String text = partsNode.get(0).path("text").asText();
+                    JsonNode usage = rootNode.path("usageMetadata");
+                    int promptTokens = usage.path("promptTokenCount").asInt(0);
+                    int candidateTokens = usage.path("candidatesTokenCount").asInt(0);
+                    int totalTokens = usage.path("totalTokenCount").asInt(0);
+                    if (totalTokens == 0 && (promptTokens > 0 || candidateTokens > 0)) {
+                        totalTokens = promptTokens + candidateTokens;
+                    }
+                    return com.portal.procucev.rfq.model.GeminiContentResponse.builder()
+                            .text(text)
+                            .model(model)
+                            .promptTokens(promptTokens)
+                            .candidateTokens(candidateTokens)
+                            .totalTokens(totalTokens)
+                            .build();
                 }
             }
         }

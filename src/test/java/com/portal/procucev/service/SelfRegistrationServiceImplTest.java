@@ -196,6 +196,12 @@ class SelfRegistrationServiceImplTest {
         badOrg.setEmail("e@test.com");
         assertThrows(AppException.class, () -> service.selfclientRegistrationData(badOrg));
 
+        Organization typoOrg = new Organization();
+        typoOrg.setCompanyName("Typo Company");
+        typoOrg.setOrganizationPhonenumber("9876543210");
+        typoOrg.setEmail("user@gmile.com");
+        assertThrows(AppException.class, () -> service.selfclientRegistrationData(typoOrg));
+
         when(orgDao.findByCompanyNameAndOrgType(anyString(), any())).thenReturn(Collections.singletonList(org));
         when(userDao.findByUsernameAndPhoneAndActive(anyString(), anyString(), eq(true))).thenReturn(null);
         ClientRegistrationStatus status1 = service.selfclientRegistrationData(org);

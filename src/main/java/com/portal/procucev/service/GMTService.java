@@ -88,6 +88,8 @@ public interface GMTService {
 	 */
 	ResponseEntity<?> fetchRfqById(Rfq rfq);
 
+	ResponseEntity<?> getRfqAiTokenConsumption(Rfq rfq);
+
 	List<String> getAllCategory();
 
 	List<RfqDTO> getRFQsForNoPR();

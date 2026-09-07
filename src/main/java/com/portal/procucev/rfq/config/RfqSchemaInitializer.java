@@ -91,6 +91,20 @@ public class RfqSchemaInitializer {
                     "INDEX idx_rfq_item_lookup (buyer_email, item_description(150), delivery_date)" +
                     ")");
 
+            jdbcTemplate.execute("CREATE TABLE IF NOT EXISTS rfq_ai_token_usage (" +
+                    "id BIGINT AUTO_INCREMENT PRIMARY KEY, " +
+                    "rfq_number VARCHAR(255) NOT NULL, " +
+                    "message_id VARCHAR(255), " +
+                    "model_name VARCHAR(255), " +
+                    "prompt_tokens INT DEFAULT 0, " +
+                    "candidate_tokens INT DEFAULT 0, " +
+                    "total_tokens INT DEFAULT 0, " +
+                    "attempts_count INT DEFAULT 1, " +
+                    "estimated_cost_usd DOUBLE DEFAULT 0.0, " +
+                    "created_at DATETIME NOT NULL, " +
+                    "INDEX idx_rfq_ai_token_rfq_number (rfq_number)" +
+                    ")");
+
             log.info("Email RFQ module database tables verified/created successfully.");
         } catch (Exception e) {
             log.error("Failed to initialize Email RFQ database tables: {}", e.getMessage(), e);

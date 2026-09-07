@@ -83,6 +83,8 @@ class GMTServiceImplTest {
     private AutomaticRfqService automaticRfqService;
     @Mock
     private MimeMessage mimeMessage;
+    @Mock
+    private com.portal.procucev.rfq.repository.RfqAiTokenUsageRepository rfqAiTokenUsageRepository;
 
     @InjectMocks
     private GMTServiceImpl service;
