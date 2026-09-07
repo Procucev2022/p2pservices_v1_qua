@@ -2052,6 +2052,88 @@ class GMTServiceImplCoverageTest {
         SecurityContextHolder.clearContext();
     }
 
+    @Test
+    void testFetchRfqById_EmailSourceType_AuthorizedCategoryManagerAttachesAiTokenUsage() {
+        Rfq existing = new Rfq();
+        existing.setId("RFQ-EMAIL-AUTH");
+        existing.setRfqId("RFQ260109648998");
+        existing.setSourceType("EMAIL");
+
+        when(rfqDao.findById("RFQ-EMAIL-AUTH")).thenReturn(Optional.of(existing));
+
+        authenticate("catmgr@test.com");
+        Role role = new Role();
+        role.setRoleName(StatusConstants.CATEGORYMANAGER_ROLE_NAME);
+        User catMgr = new User();
+        catMgr.setUsername("catmgr@test.com");
+        catMgr.setRole(role);
+        when(userDao.findByUsernameAndActive("catmgr@test.com", true)).thenReturn(catMgr);
+
+        Rfq query = new Rfq();
+        query.setId("RFQ-EMAIL-AUTH");
+        org.springframework.http.ResponseEntity<?> resp = service.fetchRfqById(query);
+
+        assertNotNull(resp);
+        Rfq result = (Rfq) resp.getBody();
+        assertNotNull(result);
+        assertNotNull(result.getAiTokenUsage());
+
+        SecurityContextHolder.clearContext();
+    }
+
+    @Test
+    void testGetRfqAiTokenConsumption_SuccessForShortEmailSourceTypes() {
+        Rfq existingE = new Rfq();
+        existingE.setId("UUID-E");
+        existingE.setRfqId("RFQ-E-1");
+        existingE.setSourceType("E");
+        when(rfqDao.findById("UUID-E")).thenReturn(Optional.of(existingE));
+
+        authenticate("catmgr@test.com");
+        Role role = new Role();
+        role.setRoleName("Admin");
+        User adminUser = new User();
+        adminUser.setUsername("catmgr@test.com");
+        adminUser.setRole(role);
+        when(userDao.findByUsernameAndActive("catmgr@test.com", true)).thenReturn(adminUser);
+
+        Rfq reqE = new Rfq();
+        reqE.setId("UUID-E");
+        ResponseEntity<?> respE = service.getRfqAiTokenConsumption(reqE);
+        assertEquals(HttpStatus.OK, respE.getStatusCode());
+
+        Rfq existingMail = new Rfq();
+        existingMail.setId("UUID-MAIL");
+        existingMail.setRfqId("RFQ-MAIL-1");
+        existingMail.setSourceType("MAIL");
+        when(rfqDao.findById("UUID-MAIL")).thenReturn(Optional.of(existingMail));
+
+        Rfq reqMail = new Rfq();
+        reqMail.setId("UUID-MAIL");
+        ResponseEntity<?> respMail = service.getRfqAiTokenConsumption(reqMail);
+        assertEquals(HttpStatus.OK, respMail.getStatusCode());
+
+        SecurityContextHolder.clearContext();
+    }
+
+    @Test
+    void testIsAuthorizedCategoryManager_FallbackToLatestUserName() {
+        authenticate("fallback@test.com");
+        when(userDao.findByUsernameAndActive("fallback@test.com", true)).thenReturn(null);
+
+        Role role = new Role();
+        role.setRoleName("Admin");
+        User fallbackUser = new User();
+        fallbackUser.setUsername("fallback@test.com");
+        fallbackUser.setRole(role);
+        when(userDao.findByLatestUserName("fallback@test.com")).thenReturn(fallbackUser);
+
+        Boolean res = ReflectionTestUtils.invokeMethod(service, "isAuthorizedCategoryManager");
+        assertTrue(Boolean.TRUE.equals(res));
+
+        SecurityContextHolder.clearContext();
+    }
+
     @SuppressWarnings("unused")
     private LocalDate today() {
         return LocalDate.now(ZoneId.of("Asia/Kolkata"));

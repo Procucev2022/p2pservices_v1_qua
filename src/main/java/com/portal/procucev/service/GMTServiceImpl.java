@@ -1485,10 +1485,7 @@ public class GMTServiceImpl implements GMTService {
 					loc.setAddress(sanitizeLocationField(loc.getAddress()));
 				});
 			}
-			boolean isEmailSource = "EMAIL".equalsIgnoreCase(loadedRfq.getSourceType())
-					|| "E".equalsIgnoreCase(loadedRfq.getSourceType())
-					|| "MAIL".equalsIgnoreCase(loadedRfq.getSourceType());
-			if (isEmailSource && isAuthorizedCategoryManager()) {
+			if (isEmailSource(loadedRfq.getSourceType()) && isAuthorizedCategoryManager()) {
 				loadedRfq.setAiTokenUsage(buildAiTokenUsageDto(loadedRfq));
 			}
 			return new ResponseEntity<>(loadedRfq, HttpStatus.OK);
@@ -4646,6 +4643,23 @@ public class GMTServiceImpl implements GMTService {
 				new Date());
 	}
 
+	private static final java.util.Set<String> EMAIL_SOURCE_TYPES = java.util.Set.of("EMAIL", "E", "MAIL");
+
+	private static final java.util.Set<String> AUTHORIZED_CATEGORY_MANAGER_ROLES = java.util.Set.of(
+			"CATEGORYMANAGER",
+			"CATEGORYMANAGER2",
+			"CATEGORYMANAGERBASIC",
+			"CATEGORYMANAGERBASIC2",
+			"ADMIN",
+			"ROLEADMIN",
+			"SUPERADMIN",
+			"SUPERUSER"
+	);
+
+	private boolean isEmailSource(String sourceType) {
+		return sourceType != null && EMAIL_SOURCE_TYPES.contains(sourceType.trim().toUpperCase());
+	}
+
 	private boolean isAuthorizedCategoryManager() {
 		try {
 			if (SecurityContextHolder.getContext().getAuthentication() != null
@@ -4653,32 +4667,14 @@ public class GMTServiceImpl implements GMTService {
 				UserDetails userDetails = (UserDetails) SecurityContextHolder.getContext().getAuthentication()
 						.getPrincipal();
 				if (userDetails != null && userDetails.getUsername() != null) {
-					User currentUser = null;
-					try {
-						currentUser = userDao.findByUsernameAndActive(userDetails.getUsername().trim(), true);
-					} catch (Exception e) {
-						logger.debug("findByUsernameAndActive failed, falling back to findByLatestUserName: {}", e.getMessage());
-					}
+					String username = userDetails.getUsername().trim();
+					User currentUser = userDao.findByUsernameAndActive(username, true);
 					if (currentUser == null) {
-						try {
-							currentUser = userDao.findByLatestUserName(userDetails.getUsername().trim());
-						} catch (Exception e) {
-							logger.debug("findByLatestUserName failed: {}", e.getMessage());
-						}
+						currentUser = userDao.findByLatestUserName(username);
 					}
-					if (currentUser != null && currentUser.getRole() != null) {
-						String roleName = currentUser.getRole().getRoleName();
-						if (roleName != null) {
-							String cleanRole = roleName.replaceAll("[_\\s]+", "");
-							return cleanRole.equalsIgnoreCase("CategoryManager")
-									|| cleanRole.equalsIgnoreCase("CategoryManager2")
-									|| cleanRole.equalsIgnoreCase("CategoryManagerBasic")
-									|| cleanRole.equalsIgnoreCase("CategoryManagerBasic2")
-									|| cleanRole.equalsIgnoreCase("Admin")
-									|| cleanRole.equalsIgnoreCase("RoleAdmin")
-									|| cleanRole.equalsIgnoreCase("SuperAdmin")
-									|| cleanRole.equalsIgnoreCase("SuperUser");
-						}
+					if (currentUser != null && currentUser.getRole() != null && currentUser.getRole().getRoleName() != null) {
+						String cleanRole = currentUser.getRole().getRoleName().replaceAll("[_\\s]+", "").toUpperCase();
+						return AUTHORIZED_CATEGORY_MANAGER_ROLES.contains(cleanRole);
 					}
 				}
 			}
@@ -4762,10 +4758,7 @@ public class GMTServiceImpl implements GMTService {
 					ApplicationConstants.FAILURE, new Date()), HttpStatus.NOT_FOUND);
 		}
 
-		boolean isEmailSource = "EMAIL".equalsIgnoreCase(loadedRfq.getSourceType())
-				|| "E".equalsIgnoreCase(loadedRfq.getSourceType())
-				|| "MAIL".equalsIgnoreCase(loadedRfq.getSourceType());
-		if (!isEmailSource) {
+		if (!isEmailSource(loadedRfq.getSourceType())) {
 			return new ResponseEntity<>(new MessageResponse("400",
 					"AI Token consumption is only available for Email RFQs", null, ApplicationConstants.FAILURE,
 					new Date()), HttpStatus.BAD_REQUEST);
