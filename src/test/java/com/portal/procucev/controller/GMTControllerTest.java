@@ -669,4 +669,30 @@ class GMTControllerTest {
         ResponseEntity<?> r6 = controller.getAllVendorsSearch(null, null, null, null);
         assertEquals(HttpStatus.OK, r6.getStatusCode());
     }
+
+    @Test
+    void testGetRfqAiTokenConsumption_AllBranches() {
+        when(gmtService.getRfqAiTokenConsumption(any())).thenReturn(new ResponseEntity<>(HttpStatus.OK));
+
+        // 1. rfq != null with rfqId
+        Rfq rfqWithRfqId = new Rfq();
+        rfqWithRfqId.setRfqId("RFQ260109648263");
+        ResponseEntity<?> resp1 = controller.getRfqAiTokenConsumption(rfqWithRfqId);
+        assertEquals(HttpStatus.OK, resp1.getStatusCode());
+
+        // 2. rfq != null with id (rfqId is null)
+        Rfq rfqWithIdOnly = new Rfq();
+        rfqWithIdOnly.setId("uuid-12345");
+        ResponseEntity<?> resp2 = controller.getRfqAiTokenConsumption(rfqWithIdOnly);
+        assertEquals(HttpStatus.OK, resp2.getStatusCode());
+
+        // 3. rfq != null with both rfqId and id null
+        Rfq rfqEmpty = new Rfq();
+        ResponseEntity<?> resp3 = controller.getRfqAiTokenConsumption(rfqEmpty);
+        assertEquals(HttpStatus.OK, resp3.getStatusCode());
+
+        // 4. rfq is null
+        ResponseEntity<?> resp4 = controller.getRfqAiTokenConsumption(null);
+        assertEquals(HttpStatus.OK, resp4.getStatusCode());
+    }
 }

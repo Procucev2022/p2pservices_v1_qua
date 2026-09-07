@@ -1055,4 +1055,11 @@ public class GMTController {
 		}
 		return new ResponseEntity<>(response, status);
 	}
+
+	@PostMapping("/getRfqAiTokenConsumption")
+	public ResponseEntity<?> getRfqAiTokenConsumption(@RequestBody Rfq rfq) {
+		logger.info("Entered to fetch AI token consumption for RFQ: {}",
+				rfq != null ? (rfq.getRfqId() != null ? rfq.getRfqId() : rfq.getId()) : null);
+		return gmtService.getRfqAiTokenConsumption(rfq);
+	}
 }
