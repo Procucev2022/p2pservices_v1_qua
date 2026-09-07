@@ -1485,7 +1485,10 @@ public class GMTServiceImpl implements GMTService {
 					loc.setAddress(sanitizeLocationField(loc.getAddress()));
 				});
 			}
-			if ("EMAIL".equalsIgnoreCase(loadedRfq.getSourceType()) && isAuthorizedCategoryManager()) {
+			boolean isEmailSource = "EMAIL".equalsIgnoreCase(loadedRfq.getSourceType())
+					|| "E".equalsIgnoreCase(loadedRfq.getSourceType())
+					|| "MAIL".equalsIgnoreCase(loadedRfq.getSourceType());
+			if (isEmailSource && isAuthorizedCategoryManager()) {
 				loadedRfq.setAiTokenUsage(buildAiTokenUsageDto(loadedRfq));
 			}
 			return new ResponseEntity<>(loadedRfq, HttpStatus.OK);
@@ -4650,14 +4653,32 @@ public class GMTServiceImpl implements GMTService {
 				UserDetails userDetails = (UserDetails) SecurityContextHolder.getContext().getAuthentication()
 						.getPrincipal();
 				if (userDetails != null && userDetails.getUsername() != null) {
-					User currentUser = userDao.findByUsernameAndActive(userDetails.getUsername(), true);
+					User currentUser = null;
+					try {
+						currentUser = userDao.findByUsernameAndActive(userDetails.getUsername().trim(), true);
+					} catch (Exception e) {
+						logger.debug("findByUsernameAndActive failed, falling back to findByLatestUserName: {}", e.getMessage());
+					}
+					if (currentUser == null) {
+						try {
+							currentUser = userDao.findByLatestUserName(userDetails.getUsername().trim());
+						} catch (Exception e) {
+							logger.debug("findByLatestUserName failed: {}", e.getMessage());
+						}
+					}
 					if (currentUser != null && currentUser.getRole() != null) {
 						String roleName = currentUser.getRole().getRoleName();
-						return StatusConstants.CATEGORYMANAGER_ROLE_NAME.equalsIgnoreCase(roleName)
-								|| StatusConstants.categorymanager2.equalsIgnoreCase(roleName)
-								|| StatusConstants.CATEGORY_MANAGER_BASIC.equalsIgnoreCase(roleName)
-								|| "Admin".equalsIgnoreCase(roleName) || "ROLE_ADMIN".equalsIgnoreCase(roleName)
-								|| "ADMIN".equalsIgnoreCase(roleName);
+						if (roleName != null) {
+							String cleanRole = roleName.replaceAll("[_\\s]+", "");
+							return cleanRole.equalsIgnoreCase("CategoryManager")
+									|| cleanRole.equalsIgnoreCase("CategoryManager2")
+									|| cleanRole.equalsIgnoreCase("CategoryManagerBasic")
+									|| cleanRole.equalsIgnoreCase("CategoryManagerBasic2")
+									|| cleanRole.equalsIgnoreCase("Admin")
+									|| cleanRole.equalsIgnoreCase("RoleAdmin")
+									|| cleanRole.equalsIgnoreCase("SuperAdmin")
+									|| cleanRole.equalsIgnoreCase("SuperUser");
+						}
 					}
 				}
 			}
@@ -4741,7 +4762,10 @@ public class GMTServiceImpl implements GMTService {
 					ApplicationConstants.FAILURE, new Date()), HttpStatus.NOT_FOUND);
 		}
 
-		if (!"EMAIL".equalsIgnoreCase(loadedRfq.getSourceType())) {
+		boolean isEmailSource = "EMAIL".equalsIgnoreCase(loadedRfq.getSourceType())
+				|| "E".equalsIgnoreCase(loadedRfq.getSourceType())
+				|| "MAIL".equalsIgnoreCase(loadedRfq.getSourceType());
+		if (!isEmailSource) {
 			return new ResponseEntity<>(new MessageResponse("400",
 					"AI Token consumption is only available for Email RFQs", null, ApplicationConstants.FAILURE,
 					new Date()), HttpStatus.BAD_REQUEST);
