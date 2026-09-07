@@ -88,7 +88,15 @@ public interface OrgDao  extends JpaRepository<Organization, String> {
 	            OR
 	            (:searchType IN ('city') AND LOWER(v.city) LIKE LOWER(CONCAT('%', :searchValue, '%')))
 	            OR
-	            (:searchType IN ('vendorcategory', 'category') AND (LOWER(v.vendorcategory) LIKE LOWER(CONCAT('%', :searchValue, '%')) OR LOWER(v.subCategory) LIKE LOWER(CONCAT('%', :searchValue, '%'))))
+	            (:searchType IN ('vendorcategory', 'category') AND (
+	                LOWER(v.vendorcategory) LIKE LOWER(CONCAT('%', :searchValue, '%'))
+	                OR LOWER(v.subCategory) LIKE LOWER(CONCAT('%', :searchValue, '%'))
+	                OR EXISTS (
+	                    SELECT 1 FROM OrgDivisionCategory dc
+	                    WHERE dc.organization = v
+	                      AND LOWER(dc.category) LIKE LOWER(CONCAT('%', :searchValue, '%'))
+	                )
+	            ))
 	          )
 	        ORDER BY v.createdTS DESC
 	        """)
@@ -122,7 +130,15 @@ public interface OrgDao  extends JpaRepository<Organization, String> {
 	        FROM Organization v
 	        WHERE v.orgType = :orgType
 	          AND v.city IS NOT NULL AND TRIM(v.city) != ''
-	          AND (LOWER(v.vendorcategory) LIKE LOWER(CONCAT('%', :category, '%')) OR LOWER(v.subCategory) LIKE LOWER(CONCAT('%', :category, '%')))
+	          AND (
+	            LOWER(v.vendorcategory) LIKE LOWER(CONCAT('%', :category, '%'))
+	            OR LOWER(v.subCategory) LIKE LOWER(CONCAT('%', :category, '%'))
+	            OR EXISTS (
+	                SELECT 1 FROM OrgDivisionCategory dc
+	                WHERE dc.organization = v
+	                  AND LOWER(dc.category) LIKE LOWER(CONCAT('%', :category, '%'))
+	            )
+	          )
 	        ORDER BY v.city ASC
 	        """)
 	List<String> findCitiesByVendorCategory(
@@ -141,7 +157,15 @@ public interface OrgDao  extends JpaRepository<Organization, String> {
 	        )
 	        FROM Organization v
 	        WHERE v.orgType = :orgType
-	          AND (LOWER(v.vendorcategory) LIKE LOWER(CONCAT('%', :category, '%')) OR LOWER(v.subCategory) LIKE LOWER(CONCAT('%', :category, '%')))
+	          AND (
+	            LOWER(v.vendorcategory) LIKE LOWER(CONCAT('%', :category, '%'))
+	            OR LOWER(v.subCategory) LIKE LOWER(CONCAT('%', :category, '%'))
+	            OR EXISTS (
+	                SELECT 1 FROM OrgDivisionCategory dc
+	                WHERE dc.organization = v
+	                  AND LOWER(dc.category) LIKE LOWER(CONCAT('%', :category, '%'))
+	            )
+	          )
 	          AND (:city IS NULL OR :city = '' OR LOWER(v.city) = LOWER(:city) OR LOWER(v.city) LIKE LOWER(CONCAT('%', :city, '%')))
 	        ORDER BY v.createdTS DESC
 	        """)
@@ -166,6 +190,11 @@ public interface OrgDao  extends JpaRepository<Organization, String> {
 	            LOWER(v.vendorcategory) LIKE LOWER(CONCAT('%', :category, '%'))
 	            OR LOWER(v.subCategory) LIKE LOWER(CONCAT('%', :category, '%'))
 	            OR LOWER(v.clientCategory) LIKE LOWER(CONCAT('%', :category, '%'))
+	            OR EXISTS (
+	                SELECT 1 FROM OrgDivisionCategory dc
+	                WHERE dc.organization = v
+	                  AND LOWER(dc.category) LIKE LOWER(CONCAT('%', :category, '%'))
+	            )
 	          )
 	          AND (
 	            :state IS NULL OR :state = ''
@@ -174,6 +203,11 @@ public interface OrgDao  extends JpaRepository<Organization, String> {
 	            OR LOWER(v.city) LIKE LOWER(CONCAT('%', :state, '%'))
 	            OR (v.address1 IS NOT NULL AND LOWER(v.address1) LIKE LOWER(CONCAT('%', :state, '%')))
 	            OR (v.address2 IS NOT NULL AND LOWER(v.address2) LIKE LOWER(CONCAT('%', :state, '%')))
+	            OR EXISTS (
+	                SELECT 1 FROM OrgBranches b
+	                WHERE b.organization = v
+	                  AND LOWER(b.address) LIKE LOWER(CONCAT('%', :state, '%'))
+	            )
 	            OR (:city IS NOT NULL AND :city != '' AND LOWER(v.city) LIKE LOWER(CONCAT('%', :city, '%')))
 	          )
 	          AND (
@@ -182,6 +216,11 @@ public interface OrgDao  extends JpaRepository<Organization, String> {
 	            OR (v.address1 IS NOT NULL AND LOWER(v.address1) LIKE LOWER(CONCAT('%', :city, '%')))
 	            OR (v.address2 IS NOT NULL AND LOWER(v.address2) LIKE LOWER(CONCAT('%', :city, '%')))
 	            OR (v.state IS NOT NULL AND LOWER(v.state) LIKE LOWER(CONCAT('%', :city, '%')))
+	            OR EXISTS (
+	                SELECT 1 FROM OrgBranches b
+	                WHERE b.organization = v
+	                  AND LOWER(b.address) LIKE LOWER(CONCAT('%', :city, '%'))
+	            )
 	          )
 	        ORDER BY v.createdTS DESC
 	        """)
@@ -194,7 +233,9 @@ public interface OrgDao  extends JpaRepository<Organization, String> {
 
 	@Query("SELECT v.id, v.companyName, v.companyId, v.organizationPhonenumber, v.city, v.email " +
 	        "FROM Organization v " +
-	        "WHERE v.vendorcategory LIKE CONCAT('%', :category, '%') OR v.subCategory LIKE CONCAT('%', :category, '%') " +
+	        "WHERE v.vendorcategory LIKE CONCAT('%', :category, '%') " +
+	        "   OR v.subCategory LIKE CONCAT('%', :category, '%') " +
+	        "   OR EXISTS (SELECT 1 FROM OrgDivisionCategory dc WHERE dc.organization = v AND LOWER(dc.category) LIKE LOWER(CONCAT('%', :category, '%'))) " +
 	        "ORDER BY v.createdTS DESC")
 	List<VendorRFQDto> getAllVendorByCategory(@Param("category") String category);
 	
