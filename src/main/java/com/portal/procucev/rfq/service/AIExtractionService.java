@@ -5,8 +5,10 @@ import com.portal.procucev.rfq.client.GeminiApiClient;
 import com.portal.procucev.rfq.exception.ApplicationException;
 import com.portal.procucev.rfq.model.EmailData;
 import com.portal.procucev.rfq.model.ExtractedRFQ;
+import com.portal.procucev.rfq.model.GeminiContentResponse;
 import com.portal.procucev.rfq.model.InlineImage;
 import com.portal.procucev.rfq.model.RFQItem;
+import com.portal.procucev.rfq.model.TokenUsageTelemetry;
 import com.portal.procucev.rfq.util.FileUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -97,6 +99,10 @@ public class AIExtractionService {
 
         int modelIdx = 0;
         int attempt = 0;
+        int totalPromptTokens = 0;
+        int totalCandidateTokens = 0;
+        int totalTokens = 0;
+        String lastSuccessfulModel = null;
 
         while (modelIdx < models.size()) {
             String currentModel = models.get(modelIdx);
@@ -113,8 +119,23 @@ public class AIExtractionService {
             ExtractedRFQ candidate = null;
             try {
                 log.info("AI extraction attempt {} using model '{}' for subject '{}'...", attempt, currentModel, subj);
-                String jsonResponse = executeModelCall(currentModel, attemptPrompt, inlineImages);
+                GeminiContentResponse contentResponse = executeModelCallDetailed(currentModel, attemptPrompt, inlineImages);
+                String jsonResponse = contentResponse.getText();
                 logRawModelResponse(attempt, jsonResponse);
+
+                int pTokens = contentResponse.getPromptTokens();
+                int cTokens = contentResponse.getCandidateTokens();
+                int tTokens = contentResponse.getTotalTokens();
+                if (tTokens == 0 && jsonResponse != null) {
+                    pTokens = Math.max(400, attemptPrompt.length() / 4);
+                    cTokens = Math.max(100, jsonResponse.length() / 4);
+                    tTokens = pTokens + cTokens;
+                }
+                totalPromptTokens += pTokens;
+                totalCandidateTokens += cTokens;
+                totalTokens += tTokens;
+                lastSuccessfulModel = contentResponse.getModel() != null ? contentResponse.getModel() : currentModel;
+
                 candidate = parseAndValidateJson(jsonResponse, email.getSenderEmail());
                 logAttemptResult(attempt, candidate, currentModel);
                 successfulModels.add(currentModel);
@@ -161,20 +182,52 @@ public class AIExtractionService {
             throw new ApplicationException("AI extraction failed on all models: " + rootCause, lastFailure);
         }
 
+        double estCost = (totalPromptTokens * 0.10 + totalCandidateTokens * 0.40) / 1_000_000.0;
+        TokenUsageTelemetry telemetry = TokenUsageTelemetry.builder()
+                .messageId(email.getMessageId())
+                .modelName(lastSuccessfulModel != null ? lastSuccessfulModel : "gemini-3.7-flash")
+                .promptTokens(totalPromptTokens)
+                .candidateTokens(totalCandidateTokens)
+                .totalTokens(totalTokens)
+                .attemptsCount(attempt)
+                .estimatedCostUsd(estCost)
+                .createdAt(java.time.LocalDateTime.now())
+                .build();
+        best.setTokenUsage(telemetry);
+        log.info("AI extraction token telemetry: model={}, promptTokens={}, candidateTokens={}, totalTokens={}, cost=${}",
+                telemetry.getModelName(), telemetry.getPromptTokens(), telemetry.getCandidateTokens(),
+                telemetry.getTotalTokens(), String.format("%.6f", telemetry.getEstimatedCostUsd()));
+
         logExtractionSummary(best);
         return best;
     }
 
-    private String executeModelCall(String model, String attemptPrompt, List<InlineImage> inlineImages) throws Exception {
+    private GeminiContentResponse executeModelCallDetailed(String model, String attemptPrompt, List<InlineImage> inlineImages) throws Exception {
         try {
-            String res = geminiApiClient.generateContentWithSpecificModel(model, attemptPrompt, inlineImages);
+            GeminiContentResponse res = geminiApiClient.generateContentWithSpecificModelDetailed(model, attemptPrompt, inlineImages);
             if (res != null) {
                 return res;
             }
         } catch (NoSuchMethodError | UnsupportedOperationException e) {
             // Fallback for mock environments
         }
-        return geminiApiClient.generateContent(attemptPrompt, inlineImages);
+        try {
+            GeminiContentResponse resDetailed = geminiApiClient.generateContentDetailed(attemptPrompt, inlineImages);
+            if (resDetailed != null) {
+                return resDetailed;
+            }
+        } catch (NoSuchMethodError | UnsupportedOperationException e) {
+            // Fallback for mock environments
+        }
+        String text = geminiApiClient.generateContent(attemptPrompt, inlineImages);
+        return GeminiContentResponse.builder()
+                .text(text)
+                .model(model)
+                .build();
+    }
+
+    private String executeModelCall(String model, String attemptPrompt, List<InlineImage> inlineImages) throws Exception {
+        return executeModelCallDetailed(model, attemptPrompt, inlineImages).getText();
     }
 
     private boolean hasMissingQuantity(ExtractedRFQ extracted) {

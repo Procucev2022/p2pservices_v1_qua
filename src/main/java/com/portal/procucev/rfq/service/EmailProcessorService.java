@@ -7,18 +7,22 @@ import com.portal.procucev.rfq.dto.RFQRequest;
 import com.portal.procucev.rfq.dto.RFQResponse;
 import com.portal.procucev.rfq.entity.EmailTransaction;
 import com.portal.procucev.rfq.entity.RFQEntity;
+import com.portal.procucev.rfq.entity.RfqAiTokenUsage;
 import com.portal.procucev.rfq.entity.RfqItemRecord;
 import com.portal.procucev.rfq.model.Buyer;
 import com.portal.procucev.rfq.model.EmailData;
 import com.portal.procucev.rfq.model.ExtractedRFQ;
 import com.portal.procucev.rfq.model.RFQItem;
+import com.portal.procucev.rfq.model.TokenUsageTelemetry;
 import com.portal.procucev.rfq.parser.DateParser;
 import com.portal.procucev.rfq.repository.EmailTransactionRepository;
 import com.portal.procucev.rfq.repository.RFQRepository;
+import com.portal.procucev.rfq.repository.RfqAiTokenUsageRepository;
 import com.portal.procucev.rfq.repository.RfqItemRecordRepository;
 import com.portal.procucev.rfq.util.QuantityNormalizer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -49,6 +53,13 @@ public class EmailProcessorService {
     private final RfqItemRecordRepository rfqItemRecordRepository;
     private final DateParser dateParser;
     private final ObjectMapper objectMapper;
+
+    @Autowired(required = false)
+    private RfqAiTokenUsageRepository rfqAiTokenUsageRepository;
+
+    public void setRfqAiTokenUsageRepository(RfqAiTokenUsageRepository repo) {
+        this.rfqAiTokenUsageRepository = repo;
+    }
 
     @Value("${app.mail.processed-folder:Processed}")
     private String processedFolder;
@@ -533,6 +544,28 @@ public class EmailProcessorService {
                             rfqItemRecordRepository.save(record);
                         } catch (Exception ex) {
                             log.warn("Could not save RFQ item record: {}", ex.getMessage());
+                        }
+                    }
+
+                    if (rfqAiTokenUsageRepository != null && extractedRFQ.getTokenUsage() != null) {
+                        try {
+                            TokenUsageTelemetry tu = extractedRFQ.getTokenUsage();
+                            RfqAiTokenUsage aiTokenUsage = RfqAiTokenUsage.builder()
+                                    .rfqNumber(savedRfq.getRfqNumber())
+                                    .messageId(tu.getMessageId())
+                                    .modelName(tu.getModelName())
+                                    .promptTokens(tu.getPromptTokens())
+                                    .candidateTokens(tu.getCandidateTokens())
+                                    .totalTokens(tu.getTotalTokens())
+                                    .attemptsCount(tu.getAttemptsCount())
+                                    .estimatedCostUsd(tu.getEstimatedCostUsd())
+                                    .createdAt(java.time.LocalDateTime.now())
+                                    .build();
+                            rfqAiTokenUsageRepository.save(aiTokenUsage);
+                            log.info("Saved AI token usage for RFQ {}: {} tokens (${})",
+                                    savedRfq.getRfqNumber(), aiTokenUsage.getTotalTokens(), aiTokenUsage.getEstimatedCostUsd());
+                        } catch (Exception ex) {
+                            log.warn("Could not save RFQ AI token usage: {}", ex.getMessage());
                         }
                     }
                 } else if (RFQApiService.STATUS_FILE_SIZE_EXCEEDED.equalsIgnoreCase(apiResponse.getStatus())) {

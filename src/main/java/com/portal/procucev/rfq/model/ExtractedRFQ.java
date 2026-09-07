@@ -22,4 +22,5 @@ public class ExtractedRFQ {
     private String deliveryDate;
     private String category;
     private List<RFQItem> items;
+    private TokenUsageTelemetry tokenUsage;
 }

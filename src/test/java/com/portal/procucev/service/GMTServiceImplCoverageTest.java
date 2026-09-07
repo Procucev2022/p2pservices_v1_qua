@@ -71,6 +71,8 @@ import org.springframework.dao.ConcurrencyFailureException;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -172,6 +174,8 @@ class GMTServiceImplCoverageTest {
     private AutomaticRfqService automaticRfqService;
     @Mock
     private MimeMessage mimeMessage;
+    @Mock
+    private com.portal.procucev.rfq.repository.RfqAiTokenUsageRepository rfqAiTokenUsageRepository;
 
     @InjectMocks
     private GMTServiceImpl service;
@@ -1642,6 +1646,171 @@ class GMTServiceImplCoverageTest {
         assertNull(fetched.getClientdeliverylocationrfq().get(0).getState());
         assertNull(fetched.getClientdeliverylocationrfq().get(0).getPincode());
         assertNull(fetched.getClientdeliverylocationrfq().get(0).getAddress());
+    }
+
+    @Test
+    void testFetchRfqById_EmailSourceType_AttachesAiTokenUsageForCategoryManager() {
+        Rfq existing = new Rfq();
+        existing.setId("RFQ-EMAIL-123");
+        existing.setRfqId("RFQ260109648263");
+        existing.setSourceType("EMAIL");
+        existing.setCreatedTS(new Date());
+
+        when(rfqDao.findById("RFQ-EMAIL-123")).thenReturn(Optional.of(existing));
+
+        UserDetails userDetails = mock(UserDetails.class);
+        when(userDetails.getUsername()).thenReturn("catmgr@test.com");
+        Authentication auth = mock(Authentication.class);
+        when(auth.getPrincipal()).thenReturn(userDetails);
+        SecurityContextHolder.getContext().setAuthentication(auth);
+
+        Role role = new Role();
+        role.setRoleName(StatusConstants.CATEGORYMANAGER_ROLE_NAME);
+        User cmUser = new User();
+        cmUser.setUsername("catmgr@test.com");
+        cmUser.setRole(role);
+        when(userDao.findByUsernameAndActive("catmgr@test.com", true)).thenReturn(cmUser);
+
+        com.portal.procucev.rfq.entity.RfqAiTokenUsage tokenUsage = com.portal.procucev.rfq.entity.RfqAiTokenUsage.builder()
+                .rfqNumber("RFQ260109648263")
+                .messageId("msg-123")
+                .modelName("gemini-2.5-flash")
+                .promptTokens(1420)
+                .candidateTokens(450)
+                .totalTokens(1870)
+                .attemptsCount(1)
+                .estimatedCostUsd(0.000241)
+                .createdAt(java.time.LocalDateTime.now())
+                .build();
+        when(rfqAiTokenUsageRepository.findByRfqNumber("RFQ260109648263")).thenReturn(Optional.of(tokenUsage));
+
+        Rfq query = new Rfq();
+        query.setId("RFQ-EMAIL-123");
+        org.springframework.http.ResponseEntity<?> resp = service.fetchRfqById(query);
+
+        assertNotNull(resp);
+        Rfq result = (Rfq) resp.getBody();
+        assertNotNull(result);
+        assertNotNull(result.getAiTokenUsage());
+        assertEquals("RFQ260109648263", result.getAiTokenUsage().getRfqNumber());
+        assertEquals(1870, result.getAiTokenUsage().getTotalTokens());
+        assertEquals("gemini-2.5-flash", result.getAiTokenUsage().getModelName());
+        assertEquals("$0.0002", result.getAiTokenUsage().getFormattedCost());
+
+        SecurityContextHolder.clearContext();
+    }
+
+    @Test
+    void testFetchRfqById_PortalOrWhatsApp_DoesNotAttachAiTokenUsage() {
+        Rfq existing = new Rfq();
+        existing.setId("RFQ-PORTAL-123");
+        existing.setRfqId("RFQ260109648999");
+        existing.setSourceType("PORTAL");
+
+        when(rfqDao.findById("RFQ-PORTAL-123")).thenReturn(Optional.of(existing));
+
+        UserDetails userDetails = mock(UserDetails.class);
+        when(userDetails.getUsername()).thenReturn("catmgr@test.com");
+        Authentication auth = mock(Authentication.class);
+        when(auth.getPrincipal()).thenReturn(userDetails);
+        SecurityContextHolder.getContext().setAuthentication(auth);
+
+        Role role = new Role();
+        role.setRoleName(StatusConstants.CATEGORYMANAGER_ROLE_NAME);
+        User cmUser = new User();
+        cmUser.setUsername("catmgr@test.com");
+        cmUser.setRole(role);
+        when(userDao.findByUsernameAndActive("catmgr@test.com", true)).thenReturn(cmUser);
+
+        Rfq query = new Rfq();
+        query.setId("RFQ-PORTAL-123");
+        org.springframework.http.ResponseEntity<?> resp = service.fetchRfqById(query);
+
+        assertNotNull(resp);
+        Rfq result = (Rfq) resp.getBody();
+        assertNotNull(result);
+        assertNull(result.getAiTokenUsage());
+
+        SecurityContextHolder.clearContext();
+    }
+
+    @Test
+    void testGetRfqAiTokenConsumption_SuccessForEmailRfq() {
+        Rfq existing = new Rfq();
+        existing.setId("UUID-1");
+        existing.setRfqId("RFQ-EMAIL-1");
+        existing.setSourceType("EMAIL");
+
+        when(rfqDao.findById("UUID-1")).thenReturn(Optional.of(existing));
+
+        UserDetails userDetails = mock(UserDetails.class);
+        when(userDetails.getUsername()).thenReturn("catmgr@test.com");
+        Authentication auth = mock(Authentication.class);
+        when(auth.getPrincipal()).thenReturn(userDetails);
+        SecurityContextHolder.getContext().setAuthentication(auth);
+
+        Role role = new Role();
+        role.setRoleName("Admin");
+        User adminUser = new User();
+        adminUser.setUsername("catmgr@test.com");
+        adminUser.setRole(role);
+        when(userDao.findByUsernameAndActive("catmgr@test.com", true)).thenReturn(adminUser);
+
+        Rfq req = new Rfq();
+        req.setId("UUID-1");
+        ResponseEntity<?> resp = service.getRfqAiTokenConsumption(req);
+        assertEquals(HttpStatus.OK, resp.getStatusCode());
+        assertNotNull(resp.getBody());
+        com.portal.procucev.Dto.RfqAiTokenUsageDTO dto = (com.portal.procucev.Dto.RfqAiTokenUsageDTO) resp.getBody();
+        assertEquals("RFQ-EMAIL-1", dto.getRfqNumber());
+        assertEquals("EMAIL", dto.getSourceType());
+
+        SecurityContextHolder.clearContext();
+    }
+
+    @Test
+    void testGetRfqAiTokenConsumption_RejectedForNonEmailRfq() {
+        Rfq existing = new Rfq();
+        existing.setId("UUID-2");
+        existing.setRfqId("RFQ-WHATSAPP-1");
+        existing.setSourceType("WhatsApp");
+
+        when(rfqDao.findById("UUID-2")).thenReturn(Optional.of(existing));
+
+        Rfq req = new Rfq();
+        req.setId("UUID-2");
+        ResponseEntity<?> resp = service.getRfqAiTokenConsumption(req);
+        assertEquals(HttpStatus.BAD_REQUEST, resp.getStatusCode());
+    }
+
+    @Test
+    void testGetRfqAiTokenConsumption_ForbiddenForUnauthorizedRole() {
+        Rfq existing = new Rfq();
+        existing.setId("UUID-3");
+        existing.setRfqId("RFQ-EMAIL-3");
+        existing.setSourceType("EMAIL");
+
+        when(rfqDao.findById("UUID-3")).thenReturn(Optional.of(existing));
+
+        UserDetails userDetails = mock(UserDetails.class);
+        when(userDetails.getUsername()).thenReturn("vendor@test.com");
+        Authentication auth = mock(Authentication.class);
+        when(auth.getPrincipal()).thenReturn(userDetails);
+        SecurityContextHolder.getContext().setAuthentication(auth);
+
+        Role role = new Role();
+        role.setRoleName("ROLE_VENDOR");
+        User vendorUser = new User();
+        vendorUser.setUsername("vendor@test.com");
+        vendorUser.setRole(role);
+        when(userDao.findByUsernameAndActive("vendor@test.com", true)).thenReturn(vendorUser);
+
+        Rfq req = new Rfq();
+        req.setId("UUID-3");
+        ResponseEntity<?> resp = service.getRfqAiTokenConsumption(req);
+        assertEquals(HttpStatus.FORBIDDEN, resp.getStatusCode());
+
+        SecurityContextHolder.clearContext();
     }
 
     @SuppressWarnings("unused")
