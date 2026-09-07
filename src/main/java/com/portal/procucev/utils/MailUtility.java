@@ -1452,7 +1452,7 @@ public class MailUtility {
 
 	}
 
-	public static void sendOtpForEmail(String string, String email, JavaMailSender javaMailSender, InternetAddress add,
+	public static boolean sendOtpForEmail(String string, String email, JavaMailSender javaMailSender, InternetAddress add,
 			String host, String otp) {
 		String subject = "OTP For Validation ";
 		String message = "<!DOCTYPE html>\n" + "<html>\n" + "<body>\n" + "\n" + "Dear " + "Partner" + ", <br><br>\n"
@@ -1460,7 +1460,7 @@ public class MailUtility {
 				+ "<p><a href=\"" + host + "/login\">Click Here!!</a></p>\n" + "<b>to login into Procucev Portal </b>"
 				+ "<br><br>\n" + "\n" + "<b>Thanks, <br></b>\n" + "\n" + "<b>Procucev Solutions</b>\n" + "\n" + "\n"
 				+ "</body>\n" + "</html>";
-		emailNotifierGenericBySender(subject, email, add, javaMailSender, message, string);
+		return emailNotifierGenericBySender(subject, email, add, javaMailSender, message, string);
 	}
 
 	public static boolean forwardMessage(
@@ -1818,7 +1818,7 @@ public class MailUtility {
 		String subject = "New Client Registration!!";
 		String message = "<!DOCTYPE html>\n" + "<html>\n" + "<body>\n" + "\n" + "Dear " + "Partner" + ", <br><br>\n"
 				+ "\n" + "<b>You have received new client registration with User Name </b>" + organization.getEmail()
-				+ "<b>for Client </b>" + organization.getCompanyName() + "<br><br>\n" + "\n" + "<b>Address </b>"
+				+ " <b>for Client </b>" + organization.getCompanyName() + "<br><br>\n" + "\n" + "<b>Address </b>"
 				+ organization.getAddress1()
 				// + "<br><br>\n" + "\n" + "<b>Pan</b>" + organization.getPan()
 				+ "<br><br>\n" + "\n" + "<b>Phone</b>" + organization.getOrganizationPhonenumber() + "<br><br>\n" + "\n"
@@ -1876,13 +1876,14 @@ public class MailUtility {
 	        MimeMessage mimeMessage = mailSender.createMimeMessage();
 	        MimeMessageHelper helper = new MimeMessageHelper(mimeMessage, true);
 
-	        helper.setTo(user.getUsername());
+	        String recipientEmail = (user.getEmail() != null && !user.getEmail().isBlank()) ? user.getEmail() : user.getUsername();
+	        helper.setTo(recipientEmail);
 	        helper.setFrom(add);
 	        helper.setSubject("Procucev QUA AI Portal – Your Buyer Account is Ready!");
 	        helper.setText(verificationTemplate, true);
 
 	        mailSender.send(mimeMessage);
-	        LOGGER.info("Buyer account ready mail sent successfully to {}", user.getUsername());
+	        LOGGER.info("Buyer account ready mail sent successfully to {}", recipientEmail);
 
 	    } catch (Exception e) {
 	        LOGGER.error("Error in sending buyer account creation mail --> {}", e.getMessage(), e);

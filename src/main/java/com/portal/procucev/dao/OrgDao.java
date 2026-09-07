@@ -80,13 +80,23 @@ public interface OrgDao  extends JpaRepository<Organization, String> {
 	        FROM Organization v
 	        WHERE v.orgType = :orgType
 	          AND (
-	            (:searchType = 'email'        AND LOWER(v.email)                    LIKE LOWER(CONCAT('%', :searchValue, '%')))
+	            (:searchType IN ('email') AND LOWER(v.email) LIKE LOWER(CONCAT('%', :searchValue, '%')))
 	            OR
-	            (:searchType = 'mobileNumber' AND LOWER(v.organizationPhonenumber)  LIKE LOWER(CONCAT('%', :searchValue, '%')))
+	            (:searchType IN ('mobileNumber', 'organizationPhonenumber', 'mobile', 'phone') AND LOWER(v.organizationPhonenumber) LIKE LOWER(CONCAT('%', :searchValue, '%')))
 	            OR
-	            (:searchType = 'sellerName'   AND LOWER(v.companyName)              LIKE LOWER(CONCAT('%', :searchValue, '%')))
+	            (:searchType IN ('sellerName', 'companyName', 'vendorName', 'name', 'company') AND LOWER(v.companyName) LIKE LOWER(CONCAT('%', :searchValue, '%')))
 	            OR
-	            (:searchType = 'city'         AND LOWER(v.city)                     LIKE LOWER(CONCAT('%', :searchValue, '%')))
+	            (:searchType IN ('city') AND LOWER(v.city) LIKE LOWER(CONCAT('%', :searchValue, '%')))
+	            OR
+	            (:searchType IN ('vendorcategory', 'category') AND (
+	                LOWER(v.vendorcategory) LIKE LOWER(CONCAT('%', :searchValue, '%'))
+	                OR LOWER(v.subCategory) LIKE LOWER(CONCAT('%', :searchValue, '%'))
+	                OR EXISTS (
+	                    SELECT 1 FROM OrgDivisionCategory dc
+	                    WHERE dc.organization = v
+	                      AND LOWER(dc.category) LIKE LOWER(CONCAT('%', :searchValue, '%'))
+	                )
+	            ))
 	          )
 	        ORDER BY v.createdTS DESC
 	        """)
@@ -96,15 +106,136 @@ public interface OrgDao  extends JpaRepository<Organization, String> {
 	        @Param("searchValue") String searchValue
 	);
 
-//	@Query("SELECT v.id, v.companyName, v.companyId, v.organizationPhonenumber, v.city, v.email " +
-//	        "FROM Organization v " +
-//	        "WHERE v.vendorcategory LIKE CONCAT('%', :category, '%') OR v.subCategory LIKE CONCAT('%', :category, '%') " +
-//	        "ORDER BY v.createdTS DESC")
-//	List<Object[]> getAllVendorByCategory(@Param("category") String category);
-	
+	@Query("""
+	        SELECT new com.portal.procucev.Dto.VendorRFQDto(
+	               v.id,
+	               v.companyName,
+	               v.companyId,
+	               v.organizationPhonenumber,
+	               v.city,
+	               v.email
+	        )
+	        FROM Organization v
+	        WHERE v.orgType = :orgType
+	          AND LOWER(v.email) IN :emails
+	        ORDER BY v.createdTS DESC
+	        """)
+	List<VendorRFQDto> searchVendorByEmails(
+	        @Param("orgType") OrgType orgType,
+	        @Param("emails") List<String> emails
+	);
+
+	@Query("""
+	        SELECT DISTINCT v.city
+	        FROM Organization v
+	        WHERE v.orgType = :orgType
+	          AND v.city IS NOT NULL AND TRIM(v.city) != ''
+	          AND (
+	            LOWER(v.vendorcategory) LIKE LOWER(CONCAT('%', :category, '%'))
+	            OR LOWER(v.subCategory) LIKE LOWER(CONCAT('%', :category, '%'))
+	            OR EXISTS (
+	                SELECT 1 FROM OrgDivisionCategory dc
+	                WHERE dc.organization = v
+	                  AND LOWER(dc.category) LIKE LOWER(CONCAT('%', :category, '%'))
+	            )
+	          )
+	        ORDER BY v.city ASC
+	        """)
+	List<String> findCitiesByVendorCategory(
+	        @Param("orgType") OrgType orgType,
+	        @Param("category") String category
+	);
+
+	@Query("""
+	        SELECT new com.portal.procucev.Dto.VendorRFQDto(
+	               v.id,
+	               v.companyName,
+	               v.companyId,
+	               v.organizationPhonenumber,
+	               v.city,
+	               v.email
+	        )
+	        FROM Organization v
+	        WHERE v.orgType = :orgType
+	          AND (
+	            LOWER(v.vendorcategory) LIKE LOWER(CONCAT('%', :category, '%'))
+	            OR LOWER(v.subCategory) LIKE LOWER(CONCAT('%', :category, '%'))
+	            OR EXISTS (
+	                SELECT 1 FROM OrgDivisionCategory dc
+	                WHERE dc.organization = v
+	                  AND LOWER(dc.category) LIKE LOWER(CONCAT('%', :category, '%'))
+	            )
+	          )
+	          AND (:city IS NULL OR :city = '' OR LOWER(v.city) = LOWER(:city) OR LOWER(v.city) LIKE LOWER(CONCAT('%', :city, '%')))
+	        ORDER BY v.createdTS DESC
+	        """)
+	List<VendorRFQDto> searchVendorByCategoryAndCity(
+	        @Param("orgType") OrgType orgType,
+	        @Param("category") String category,
+	        @Param("city") String city
+	);
+
+	@Query("""
+	        SELECT new com.portal.procucev.Dto.VendorRFQDto(
+	               v.id,
+	               v.companyName,
+	               v.companyId,
+	               v.organizationPhonenumber,
+	               v.city,
+	               v.email
+	        )
+	        FROM Organization v
+	        WHERE v.orgType = :orgType
+	          AND (
+	            LOWER(v.vendorcategory) LIKE LOWER(CONCAT('%', :category, '%'))
+	            OR LOWER(v.subCategory) LIKE LOWER(CONCAT('%', :category, '%'))
+	            OR LOWER(v.clientCategory) LIKE LOWER(CONCAT('%', :category, '%'))
+	            OR EXISTS (
+	                SELECT 1 FROM OrgDivisionCategory dc
+	                WHERE dc.organization = v
+	                  AND LOWER(dc.category) LIKE LOWER(CONCAT('%', :category, '%'))
+	            )
+	          )
+	          AND (
+	            :state IS NULL OR :state = ''
+	            OR v.state IS NULL OR TRIM(v.state) = ''
+	            OR LOWER(v.state) LIKE LOWER(CONCAT('%', :state, '%'))
+	            OR LOWER(v.city) LIKE LOWER(CONCAT('%', :state, '%'))
+	            OR (v.address1 IS NOT NULL AND LOWER(v.address1) LIKE LOWER(CONCAT('%', :state, '%')))
+	            OR (v.address2 IS NOT NULL AND LOWER(v.address2) LIKE LOWER(CONCAT('%', :state, '%')))
+	            OR EXISTS (
+	                SELECT 1 FROM OrgBranches b
+	                WHERE b.organization = v
+	                  AND LOWER(b.address) LIKE LOWER(CONCAT('%', :state, '%'))
+	            )
+	            OR (:city IS NOT NULL AND :city != '' AND LOWER(v.city) LIKE LOWER(CONCAT('%', :city, '%')))
+	          )
+	          AND (
+	            :city IS NULL OR :city = ''
+	            OR LOWER(v.city) LIKE LOWER(CONCAT('%', :city, '%'))
+	            OR (v.address1 IS NOT NULL AND LOWER(v.address1) LIKE LOWER(CONCAT('%', :city, '%')))
+	            OR (v.address2 IS NOT NULL AND LOWER(v.address2) LIKE LOWER(CONCAT('%', :city, '%')))
+	            OR (v.state IS NOT NULL AND LOWER(v.state) LIKE LOWER(CONCAT('%', :city, '%')))
+	            OR EXISTS (
+	                SELECT 1 FROM OrgBranches b
+	                WHERE b.organization = v
+	                  AND LOWER(b.address) LIKE LOWER(CONCAT('%', :city, '%'))
+	            )
+	          )
+	        ORDER BY v.createdTS DESC
+	        """)
+	List<VendorRFQDto> searchVendorByCategoryStateAndCity(
+	        @Param("orgType") OrgType orgType,
+	        @Param("category") String category,
+	        @Param("state") String state,
+	        @Param("city") String city
+	);
+
 	@Query("SELECT v.id, v.companyName, v.companyId, v.organizationPhonenumber, v.city, v.email " +
 	        "FROM Organization v " +
-	        "WHERE v.vendorcategory LIKE CONCAT('%', :category, '%') OR v.subCategory LIKE CONCAT('%', :category, '%') " +
+	        "WHERE v.vendorcategory LIKE CONCAT('%', :category, '%') " +
+	        "   OR v.subCategory LIKE CONCAT('%', :category, '%') " +
+	        "   OR EXISTS (SELECT 1 FROM OrgDivisionCategory dc WHERE dc.organization = v AND LOWER(dc.category) LIKE LOWER(CONCAT('%', :category, '%'))) " +
 	        "ORDER BY v.createdTS DESC")
 	List<VendorRFQDto> getAllVendorByCategory(@Param("category") String category);
 	
@@ -289,22 +420,42 @@ public interface OrgDao  extends JpaRepository<Organization, String> {
 	    	    WHERE ot.type_name = :orgTypeName
 	    	      AND (
 	    	            :searchValue IS NULL OR :searchValue = '' OR
-	    	            (:searchType = 'companyName'
+	    	            ((:searchType = 'companyName' OR :searchType = 'sellerName' OR :searchType = 'name' OR :searchType = 'company')
 	    	                AND LOWER(o.organization_name) LIKE LOWER(CONCAT('%', :searchValue, '%'))) OR
 	    	            (:searchType = 'city'
 	    	                AND LOWER(o.city) LIKE LOWER(CONCAT('%', :searchValue, '%'))) OR
 	    	            (:searchType = 'email'
 	    	                AND LOWER(o.email) LIKE LOWER(CONCAT('%', :searchValue, '%'))) OR
-	    	            (:searchType = 'vendorcategory'
-	    	                AND LOWER(odc.category) LIKE LOWER(CONCAT('%', :searchValue, '%'))) OR
-	    	            (:searchType = 'organizationPhonenumber'
-	    	                AND LOWER(o.organization_phonenumber) LIKE LOWER(CONCAT('%', :searchValue, '%')))
+	    	            ((:searchType = 'vendorcategory' OR :searchType = 'category')
+	    	                AND (LOWER(odc.category) LIKE LOWER(CONCAT('%', :searchValue, '%')) OR LOWER(o.vendorcategory) LIKE LOWER(CONCAT('%', :searchValue, '%')) OR LOWER(o.sub_category) LIKE LOWER(CONCAT('%', :searchValue, '%')))) OR
+	    	            ((:searchType = 'organizationPhonenumber' OR :searchType = 'mobileNumber' OR :searchType = 'mobile' OR :searchType = 'phone')
+	    	                AND LOWER(o.organization_phonenumber) LIKE LOWER(CONCAT('%', :searchValue, '%'))) OR
+	    	            (:searchType IS NULL OR :searchType = ''
+	    	                AND (LOWER(o.organization_name) LIKE LOWER(CONCAT('%', :searchValue, '%'))
+	    	                  OR LOWER(o.email) LIKE LOWER(CONCAT('%', :searchValue, '%'))
+	    	                  OR LOWER(o.city) LIKE LOWER(CONCAT('%', :searchValue, '%'))
+	    	                  OR LOWER(o.vendorcategory) LIKE LOWER(CONCAT('%', :searchValue, '%'))
+	    	                  OR LOWER(odc.category) LIKE LOWER(CONCAT('%', :searchValue, '%'))
+	    	                  OR LOWER(o.organization_phonenumber) LIKE LOWER(CONCAT('%', :searchValue, '%'))))
 	    	          )
 	    	    """, nativeQuery = true)
 	    	List<Organization> findVendorsBySearchType(
 	    	    @Param("orgTypeName") String orgTypeName,
 	    	    @Param("searchType") String searchType,
 	    	    @Param("searchValue") String searchValue
+	    	);
+
+	    @Query(value = """
+	    	    SELECT DISTINCT o.*
+	    	    FROM organization o
+	    	    INNER JOIN org_types ot
+	    	        ON o.org_type_uuid = ot.uuid
+	    	    WHERE ot.type_name = :orgTypeName
+	    	      AND LOWER(o.email) IN :emails
+	    	    """, nativeQuery = true)
+	    	List<Organization> findVendorsByEmails(
+	    	    @Param("orgTypeName") String orgTypeName,
+	    	    @Param("emails") List<String> emails
 	    	);
 
 }

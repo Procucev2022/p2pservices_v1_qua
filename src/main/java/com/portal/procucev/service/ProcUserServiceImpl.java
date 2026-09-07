@@ -775,10 +775,19 @@ public class ProcUserServiceImpl implements UserService {
 
 			if (updatedOrg.getDivisionCategories() != null) {
 				existingOrg.getDivisionCategories().clear();
+				List<String> catNames = new ArrayList<>();
 				for (OrgDivisionCategory divCat : updatedOrg.getDivisionCategories()) {
 					divCat.setOrganization(existingOrg); // Set back reference
 					existingOrg.getDivisionCategories().add(divCat);
+					if (divCat.getCategory() != null && !divCat.getCategory().trim().isEmpty() && !catNames.contains(divCat.getCategory().trim())) {
+						catNames.add(divCat.getCategory().trim());
+					}
 				}
+				if (!catNames.isEmpty()) {
+					existingOrg.setVendorcategory(String.join(", ", catNames));
+				}
+			} else if (updatedOrg.getVendorcategory() != null) {
+				existingOrg.setVendorcategory(updatedOrg.getVendorcategory());
 			}
 			orgDao.save(existingOrg);
 
@@ -1133,8 +1142,32 @@ public class ProcUserServiceImpl implements UserService {
 			return Collections.emptyList();
 		}
 
+		String cleanSearchType = searchType != null ? searchType.trim() : "";
+		String cleanSearchValue = searchValue != null ? searchValue.trim() : "";
+
 		// Step 3: Fetch vendors
-		List<Organization> vendors = orgDao.findVendorsBySearchType("VENDOR", searchType, searchValue);
+		List<Organization> vendors;
+		if ("email".equalsIgnoreCase(cleanSearchType) && !cleanSearchValue.isEmpty()) {
+			String[] rawTokens = cleanSearchValue.split("[\\r\\n,;]+|\\s+");
+			List<String> emailList = new ArrayList<>();
+			for (String token : rawTokens) {
+				String trimmed = token.trim().toLowerCase();
+				if (!trimmed.isEmpty() && !emailList.contains(trimmed)) {
+					emailList.add(trimmed);
+				}
+			}
+			if (emailList.size() > 20) {
+				emailList = emailList.subList(0, 20);
+			}
+
+			if (emailList.size() > 1 || (emailList.size() == 1 && (cleanSearchValue.contains(",") || cleanSearchValue.contains("\n") || cleanSearchValue.contains(";")))) {
+				vendors = orgDao.findVendorsByEmails("VENDOR", emailList);
+			} else {
+				vendors = orgDao.findVendorsBySearchType("VENDOR", cleanSearchType, cleanSearchValue);
+			}
+		} else {
+			vendors = orgDao.findVendorsBySearchType("VENDOR", cleanSearchType, cleanSearchValue);
+		}
 
 		if (vendors.isEmpty()) {
 			log.warn("No vendors found");

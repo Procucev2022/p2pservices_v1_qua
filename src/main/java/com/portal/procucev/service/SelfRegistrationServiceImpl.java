@@ -17,6 +17,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Random;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 import org.apache.commons.csv.CSVFormat;
@@ -72,6 +73,7 @@ import com.portal.procucev.utils.PhoneNumberUtils;
 import com.portal.procucev.utils.ProcucevUtils;
 import com.portal.procucev.utils.StatusConstants;
 
+import jakarta.mail.internet.AddressException;
 import jakarta.mail.internet.InternetAddress;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.transaction.Transactional;
@@ -79,6 +81,19 @@ import jakarta.transaction.Transactional;
 @Service
 public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 	private static final Logger logger = LoggerFactory.getLogger(SelfRegistrationServiceImpl.class);
+
+	private static final Set<String> TYPO_DOMAINS = Set.of(
+			"gmile.com", "gmai.com", "gmial.com", "gamil.com", "gmal.com",
+			"yaho.com", "yahooo.com", "hotmial.com", "outlok.com", "redifmail.com"
+	);
+
+	public static boolean isCommonTypoDomain(String email) {
+		if (email == null || !email.contains("@")) {
+			return false;
+		}
+		String domain = email.substring(email.lastIndexOf('@') + 1).toLowerCase().trim();
+		return TYPO_DOMAINS.contains(domain);
+	}
 
 	@Value("${toAddress}")
 	String toAddress;
@@ -148,6 +163,20 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 			throw new AppException(HttpStatus.BAD_REQUEST.value(), "Email is required for registration", null, null,
 					LocalDateTime.now());
 		}
+
+		try {
+			InternetAddress emailAddr = new InternetAddress(organization.getEmail().trim());
+			emailAddr.validate();
+		} catch (AddressException ex) {
+			throw new AppException(HttpStatus.BAD_REQUEST.value(), "Invalid email format: " + organization.getEmail(), null, null,
+					LocalDateTime.now());
+		}
+
+		if (isCommonTypoDomain(organization.getEmail().trim())) {
+			throw new AppException(HttpStatus.BAD_REQUEST.value(),
+					"Invalid or misspelled email domain: " + organization.getEmail(), null, null, LocalDateTime.now());
+		}
+
 		if (organization.getOrganizationPhonenumber() == null || organization.getOrganizationPhonenumber().isEmpty()) {
 			throw new AppException(HttpStatus.BAD_REQUEST.value(), "Phone number is required for registration", null,
 					null, LocalDateTime.now());
@@ -300,7 +329,9 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 		}
 
 		// Populate user
-		user.setUsername(organization.getEmail());
+		String normalizedEmail = organization.getEmail().trim().toLowerCase();
+		user.setUsername(normalizedEmail);
+		user.setEmail(normalizedEmail);
 		user.setFullName(organization.getName());
 		user.setPhone(PhoneNumberUtils.normalize(organization.getOrganizationPhonenumber()));
 		user.setResetPassword(true);
@@ -405,6 +436,11 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 					email = organization.getEmail().trim().toLowerCase();
 				}
 
+				if (isCommonTypoDomain(email)) {
+					logger.warn("Misspelled/typo email domain rejected for OTP: {}", email);
+					return false;
+				}
+
 				String key = organization.getOrganizationPhonenumber().trim() + "_EMAIL_" + email;
 
 				// Store OTP and its expiration time in the map BEFORE sending
@@ -421,9 +457,9 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 
 				// Send OTP via email AFTER storing
 				InternetAddress add = new InternetAddress(mailFom, "Procucev Notifications");
-				MailUtility.sendOtpForEmail("OTP", email, javaMailSender, add, host, otp);
+				boolean emailSent = MailUtility.sendOtpForEmail("OTP", email, javaMailSender, add, host, otp);
 
-				return true;
+				return emailSent;
 			} else {
 				logger.error("Organization is null, cannot generate OTP");
 				throw new AppException(HttpStatus.NO_CONTENT.value(), ApplicationConstants.NO_DATA_FOUND,
