@@ -775,10 +775,19 @@ public class ProcUserServiceImpl implements UserService {
 
 			if (updatedOrg.getDivisionCategories() != null) {
 				existingOrg.getDivisionCategories().clear();
+				List<String> catNames = new ArrayList<>();
 				for (OrgDivisionCategory divCat : updatedOrg.getDivisionCategories()) {
 					divCat.setOrganization(existingOrg); // Set back reference
 					existingOrg.getDivisionCategories().add(divCat);
+					if (divCat.getCategory() != null && !divCat.getCategory().trim().isEmpty() && !catNames.contains(divCat.getCategory().trim())) {
+						catNames.add(divCat.getCategory().trim());
+					}
 				}
+				if (!catNames.isEmpty()) {
+					existingOrg.setVendorcategory(String.join(", ", catNames));
+				}
+			} else if (updatedOrg.getVendorcategory() != null) {
+				existingOrg.setVendorcategory(updatedOrg.getVendorcategory());
 			}
 			orgDao.save(existingOrg);
 
