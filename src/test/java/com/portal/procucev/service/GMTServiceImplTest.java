@@ -7,6 +7,7 @@ import com.portal.procucev.customexception.RfqStatusResponse;
 import com.portal.procucev.dao.*;
 import com.portal.procucev.model.*;
 import com.portal.procucev.utils.ApplicationConstants;
+import com.portal.procucev.utils.MailUtility;
 import com.portal.procucev.utils.StatusConstants;
 import jakarta.mail.internet.MimeMessage;
 import jakarta.servlet.http.HttpServletRequest;
@@ -1204,6 +1205,24 @@ class GMTServiceImplTest {
             assertSame(vendorNew, persisted.getVendorStatus());
             verify(rfqVendorDao).saveAll(anyList());
             verify(rfqVendorDao, times(2)).save(any(RfqVendor.class));
+
+            // INEW0 (New vendor, count=0): receives RFQ email AND login credentials email
+            mail.verify(() -> MailUtility.emailInviteRfq(any(), any(), any(), eq("invite-new0@example.com"),
+                    any(), any(), any(), any(), any(), any(), any()), times(1));
+            mail.verify(() -> MailUtility.emailSendVendorLoginCredentials(any(), any(), eq("invite-new0@example.com"),
+                    any(), any(), any(), any(), any(), any(), any()), times(1));
+
+            // INEW1 (New vendor, count=1): receives RFQ email only, NO login credentials email
+            mail.verify(() -> MailUtility.emailInviteRfqForExistingUsers(any(), any(), any(), eq("invite-new1@example.com"),
+                    any(), any(), any(), any(), any(), any(), any()), times(1));
+            mail.verify(() -> MailUtility.emailSendVendorLoginCredentials(any(), any(), eq("invite-new1@example.com"),
+                    any(), any(), any(), any(), any(), any(), any()), never());
+
+            // IEX (Existing vendor): receives RFQ email only, NO login credentials email
+            mail.verify(() -> MailUtility.emailInviteRfqForExistingUsers(any(), any(), any(), eq("invite-existing@example.com"),
+                    any(), any(), any(), any(), any(), any(), any()), times(1));
+            mail.verify(() -> MailUtility.emailSendVendorLoginCredentials(any(), any(), eq("invite-existing@example.com"),
+                    any(), any(), any(), any(), any(), any(), any()), never());
         } finally {
             SecurityContextHolder.clearContext();
         }
