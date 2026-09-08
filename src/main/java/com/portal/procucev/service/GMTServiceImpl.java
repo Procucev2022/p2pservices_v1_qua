@@ -99,6 +99,7 @@ import com.portal.procucev.dao.SubscriptionPlanDao;
 import com.portal.procucev.dao.UserDao;
 import com.portal.procucev.rfq.entity.RfqAiTokenUsage;
 import com.portal.procucev.rfq.repository.RfqAiTokenUsageRepository;
+import com.portal.procucev.rfq.service.GeminiPricingService;
 import com.portal.procucev.model.CategoryDivision;
 import com.portal.procucev.model.ClientDeliveryLocationRfq;
 import com.portal.procucev.model.EmailAttachment;
@@ -200,6 +201,9 @@ public class GMTServiceImpl implements GMTService {
 
 	@Autowired
 	private RfqAiTokenUsageRepository rfqAiTokenUsageRepository;
+
+	@Autowired(required = false)
+	private GeminiPricingService geminiPricingService;
 
 	@Value("${quaemail}")
 	String mailFom;
@@ -4700,6 +4704,10 @@ public class GMTServiceImpl implements GMTService {
 		if (usageOpt.isPresent()) {
 			RfqAiTokenUsage usage = usageOpt.get();
 			double cost = usage.getEstimatedCostUsd() != null ? usage.getEstimatedCostUsd() : 0.0;
+			double costInr = (geminiPricingService != null)
+					? geminiPricingService.toInr(cost)
+					: GeminiPricingService.calculateCostInr(cost, GeminiPricingService.DEFAULT_USD_TO_INR_RATE);
+			String formattedCostInr = GeminiPricingService.formatCostInr(costInr);
 			return RfqAiTokenUsageDTO.builder()
 					.rfqNumber(usage.getRfqNumber())
 					.messageId(usage.getMessageId())
@@ -4710,7 +4718,9 @@ public class GMTServiceImpl implements GMTService {
 					.totalTokens(usage.getTotalTokens())
 					.attemptsCount(usage.getAttemptsCount())
 					.estimatedCostUsd(cost)
+					.estimatedCostInr(costInr)
 					.formattedCost(String.format(Locale.US, "$%.4f", cost))
+					.formattedCostInr(formattedCostInr)
 					.createdAt(usage.getCreatedAt())
 					.build();
 		}
@@ -4720,18 +4730,25 @@ public class GMTServiceImpl implements GMTService {
 		int promptTokens = 1250 + (itemCount * 180);
 		int candidateTokens = 380 + (itemCount * 95);
 		int totalTokens = promptTokens + candidateTokens;
-		double estimatedCost = ((promptTokens * 0.075) + (candidateTokens * 0.30)) / 1_000_000.0;
+		String fallbackModel = "gemini-2.5-flash";
+		double estimatedCost = GeminiPricingService.calculateCostUsd(fallbackModel, promptTokens, candidateTokens);
+		double estimatedCostInr = (geminiPricingService != null)
+				? geminiPricingService.toInr(estimatedCost)
+				: GeminiPricingService.calculateCostInr(estimatedCost, GeminiPricingService.DEFAULT_USD_TO_INR_RATE);
+		String formattedCostInr = GeminiPricingService.formatCostInr(estimatedCostInr);
 
 		return RfqAiTokenUsageDTO.builder()
 				.rfqNumber(rfqNumber)
 				.sourceType(rfq.getSourceType())
-				.modelName("gemini-2.5-flash")
+				.modelName(fallbackModel)
 				.promptTokens(promptTokens)
 				.candidateTokens(candidateTokens)
 				.totalTokens(totalTokens)
 				.attemptsCount(1)
 				.estimatedCostUsd(estimatedCost)
+				.estimatedCostInr(estimatedCostInr)
 				.formattedCost(String.format(Locale.US, "$%.4f", estimatedCost))
+				.formattedCostInr(formattedCostInr)
 				.createdAt(rfq.getCreatedTS() != null
 						? rfq.getCreatedTS().toInstant().atZone(ZoneId.systemDefault()).toLocalDateTime()
 						: LocalDateTime.now())

@@ -1978,6 +1978,7 @@ class GMTServiceImplCoverageTest {
         assertNotNull(dto2);
         assertEquals(0.0, dto2.getEstimatedCostUsd());
         assertEquals("$0.0000", dto2.getFormattedCost());
+        assertEquals("₹0.00", dto2.getFormattedCostInr());
 
         // 3. rfq where primary rfqNumber lookup is empty, but secondary rfq.getId() lookup finds token usage
         Rfq rfqSecondary = new Rfq();
@@ -2005,6 +2006,8 @@ class GMTServiceImplCoverageTest {
         assertEquals(1430, dtoHist1.getPromptTokens()); // 1250 + 1*180
         assertEquals(475, dtoHist1.getCandidateTokens()); // 380 + 1*95
         assertEquals(1905, dtoHist1.getTotalTokens());
+        assertEquals("$0.0002", dtoHist1.getFormattedCost());
+        assertEquals("₹0.02", dtoHist1.getFormattedCostInr());
         assertNotNull(dtoHist1.getCreatedAt());
 
         // 5. Historical fallback with multiple rfqItems and populated createdTS
@@ -2021,6 +2024,17 @@ class GMTServiceImplCoverageTest {
         assertEquals(1610, dtoHist2.getPromptTokens()); // 1250 + 2*180
         assertEquals(570, dtoHist2.getCandidateTokens()); // 380 + 2*95
         assertEquals(2180, dtoHist2.getTotalTokens());
+
+        // 6. Test with geminiPricingService injected
+        com.portal.procucev.rfq.service.GeminiPricingService pricingService = new com.portal.procucev.rfq.service.GeminiPricingService();
+        ReflectionTestUtils.setField(service, "geminiPricingService", pricingService);
+        com.portal.procucev.Dto.RfqAiTokenUsageDTO dtoHistWithService = ReflectionTestUtils.invokeMethod(service, "buildAiTokenUsageDto", rfqHist1);
+        assertNotNull(dtoHistWithService);
+        assertEquals("₹0.02", dtoHistWithService.getFormattedCostInr());
+        com.portal.procucev.Dto.RfqAiTokenUsageDTO dtoUsageWithService = ReflectionTestUtils.invokeMethod(service, "buildAiTokenUsageDto", rfqIdOnly);
+        assertNotNull(dtoUsageWithService);
+        assertEquals("₹0.00", dtoUsageWithService.getFormattedCostInr());
+        ReflectionTestUtils.setField(service, "geminiPricingService", null);
     }
 
     @Test

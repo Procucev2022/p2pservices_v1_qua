@@ -182,10 +182,11 @@ public class AIExtractionService {
             throw new ApplicationException("AI extraction failed on all models: " + rootCause, lastFailure);
         }
 
-        double estCost = (totalPromptTokens * 0.10 + totalCandidateTokens * 0.40) / 1_000_000.0;
+        String effectiveModel = lastSuccessfulModel != null ? lastSuccessfulModel : "gemini-3.7-flash";
+        double estCost = GeminiPricingService.calculateCostUsd(effectiveModel, totalPromptTokens, totalCandidateTokens);
         TokenUsageTelemetry telemetry = TokenUsageTelemetry.builder()
                 .messageId(email.getMessageId())
-                .modelName(lastSuccessfulModel != null ? lastSuccessfulModel : "gemini-3.7-flash")
+                .modelName(effectiveModel)
                 .promptTokens(totalPromptTokens)
                 .candidateTokens(totalCandidateTokens)
                 .totalTokens(totalTokens)
