@@ -15,6 +15,9 @@ import com.portal.procucev.rfq.model.RFQItem;
 import com.portal.procucev.rfq.parser.DateParser;
 import com.portal.procucev.rfq.repository.EmailTransactionRepository;
 import com.portal.procucev.rfq.repository.RFQRepository;
+import com.portal.procucev.rfq.entity.RfqAiTokenUsage;
+import com.portal.procucev.rfq.model.TokenUsageTelemetry;
+import com.portal.procucev.rfq.repository.RfqAiTokenUsageRepository;
 import com.portal.procucev.rfq.repository.RfqItemRecordRepository;
 import com.portal.procucev.rfq.service.*;
 import org.junit.jupiter.api.BeforeEach;
@@ -3292,6 +3295,80 @@ public class EmailProcessorServiceTest {
         ExtractedRFQ mergedCreated = ReflectionTestUtils.invokeMethod(emailProcessorService, "mergeThreadContext", emailThreadCreated, current);
         assertNotNull(mergedCreated);
         assertTrue(mergedCreated.getItems().isEmpty());
+    }
+
+    @Test
+    @DisplayName("Test RfqAiTokenUsageRepository saving, null check, and exception handling branches")
+    void testRfqAiTokenUsageRepositoryBranches() {
+        RfqAiTokenUsageRepository tokenRepo = Mockito.mock(RfqAiTokenUsageRepository.class);
+        emailProcessorService.setRfqAiTokenUsageRepository(tokenRepo);
+
+        EmailData email = EmailData.builder()
+                .messageId("MSG-TOKEN-USAGE")
+                .senderEmail("buyer@corp.com")
+                .subject("Need valves")
+                .build();
+
+        Mockito.when(emailTransactionRepository.findByMessageId("MSG-TOKEN-USAGE")).thenReturn(Optional.empty());
+
+        TokenUsageTelemetry telemetry = TokenUsageTelemetry.builder()
+                .messageId("MSG-TOKEN-USAGE")
+                .modelName("gemini-3.7-flash")
+                .promptTokens(250)
+                .candidateTokens(75)
+                .totalTokens(325)
+                .attemptsCount(1)
+                .estimatedCostUsd(0.00025)
+                .build();
+
+        ExtractedRFQ rfqWithTokens = ExtractedRFQ.builder()
+                .buyerEmail("buyer@corp.com")
+                .deliveryLocation("Pune")
+                .deliveryDate("2026-09-15")
+                .tokenUsage(telemetry)
+                .items(List.of(RFQItem.builder().itemDescription("Ball Valve").quantity(5.0).uom("Nos").category("Valves").build()))
+                .build();
+
+        Mockito.when(aiExtractionService.extractRFQFromEmail(email)).thenReturn(rfqWithTokens);
+        Mockito.when(validationService.validateWithDetails(any())).thenReturn(new ValidationService.ValidationResult(true, false, List.of(), null));
+
+        RFQRequest request = RFQRequest.builder().rfqNumber("RFQ-TU-1").deliveryDate("2026-09-15").build();
+        Mockito.when(rfqBuilderService.buildRFQRequest(any(), any(), any(), any())).thenReturn(request);
+        Mockito.when(rfqApiService.submitRFQ(request)).thenReturn(RFQResponse.builder().status("SUCCESS").rfqNumber("RFQ-TU-1").build());
+        Mockito.when(rfqRepository.save(any())).thenReturn(RFQEntity.builder().rfqNumber("RFQ-TU-1").buyerEmail("buyer@corp.com").build());
+
+        // 1. Success case: token repo saves telemetry
+        String res1 = emailProcessorService.processSingleEmail(email);
+        assertEquals("RFQ_CREATED", res1);
+        Mockito.verify(tokenRepo).save(Mockito.argThat(u ->
+                "RFQ-TU-1".equals(u.getRfqNumber())
+                        && "MSG-TOKEN-USAGE".equals(u.getMessageId())
+                        && "gemini-3.7-flash".equals(u.getModelName())
+                        && u.getPromptTokens() == 250
+                        && u.getCandidateTokens() == 75
+                        && u.getTotalTokens() == 325
+                        && u.getAttemptsCount() == 1
+        ));
+
+        // 2. Exception case: token repo throws exception -> handled safely without failing RFQ creation
+        Mockito.reset(tokenRepo);
+        Mockito.doThrow(new RuntimeException("DB Connection Timeout")).when(tokenRepo).save(any());
+        String res2 = emailProcessorService.processSingleEmail(email);
+        assertEquals("RFQ_CREATED", res2);
+        Mockito.verify(tokenRepo).save(any());
+
+        // 3. Null tokenUsage case: tokenRepo.save is not called
+        Mockito.reset(tokenRepo);
+        rfqWithTokens.setTokenUsage(null);
+        String res3 = emailProcessorService.processSingleEmail(email);
+        assertEquals("RFQ_CREATED", res3);
+        Mockito.verify(tokenRepo, Mockito.never()).save(any());
+
+        // 4. Null tokenRepo case: safely bypassed
+        emailProcessorService.setRfqAiTokenUsageRepository(null);
+        rfqWithTokens.setTokenUsage(telemetry);
+        String res4 = emailProcessorService.processSingleEmail(email);
+        assertEquals("RFQ_CREATED", res4);
     }
 }
 

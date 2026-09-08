@@ -4,6 +4,7 @@ import com.portal.procucev.rfq.client.GeminiApiClient;
 import com.portal.procucev.rfq.exception.ApplicationException;
 import com.portal.procucev.rfq.model.EmailData;
 import com.portal.procucev.rfq.model.ExtractedRFQ;
+import com.portal.procucev.rfq.model.GeminiContentResponse;
 import com.portal.procucev.rfq.model.RFQItem;
 import com.portal.procucev.rfq.service.AIExtractionService;
 import org.junit.jupiter.api.BeforeEach;
@@ -16,6 +17,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.nio.file.Path;
+import java.util.Collections;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -766,5 +768,285 @@ public class AIExtractionServiceTest {
                 aiExtractionService, "mergeBetterResult", best2Items, candPermuted, 2);
         assertNotNull(resultMerged);
         assertEquals(20.0, best2Items.getItems().get(1).getQuantity());
+    }
+
+    @Test
+    @DisplayName("Test extractRFQ with generateContentWithSpecificModelDetailed returning tokens")
+    void testExtractRFQWithSpecificModelDetailedAndTokens() throws Exception {
+        String json = "{\n" +
+                "  \"buyerEmail\": \"buyer@test.com\",\n" +
+                "  \"deliveryLocation\": \"Pune\",\n" +
+                "  \"deliveryDate\": \"2026-09-20\",\n" +
+                "  \"items\": [{\"itemDescription\": \"Widget A\", \"quantity\": 15.0, \"uom\": \"Nos\"}]\n" +
+                "}";
+
+        GeminiContentResponse resp = GeminiContentResponse.builder()
+                .text(json)
+                .model("gemini-3.7-flash")
+                .promptTokens(300)
+                .candidateTokens(80)
+                .totalTokens(380)
+                .build();
+
+        Mockito.when(geminiApiClient.getAllConfiguredModels()).thenReturn(List.of("gemini-3.7-flash"));
+        Mockito.when(geminiApiClient.generateContentWithSpecificModelDetailed(eq("gemini-3.7-flash"), anyString(), anyList()))
+                .thenReturn(resp);
+
+        EmailData email = EmailData.builder()
+                .messageId("MSG-TOKENS-1")
+                .subject("Need Widgets")
+                .body("Please send 15 Widget A")
+                .senderEmail("buyer@test.com")
+                .build();
+
+        ExtractedRFQ result = aiExtractionService.extractRFQFromEmail(email);
+        assertNotNull(result);
+        assertNotNull(result.getTokenUsage());
+        assertEquals("gemini-3.7-flash", result.getTokenUsage().getModelName());
+        assertEquals(300, result.getTokenUsage().getPromptTokens());
+        assertEquals(80, result.getTokenUsage().getCandidateTokens());
+        assertEquals(380, result.getTokenUsage().getTotalTokens());
+        assertEquals("MSG-TOKENS-1", result.getTokenUsage().getMessageId());
+        assertTrue(result.getTokenUsage().getEstimatedCostUsd() > 0);
+    }
+
+    @Test
+    @DisplayName("Test executeModelCallDetailed fallback to generateContentDetailed and token estimation math")
+    void testExecuteModelCallDetailedFallbackAndTokenMath() throws Exception {
+        // Long response to exceed 400 length for Math.max(100, length / 4)
+        String jsonLong = "{\n" +
+                "  \"buyerEmail\": \"buyer@test.com\",\n" +
+                "  \"deliveryLocation\": \"Pune Industrial Area Phase 2, Near Railway Crossing, Pune, Maharashtra\",\n" +
+                "  \"deliveryDate\": \"2026-09-20\",\n" +
+                "  \"items\": [\n" +
+                "    {\"itemDescription\": \"Heavy Duty Industrial Hydraulic High Pressure Double Acting Cylinder Type 1\", \"quantity\": 10.0, \"uom\": \"Nos\", \"specification\": \"Standard Industrial Hydraulic Specification Grade A High Strength Alloy Steel\", \"brand\": \"Rexroth Precision Engineering\"},\n" +
+                "    {\"itemDescription\": \"Heavy Duty Industrial Hydraulic High Pressure Double Acting Cylinder Type 2\", \"quantity\": 20.0, \"uom\": \"Nos\", \"specification\": \"Standard Industrial Hydraulic Specification Grade B High Strength Alloy Steel\", \"brand\": \"Rexroth Precision Engineering\"}\n" +
+                "  ]\n" +
+                "}";
+        assertTrue(jsonLong.length() > 400);
+
+        GeminiContentResponse respDetailed = GeminiContentResponse.builder()
+                .text(jsonLong)
+                .model(null) // test model == null fallback to currentModel
+                .totalTokens(0) // test tTokens == 0 fallback math
+                .build();
+
+        Mockito.when(geminiApiClient.getAllConfiguredModels()).thenReturn(List.of("gemini-3.7-flash"));
+        Mockito.when(geminiApiClient.generateContentWithSpecificModelDetailed(anyString(), anyString(), anyList()))
+                .thenThrow(new UnsupportedOperationException("Specific model detailed unsupported"));
+        Mockito.when(geminiApiClient.generateContentDetailed(anyString(), anyList()))
+                .thenReturn(respDetailed);
+
+        // Long prompt to exceed 1600 length for Math.max(400, length / 4)
+        String longBody = "Please provide quotation for the following heavy duty industrial equipment: " + "DETAILS ".repeat(300);
+        assertTrue(longBody.length() > 1600);
+
+        EmailData email = EmailData.builder()
+                .messageId("MSG-TOKENS-FALLBACK")
+                .subject("Long Request Body")
+                .body(longBody)
+                .senderEmail("buyer@test.com")
+                .build();
+
+        ExtractedRFQ result = aiExtractionService.extractRFQFromEmail(email);
+        assertNotNull(result);
+        assertNotNull(result.getTokenUsage());
+        assertEquals("gemini-3.7-flash", result.getTokenUsage().getModelName());
+        assertTrue(result.getTokenUsage().getPromptTokens() > 400);
+        assertTrue(result.getTokenUsage().getCandidateTokens() > 100);
+        assertEquals(result.getTokenUsage().getPromptTokens() + result.getTokenUsage().getCandidateTokens(),
+                result.getTokenUsage().getTotalTokens());
+    }
+
+    @Test
+    @DisplayName("Test executeModelCallDetailed double NoSuchMethodError fallback to legacy generateContent")
+    void testExecuteModelCallDetailedNoSuchMethodFallback() throws Exception {
+        String json = "{\n" +
+                "  \"buyerEmail\": \"buyer@test.com\",\n" +
+                "  \"deliveryLocation\": \"Mumbai\",\n" +
+                "  \"deliveryDate\": \"2026-09-25\",\n" +
+                "  \"items\": [{\"itemDescription\": \"Item Legacy\", \"quantity\": 5.0, \"uom\": \"Nos\"}]\n" +
+                "}";
+
+        Mockito.when(geminiApiClient.getAllConfiguredModels()).thenReturn(List.of("gemini-3.7-flash"));
+        Mockito.when(geminiApiClient.generateContentWithSpecificModelDetailed(anyString(), anyString(), anyList()))
+                .thenThrow(new NoSuchMethodError("No such method"));
+        Mockito.when(geminiApiClient.generateContentDetailed(anyString(), anyList()))
+                .thenThrow(new NoSuchMethodError("No such method"));
+        Mockito.when(geminiApiClient.generateContent(anyString(), anyList()))
+                .thenReturn(json);
+
+        EmailData email = EmailData.builder()
+                .messageId("MSG-LEGACY")
+                .subject("Need Item Legacy")
+                .body("Need 5 Item Legacy")
+                .senderEmail("buyer@test.com")
+                .build();
+
+        ExtractedRFQ result = aiExtractionService.extractRFQFromEmail(email);
+        assertNotNull(result);
+        assertEquals("gemini-3.7-flash", result.getTokenUsage().getModelName());
+    }
+
+    @Test
+    @DisplayName("Test collectInlineImages edge cases and limits additional")
+    void testCollectInlineImagesLimitsAdditional() throws Exception {
+        EmailData emailNoAttach = EmailData.builder().attachments(null).build();
+        List<?> imagesNull = ReflectionTestUtils.invokeMethod(aiExtractionService, "collectInlineImages", emailNoAttach);
+        assertNotNull(imagesNull);
+        assertTrue(imagesNull.isEmpty());
+
+        File nonImageFile = new File(tempDir.toFile(), "notes.txt");
+        try (FileOutputStream fos = new FileOutputStream(nonImageFile)) {
+            fos.write("some text".getBytes());
+        }
+
+        File validImageFile = new File(tempDir.toFile(), "sample.png");
+        try (FileOutputStream fos = new FileOutputStream(validImageFile)) {
+            fos.write(new byte[]{(byte) 0x89, 'P', 'N', 'G', '\r', '\n', 0x1a, '\n'});
+            fos.write(new byte[100]);
+        }
+
+        EmailData emailWithFiles = EmailData.builder()
+                .attachments(List.of(nonImageFile, validImageFile))
+                .build();
+        List<?> images = ReflectionTestUtils.invokeMethod(aiExtractionService, "collectInlineImages", emailWithFiles);
+        assertNotNull(images);
+        assertEquals(1, images.size());
+
+        // Oversized single image limit
+        ReflectionTestUtils.setField(aiExtractionService, "maxInlineImageBytes", 10L);
+        List<?> imagesOverSingle = ReflectionTestUtils.invokeMethod(aiExtractionService, "collectInlineImages", emailWithFiles);
+        assertTrue(imagesOverSingle.isEmpty());
+
+        // Oversized total image limit
+        ReflectionTestUtils.setField(aiExtractionService, "maxInlineImageBytes", 1000000L);
+        ReflectionTestUtils.setField(aiExtractionService, "maxInlineImageTotalBytes", 50L);
+        List<?> imagesOverTotal = ReflectionTestUtils.invokeMethod(aiExtractionService, "collectInlineImages", emailWithFiles);
+        assertTrue(imagesOverTotal.isEmpty());
+
+        // Max inline images count
+        ReflectionTestUtils.setField(aiExtractionService, "maxInlineImages", 0);
+        List<?> imagesMaxZero = ReflectionTestUtils.invokeMethod(aiExtractionService, "collectInlineImages", emailWithFiles);
+        assertTrue(imagesMaxZero.isEmpty());
+    }
+
+    @Test
+    @DisplayName("Test loadPromptTemplate exception when loading template fails")
+    void testLoadPromptTemplateException() throws Exception {
+        AIExtractionService spyService = Mockito.spy(aiExtractionService);
+        Mockito.doThrow(new java.io.IOException("Template read failure")).when(spyService).loadPromptTemplate();
+
+        EmailData email = EmailData.builder()
+                .subject("Test Subject")
+                .body("Test Body")
+                .senderEmail("buyer@test.com")
+                .build();
+
+        assertThrows(ApplicationException.class, () -> spyService.extractRFQFromEmail(email));
+    }
+
+    @Test
+    @DisplayName("Test describeGaps and hasMissingQuantity branches")
+    void testDescribeGapsAndHasMissingQuantity() {
+        // hasMissingQuantity branches
+        assertTrue((Boolean) ReflectionTestUtils.invokeMethod(aiExtractionService, "hasMissingQuantity", (ExtractedRFQ) null));
+        assertTrue((Boolean) ReflectionTestUtils.invokeMethod(aiExtractionService, "hasMissingQuantity", ExtractedRFQ.builder().items(null).build()));
+        assertTrue((Boolean) ReflectionTestUtils.invokeMethod(aiExtractionService, "hasMissingQuantity", ExtractedRFQ.builder().items(List.of()).build()));
+
+        ExtractedRFQ withNullItem = ExtractedRFQ.builder().items(Collections.singletonList(null)).build();
+        assertTrue((Boolean) ReflectionTestUtils.invokeMethod(aiExtractionService, "hasMissingQuantity", withNullItem));
+
+        ExtractedRFQ withNullQty = ExtractedRFQ.builder().items(List.of(RFQItem.builder().quantity(null).build())).build();
+        assertTrue((Boolean) ReflectionTestUtils.invokeMethod(aiExtractionService, "hasMissingQuantity", withNullQty));
+
+        ExtractedRFQ withZeroQty = ExtractedRFQ.builder().items(List.of(RFQItem.builder().quantity(0.0).build())).build();
+        assertTrue((Boolean) ReflectionTestUtils.invokeMethod(aiExtractionService, "hasMissingQuantity", withZeroQty));
+
+        ExtractedRFQ withValidQty = ExtractedRFQ.builder().items(List.of(RFQItem.builder().quantity(10.0).build())).build();
+        assertFalse((Boolean) ReflectionTestUtils.invokeMethod(aiExtractionService, "hasMissingQuantity", withValidQty));
+
+        // describeGaps branches
+        List<String> gapsNull = ReflectionTestUtils.invokeMethod(aiExtractionService, "describeGaps", (ExtractedRFQ) null);
+        assertEquals(1, gapsNull.size());
+
+        List<String> gapsNullItem = ReflectionTestUtils.invokeMethod(aiExtractionService, "describeGaps", withNullItem);
+        assertEquals(1, gapsNullItem.size());
+        assertTrue(gapsNullItem.get(0).contains("the whole item is null"));
+
+        ExtractedRFQ withBlankDescAndZeroQty = ExtractedRFQ.builder()
+                .items(List.of(RFQItem.builder().itemDescription("   ").quantity(-1.0).build()))
+                .build();
+        List<String> gapsBlank = ReflectionTestUtils.invokeMethod(aiExtractionService, "describeGaps", withBlankDescAndZeroQty);
+        assertTrue(gapsBlank.size() >= 2);
+    }
+
+    @Test
+    @DisplayName("Test isSameOrSimilarItem and Levenshtein and Token overlap branches")
+    void testSimilarityAndOverlapBranches() {
+        assertFalse(aiExtractionService.isSameOrSimilarItem(null, "bolt"));
+        assertFalse(aiExtractionService.isSameOrSimilarItem("bolt", ""));
+        assertTrue(aiExtractionService.isSameOrSimilarItem("Hex Bolt M10", "hex bolt m10"));
+        assertTrue(aiExtractionService.isSameOrSimilarItem("M10 Hex Bolt Grade 8.8", "Hex Bolt"));
+        assertTrue(aiExtractionService.isSameOrSimilarItem("Speed Btreaker", "Speed Breaker"));
+
+        // Levenshtein direct
+        assertEquals(0.0, (Double) ReflectionTestUtils.invokeMethod(aiExtractionService, "computeLevenshteinSimilarity", null, "abc"));
+        assertEquals(0.0, (Double) ReflectionTestUtils.invokeMethod(aiExtractionService, "computeLevenshteinSimilarity", "abc", null));
+        assertEquals(1.0, (Double) ReflectionTestUtils.invokeMethod(aiExtractionService, "computeLevenshteinSimilarity", "same", "same"));
+        assertEquals(0.0, (Double) ReflectionTestUtils.invokeMethod(aiExtractionService, "computeLevenshteinSimilarity", "", "abc"));
+        assertEquals(0.0, (Double) ReflectionTestUtils.invokeMethod(aiExtractionService, "computeLevenshteinSimilarity", "abc", ""));
+
+        // Token overlap direct
+        assertEquals(0.0, (Double) ReflectionTestUtils.invokeMethod(aiExtractionService, "computeTokenOverlap", null, "abc"));
+        assertEquals(0.0, (Double) ReflectionTestUtils.invokeMethod(aiExtractionService, "computeTokenOverlap", "abc", null));
+        assertEquals(0.0, (Double) ReflectionTestUtils.invokeMethod(aiExtractionService, "computeTokenOverlap", "---", "###"));
+
+        // isBlank direct
+        assertTrue((Boolean) ReflectionTestUtils.invokeMethod(aiExtractionService, "isBlank", "null"));
+        assertTrue((Boolean) ReflectionTestUtils.invokeMethod(aiExtractionService, "isBlank", "Not Specified"));
+        assertFalse((Boolean) ReflectionTestUtils.invokeMethod(aiExtractionService, "isBlank", "valid text"));
+
+        // abbreviate direct
+        assertEquals("", ReflectionTestUtils.invokeMethod(aiExtractionService, "abbreviate", (String) null));
+        assertEquals("short", ReflectionTestUtils.invokeMethod(aiExtractionService, "abbreviate", "short"));
+        ReflectionTestUtils.setField(aiExtractionService, "maxLoggedResponseChars", 5);
+        assertEquals("12345...[truncated]", ReflectionTestUtils.invokeMethod(aiExtractionService, "abbreviate", "123456789"));
+
+        // logRawModelResponse direct
+        ReflectionTestUtils.invokeMethod(aiExtractionService, "logRawModelResponse", 1, (String) null);
+        ReflectionTestUtils.invokeMethod(aiExtractionService, "logRawModelResponse", 1, "short");
+        ReflectionTestUtils.invokeMethod(aiExtractionService, "logRawModelResponse", 1, "longer-than-five-chars");
+
+        // logExtractionSummary with null item
+        ExtractedRFQ rfqWithNullItem = ExtractedRFQ.builder().buyerEmail("b@c.com").items(Collections.singletonList(null)).build();
+        ReflectionTestUtils.invokeMethod(aiExtractionService, "logExtractionSummary", rfqWithNullItem);
+    }
+
+    @Test
+    @DisplayName("Test missing quantity confirmed across multiple successful models breaks early")
+    void testMissingQuantityConfirmedAcrossMultipleModels() throws Exception {
+        ReflectionTestUtils.setField(aiExtractionService, "minModelsForMissingQuantity", 2);
+
+        String jsonNoQty = "{\n" +
+                "  \"buyerEmail\": \"buyer@test.com\",\n" +
+                "  \"deliveryLocation\": \"Pune\",\n" +
+                "  \"items\": [{\"itemDescription\": \"Item Without Qty\", \"quantity\": null, \"uom\": \"Nos\"}]\n" +
+                "}";
+
+        Mockito.when(geminiApiClient.getAllConfiguredModels()).thenReturn(List.of("model-a", "model-b", "model-c"));
+        Mockito.when(geminiApiClient.generateContentWithSpecificModelDetailed(anyString(), anyString(), anyList()))
+                .thenReturn(GeminiContentResponse.builder().text(jsonNoQty).totalTokens(100).build());
+
+        EmailData email = EmailData.builder()
+                .messageId("MSG-MULTI-BREAK")
+                .subject("RFQ Subject")
+                .body("RFQ Body")
+                .senderEmail("buyer@test.com")
+                .build();
+
+        ExtractedRFQ result = aiExtractionService.extractRFQFromEmail(email);
+        assertNotNull(result);
+        assertNull(result.getItems().get(0).getQuantity());
     }
 }

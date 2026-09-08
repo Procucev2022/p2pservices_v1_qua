@@ -182,7 +182,7 @@ public class AIExtractionService {
             throw new ApplicationException("AI extraction failed on all models: " + rootCause, lastFailure);
         }
 
-        String effectiveModel = lastSuccessfulModel != null ? lastSuccessfulModel : "gemini-3.7-flash";
+        String effectiveModel = lastSuccessfulModel;
         double estCost = GeminiPricingService.calculateCostUsd(effectiveModel, totalPromptTokens, totalCandidateTokens);
         TokenUsageTelemetry telemetry = TokenUsageTelemetry.builder()
                 .messageId(email.getMessageId())
@@ -225,10 +225,6 @@ public class AIExtractionService {
                 .text(text)
                 .model(model)
                 .build();
-    }
-
-    private String executeModelCall(String model, String attemptPrompt, List<InlineImage> inlineImages) throws Exception {
-        return executeModelCallDetailed(model, attemptPrompt, inlineImages).getText();
     }
 
     private boolean hasMissingQuantity(ExtractedRFQ extracted) {
@@ -630,7 +626,7 @@ public class AIExtractionService {
      * {@code scheduling-*} threads, even though it is packaged in {@code WEB-INF/classes}.
      * Loading it through the class's own loader makes the lookup independent of the calling thread.
      */
-    private String loadPromptTemplate() throws Exception {
+    public String loadPromptTemplate() throws Exception {
         ClassPathResource resource = new ClassPathResource(PROMPT_TEMPLATE_PATH, getClass().getClassLoader());
         try (InputStream inputStream = resource.getInputStream()) {
             return new String(inputStream.readAllBytes(), StandardCharsets.UTF_8);
