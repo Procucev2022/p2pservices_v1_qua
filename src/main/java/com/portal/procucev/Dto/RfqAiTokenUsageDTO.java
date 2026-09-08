@@ -26,6 +26,8 @@ public class RfqAiTokenUsageDTO implements Serializable {
     private int totalTokens;
     private int attemptsCount;
     private Double estimatedCostUsd;
+    private Double estimatedCostInr;
     private String formattedCost;
+    private String formattedCostInr;
     private LocalDateTime createdAt;
 }

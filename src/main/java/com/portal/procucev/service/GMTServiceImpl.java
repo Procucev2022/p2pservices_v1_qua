@@ -99,6 +99,7 @@ import com.portal.procucev.dao.SubscriptionPlanDao;
 import com.portal.procucev.dao.UserDao;
 import com.portal.procucev.rfq.entity.RfqAiTokenUsage;
 import com.portal.procucev.rfq.repository.RfqAiTokenUsageRepository;
+import com.portal.procucev.rfq.service.GeminiPricingService;
 import com.portal.procucev.model.CategoryDivision;
 import com.portal.procucev.model.ClientDeliveryLocationRfq;
 import com.portal.procucev.model.EmailAttachment;
@@ -200,6 +201,9 @@ public class GMTServiceImpl implements GMTService {
 
 	@Autowired
 	private RfqAiTokenUsageRepository rfqAiTokenUsageRepository;
+
+	@Autowired(required = false)
+	private GeminiPricingService geminiPricingService;
 
 	@Value("${quaemail}")
 	String mailFom;
@@ -1485,7 +1489,7 @@ public class GMTServiceImpl implements GMTService {
 					loc.setAddress(sanitizeLocationField(loc.getAddress()));
 				});
 			}
-			if ("EMAIL".equalsIgnoreCase(loadedRfq.getSourceType()) && isAuthorizedCategoryManager()) {
+			if (isEmailSource(loadedRfq.getSourceType()) && isAuthorizedCategoryManager()) {
 				loadedRfq.setAiTokenUsage(buildAiTokenUsageDto(loadedRfq));
 			}
 			return new ResponseEntity<>(loadedRfq, HttpStatus.OK);
@@ -4643,6 +4647,23 @@ public class GMTServiceImpl implements GMTService {
 				new Date());
 	}
 
+	private static final java.util.Set<String> EMAIL_SOURCE_TYPES = java.util.Set.of("EMAIL", "E", "MAIL");
+
+	private static final java.util.Set<String> AUTHORIZED_CATEGORY_MANAGER_ROLES = java.util.Set.of(
+			"CATEGORYMANAGER",
+			"CATEGORYMANAGER2",
+			"CATEGORYMANAGERBASIC",
+			"CATEGORYMANAGERBASIC2",
+			"ADMIN",
+			"ROLEADMIN",
+			"SUPERADMIN",
+			"SUPERUSER"
+	);
+
+	private boolean isEmailSource(String sourceType) {
+		return sourceType != null && EMAIL_SOURCE_TYPES.contains(sourceType.trim().toUpperCase());
+	}
+
 	private boolean isAuthorizedCategoryManager() {
 		try {
 			if (SecurityContextHolder.getContext().getAuthentication() != null
@@ -4650,14 +4671,14 @@ public class GMTServiceImpl implements GMTService {
 				UserDetails userDetails = (UserDetails) SecurityContextHolder.getContext().getAuthentication()
 						.getPrincipal();
 				if (userDetails != null && userDetails.getUsername() != null) {
-					User currentUser = userDao.findByUsernameAndActive(userDetails.getUsername(), true);
-					if (currentUser != null && currentUser.getRole() != null) {
-						String roleName = currentUser.getRole().getRoleName();
-						return StatusConstants.CATEGORYMANAGER_ROLE_NAME.equalsIgnoreCase(roleName)
-								|| StatusConstants.categorymanager2.equalsIgnoreCase(roleName)
-								|| StatusConstants.CATEGORY_MANAGER_BASIC.equalsIgnoreCase(roleName)
-								|| "Admin".equalsIgnoreCase(roleName) || "ROLE_ADMIN".equalsIgnoreCase(roleName)
-								|| "ADMIN".equalsIgnoreCase(roleName);
+					String username = userDetails.getUsername().trim();
+					User currentUser = userDao.findByUsernameAndActive(username, true);
+					if (currentUser == null) {
+						currentUser = userDao.findByLatestUserName(username);
+					}
+					if (currentUser != null && currentUser.getRole() != null && currentUser.getRole().getRoleName() != null) {
+						String cleanRole = currentUser.getRole().getRoleName().replaceAll("[_\\s]+", "").toUpperCase();
+						return AUTHORIZED_CATEGORY_MANAGER_ROLES.contains(cleanRole);
 					}
 				}
 			}
@@ -4683,6 +4704,10 @@ public class GMTServiceImpl implements GMTService {
 		if (usageOpt.isPresent()) {
 			RfqAiTokenUsage usage = usageOpt.get();
 			double cost = usage.getEstimatedCostUsd() != null ? usage.getEstimatedCostUsd() : 0.0;
+			double costInr = (geminiPricingService != null)
+					? geminiPricingService.toInr(cost)
+					: GeminiPricingService.calculateCostInr(cost, GeminiPricingService.DEFAULT_USD_TO_INR_RATE);
+			String formattedCostInr = GeminiPricingService.formatCostInr(costInr);
 			return RfqAiTokenUsageDTO.builder()
 					.rfqNumber(usage.getRfqNumber())
 					.messageId(usage.getMessageId())
@@ -4693,7 +4718,9 @@ public class GMTServiceImpl implements GMTService {
 					.totalTokens(usage.getTotalTokens())
 					.attemptsCount(usage.getAttemptsCount())
 					.estimatedCostUsd(cost)
+					.estimatedCostInr(costInr)
 					.formattedCost(String.format(Locale.US, "$%.4f", cost))
+					.formattedCostInr(formattedCostInr)
 					.createdAt(usage.getCreatedAt())
 					.build();
 		}
@@ -4703,18 +4730,25 @@ public class GMTServiceImpl implements GMTService {
 		int promptTokens = 1250 + (itemCount * 180);
 		int candidateTokens = 380 + (itemCount * 95);
 		int totalTokens = promptTokens + candidateTokens;
-		double estimatedCost = ((promptTokens * 0.075) + (candidateTokens * 0.30)) / 1_000_000.0;
+		String fallbackModel = "gemini-2.5-flash";
+		double estimatedCost = GeminiPricingService.calculateCostUsd(fallbackModel, promptTokens, candidateTokens);
+		double estimatedCostInr = (geminiPricingService != null)
+				? geminiPricingService.toInr(estimatedCost)
+				: GeminiPricingService.calculateCostInr(estimatedCost, GeminiPricingService.DEFAULT_USD_TO_INR_RATE);
+		String formattedCostInr = GeminiPricingService.formatCostInr(estimatedCostInr);
 
 		return RfqAiTokenUsageDTO.builder()
 				.rfqNumber(rfqNumber)
 				.sourceType(rfq.getSourceType())
-				.modelName("gemini-2.5-flash")
+				.modelName(fallbackModel)
 				.promptTokens(promptTokens)
 				.candidateTokens(candidateTokens)
 				.totalTokens(totalTokens)
 				.attemptsCount(1)
 				.estimatedCostUsd(estimatedCost)
+				.estimatedCostInr(estimatedCostInr)
 				.formattedCost(String.format(Locale.US, "$%.4f", estimatedCost))
+				.formattedCostInr(formattedCostInr)
 				.createdAt(rfq.getCreatedTS() != null
 						? rfq.getCreatedTS().toInstant().atZone(ZoneId.systemDefault()).toLocalDateTime()
 						: LocalDateTime.now())
@@ -4741,7 +4775,7 @@ public class GMTServiceImpl implements GMTService {
 					ApplicationConstants.FAILURE, new Date()), HttpStatus.NOT_FOUND);
 		}
 
-		if (!"EMAIL".equalsIgnoreCase(loadedRfq.getSourceType())) {
+		if (!isEmailSource(loadedRfq.getSourceType())) {
 			return new ResponseEntity<>(new MessageResponse("400",
 					"AI Token consumption is only available for Email RFQs", null, ApplicationConstants.FAILURE,
 					new Date()), HttpStatus.BAD_REQUEST);
