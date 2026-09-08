@@ -231,7 +231,8 @@ public interface OrgDao  extends JpaRepository<Organization, String> {
 	        @Param("city") String city
 	);
 
-	@Query("SELECT v.id, v.companyName, v.companyId, v.organizationPhonenumber, v.city, v.email " +
+	@Query("SELECT new com.portal.procucev.Dto.VendorRFQDto(" +
+	        "v.id, v.companyName, v.companyId, v.organizationPhonenumber, v.city, v.email) " +
 	        "FROM Organization v " +
 	        "WHERE v.vendorcategory LIKE CONCAT('%', :category, '%') " +
 	        "   OR v.subCategory LIKE CONCAT('%', :category, '%') " +
