@@ -245,25 +245,20 @@ public class GMTController {
 	@GetMapping("/fetchAllClientGMTRfqsForCM")
 	public ResponseEntity<?> fetchAllClientGMTRfqsForCM(@RequestParam(required = false) Integer page,
 	        @RequestParam(required = false)Integer size) throws AppException {
-		 // If both params are absent → return all records unpaginated
-		
-		  Map<String, Object> response = new HashMap<>();
+		Map<String, Object> response = new HashMap<>();
 		
 		try {
-	
-	    if (page == null && size == null) {
-	    	logger.info("With No Pagination..");
-	        List<RfqDTO> allRfqs = gmtService.fetchAllClientGMTRfqsForCM();
-	        return ResponseEntity.ok(allRfqs);
-	    }
+			if (page == null && size == null) {
+				List<RfqDTO> allRfqs = gmtService.fetchAllClientGMTRfqsForCM();
+				return ResponseEntity.ok(allRfqs);
+			}
 
-	    // If params are present → paginate
-	    Pageable pageable = PageRequest.of(
-	            page != null ? page : 0,
-	            size != null ? size : 50
-	    );
-	//    List<RfqDTO> rfqPage = gmtService.fetchAllClientGMTRfqsForCM(pageable);
-	    SimplePageResponse<RfqDTO> rfqPage = gmtService.fetchAllClientGMTRfqsForCM(pageable);
+		    // Paginate by default when page or size is provided
+		    Pageable pageable = PageRequest.of(
+		            page != null ? Math.max(0, page) : 0,
+		            size != null ? Math.min(Math.max(1, size), 100) : 50
+		    );
+		    SimplePageResponse<RfqDTO> rfqPage = gmtService.fetchAllClientGMTRfqsForCM(pageable);
 	    if (rfqPage.getData() == null || rfqPage.getData().isEmpty()) {
 
             response.put("statusCode", StatusCodes.OK_VENDOR_CODE);

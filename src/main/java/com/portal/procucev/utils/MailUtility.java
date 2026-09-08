@@ -3,6 +3,7 @@ package com.portal.procucev.utils;
 import java.io.ByteArrayOutputStream;
 import java.util.List;
 import java.util.Properties;
+import java.util.concurrent.CompletableFuture;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -1293,13 +1294,19 @@ public class MailUtility {
 			// mimeMessageHelper.setCc(ccAddresses);
 			mimeMessageHelper.setSubject(subject);
 			mimeMessageHelper.setText("Please find the attachments below.");
-			mimeMessageHelper.getMimeMessage().setContent(multipart); // Set the MimeMultipart as the content
-			javaMailSender.send(mimeMessage);
-			LOGGER.info("Sending mail successfully to " + mailId + " from " + mailId2);
-			LOGGER.info("Sent mail successfully to " + mailId + " Message Called from " + fromAddress);
+			mimeMessageHelper.getMimeMessage().setContent(multipart);
+			CompletableFuture.runAsync(() -> {
+				try {
+					javaMailSender.send(mimeMessage);
+					LOGGER.info("Sending mail successfully to " + mailId + " from " + mailId2);
+					LOGGER.info("Sent mail successfully to " + mailId + " Message Called from " + fromAddress);
+				} catch (Exception e) {
+					LOGGER.error("Error in sending mail - >" + mailId + " Message Called for " + fromAddress, e);
+				}
+			});
 			return true;
 		} catch (Exception e) {
-			LOGGER.error("Error in sending mail - >" + mailId + " Message Called for " + fromAddress);
+			LOGGER.error("Error in preparing mail - >" + mailId + " Message Called for " + fromAddress);
 			return false;
 		}
 
