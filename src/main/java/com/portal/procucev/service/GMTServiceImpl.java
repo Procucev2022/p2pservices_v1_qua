@@ -30,7 +30,6 @@ import java.util.Optional;
 import java.util.Properties;
 import java.util.Random;
 import java.util.Set;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 import java.util.regex.Matcher;
@@ -63,7 +62,6 @@ import org.springframework.mail.MailSendException;
 import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
-import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Service;
@@ -1002,12 +1000,6 @@ public class GMTServiceImpl implements GMTService {
 	    // Current time in IST
 	    LocalDateTime now = LocalDateTime.now(zone);
 
-	    if (date == null) {
-	        logger.info("Delivery date is null, defaulting to 48 hrs from now");
-	        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd-MM-yyyy", Locale.ENGLISH);
-	        return now.plusHours(48).format(formatter);
-	    }
-
 	    // Convert given Date to LocalDateTime
 	    LocalDateTime givenDate = date.toInstant()
 	            .atZone(zone)
@@ -1778,9 +1770,7 @@ public class GMTServiceImpl implements GMTService {
 	@Override
 	public List<VendorRFQDto> getAllVendorsByCategory(Organization organization) {
 		logger.info("Entered To Get All Vendor");
-		String category = (organization != null && organization.getVendorcategory() != null)
-				? organization.getVendorcategory().trim() : null;
-		List<VendorRFQDto> responseList = orgDao.getAllVendorByCategory(category);
+		List<VendorRFQDto> responseList = orgDao.getAllVendorByCategory(organization.getVendorcategory());
 		if (CollectionUtils.isEmpty(responseList)) {
 			logger.error("No Vendors available in the Database");
 			throw new AppException(HttpStatus.NO_CONTENT.value(), ApplicationConstants.NO_DATA_FOUND,
@@ -2229,22 +2219,15 @@ public class GMTServiceImpl implements GMTService {
 
 	public boolean sendRfqToVendors(List<RfqVendor> rfq, Rfq rfqData) throws MessagingException {
 		logger.info("Entered to sendRfqToVendors()");
-		Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-		String username = null;
-		if (auth != null) {
-			if (auth.getPrincipal() instanceof UserDetails) {
-				username = ((UserDetails) auth.getPrincipal()).getUsername();
-			} else {
-				username = auth.getName();
-			}
-		}
+		UserDetails userDetails = (UserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+		String username = userDetails.getUsername();
 		//phone=userDetails.get check to get phone number 
 		String[] mailIdWrapper = new String[1]; // Using an array to wrap mailId
 		String[] passwordWrapper = new String[1];
 		//Updated Delivery Date
 		String rfqDueDate = buildingRfqDueDate(rfqData.getDeliveryDate());
 		logger.info("username-->", username);
-		EmailUser res = (username != null) ? emailUserRepo.findByEmail(username) : null;
+		EmailUser res = emailUserRepo.findByEmail(username);
 		if (res != null) {
 			mailIdWrapper[0] = res.getEmail();
 			passwordWrapper[0] = res.getPassword();
@@ -2284,10 +2267,7 @@ public class GMTServiceImpl implements GMTService {
 			logger.info("Saving data in RFQ Vendors");
 			rfqVendorDao.saveAll(sendVendors);
 			List<Organization> vendors = rfqData.getVendors();
-			if (CollectionUtils.isEmpty(vendors)) {
-				return true;
-			}
-			User users = (username != null) ? userDao.findByUsernameAndActive(username, true) : null;
+			User users = userDao.findByUsernameAndActive(username, true);
 			final String phoneNumber; // Declare phoneNumber as final
 			final String fullName;
 
@@ -2302,15 +2282,14 @@ public class GMTServiceImpl implements GMTService {
 			}
 
 			logger.info("Size of vendors List-->" + vendors.size());
-			final String fromMailId = mailIdWrapper[0];
-			final String fromPassword = passwordWrapper[0];
-
 			for(Organization vendor : vendors) {
+				
 				boolean isExistingUser=true;
 
 				try {
+					
 					String mobile ="";
-					if(vendor.getOrganizationPhonenumber() != null && !vendor.getOrganizationPhonenumber().startsWith("+91")) {
+					if(!vendor.getOrganizationPhonenumber().startsWith("+91")) {
 						mobile= "+91"+vendor.getOrganizationPhonenumber();
 					}else {
 						mobile=vendor.getOrganizationPhonenumber();
@@ -2323,70 +2302,87 @@ public class GMTServiceImpl implements GMTService {
 				    );
 					logger.info("User: {}",user);
 					
-					Date createdTS = (user != null) ? user.getCreatedTS() : null;
-					if (createdTS != null) {
-						LocalDate createdDate = createdTS.toInstant()
-						        .atZone(ZoneId.systemDefault())
-						        .toLocalDate();
-						LocalDate today = LocalDate.now();
-						isExistingUser = !createdDate.equals(today);
+					Date createdTS = user.getCreatedTS();
+					
+
+					LocalDate createdDate = createdTS.toInstant()
+					        .atZone(ZoneId.systemDefault())
+					        .toLocalDate();
+					logger.info("CreatedTs : {} ",createdDate);
+
+					LocalDate today = LocalDate.now();
+					logger.info("Todays Date : {} ",today);
+
+					if (createdDate.equals(today)) {
+						 logger.info("created today");
+						 isExistingUser=false;
+						
+					} else {
+						isExistingUser=true;
 					}
 					
-					String requestType = vendor.getRequestType();
+					String requestType = vendor.getRequestType(); // assuming you have this field in RFQ
 					logger.info("Request Type : {}",requestType);
 
 					if ("Forward".equalsIgnoreCase(requestType)) {
-						if(!isExistingUser) {
+						if(isExistingUser==false) {
 							long count = rfqVendorDao.countCredentialEmailsSent(vendor.getId());
 							RfqVendor rfqVendor = rfqVendorDao.findLatestByOrganizationUuid(vendor.getId());
-							if (count==0) {
-								if (rfqVendor != null) {
-									rfqVendor.setIsRfqNotified((byte) 1);
-									rfqVendorDao.save(rfqVendor);
-								}
-								logger.info("New User Forward Email with credentials...");
-								MailUtility.emailNewRfqForNoPR(subjectPrefix,"NewRfq", javaMailSender, rfqData, host, vendor.getEmail(),
-										username, vendor.getOtherEmails(), phoneNumber, rfqDueDate, fullName, fromMailId,
-										fromPassword, vendor.getId(),vendor.getOrganizationPhonenumber());
-							} else {
-								logger.info("New User Forward Email without credentials...");
-								MailUtility.emailNewRfqForNoPRForExistingUsers(subjectPrefix,"NewRfq", javaMailSender, rfqData, host, vendor.getEmail(),
-										username, vendor.getOtherEmails(), phoneNumber, rfqDueDate, fullName, fromMailId,
-										fromPassword, vendor.getId(),vendor.getOrganizationPhonenumber());
-							}
-						} else {
+							logger.info("id : {}",rfqVendor.getId());
+							logger.info("notification status : {}",rfqVendor.getIsRfqNotified());
+		                       if (count==0) {
+		                         rfqVendor.setIsRfqNotified((byte) 1);
+		                          rfqVendorDao.save(rfqVendor);
+		                          logger.info("New User Forward Email with credentials...");
+									MailUtility.emailNewRfqForNoPR(subjectPrefix,"NewRfq", javaMailSender, rfqData, host, vendor.getEmail(),
+											username, vendor.getOtherEmails(), phoneNumber, rfqDueDate, fullName, mailIdWrapper[0],
+											passwordWrapper[0], vendor.getId(),vendor.getOrganizationPhonenumber());
+		                         }else {
+		                        	 logger.info("New User Forward Email without credentials...");
+		                        	 MailUtility.emailNewRfqForNoPRForExistingUsers(subjectPrefix,"NewRfq", javaMailSender, rfqData, host, vendor.getEmail(),
+		 									username, vendor.getOtherEmails(), phoneNumber, rfqDueDate, fullName, mailIdWrapper[0],
+		 									passwordWrapper[0], vendor.getId(),vendor.getOrganizationPhonenumber());
+		                         }
+							
+							
+						}else {
 							logger.info("Existing User Forward Email...");
 							MailUtility.emailNewRfqForNoPRForExistingUsers(subjectPrefix,"NewRfq", javaMailSender, rfqData, host, vendor.getEmail(),
-									username, vendor.getOtherEmails(), phoneNumber, rfqDueDate, fullName, fromMailId,
-									fromPassword, vendor.getId(),vendor.getOrganizationPhonenumber());
+									username, vendor.getOtherEmails(), phoneNumber, rfqDueDate, fullName, mailIdWrapper[0],
+									passwordWrapper[0], vendor.getId(),vendor.getOrganizationPhonenumber());
 						}
+						
 					} else {
-						if(!isExistingUser) {
+						// Send the new “invite” email
+						if(isExistingUser==false) {
+							
 							RfqVendor rfqVendor = rfqVendorDao.findLatestByOrganizationUuid(vendor.getId());
 							long count = rfqVendorDao.countCredentialEmailsSent(vendor.getId());
-							if (count==0) {
-								if (rfqVendor != null) {
-									rfqVendor.setIsRfqNotified((byte) 1);
-									rfqVendorDao.save(rfqVendor);
-								}
-								logger.info("New User Invite Email with credentials...");
-								MailUtility.emailInviteRfq(javaMailSender, rfqData, host, vendor.getEmail(), username,
-										vendor.getOtherEmails(), phoneNumber, fullName, fromMailId, fromPassword, vendor.getOrganizationPhonenumber());
-								MailUtility.emailSendVendorLoginCredentials(javaMailSender, host, vendor.getEmail(), username,
-										vendor.getOtherEmails(), phoneNumber, fullName, fromMailId, fromPassword, vendor.getOrganizationPhonenumber());
-							} else {
-								logger.info("New User Invite Email without credentials...");
-								MailUtility.emailInviteRfqForExistingUsers(javaMailSender, rfqData, host, vendor.getEmail(), username,
-										vendor.getOtherEmails(), phoneNumber, fullName, fromMailId, fromPassword, vendor.getOrganizationPhonenumber());
-							}
-						} else {
-							logger.info("Existing User Invite Email...");
-							MailUtility.emailInviteRfqForExistingUsers(javaMailSender, rfqData, host, vendor.getEmail(), username,
-									vendor.getOtherEmails(), phoneNumber, fullName, fromMailId, fromPassword, vendor.getOrganizationPhonenumber());
+		                       if (count==0) {
+		                         rfqVendor.setIsRfqNotified((byte) 1);
+		                          rfqVendorDao.save(rfqVendor);
+		                          logger.info("New User Invite Email with credentials...");
+							        MailUtility.emailInviteRfq(javaMailSender, rfqData, host, vendor.getEmail(), username,
+											vendor.getOtherEmails(), phoneNumber, fullName, mailIdWrapper[0], passwordWrapper[0],vendor.getOrganizationPhonenumber());
+									MailUtility.emailSendVendorLoginCredentials(javaMailSender, host, vendor.getEmail(), username,
+											vendor.getOtherEmails(), phoneNumber, fullName, mailIdWrapper[0], passwordWrapper[0],vendor.getOrganizationPhonenumber());
+		                         }else {
+		                        	 logger.info("New User Invite Email without credentials...");
+		                        	 MailUtility.emailInviteRfqForExistingUsers(javaMailSender, rfqData, host, vendor.getEmail(), username,
+												vendor.getOtherEmails(), phoneNumber, fullName, mailIdWrapper[0], passwordWrapper[0],vendor.getOrganizationPhonenumber());
+		                         }
+					       
+						}else {
+							
+							 logger.info("Existing User Invite Email...");
+						        MailUtility.emailInviteRfqForExistingUsers(javaMailSender, rfqData, host, vendor.getEmail(), username,
+										vendor.getOtherEmails(), phoneNumber, fullName, mailIdWrapper[0], passwordWrapper[0],vendor.getOrganizationPhonenumber());
 						}
+						
 					}
-				} catch (Exception e) {
-					logger.error("Error sending email to vendor: " + vendor.getEmail(), e);
+					
+				} catch (MessagingException e) {
+					e.printStackTrace();
 				}
 			}
 
@@ -2676,21 +2672,15 @@ public class GMTServiceImpl implements GMTService {
 	public boolean resendRfqToVendors(List<GmtRfqSellerDto> vendors, Rfq rfqData) throws MessagingException {
 		logger.info("Entered to sendRfqToVendors()");
 		try {
-			Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-			String username = null;
-			if (auth != null) {
-				if (auth.getPrincipal() instanceof UserDetails) {
-					username = ((UserDetails) auth.getPrincipal()).getUsername();
-				} else {
-					username = auth.getName();
-				}
-			}
+			UserDetails userDetails = (UserDetails) SecurityContextHolder.getContext().getAuthentication()
+					.getPrincipal();
+			String username = userDetails.getUsername();
 			String[] mailIdWrapper = new String[1]; // Using an array to wrap mailId
 			String[] passwordWrapper = new String[1];
 
 			String rfqDueDate = buildingRfqDueDate(rfqData.getDeliveryDate());
 			logger.info("username-->", username);
-			EmailUser res = (username != null) ? emailUserRepo.findByEmail(username) : null;
+			EmailUser res = emailUserRepo.findByEmail(username);
 			if (res != null) {
 				mailIdWrapper[0] = res.getEmail();
 				passwordWrapper[0] = res.getPassword();
@@ -2700,7 +2690,7 @@ public class GMTServiceImpl implements GMTService {
 			}
 			logger.info("Mail is sending from::", mailIdWrapper[0]);
 
-			User users = (username != null) ? userDao.findByUsernameAndActive(username, true) : null;
+			User users = userDao.findByUsernameAndActive(username, true);
 			final String phoneNumber; // Declare phoneNumber as final
 			final String fullName;
 
@@ -2713,26 +2703,20 @@ public class GMTServiceImpl implements GMTService {
 				phoneNumber = null; // Initialize phoneNumber
 				fullName = null;
 			}
-			final String fromMailId = mailIdWrapper[0];
-			final String fromPassword = passwordWrapper[0];
-
-			if (vendors != null) {
-				for (GmtRfqSellerDto gmtVendor : vendors) {
-					String vendorId = gmtVendor.getVendorUuid();
-					Optional<Organization> orgData = orgDao.findById(vendorId);
-					String vendorPhoneNumber = orgData.get().getOrganizationPhonenumber();
-					logger.info("Getting Users List for vendor {}", vendorId);
-					List<String> usersList = userDao.findByOrg(vendorId);
-					if (!CollectionUtils.isEmpty(usersList)) {
-						MailUtility.emailNewRfqForNoPR(subjectPrefix, "NewRfq", javaMailSender, rfqData, host, usersList.get(0), username,
-								gmtVendor.getOtherEmails(), phoneNumber, rfqDueDate, fullName, fromMailId,
-								fromPassword, vendorId, vendorPhoneNumber);
-					}
+			for (GmtRfqSellerDto gmtVendor : vendors) {
+				String vendorId = gmtVendor.getVendorUuid();
+				Organization orgData = orgDao.findById(vendorId).get();
+				String vendorPhoneNumber = orgData.getOrganizationPhonenumber();
+				logger.info("Getting Users List");
+				List<String> usersList = userDao.findByOrg(vendorId);
+				if (!CollectionUtils.isEmpty(usersList)) {
+					MailUtility.emailNewRfqForNoPR(subjectPrefix,"NewRfq", javaMailSender, rfqData, host, usersList.get(0), username,
+							gmtVendor.getOtherEmails(), phoneNumber, rfqDueDate, fullName, mailIdWrapper[0],
+							passwordWrapper[0], vendorId,vendorPhoneNumber);
 				}
 			}
 			return true;
 		} catch (Exception e) {
-			logger.error("Exception in resendRfqToVendors()", e);
 			return false;
 		}
 

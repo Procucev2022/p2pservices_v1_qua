@@ -1294,6 +1294,7 @@ public class MailUtility {
 			// mimeMessageHelper.setCc(ccAddresses);
 			mimeMessageHelper.setSubject(subject);
 			mimeMessageHelper.setText("Please find the attachments below.");
+			mimeMessageHelper.getMimeMessage().setContent(multipart);
 			CompletableFuture.runAsync(() -> {
 				try {
 					javaMailSender.send(mimeMessage);
