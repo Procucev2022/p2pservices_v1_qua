@@ -433,4 +433,84 @@ public class GeminiApiClientTest {
                 .thenReturn(new ResponseEntity<>(nonArrayCandidates, HttpStatus.OK));
         assertThrows(ApplicationException.class, () -> client.generateContent("prompt"));
     }
+
+    @Test
+    @DisplayName("Test generateContentDetailed and generateContentWithSpecificModelDetailed with token usage branches")
+    void testDetailedMethodsAndTokenUsage() throws Exception {
+        // 1. generateContentDetailed with full usageMetadata
+        String responseWithUsage = "{\n" +
+                "  \"candidates\": [\n" +
+                "    {\n" +
+                "      \"content\": {\"parts\": [{\"text\": \"Response with tokens\"}]}\n" +
+                "    }\n" +
+                "  ],\n" +
+                "  \"usageMetadata\": {\n" +
+                "    \"promptTokenCount\": 120,\n" +
+                "    \"candidatesTokenCount\": 45,\n" +
+                "    \"totalTokenCount\": 165\n" +
+                "  }\n" +
+                "}";
+
+        Mockito.when(restTemplate.postForEntity(contains("gemini-3.7-flash"), any(), eq(String.class)))
+                .thenReturn(new ResponseEntity<>(responseWithUsage, HttpStatus.OK));
+
+        com.portal.procucev.rfq.model.GeminiContentResponse resp = client.generateContentDetailed("Detailed prompt", null);
+        assertNotNull(resp);
+        assertEquals("Response with tokens", resp.getText());
+        assertEquals("gemini-3.7-flash", resp.getModel());
+        assertEquals(120, resp.getPromptTokens());
+        assertEquals(45, resp.getCandidateTokens());
+        assertEquals(165, resp.getTotalTokens());
+
+        // 2. totalTokenCount is 0, but promptTokenCount > 0 -> totalTokens calculated as sum
+        String responseWithZeroTotalPromptOnly = "{\n" +
+                "  \"candidates\": [\n" +
+                "    {\n" +
+                "      \"content\": {\"parts\": [{\"text\": \"Response sum tokens prompt\"}]}\n" +
+                "    }\n" +
+                "  ],\n" +
+                "  \"usageMetadata\": {\n" +
+                "    \"promptTokenCount\": 80,\n" +
+                "    \"candidatesTokenCount\": 0,\n" +
+                "    \"totalTokenCount\": 0\n" +
+                "  }\n" +
+                "}";
+
+        Mockito.when(restTemplate.postForEntity(contains("gemini-3.7-flash"), any(), eq(String.class)))
+                .thenReturn(new ResponseEntity<>(responseWithZeroTotalPromptOnly, HttpStatus.OK));
+
+        com.portal.procucev.rfq.model.GeminiContentResponse respSumPrompt = client.generateContentDetailed("Detailed prompt 2", List.of());
+        assertEquals(80, respSumPrompt.getPromptTokens());
+        assertEquals(0, respSumPrompt.getCandidateTokens());
+        assertEquals(80, respSumPrompt.getTotalTokens());
+
+        // 3. totalTokenCount is 0, candidateTokenCount > 0 -> totalTokens calculated as sum
+        String responseWithZeroTotalCandidateOnly = "{\n" +
+                "  \"candidates\": [\n" +
+                "    {\n" +
+                "      \"content\": {\"parts\": [{\"text\": \"Response sum tokens candidate\"}]}\n" +
+                "    }\n" +
+                "  ],\n" +
+                "  \"usageMetadata\": {\n" +
+                "    \"promptTokenCount\": 0,\n" +
+                "    \"candidatesTokenCount\": 60,\n" +
+                "    \"totalTokenCount\": 0\n" +
+                "  }\n" +
+                "}";
+
+        Mockito.when(restTemplate.postForEntity(contains("custom-model"), any(), eq(String.class)))
+                .thenReturn(new ResponseEntity<>(responseWithZeroTotalCandidateOnly, HttpStatus.OK));
+
+        com.portal.procucev.rfq.model.GeminiContentResponse respSumCandidate =
+                client.generateContentWithSpecificModelDetailed("custom-model", "Specific prompt", List.of(new InlineImage("a.png", "image/png", "base64")));
+        assertEquals(0, respSumCandidate.getPromptTokens());
+        assertEquals(60, respSumCandidate.getCandidateTokens());
+        assertEquals(60, respSumCandidate.getTotalTokens());
+
+        // 4. parts is not an array
+        String nonArrayParts = "{\"candidates\": [{\"content\": {\"parts\": \"not-array\"}}]}";
+        Mockito.when(restTemplate.postForEntity(anyString(), any(), eq(String.class)))
+                .thenReturn(new ResponseEntity<>(nonArrayParts, HttpStatus.OK));
+        assertThrows(ApplicationException.class, () -> client.generateContentDetailed("prompt", null));
+    }
 }

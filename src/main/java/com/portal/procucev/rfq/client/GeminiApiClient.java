@@ -132,8 +132,7 @@ public class GeminiApiClient {
     }
 
     public String generateContentWithSpecificModel(String model, String promptText, List<InlineImage> images) throws Exception {
-        GeminiContentResponse resp = generateContentWithSpecificModelDetailed(model, promptText, images);
-        return resp != null ? resp.getText() : null;
+        return generateContentWithSpecificModelDetailed(model, promptText, images).getText();
     }
 
     public com.portal.procucev.rfq.model.GeminiContentResponse generateContentWithSpecificModelDetailed(String model, String promptText, List<InlineImage> images) throws Exception {
@@ -148,8 +147,7 @@ public class GeminiApiClient {
      * Any downtime, 503, 429, or network failure automatically falls back to the next model.
      */
     public String generateContent(String promptText, List<InlineImage> images) {
-        com.portal.procucev.rfq.model.GeminiContentResponse resp = generateContentDetailed(promptText, images);
-        return resp != null ? resp.getText() : null;
+        return generateContentDetailed(promptText, images).getText();
     }
 
     public com.portal.procucev.rfq.model.GeminiContentResponse generateContentDetailed(String promptText, List<InlineImage> images) {
@@ -172,10 +170,6 @@ public class GeminiApiClient {
         log.error("All Gemini models in chain failed: {}", models);
         throw new ApplicationException("All Gemini AI API calls failed across models " + models + ": "
                 + (lastException != null ? lastException.getMessage() : "Unknown error"), lastException);
-    }
-
-    private String callGeminiModel(String model, String promptText, List<InlineImage> images, String currentApiKey) throws Exception {
-        return callGeminiModelDetailed(model, promptText, images, currentApiKey).getText();
     }
 
     private com.portal.procucev.rfq.model.GeminiContentResponse callGeminiModelDetailed(String model, String promptText, List<InlineImage> images, String currentApiKey) throws Exception {
