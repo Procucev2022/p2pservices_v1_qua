@@ -1,10 +1,6 @@
 package com.portal.procucev.rfq;
 
 import com.portal.procucev.rfq.util.FileUtil;
-import org.apache.pdfbox.pdmodel.PDDocument;
-import org.apache.pdfbox.pdmodel.PDPage;
-import org.apache.pdfbox.pdmodel.PDPageContentStream;
-import org.apache.pdfbox.pdmodel.font.PDType1Font;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.apache.poi.xwpf.usermodel.XWPFDocument;
@@ -18,6 +14,7 @@ import org.mockito.Mockito;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.lang.reflect.Constructor;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -55,17 +52,15 @@ public class FileUtilTest {
     @DisplayName("Test extractTextFromFile with PDF file")
     void testExtractTextFromPdf() throws Exception {
         File pdfFile = new File(tempDir.toFile(), "sample.pdf");
-        try (PDDocument doc = new PDDocument()) {
-            PDPage page = new PDPage();
-            doc.addPage(page);
-            try (PDPageContentStream contents = new PDPageContentStream(doc, page)) {
-                contents.beginText();
-                contents.setFont(PDType1Font.HELVETICA_BOLD, 12);
-                contents.newLineAtOffset(100, 700);
-                contents.showText("Sample PDF Requirement");
-                contents.endText();
-            }
-            doc.save(pdfFile);
+        String minimalPdf = "%PDF-1.4\n"
+                + "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+                + "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+                + "3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>\nendobj\n"
+                + "4 0 obj\n<< /Length 55 >>\nstream\nBT\n/F1 12 Tf\n100 700 Td\n(Sample PDF Requirement) Tj\nET\nendstream\nendobj\n"
+                + "5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n"
+                + "xref\n0 6\n0000000000 65535 f \n0000000009 00000 n \n0000000058 00000 n \n0000000115 00000 n \n0000000234 00000 n \n0000000340 00000 n \ntrailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n422\n%%EOF\n";
+        try (FileOutputStream fos = new FileOutputStream(pdfFile)) {
+            fos.write(minimalPdf.getBytes(StandardCharsets.US_ASCII));
         }
         String extracted = FileUtil.extractTextFromFile(pdfFile);
         assertTrue(extracted.contains("Sample PDF Requirement"));
