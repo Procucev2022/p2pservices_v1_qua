@@ -1208,6 +1208,24 @@ class GMTServiceImplTest {
             verify(rfqVendorDao).saveAll(anyList());
             verify(rfqVendorDao, times(2)).save(any(RfqVendor.class));
 
+            // FNEW0 (New vendor, count=0, Forward): receives RFQ email AND login credentials email
+            mail.verify(() -> MailUtility.emailNewRfqForNoPR(any(), any(), any(), any(), any(), eq("forward-new0@example.com"),
+                    any(), any(), any(), any(), any(), any(), any(), any(), any()), times(1));
+            mail.verify(() -> MailUtility.emailSendVendorLoginCredentials(any(), any(), eq("forward-new0@example.com"),
+                    any(), any(), any(), any(), any(), any(), any()), times(1));
+
+            // FNEW1 (New vendor, count=1, Forward): receives RFQ email only, NO login credentials email
+            mail.verify(() -> MailUtility.emailNewRfqForNoPRForExistingUsers(any(), any(), any(), any(), any(), eq("forward-new1@example.com"),
+                    any(), any(), any(), any(), any(), any(), any(), any(), any()), times(1));
+            mail.verify(() -> MailUtility.emailSendVendorLoginCredentials(any(), any(), eq("forward-new1@example.com"),
+                    any(), any(), any(), any(), any(), any(), any()), never());
+
+            // FEX (Existing vendor, Forward): receives RFQ email only, NO login credentials email
+            mail.verify(() -> MailUtility.emailNewRfqForNoPRForExistingUsers(any(), any(), any(), any(), any(), eq("forward-existing@example.com"),
+                    any(), any(), any(), any(), any(), any(), any(), any(), any()), times(1));
+            mail.verify(() -> MailUtility.emailSendVendorLoginCredentials(any(), any(), eq("forward-existing@example.com"),
+                    any(), any(), any(), any(), any(), any(), any()), never());
+
             // INEW0 (New vendor, count=0): receives RFQ email AND login credentials email
             mail.verify(() -> MailUtility.emailInviteRfq(any(), any(), any(), eq("invite-new0@example.com"),
                     any(), any(), any(), any(), any(), any(), any()), times(1));

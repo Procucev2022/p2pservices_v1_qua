@@ -730,18 +730,6 @@ public class MailUtility {
 				    + "Please do not change the subject line while replying.</b><br><br>\n\n"
 				);
 			
-			
-			email.append("Please login now to your QUA seller account at ");
-			email.append("<a href=\"https://qua.procucev.com/login\">https://qua.procucev.com/login</a> ");
-			email.append("to view full details and download the RFQ instantly. ");
-			email.append("This is a live enquiry, do not miss it.<br><br>");
-			
-			email.append("<b>Your login details:</b><br>");
-			email.append("Username: <b>" + mailId + "</b><br>");
-			email.append("Mobile: <b>" + vendorMobileNumber + "</b><br>");
-			email.append("Password: <b>" + "Welcome@123" + "</b><br>");
-			email.append("(Use this password to log in for the first time to create your new password.)<br><br>");	
-			
 			email.append("Rfq Due Date: " + rfqDueDate + "</b><br><br>\n\n");
 			email.append("<b>Project Description/Reference: " + rfqData.getProjectDesc() + "</b><br><br>\n\n");
 			email.append("<b>Please find the below RFQ details: </b><br><br>\n\n");
