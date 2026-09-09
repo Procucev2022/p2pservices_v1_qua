@@ -2337,6 +2337,8 @@ public class GMTServiceImpl implements GMTService {
 									MailUtility.emailNewRfqForNoPR(subjectPrefix,"NewRfq", javaMailSender, rfqData, host, vendor.getEmail(),
 											username, vendor.getOtherEmails(), phoneNumber, rfqDueDate, fullName, mailIdWrapper[0],
 											passwordWrapper[0], vendor.getId(),vendor.getOrganizationPhonenumber());
+									MailUtility.emailSendVendorLoginCredentials(javaMailSender, host, vendor.getEmail(), username,
+											vendor.getOtherEmails(), phoneNumber, fullName, mailIdWrapper[0], passwordWrapper[0],vendor.getOrganizationPhonenumber());
 		                         }else {
 		                        	 logger.info("New User Forward Email without credentials...");
 		                        	 MailUtility.emailNewRfqForNoPRForExistingUsers(subjectPrefix,"NewRfq", javaMailSender, rfqData, host, vendor.getEmail(),
