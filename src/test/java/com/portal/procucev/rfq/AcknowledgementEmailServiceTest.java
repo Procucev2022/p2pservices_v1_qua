@@ -95,6 +95,24 @@ public class AcknowledgementEmailServiceTest {
     }
 
     @Test
+    @DisplayName("Case Demo Buyer: Unregistered buyer -> Demo registration email with dev URL and Verification Pending")
+    void testSendDemoBuyerRegistrationEmail() {
+        service.sendDemoBuyerRegistrationEmail("newbuyer@example.com", "Alice Smith", "https://p2pv1dev-ana9azfph7chftea.centralindia-01.azurewebsites.net/login/reg-client");
+
+        ArgumentCaptor<SimpleMailMessage> captor = ArgumentCaptor.forClass(SimpleMailMessage.class);
+        Mockito.verify(mailSender).send(captor.capture());
+        SimpleMailMessage sentMsg = captor.getValue();
+
+        assertEquals("rfq@procucev.com", sentMsg.getFrom());
+        assertEquals("newbuyer@example.com", sentMsg.getTo()[0]);
+        assertEquals("Account Created – Verification Pending to Process Your RFQ", sentMsg.getSubject());
+        assertTrue(sentMsg.getText().contains("Dear Alice Smith,"));
+        assertTrue(sentMsg.getText().contains("Account Created – Verification Pending"));
+        assertTrue(sentMsg.getText().contains("https://p2pv1dev-ana9azfph7chftea.centralindia-01.azurewebsites.net/login/reg-client"));
+        assertTrue(sentMsg.getText().contains("Verify your email address and mobile phone number with OTP"));
+    }
+
+    @Test
     @DisplayName("Case 3: Registered buyer + missing details -> CASE 3 Template sent to govardhan.kilari@procucev.com")
     void testCase3DetailsMissingAcknowledgement() {
         Buyer buyer = Buyer.builder().email("buyer@test.com").name("Jane").build();

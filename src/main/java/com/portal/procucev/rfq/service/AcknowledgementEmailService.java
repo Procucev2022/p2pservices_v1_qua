@@ -97,20 +97,21 @@ public class AcknowledgementEmailService {
         }
         try {
             String name = (buyerName != null && !buyerName.isBlank()) ? buyerName.trim() : "Valued Customer";
-            String link = (portalUrl != null && !portalUrl.isBlank()) ? portalUrl.trim() : "https://qua.procucev.com/buyer";
+            String link = (portalUrl != null && !portalUrl.isBlank()) ? portalUrl.trim() : "https://p2pv1dev-ana9azfph7chftea.centralindia-01.azurewebsites.net/login/reg-client";
 
             SimpleMailMessage mailMessage = createBaseMailMessage(buyerEmail.trim());
-            mailMessage.setSubject("Welcome to Procucev – Complete Your Registration to Process Your RFQ");
+            mailMessage.setSubject("Account Created – Verification Pending to Process Your RFQ");
             mailMessage.setText("Dear " + name + ",\n\n"
                     + "Thank you for reaching out to Procucev with your requirement.\n\n"
-                    + "We noticed that you are not yet a registered buyer on our platform. To ensure security and match your requirement with verified suppliers, a temporary demo account has been created for you.\n\n"
-                    + "Your RFQ request has been received and safely saved. To release and process your RFQ, please complete your profile verification:\n\n"
-                    + "👉 Complete Registration & Profile: " + link + "\n\n"
-                    + "Steps to complete:\n"
-                    + "1. Log in or open the registration verification link above.\n"
-                    + "2. Verify your email and mobile phone number with OTP.\n"
-                    + "3. Confirm your company details and delivery pincode.\n\n"
-                    + "Once your profile is completed, your RFQ will be automatically processed and sent to top-rated suppliers immediately!\n\n"
+                    + "Your account has been created on Procucev, and your RFQ requirement has been received and safely saved.\n\n"
+                    + "Status: Account Created – Verification Pending\n\n"
+                    + "To complete verification and release your RFQ to verified suppliers, please click the link below:\n\n"
+                    + "👉 Complete Verification: " + link + "\n\n"
+                    + "Verification Steps:\n"
+                    + "1. Click on the verification link above.\n"
+                    + "2. Verify your email address and mobile phone number with OTP.\n"
+                    + "3. Confirm your company details and delivery location / pincode.\n\n"
+                    + "Once your verification is completed, your RFQ will be automatically processed and forwarded to verified suppliers right away!\n\n"
                     + "If you need any assistance, feel free to reply to this email or contact us at +91-7996170801.\n\n"
                     + "Best regards,\nTeam Procucev");
 
