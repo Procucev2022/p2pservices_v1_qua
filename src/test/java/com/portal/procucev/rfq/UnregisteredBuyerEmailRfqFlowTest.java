@@ -101,7 +101,7 @@ class UnregisteredBuyerEmailRfqFlowTest {
         emailProcessorService.setDemoBuyerRegistrationService(demoBuyerRegistrationService);
         ReflectionTestUtils.setField(emailProcessorService, "processedFolder", "Processed");
         ReflectionTestUtils.setField(emailProcessorService, "errorFolder", "Error");
-        ReflectionTestUtils.setField(emailProcessorService, "buyerPortalUrl", "https://p2pv1dev-ana9azfph7chftea.centralindia-01.azurewebsites.net/login/reg-client");
+        ReflectionTestUtils.setField(emailProcessorService, "buyerPortalUrl", "https://p2pv1dev-ana9azfph7chftea.centralindia-01.azurewebsites.net/login");
 
         pendingRfqResumeService = new PendingRfqResumeService(
                 emailTransactionRepository, emailProcessorService,
@@ -162,7 +162,7 @@ class UnregisteredBuyerEmailRfqFlowTest {
         // Assert Step 1 outcomes:
         assertEquals(StatusConstants.PENDING_BUYER_REGISTRATION, result);
         verifyNoInteractions(aiExtractionService); // CRITICAL: No Gemini AI call for unregistered sender
-        verify(acknowledgementEmailService).sendDemoBuyerRegistrationEmail(eq(senderEmail), eq("Jane Doe"), eq("https://p2pv1dev-ana9azfph7chftea.centralindia-01.azurewebsites.net/login/reg-client"));
+        verify(acknowledgementEmailService).sendDemoBuyerRegistrationEmail(eq(senderEmail), eq("Jane Doe"), eq("https://p2pv1dev-ana9azfph7chftea.centralindia-01.azurewebsites.net/login"));
         verify(emailReaderService).moveMessageToFolder(messageId, "Processed");
         verify(emailTransactionRepository, atLeastOnce()).save(argThat(tx ->
                 StatusConstants.PENDING_BUYER_REGISTRATION.equals(tx.getStatus())

@@ -97,7 +97,7 @@ public class AcknowledgementEmailService {
         }
         try {
             String name = (buyerName != null && !buyerName.isBlank()) ? buyerName.trim() : "Valued Customer";
-            String link = (portalUrl != null && !portalUrl.isBlank()) ? portalUrl.trim() : "https://p2pv1dev-ana9azfph7chftea.centralindia-01.azurewebsites.net/login/reg-client";
+            String link = (portalUrl != null && !portalUrl.isBlank()) ? portalUrl.trim() : "https://p2pv1dev-ana9azfph7chftea.centralindia-01.azurewebsites.net/login";
 
             SimpleMailMessage mailMessage = createBaseMailMessage(buyerEmail.trim());
             mailMessage.setSubject("Account Created – Verification Pending to Process Your RFQ");
@@ -105,13 +105,16 @@ public class AcknowledgementEmailService {
                     + "Thank you for reaching out to Procucev with your requirement.\n\n"
                     + "Your account has been created on Procucev, and your RFQ requirement has been received and safely saved.\n\n"
                     + "Status: Account Created – Verification Pending\n\n"
-                    + "To complete verification and release your RFQ to verified suppliers, please click the link below:\n\n"
-                    + "👉 Complete Verification: " + link + "\n\n"
-                    + "Verification Steps:\n"
-                    + "1. Click on the verification link above.\n"
-                    + "2. Verify your email address and mobile phone number with OTP.\n"
-                    + "3. Confirm your company details and delivery location / pincode.\n\n"
-                    + "Once your verification is completed, your RFQ will be automatically processed and forwarded to verified suppliers right away!\n\n"
+                    + "Login Details:\n"
+                    + "🌐 Login URL: " + link + "\n"
+                    + "✉️ Email ID: " + buyerEmail.trim() + "\n"
+                    + "📱 Phone Number: 0000000000\n\n"
+                    + "Steps to Access Your Account & Process Your RFQ:\n"
+                    + "1. Open the login link above.\n"
+                    + "2. Enter your Email ID (" + buyerEmail.trim() + ") and Phone Number (0000000000).\n"
+                    + "3. Select 'Login with OTP' to receive an OTP on this email address.\n"
+                    + "4. Once logged in to the Buyer Portal, go to your Profile to update your company details and verify your mobile phone number with OTP.\n\n"
+                    + "Once your profile and phone number are updated, your RFQ will be automatically processed and forwarded to verified suppliers right away!\n\n"
                     + "If you need any assistance, feel free to reply to this email or contact us at +91-7996170801.\n\n"
                     + "Best regards,\nTeam Procucev");
 

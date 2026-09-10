@@ -73,7 +73,7 @@ public class EmailProcessorService {
         this.demoBuyerRegistrationService = service;
     }
 
-    @Value("${app.rfq.buyer-portal-url:https://p2pv1dev-ana9azfph7chftea.centralindia-01.azurewebsites.net/login/reg-client}")
+    @Value("${app.rfq.buyer-portal-url:https://p2pv1dev-ana9azfph7chftea.centralindia-01.azurewebsites.net/login}")
     private String buyerPortalUrl;
 
     @Value("${app.mail.processed-folder:Processed}")

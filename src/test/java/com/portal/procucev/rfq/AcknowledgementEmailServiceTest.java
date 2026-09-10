@@ -95,9 +95,9 @@ public class AcknowledgementEmailServiceTest {
     }
 
     @Test
-    @DisplayName("Case Demo Buyer: Unregistered buyer -> Demo registration email with dev URL and Verification Pending")
+    @DisplayName("Case Demo Buyer: Unregistered buyer -> Demo registration email with dev login URL and Verification Pending")
     void testSendDemoBuyerRegistrationEmail() {
-        service.sendDemoBuyerRegistrationEmail("newbuyer@example.com", "Alice Smith", "https://p2pv1dev-ana9azfph7chftea.centralindia-01.azurewebsites.net/login/reg-client");
+        service.sendDemoBuyerRegistrationEmail("newbuyer@example.com", "Alice Smith", "https://p2pv1dev-ana9azfph7chftea.centralindia-01.azurewebsites.net/login");
 
         ArgumentCaptor<SimpleMailMessage> captor = ArgumentCaptor.forClass(SimpleMailMessage.class);
         Mockito.verify(mailSender).send(captor.capture());
@@ -108,8 +108,9 @@ public class AcknowledgementEmailServiceTest {
         assertEquals("Account Created – Verification Pending to Process Your RFQ", sentMsg.getSubject());
         assertTrue(sentMsg.getText().contains("Dear Alice Smith,"));
         assertTrue(sentMsg.getText().contains("Account Created – Verification Pending"));
-        assertTrue(sentMsg.getText().contains("https://p2pv1dev-ana9azfph7chftea.centralindia-01.azurewebsites.net/login/reg-client"));
-        assertTrue(sentMsg.getText().contains("Verify your email address and mobile phone number with OTP"));
+        assertTrue(sentMsg.getText().contains("https://p2pv1dev-ana9azfph7chftea.centralindia-01.azurewebsites.net/login"));
+        assertTrue(sentMsg.getText().contains("0000000000"));
+        assertTrue(sentMsg.getText().contains("Login with OTP"));
     }
 
     @Test
