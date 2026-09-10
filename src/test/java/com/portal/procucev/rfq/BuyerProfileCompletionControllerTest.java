@@ -142,7 +142,7 @@ class BuyerProfileCompletionControllerTest {
     void testSendPhoneOtp_RejectsDemoPhone() {
         BuyerOtpRequest request = BuyerOtpRequest.builder()
                 .email("buyer@example.com")
-                .phone("0000000000")
+                .phone(StatusConstants.DEMO_PHONE_NUMBER)
                 .build();
 
         ResponseEntity<ApiResponse<String>> response = controller.sendPhoneOtp(request);

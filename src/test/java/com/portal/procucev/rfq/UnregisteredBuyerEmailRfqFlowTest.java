@@ -150,7 +150,7 @@ class UnregisteredBuyerEmailRfqFlowTest {
         demoUser.setId("USER-DEMO-1");
         demoUser.setUsername(senderEmail);
         demoUser.setFullName("Jane Doe");
-        demoUser.setPhone("0000000000");
+        demoUser.setPhone("9999999991");
         demoUser.setVerificationStatus(StatusConstants.DEMO_BUYER);
         demoUser.setActive(true);
 

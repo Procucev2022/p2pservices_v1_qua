@@ -109,7 +109,7 @@ public class AcknowledgementEmailServiceTest {
         assertTrue(sentMsg.getText().contains("Dear Alice Smith,"));
         assertTrue(sentMsg.getText().contains("Account Created – Verification Pending"));
         assertTrue(sentMsg.getText().contains("https://p2pv1dev-ana9azfph7chftea.centralindia-01.azurewebsites.net/login"));
-        assertTrue(sentMsg.getText().contains("0000000000"));
+        assertTrue(sentMsg.getText().contains("9999999991"));
         assertTrue(sentMsg.getText().contains("Login with OTP"));
     }
 

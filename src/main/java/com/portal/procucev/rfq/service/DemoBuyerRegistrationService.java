@@ -56,7 +56,7 @@ public class DemoBuyerRegistrationService {
     @Autowired
     private SelfRegistrationService selfRegistrationService;
 
-    @Value("${app.rfq.demo-phone:0000000000}")
+    @Value("${app.rfq.demo-phone:9999999991}")
     private String demoPhoneNumber;
 
     /**

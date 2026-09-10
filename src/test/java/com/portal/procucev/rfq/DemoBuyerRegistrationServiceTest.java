@@ -53,7 +53,7 @@ class DemoBuyerRegistrationServiceTest {
 
     @BeforeEach
     void setUp() {
-        ReflectionTestUtils.setField(service, "demoPhoneNumber", "0000000000");
+        ReflectionTestUtils.setField(service, "demoPhoneNumber", "9999999991");
     }
 
     @Test
@@ -155,6 +155,6 @@ class DemoBuyerRegistrationServiceTest {
     @Test
     @DisplayName("getDemoPhoneNumber returns configured value")
     void testGetDemoPhoneNumber() {
-        assertEquals("0000000000", service.getDemoPhoneNumber());
+        assertEquals("9999999991", service.getDemoPhoneNumber());
     }
 }

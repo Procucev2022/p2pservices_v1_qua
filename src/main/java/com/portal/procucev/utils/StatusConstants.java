@@ -325,6 +325,6 @@ public interface StatusConstants {
 	public static final String PROFILE_COMPLETED = "PROFILE_COMPLETED";
 
 	/** Predefined demo phone number used for auto-created buyer accounts. */
-	public static final String DEMO_PHONE_NUMBER = "0000000000";
+	public static final String DEMO_PHONE_NUMBER = "9999999991";
 
 }

@@ -34,6 +34,9 @@ public class AcknowledgementEmailService {
     @Value("${rfq.acknowledgement.failure.to:govardhan.kilari@procucev.com}")
     private String failureTo = "govardhan.kilari@procucev.com";
 
+    @Value("${app.rfq.demo-phone:9999999991}")
+    private String demoPhone = "9999999991";
+
     // CASE 1: RFQ SUCCESSFULLY CREATED
     public void sendSuccessAcknowledgement(List<RFQEntity> rfqEntities, Buyer buyer) {
         if (rfqEntities == null || rfqEntities.isEmpty()) {
@@ -108,10 +111,10 @@ public class AcknowledgementEmailService {
                     + "Login Details:\n"
                     + "🌐 Login URL: " + link + "\n"
                     + "✉️ Email ID: " + buyerEmail.trim() + "\n"
-                    + "📱 Phone Number: 0000000000\n\n"
+                    + "📱 Phone Number: " + demoPhone + "\n\n"
                     + "Steps to Access Your Account & Process Your RFQ:\n"
                     + "1. Open the login link above.\n"
-                    + "2. Enter your Email ID (" + buyerEmail.trim() + ") and Phone Number (0000000000).\n"
+                    + "2. Enter your Email ID (" + buyerEmail.trim() + ") and Phone Number (" + demoPhone + ").\n"
                     + "3. Select 'Login with OTP' to receive an OTP on this email address.\n"
                     + "4. Once logged in to the Buyer Portal, go to your Profile to update your company details and verify your mobile phone number with OTP.\n\n"
                     + "Once your profile and phone number are updated, your RFQ will be automatically processed and forwarded to verified suppliers right away!\n\n"
