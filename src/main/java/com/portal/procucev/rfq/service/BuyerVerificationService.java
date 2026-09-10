@@ -60,6 +60,19 @@ public class BuyerVerificationService {
         }
 
         log.info("Found registered portal user for email: {} (User ID: {})", normalizedEmail, portalUser.getId());
+
+        if (portalUser.getVerificationStatus() != null &&
+                (StatusConstants.DEMO_BUYER.equalsIgnoreCase(portalUser.getVerificationStatus())
+                 || StatusConstants.PHONE_VERIFIED.equalsIgnoreCase(portalUser.getVerificationStatus()))) {
+            log.warn("Buyer {} has unverified status '{}'. RFQ creation deferred until profile is completed.",
+                    normalizedEmail, portalUser.getVerificationStatus());
+            return Buyer.builder()
+                    .email(normalizedEmail)
+                    .name(extractNameFromEmail(normalizedEmail))
+                    .verified(false)
+                    .build();
+        }
+
         if (portalUser.getOrg() == null || portalUser.getOrg().getId() == null) {
             log.warn("Buyer verification failed: portal user {} has no organization.", normalizedEmail);
             return Buyer.builder()

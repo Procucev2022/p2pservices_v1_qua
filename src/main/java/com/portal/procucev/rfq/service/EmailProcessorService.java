@@ -20,6 +20,8 @@ import com.portal.procucev.rfq.repository.RFQRepository;
 import com.portal.procucev.rfq.repository.RfqAiTokenUsageRepository;
 import com.portal.procucev.rfq.repository.RfqItemRecordRepository;
 import com.portal.procucev.rfq.util.QuantityNormalizer;
+import com.portal.procucev.model.User;
+import com.portal.procucev.utils.StatusConstants;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -27,7 +29,10 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.io.File;
+import java.time.ZoneId;
 import java.util.*;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -61,6 +66,16 @@ public class EmailProcessorService {
         this.rfqAiTokenUsageRepository = repo;
     }
 
+    @Autowired(required = false)
+    private DemoBuyerRegistrationService demoBuyerRegistrationService;
+
+    public void setDemoBuyerRegistrationService(DemoBuyerRegistrationService service) {
+        this.demoBuyerRegistrationService = service;
+    }
+
+    @Value("${app.rfq.buyer-portal-url:https://qua.procucev.com/buyer}")
+    private String buyerPortalUrl;
+
     @Value("${app.mail.processed-folder:Processed}")
     private String processedFolder;
 
@@ -91,8 +106,9 @@ public class EmailProcessorService {
 
         for (EmailData email : unreadEmails) {
             processedCount++;
+            String status = null;
             try {
-                String status = processSingleEmail(email);
+                status = processSingleEmail(email);
                 if (isSuccessfulStatus(status)) {
                     successCount++;
                 } else if (isErrorStatus(status)) {
@@ -102,7 +118,9 @@ public class EmailProcessorService {
                 errorCount++;
                 log.error("Unhandled error processing email subject: '{}'", email.getSubject(), e);
             } finally {
-                deleteTemporaryAttachments(email);
+                if (!StatusConstants.PENDING_BUYER_REGISTRATION.equals(status)) {
+                    deleteTemporaryAttachments(email);
+                }
             }
         }
 
@@ -178,9 +196,36 @@ public class EmailProcessorService {
             Buyer buyer = buyerVerificationService.verifyAndGetBuyer(normalizedSender);
 
             if (buyer == null || !buyer.isVerified()) {
-                log.warn("Buyer validation failed: sender email {} is not registered", normalizedSender);
-                log.warn("Skipping email because sender is not a valid buyer");
-                log.info("No Gemini AI call will be executed for unregistered sender.");
+                log.warn("Buyer validation: sender email {} is not a verified buyer. Initiating demo buyer registration flow.", normalizedSender);
+                log.info("No Gemini AI call will be executed for unverified sender.");
+
+                if (demoBuyerRegistrationService != null) {
+                    User demoUser = demoBuyerRegistrationService.createDemoBuyer(normalizedSender, email.getSenderName());
+                    if (demoUser != null) {
+                        transaction.setEmailBody(email.getBody());
+                        transaction.setAttachmentText(email.getAttachmentText());
+                        if (email.getAttachments() != null && !email.getAttachments().isEmpty()) {
+                            String paths = email.getAttachments().stream()
+                                    .map(File::getAbsolutePath)
+                                    .collect(Collectors.joining(","));
+                            transaction.setAttachmentPaths(paths);
+                        }
+                        if (email.getReceivedDate() != null) {
+                            transaction.setReceivedDate(email.getReceivedDate().toInstant().atZone(ZoneId.systemDefault()).toLocalDateTime());
+                        }
+                        transaction.setStatus(StatusConstants.PENDING_BUYER_REGISTRATION);
+                        transaction.setErrorMessage(null);
+                        emailTransactionRepository.save(transaction);
+
+                        String buyerName = (demoUser.getFullName() != null && !demoUser.getFullName().isBlank())
+                                ? demoUser.getFullName() : (email.getSenderName() != null ? email.getSenderName() : "Valued Customer");
+                        acknowledgementEmailService.sendDemoBuyerRegistrationEmail(normalizedSender, buyerName, buyerPortalUrl);
+                        emailReaderService.moveMessageToFolder(email.getMessageId(), processedFolder);
+
+                        log.info("Demo buyer account established and email stored with status PENDING_BUYER_REGISTRATION for sender: {}", normalizedSender);
+                        return StatusConstants.PENDING_BUYER_REGISTRATION;
+                    }
+                }
 
                 acknowledgementEmailService.sendUnregisteredBuyerAcknowledgement(normalizedSender);
                 emailReaderService.moveMessageToFolder(email.getMessageId(), errorFolder);

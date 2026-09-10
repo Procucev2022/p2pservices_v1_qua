@@ -89,6 +89,38 @@ public class AcknowledgementEmailService {
         }
     }
 
+    // CASE: DEMO BUYER REGISTRATION (UNREGISTERED SENDER)
+    public void sendDemoBuyerRegistrationEmail(String buyerEmail, String buyerName, String portalUrl) {
+        if (buyerEmail == null || buyerEmail.isBlank() || !buyerEmail.contains("@")) {
+            log.error("Cannot send demo buyer registration email: Invalid recipient email '{}'", buyerEmail);
+            return;
+        }
+        try {
+            String name = (buyerName != null && !buyerName.isBlank()) ? buyerName.trim() : "Valued Customer";
+            String link = (portalUrl != null && !portalUrl.isBlank()) ? portalUrl.trim() : "https://qua.procucev.com/buyer";
+
+            SimpleMailMessage mailMessage = createBaseMailMessage(buyerEmail.trim());
+            mailMessage.setSubject("Welcome to Procucev – Complete Your Registration to Process Your RFQ");
+            mailMessage.setText("Dear " + name + ",\n\n"
+                    + "Thank you for reaching out to Procucev with your requirement.\n\n"
+                    + "We noticed that you are not yet a registered buyer on our platform. To ensure security and match your requirement with verified suppliers, a temporary demo account has been created for you.\n\n"
+                    + "Your RFQ request has been received and safely saved. To release and process your RFQ, please complete your profile verification:\n\n"
+                    + "👉 Complete Registration & Profile: " + link + "\n\n"
+                    + "Steps to complete:\n"
+                    + "1. Log in or open the registration verification link above.\n"
+                    + "2. Verify your email and mobile phone number with OTP.\n"
+                    + "3. Confirm your company details and delivery pincode.\n\n"
+                    + "Once your profile is completed, your RFQ will be automatically processed and sent to top-rated suppliers immediately!\n\n"
+                    + "If you need any assistance, feel free to reply to this email or contact us at +91-7996170801.\n\n"
+                    + "Best regards,\nTeam Procucev");
+
+            mailSender.send(mailMessage);
+            log.info("Demo buyer registration email sent successfully to {} ({})", buyerEmail, name);
+        } catch (Exception e) {
+            log.error("Failed to send demo buyer registration email to {}: {}", buyerEmail, e.getMessage());
+        }
+    }
+
     // CASE 3: DETAILS MISSING / PROCESSING FAILURE FOR REGISTERED BUYER
     public void sendFailureAcknowledgement(FailedRfqRequest request, Buyer buyer) {
         String buyerEmail = (buyer != null && buyer.getEmail() != null && !buyer.getEmail().isBlank())

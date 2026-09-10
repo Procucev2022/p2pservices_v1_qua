@@ -310,6 +310,21 @@ public interface StatusConstants {
 	public static final String Opt_Out = "40";
 
 	public static final String CM_RFQ_PUBLISHED = "CM_RFQ_PUBLISHED";
-	
+
+	// ── Unregistered Buyer (Email-to-RFQ) ──
+	/** EmailTransaction.status: email stored, waiting for buyer to complete registration. */
+	public static final String PENDING_BUYER_REGISTRATION = "PENDING_BUYER_REGISTRATION";
+
+	/** User.verificationStatus: auto-created demo account, profile not yet completed. */
+	public static final String DEMO_BUYER = "DEMO_BUYER";
+
+	/** User.verificationStatus: phone OTP verified (email was already verified before this). */
+	public static final String PHONE_VERIFIED = "PHONE_VERIFIED";
+
+	/** User.verificationStatus: all verifications + profile data complete, buyer is fully active. */
+	public static final String PROFILE_COMPLETED = "PROFILE_COMPLETED";
+
+	/** Predefined demo phone number used for auto-created buyer accounts. */
+	public static final String DEMO_PHONE_NUMBER = "0000000000";
 
 }

@@ -31,7 +31,7 @@ public class SecurityConfig {
             .csrf(csrf -> csrf.disable())
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/", "/error", "/authenticate", "/mobile/**", "/partialvendor/**",
-                        "/automate/validateEmail", "/api/zoho/webhook/**").permitAll()
+                        "/automate/validateEmail", "/api/zoho/webhook/**", "/rfq/email/buyer/**").permitAll()
                 .requestMatchers("/automate/raiseRfq").authenticated()
                 .requestMatchers("/rfq/email/process").hasAnyAuthority("ROLE_ADMIN", "ADMIN", "ROLE_OPERATIONS", "OPERATIONS")
                 .requestMatchers("/rfq/email/**").authenticated()
