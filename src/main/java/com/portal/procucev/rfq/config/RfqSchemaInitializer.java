@@ -58,6 +58,18 @@ public class RfqSchemaInitializer {
             } catch (Exception ignored) {
                 // Column already exists or table was newly created
             }
+            try {
+                jdbcTemplate.execute("ALTER TABLE rfq_email_transactions ADD COLUMN email_body LONGTEXT");
+            } catch (Exception ignored) {}
+            try {
+                jdbcTemplate.execute("ALTER TABLE rfq_email_transactions ADD COLUMN attachment_text LONGTEXT");
+            } catch (Exception ignored) {}
+            try {
+                jdbcTemplate.execute("ALTER TABLE rfq_email_transactions ADD COLUMN attachment_paths VARCHAR(2000)");
+            } catch (Exception ignored) {}
+            try {
+                jdbcTemplate.execute("ALTER TABLE rfq_email_transactions ADD COLUMN received_date DATETIME");
+            } catch (Exception ignored) {}
 
             jdbcTemplate.execute("CREATE TABLE IF NOT EXISTS rfq_records (" +
                     "id BIGINT AUTO_INCREMENT PRIMARY KEY, " +
