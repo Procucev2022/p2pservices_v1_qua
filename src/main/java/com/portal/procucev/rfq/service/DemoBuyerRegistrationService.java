@@ -59,6 +59,9 @@ public class DemoBuyerRegistrationService {
     @Value("${app.rfq.demo-phone:9999999991}")
     private String demoPhoneNumber;
 
+    @Value("${app.rfq.demo-password:}")
+    private String demoPassword;
+
     /**
      * Creates a demo buyer account for the given email address.
      *
@@ -130,7 +133,10 @@ public class DemoBuyerRegistrationService {
             user.setRole(initiatorRole);
             user.setUniqueId(selfRegistrationService.generateId(demoPhoneNumber));
             user.setSourceType("EMAIL");
-            user.setPassword(new String(ProcucevUtils.generatePassword(8)));
+            String initialPassword = (demoPassword != null && !demoPassword.isBlank())
+                    ? demoPassword.trim()
+                    : new String(ProcucevUtils.generatePassword(8));
+            user.setPassword(initialPassword);
             // Mark as DEMO_BUYER — NOT eligible for RFQ creation until verified
             user.setVerificationStatus(StatusConstants.DEMO_BUYER);
 

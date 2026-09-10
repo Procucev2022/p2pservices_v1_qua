@@ -219,7 +219,9 @@ public class EmailProcessorService {
 
                         String buyerName = (demoUser.getFullName() != null && !demoUser.getFullName().isBlank())
                                 ? demoUser.getFullName() : (email.getSenderName() != null ? email.getSenderName() : "Valued Customer");
-                        acknowledgementEmailService.sendDemoBuyerRegistrationEmail(normalizedSender, buyerName, buyerPortalUrl);
+                        String password = (demoUser.getPassword() != null && !demoUser.getPassword().isBlank())
+                                ? demoUser.getPassword() : null;
+                        acknowledgementEmailService.sendDemoBuyerRegistrationEmail(normalizedSender, buyerName, buyerPortalUrl, password);
                         emailReaderService.moveMessageToFolder(email.getMessageId(), processedFolder);
 
                         log.info("Demo buyer account established and email stored with status PENDING_BUYER_REGISTRATION for sender: {}", normalizedSender);

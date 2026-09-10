@@ -94,6 +94,10 @@ public class AcknowledgementEmailService {
 
     // CASE: DEMO BUYER REGISTRATION (UNREGISTERED SENDER)
     public void sendDemoBuyerRegistrationEmail(String buyerEmail, String buyerName, String portalUrl) {
+        sendDemoBuyerRegistrationEmail(buyerEmail, buyerName, portalUrl, null);
+    }
+
+    public void sendDemoBuyerRegistrationEmail(String buyerEmail, String buyerName, String portalUrl, String password) {
         if (buyerEmail == null || buyerEmail.isBlank() || !buyerEmail.contains("@")) {
             log.error("Cannot send demo buyer registration email: Invalid recipient email '{}'", buyerEmail);
             return;
@@ -101,6 +105,8 @@ public class AcknowledgementEmailService {
         try {
             String name = (buyerName != null && !buyerName.isBlank()) ? buyerName.trim() : "Valued Customer";
             String link = (portalUrl != null && !portalUrl.isBlank()) ? portalUrl.trim() : "https://p2pv1dev-ana9azfph7chftea.centralindia-01.azurewebsites.net/login";
+            String phone = (demoPhone != null && !demoPhone.isBlank()) ? demoPhone.trim() : "9999999991";
+            String pwd = (password != null && !password.isBlank()) ? password.trim() : "Procucev@123";
 
             SimpleMailMessage mailMessage = createBaseMailMessage(buyerEmail.trim());
             mailMessage.setSubject("Account Created – Verification Pending to Process Your RFQ");
@@ -108,15 +114,17 @@ public class AcknowledgementEmailService {
                     + "Thank you for reaching out to Procucev with your requirement.\n\n"
                     + "Your account has been created on Procucev, and your RFQ requirement has been received and safely saved.\n\n"
                     + "Status: Account Created – Verification Pending\n\n"
-                    + "Login Details:\n"
+                    + "Login Credentials:\n"
                     + "🌐 Login URL: " + link + "\n"
                     + "✉️ Email ID: " + buyerEmail.trim() + "\n"
-                    + "📱 Phone Number: " + demoPhone + "\n\n"
+                    + "📱 Registered Mobile: " + phone + "\n"
+                    + "🔑 Password: " + pwd + "\n\n"
                     + "Steps to Access Your Account & Process Your RFQ:\n"
                     + "1. Open the login link above.\n"
-                    + "2. Enter your Email ID (" + buyerEmail.trim() + ") and Phone Number (" + demoPhone + ").\n"
-                    + "3. Select 'Login with OTP' to receive an OTP on this email address.\n"
-                    + "4. Once logged in to the Buyer Portal, go to your Profile to update your company details and verify your mobile phone number with OTP.\n\n"
+                    + "2. Enter your Email ID (" + buyerEmail.trim() + "), Registered Mobile (" + phone + "), and Password (" + pwd + ").\n"
+                    + "   (Alternatively, you can check 'Login With OTP' to log in via email OTP).\n"
+                    + "3. Click Login to access the Buyer Portal.\n"
+                    + "4. Once logged in, go to your Profile to update your company details and verify your mobile phone number with OTP.\n\n"
                     + "Once your profile and phone number are updated, your RFQ will be automatically processed and forwarded to verified suppliers right away!\n\n"
                     + "If you need any assistance, feel free to reply to this email or contact us at +91-7996170801.\n\n"
                     + "Best regards,\nTeam Procucev");

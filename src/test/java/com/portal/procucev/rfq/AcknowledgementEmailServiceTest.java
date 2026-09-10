@@ -97,7 +97,7 @@ public class AcknowledgementEmailServiceTest {
     @Test
     @DisplayName("Case Demo Buyer: Unregistered buyer -> Demo registration email with dev login URL and Verification Pending")
     void testSendDemoBuyerRegistrationEmail() {
-        service.sendDemoBuyerRegistrationEmail("newbuyer@example.com", "Alice Smith", "https://p2pv1dev-ana9azfph7chftea.centralindia-01.azurewebsites.net/login");
+        service.sendDemoBuyerRegistrationEmail("newbuyer@example.com", "Alice Smith", "https://p2pv1dev-ana9azfph7chftea.centralindia-01.azurewebsites.net/login", "TempPass@123");
 
         ArgumentCaptor<SimpleMailMessage> captor = ArgumentCaptor.forClass(SimpleMailMessage.class);
         Mockito.verify(mailSender).send(captor.capture());
@@ -110,7 +110,8 @@ public class AcknowledgementEmailServiceTest {
         assertTrue(sentMsg.getText().contains("Account Created – Verification Pending"));
         assertTrue(sentMsg.getText().contains("https://p2pv1dev-ana9azfph7chftea.centralindia-01.azurewebsites.net/login"));
         assertTrue(sentMsg.getText().contains("9999999991"));
-        assertTrue(sentMsg.getText().contains("Login with OTP"));
+        assertTrue(sentMsg.getText().contains("TempPass@123"));
+        assertTrue(sentMsg.getText().contains("Password: TempPass@123"));
     }
 
     @Test

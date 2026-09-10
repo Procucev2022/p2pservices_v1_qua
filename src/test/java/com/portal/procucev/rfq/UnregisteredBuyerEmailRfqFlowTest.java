@@ -151,6 +151,7 @@ class UnregisteredBuyerEmailRfqFlowTest {
         demoUser.setUsername(senderEmail);
         demoUser.setFullName("Jane Doe");
         demoUser.setPhone("9999999991");
+        demoUser.setPassword("Secret@123");
         demoUser.setVerificationStatus(StatusConstants.DEMO_BUYER);
         demoUser.setActive(true);
 
@@ -162,7 +163,7 @@ class UnregisteredBuyerEmailRfqFlowTest {
         // Assert Step 1 outcomes:
         assertEquals(StatusConstants.PENDING_BUYER_REGISTRATION, result);
         verifyNoInteractions(aiExtractionService); // CRITICAL: No Gemini AI call for unregistered sender
-        verify(acknowledgementEmailService).sendDemoBuyerRegistrationEmail(eq(senderEmail), eq("Jane Doe"), eq("https://p2pv1dev-ana9azfph7chftea.centralindia-01.azurewebsites.net/login"));
+        verify(acknowledgementEmailService).sendDemoBuyerRegistrationEmail(eq(senderEmail), eq("Jane Doe"), eq("https://p2pv1dev-ana9azfph7chftea.centralindia-01.azurewebsites.net/login"), eq("Secret@123"));
         verify(emailReaderService).moveMessageToFolder(messageId, "Processed");
         verify(emailTransactionRepository, atLeastOnce()).save(argThat(tx ->
                 StatusConstants.PENDING_BUYER_REGISTRATION.equals(tx.getStatus())
