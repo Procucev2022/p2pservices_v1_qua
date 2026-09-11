@@ -106,7 +106,7 @@ public class AcknowledgementEmailService {
             String name = (buyerName != null && !buyerName.isBlank()) ? buyerName.trim() : "Valued Customer";
             String link = (portalUrl != null && !portalUrl.isBlank()) ? portalUrl.trim() : "https://p2pv1dev-ana9azfph7chftea.centralindia-01.azurewebsites.net/login";
             String phone = (demoPhone != null && !demoPhone.isBlank()) ? demoPhone.trim() : "9999999991";
-            String pwd = (password != null && !password.isBlank()) ? password.trim() : "Procucev@123";
+            String pwd = (password != null && !password.isBlank()) ? password.trim() : "Welcome@123";
 
             SimpleMailMessage mailMessage = createBaseMailMessage(buyerEmail.trim());
             mailMessage.setSubject("Account Created – Verification Pending to Process Your RFQ");
@@ -126,6 +126,7 @@ public class AcknowledgementEmailService {
                     + "3. Click Login to access the Buyer Portal.\n"
                     + "4. Once logged in, go to your Profile to update your company details and verify your mobile phone number with OTP.\n\n"
                     + "Once your profile and phone number are updated, your RFQ will be automatically processed and forwarded to verified suppliers right away!\n\n"
+                    + "⏳ IMPORTANT: These temporary login credentials and this account are active for 1 HOUR only. If you do not log in within 1 hour, this account will be automatically deleted for security.\n\n"
                     + "If you need any assistance, feel free to reply to this email or contact us at +91-7996170801.\n\n"
                     + "Best regards,\nTeam Procucev");
 

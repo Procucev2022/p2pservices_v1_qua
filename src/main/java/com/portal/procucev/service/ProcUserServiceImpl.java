@@ -233,7 +233,13 @@ public class ProcUserServiceImpl implements UserService {
 		String newPass = reset.getNewpassword();
 		String normalizedPhone = normalizePhone(reset.getPhone());
 
-		User users = userDao.findByUsernameAndPhoneAndActive(reset.getUserName(), normalizedPhone, true);
+		User users = null;
+		if (normalizedPhone != null && !normalizedPhone.isBlank()) {
+			users = userDao.findByUsernameAndPhoneAndActive(reset.getUserName(), normalizedPhone, true);
+		}
+		if (users == null && reset.getUserName() != null && !reset.getUserName().isBlank()) {
+			users = userDao.findByUsernameAndActive(reset.getUserName().trim().toLowerCase(), true);
+		}
 
 		if (users == null) {
 			throw new AppException(HttpStatus.NOT_FOUND.value(),

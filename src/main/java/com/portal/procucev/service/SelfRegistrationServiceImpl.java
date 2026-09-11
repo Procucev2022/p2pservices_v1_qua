@@ -719,7 +719,35 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 	@Override
 	public boolean validateUser(String username, String phoneNumber) {
 		User user = userDao.findByUsernameAndPhoneAndActive(username, phoneNumber, true);
-		return user != null;
+		if (user != null) {
+			return true;
+		}
+		// Fallback for phone format variations (+91 vs without) or demo buyer phone sync
+		User userByEmail = userDao.findByUsernameAndActive(username, true);
+		if (userByEmail != null) {
+			String normalizedReqPhone = PhoneNumberUtils.normalize(phoneNumber);
+			String normalizedDbPhone = PhoneNumberUtils.normalize(userByEmail.getPhone());
+			if (normalizedReqPhone != null && normalizedReqPhone.equals(normalizedDbPhone)) {
+				return true;
+			}
+			// If DEMO_BUYER and logging in with demo phone or common demo placeholder
+			if (StatusConstants.DEMO_BUYER.equals(userByEmail.getVerificationStatus())) {
+				String demoNorm = PhoneNumberUtils.normalize(StatusConstants.DEMO_PHONE_NUMBER);
+				if (normalizedReqPhone != null && (normalizedReqPhone.equals(demoNorm)
+						|| normalizedReqPhone.endsWith("9999999991")
+						|| normalizedReqPhone.endsWith("0000000000"))) {
+					logger.info("Auto-syncing demo buyer phone on login for {}: old={}, new={}", username, userByEmail.getPhone(), normalizedReqPhone);
+					userByEmail.setPhone(normalizedReqPhone);
+					if (userByEmail.getOrg() != null) {
+						userByEmail.getOrg().setOrganizationPhonenumber(normalizedReqPhone);
+						clientDao.save(userByEmail.getOrg());
+					}
+					userDao.save(userByEmail);
+					return true;
+				}
+			}
+		}
+		return false;
 	}
 
 	@Override
@@ -763,6 +791,9 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 		}
 
 		User userOpt = userDao.findByUsernameAndPhoneAndActive(email, phone, true);
+		if (userOpt == null) {
+			userOpt = userDao.findByUsernameAndActive(email, true);
+		}
 		if (userOpt != null) {
 			return userOpt.getPassword(); // Assuming getPassword() returns encoded password
 		} else {
@@ -1522,6 +1553,9 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 
 	    // Fetch user by username, phone and active = true
 	    User user = userDao.findByUsernameAndPhoneAndActive(username, phone, true);
+	    if (user == null) {
+	        user = userDao.findByUsernameAndActive(username, true);
+	    }
 
 	    // If no user found → fail
 	    if (user == null) {

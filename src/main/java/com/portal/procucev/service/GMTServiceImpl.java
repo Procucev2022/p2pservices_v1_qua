@@ -317,6 +317,8 @@ public class GMTServiceImpl implements GMTService {
 				rfq.getRfqId(), rfq.getProjectDesc(), rfq.getCategory(),
 				rfq.getRfqItem() != null ? rfq.getRfqItem().size() : 0);
 
+		validateBuyerVerificationForRfqCreation(rfq);
+
 		try {
 			MasterStatus resultStatus = masterStatusDao.findByStatus(StatusConstants.pcprinprogress);
 			MasterStatus newStatus = masterStatusDao.findByStatus(StatusConstants.CLIENT_RFQ_NEW);
@@ -341,6 +343,43 @@ public class GMTServiceImpl implements GMTService {
 		} catch (DataAccessException e) {
 			logger.error("Error occurred while creating RFQ: {}", e.getMessage());
 			return false;
+		}
+	}
+
+	private void validateBuyerVerificationForRfqCreation(Rfq rfq) {
+		User user = null;
+		if (rfq != null && rfq.getUser() != null && !rfq.getUser().isBlank()) {
+			user = userDao.findById(rfq.getUser()).orElse(null);
+			if (user == null) {
+				user = userDao.findByUsernameAndActive(rfq.getUser(), true);
+			}
+		}
+		if (user == null && rfq != null && rfq.getOrg() != null && rfq.getOrg().getId() != null) {
+			List<User> orgUsers = userDao.findByOrg(rfq.getOrg());
+			if (orgUsers != null && !orgUsers.isEmpty()) {
+				user = orgUsers.get(0);
+			}
+		}
+		if (user == null) {
+			try {
+				var auth = SecurityContextHolder.getContext().getAuthentication();
+				if (auth != null && auth.getName() != null) {
+					user = userDao.findByUsernameAndActive(auth.getName(), true);
+				}
+			} catch (Exception ignored) {
+			}
+		}
+
+		if (user != null) {
+			boolean isEmailDemo = "EMAIL".equalsIgnoreCase(user.getSourceType())
+					|| StatusConstants.DEMO_BUYER.equalsIgnoreCase(user.getVerificationStatus());
+			if (isEmailDemo && !StatusConstants.PROFILE_COMPLETED.equalsIgnoreCase(user.getVerificationStatus())) {
+				logger.warn("Blocked RFQ creation for unverified email demo buyer: userId={}, email={}, status={}",
+						user.getId(), user.getUsername(), user.getVerificationStatus());
+				throw new AppException(HttpStatus.FORBIDDEN.value(),
+						"Account verification pending. Please complete your profile and verify your account with OTP before creating RFQs.",
+						ApplicationConstants.BUSINESS_EXCEPTION, ApplicationConstants.FAILURE);
+			}
 		}
 	}
 
@@ -1785,6 +1824,7 @@ public class GMTServiceImpl implements GMTService {
 	public boolean createRFQWithNoPr(Rfq rfq) {
 
 		logger.info("Request recieved  for RFQ creation with No PR " + rfq.toString());
+		validateBuyerVerificationForRfqCreation(rfq);
 		boolean status = false;
 
 		// Get PR Status for PR Inprogress
@@ -2757,6 +2797,8 @@ public class GMTServiceImpl implements GMTService {
 		logger.info("Request received for RFQ creation by client: rfqId={}, projectDesc='{}', category='{}', itemCount={}",
 				rfq.getRfqId(), rfq.getProjectDesc(), rfq.getCategory(),
 				rfq.getRfqItem() != null ? rfq.getRfqItem().size() : 0);
+
+		validateBuyerVerificationForRfqCreation(rfq);
 
 		Map<String, Object> result = new HashMap<>();
 

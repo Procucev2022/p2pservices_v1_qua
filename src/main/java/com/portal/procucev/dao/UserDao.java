@@ -288,4 +288,7 @@ public interface UserDao extends JpaRepository<User, String> {
 				Optional<User> findFirstByUsernameAndRoleAndActiveTrueOrderByCreatedTSDesc(
 				        String email,
 				        Role role);
+
+				List<User> findBySourceTypeAndVerificationStatus(String sourceType, String verificationStatus);
 }
+

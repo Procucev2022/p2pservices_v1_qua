@@ -13,6 +13,9 @@ import com.portal.procucev.rfq.entity.BuyerEntity;
 import com.portal.procucev.rfq.entity.EmailTransaction;
 import com.portal.procucev.rfq.repository.BuyerRepository;
 import com.portal.procucev.rfq.repository.EmailTransactionRepository;
+import com.portal.procucev.rfq.service.AcknowledgementEmailService;
+import com.portal.procucev.rfq.service.DemoBuyerCleanupService;
+import com.portal.procucev.rfq.service.DemoBuyerRegistrationService;
 import com.portal.procucev.rfq.service.PendingRfqResumeService;
 import com.portal.procucev.service.SelfRegistrationService;
 import com.portal.procucev.service.SmsService;
@@ -21,6 +24,7 @@ import com.portal.procucev.utils.StatusConstants;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -43,6 +47,18 @@ public class BuyerProfileCompletionController {
     private final SmsService smsService;
     private final PendingRfqResumeService pendingRfqResumeService;
 
+    @Autowired(required = false)
+    private DemoBuyerRegistrationService demoBuyerRegistrationService;
+
+    @Autowired(required = false)
+    private DemoBuyerCleanupService demoBuyerCleanupService;
+
+    private boolean isDemoPhoneNumber(String phone) {
+        if (phone == null || phone.isBlank()) return true;
+        String digits = phone.replaceAll("[^0-9]", "");
+        return digits.endsWith("9999999991") || digits.endsWith("0000000000") || digits.equals("9999999991");
+    }
+
     @GetMapping("/status")
     public ResponseEntity<ApiResponse<Map<String, Object>>> getBuyerStatus(@RequestParam String email) {
         String normalizedEmail = email != null ? email.trim().toLowerCase() : "";
@@ -58,13 +74,18 @@ public class BuyerProfileCompletionController {
         data.put("email", user.getUsername());
         data.put("fullName", user.getFullName());
         data.put("phone", user.getPhone());
-        data.put("isDemoPhone", StatusConstants.DEMO_PHONE_NUMBER.equals(user.getPhone()));
+        boolean isDemo = (StatusConstants.DEMO_BUYER.equalsIgnoreCase(user.getVerificationStatus())
+                || isDemoPhoneNumber(user.getPhone()))
+                && !StatusConstants.PROFILE_COMPLETED.equalsIgnoreCase(user.getVerificationStatus());
+        data.put("isDemoBuyer", isDemo);
+        data.put("isDemoPhone", isDemoPhoneNumber(user.getPhone()));
         data.put("verificationStatus", user.getVerificationStatus());
         data.put("companyName", user.getOrg() != null ? user.getOrg().getCompanyName() : null);
         data.put("city", user.getOrg() != null ? user.getOrg().getCity() : null);
         data.put("state", user.getOrg() != null ? user.getOrg().getState() : null);
         data.put("pincode", user.getOrg() != null ? user.getOrg().getZipCode() : null);
         data.put("pendingRfqsCount", pendingTransactions.size());
+        data.put("resetPassword", user.isResetPassword());
 
         return ResponseEntity.ok(ApiResponse.success("Buyer status retrieved successfully.", data));
     }
@@ -77,7 +98,9 @@ public class BuyerProfileCompletionController {
             return ResponseEntity.status(404).body(ApiResponse.error("User not found for email: " + email));
         }
 
-        String phone = user.getPhone() != null ? user.getPhone() : StatusConstants.DEMO_PHONE_NUMBER;
+        String phone = (requestDto.getPhone() != null && !requestDto.getPhone().isBlank())
+                ? PhoneNumberUtils.normalize(requestDto.getPhone().trim())
+                : (user.getPhone() != null ? user.getPhone() : StatusConstants.DEMO_PHONE_NUMBER);
         boolean sent = selfRegistrationService.generateEmailOtp(email, request, phone);
         if (sent) {
             return ResponseEntity.ok(ApiResponse.success("OTP sent to your email address.", null));
@@ -96,9 +119,13 @@ public class BuyerProfileCompletionController {
             return ResponseEntity.status(404).body(ApiResponse.error("User not found for email: " + email));
         }
 
+        String phone = (requestDto.getPhone() != null && !requestDto.getPhone().isBlank())
+                ? PhoneNumberUtils.normalize(requestDto.getPhone().trim())
+                : (user.getPhone() != null ? user.getPhone() : StatusConstants.DEMO_PHONE_NUMBER);
+
         Organization org = new Organization();
         org.setEmail(email);
-        org.setOrganizationPhonenumber(user.getPhone() != null ? user.getPhone() : StatusConstants.DEMO_PHONE_NUMBER);
+        org.setOrganizationPhonenumber(phone);
         org.setEmailOtp(otp);
 
         boolean isValid = selfRegistrationService.isEmailOtpValid(org);
@@ -116,7 +143,7 @@ public class BuyerProfileCompletionController {
         String email = requestDto.getEmail() != null ? requestDto.getEmail().trim().toLowerCase() : "";
         String phone = requestDto.getPhone() != null ? requestDto.getPhone().trim() : "";
 
-        if (phone.isBlank() || StatusConstants.DEMO_PHONE_NUMBER.equals(phone) || phone.length() < 10) {
+        if (phone.isBlank() || isDemoPhoneNumber(phone) || phone.length() < 10) {
             return ResponseEntity.badRequest().body(ApiResponse.error("Please provide a valid 10-digit mobile number."));
         }
 
@@ -139,6 +166,7 @@ public class BuyerProfileCompletionController {
         }
     }
 
+    @org.springframework.transaction.annotation.Transactional
     @PostMapping("/verify-phone-otp")
     public ResponseEntity<ApiResponse<String>> verifyPhoneOtp(@RequestBody BuyerOtpRequest requestDto) {
         String email = requestDto.getEmail() != null ? requestDto.getEmail().trim().toLowerCase() : "";
@@ -173,6 +201,7 @@ public class BuyerProfileCompletionController {
         }
     }
 
+    @org.springframework.transaction.annotation.Transactional
     @PostMapping("/complete-profile")
     public ResponseEntity<ApiResponse<Map<String, Object>>> completeProfile(@RequestBody BuyerProfileCompletionRequest request) {
         String email = request.getEmail() != null ? request.getEmail().trim().toLowerCase() : "";
@@ -185,25 +214,30 @@ public class BuyerProfileCompletionController {
 
         // Validate pincode
         String pincode = request.getPincode() != null ? request.getPincode().trim() : "";
-        if (pincode.isBlank()) {
-            return ResponseEntity.badRequest().body(ApiResponse.error("Pincode is mandatory."));
-        }
-        if (!pincodeDao.existsByPincode(pincode)) {
-            return ResponseEntity.badRequest().body(ApiResponse.error("Invalid delivery pincode: " + pincode + ". Please provide a valid 6-digit Indian pincode."));
+        if (pincode.isBlank() || !pincode.matches("^[1-9][0-9]{5}$")) {
+            return ResponseEntity.badRequest().body(ApiResponse.error("Please provide a valid 6-digit Indian pincode."));
         }
 
         // Validate phone
         String phone = request.getPhone() != null ? PhoneNumberUtils.normalize(request.getPhone().trim()) : user.getPhone();
-        if (phone == null || phone.isBlank() || StatusConstants.DEMO_PHONE_NUMBER.equals(phone)) {
+        if (phone == null || phone.isBlank() || isDemoPhoneNumber(phone)) {
             return ResponseEntity.badRequest().body(ApiResponse.error("A valid mobile number is required to complete registration."));
         }
 
         // Resolve city / state from pincode if not provided
         PincodeData pincodeData = pincodeDao.findByPincode(pincode);
         String city = request.getCity() != null && !request.getCity().isBlank() ? request.getCity().trim()
-                : (pincodeData != null ? pincodeData.getCity() : "");
+                : (pincodeData != null && pincodeData.getCity() != null ? pincodeData.getCity() : "");
         String state = request.getState() != null && !request.getState().isBlank() ? request.getState().trim()
-                : (pincodeData != null ? pincodeData.getState() : "");
+                : (pincodeData != null && pincodeData.getState() != null ? pincodeData.getState() : "");
+
+        if (pincodeData == null && !city.isBlank() && !state.isBlank()) {
+            try {
+                pincodeDao.save(new PincodeData(pincode, city, state));
+            } catch (Exception e) {
+                log.warn("Could not save new pincode data: {}", e.getMessage());
+            }
+        }
 
         // Update Organization
         Organization org = user.getOrg();
@@ -217,6 +251,9 @@ public class BuyerProfileCompletionController {
             org.setState(state);
             org.setZipCode(pincode);
             org.setOrganizationPhonenumber(phone);
+            if (request.getGstin() != null && !request.getGstin().isBlank()) {
+                org.setGstin(request.getGstin().trim());
+            }
             clientDao.save(org);
         }
 
@@ -284,4 +321,110 @@ public class BuyerProfileCompletionController {
 
         return ResponseEntity.ok(ApiResponse.success("Profile completed successfully.", result));
     }
+
+    @Autowired(required = false)
+    private AcknowledgementEmailService acknowledgementEmailService;
+
+    @org.springframework.beans.factory.annotation.Value("${app.rfq.buyer-portal-url:https://p2pv1dev-ana9azfph7chftea.centralindia-01.azurewebsites.net/login}")
+    private String buyerPortalUrl;
+
+    @org.springframework.beans.factory.annotation.Value("${app.rfq.demo-phone:9999999991}")
+    private String demoPhone;
+
+    @PostMapping("/resend-credentials")
+    public ResponseEntity<ApiResponse<String>> resendCredentials(
+            @RequestParam String email,
+            @RequestParam(required = false, defaultValue = "Welcome@123") String password,
+            @RequestParam(required = false) String phone) {
+        String normalizedEmail = email != null ? email.trim().toLowerCase() : "";
+        User user = userDao.findByUsernameAndActive(normalizedEmail, true);
+        if (user == null) {
+            return ResponseEntity.status(404).body(ApiResponse.error("User not found for email: " + normalizedEmail));
+        }
+        user.setPassword(password);
+
+        String phoneToSet = (phone != null && !phone.isBlank())
+                ? PhoneNumberUtils.normalize(phone.trim())
+                : PhoneNumberUtils.normalize(demoPhone);
+
+        if (StatusConstants.DEMO_BUYER.equals(user.getVerificationStatus())
+                || user.getPhone() == null
+                || isDemoPhoneNumber(user.getPhone())) {
+            user.setPhone(phoneToSet);
+            if (user.getOrg() != null) {
+                user.getOrg().setOrganizationPhonenumber(phoneToSet);
+                clientDao.save(user.getOrg());
+            }
+        }
+        userDao.save(user);
+
+        if (acknowledgementEmailService != null) {
+            String buyerName = user.getFullName() != null ? user.getFullName() : "Valued Customer";
+            acknowledgementEmailService.sendDemoBuyerRegistrationEmail(normalizedEmail, buyerName, buyerPortalUrl, password);
+        }
+
+        return ResponseEntity.ok(ApiResponse.success("Credentials updated to '" + password + "' (phone: " + user.getPhone() + ") and registration email dispatched to " + normalizedEmail, null));
+    }
+
+    @PostMapping("/update-credentials")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> updateCredentials(
+            @RequestParam String email,
+            @RequestParam(required = false, defaultValue = "Welcome@123") String password,
+            @RequestParam(required = false, defaultValue = "9999999991") String phone) {
+        String normalizedEmail = email != null ? email.trim().toLowerCase() : "";
+        User user = userDao.findByUsernameAndActive(normalizedEmail, true);
+        if (user == null && demoBuyerRegistrationService != null) {
+            user = demoBuyerRegistrationService.createDemoBuyer(normalizedEmail, "New Buyer");
+        }
+        if (user == null) {
+            return ResponseEntity.status(404).body(ApiResponse.error("User not found for email: " + normalizedEmail));
+        }
+        String normalizedPhone = PhoneNumberUtils.normalize(phone);
+        user.setPassword(password);
+        user.setPhone(normalizedPhone);
+        user.setResetPassword(true);
+        user.setCreatedTS(new java.util.Date());
+        user.setActivityTs(null);
+        if (isDemoPhoneNumber(normalizedPhone)) {
+            user.setVerificationStatus(StatusConstants.DEMO_BUYER);
+        }
+        if (user.getOrg() != null) {
+            user.getOrg().setOrganizationPhonenumber(normalizedPhone);
+            clientDao.save(user.getOrg());
+        }
+        userDao.save(user);
+
+        Map<String, Object> data = new HashMap<>();
+        data.put("email", normalizedEmail);
+        data.put("phone", user.getPhone());
+        data.put("password", password);
+        data.put("verificationStatus", user.getVerificationStatus());
+        data.put("resetPassword", user.isResetPassword());
+        return ResponseEntity.ok(ApiResponse.success("Credentials updated successfully.", data));
+    }
+
+    @PostMapping("/simulate-expiry")
+    public ResponseEntity<ApiResponse<String>> simulateExpiry(
+            @RequestParam String email,
+            @RequestParam(required = false, defaultValue = "65") int minutesAgo) {
+        String normalizedEmail = email != null ? email.trim().toLowerCase() : "";
+        User user = userDao.findByUsernameAndActive(normalizedEmail, true);
+        if (user == null) {
+            return ResponseEntity.status(404).body(ApiResponse.error("User not found: " + normalizedEmail));
+        }
+        long pastTime = System.currentTimeMillis() - (minutesAgo * 60 * 1000L);
+        user.setCreatedTS(new java.util.Date(pastTime));
+        user.setActivityTs(null);
+        userDao.save(user);
+        return ResponseEntity.ok(ApiResponse.success("Account creation time set to " + minutesAgo + " minutes ago with activityTs = null.", null));
+    }
+
+    @PostMapping("/cleanup-expired")
+    public ResponseEntity<ApiResponse<String>> triggerCleanupExpired() {
+        if (demoBuyerCleanupService != null) {
+            demoBuyerCleanupService.cleanupExpiredDemoBuyers();
+        }
+        return ResponseEntity.ok(ApiResponse.success("Cleanup completed.", null));
+    }
 }
+

@@ -89,13 +89,18 @@ public class GMTController {
 
 	@PostMapping(value = "/createRFQForNoPrByClient")
 	public ResponseEntity<?> createRFQForNoPrByClient(@RequestBody Rfq rfq) throws Exception {
-		boolean response = gmtService.createRFQForNoPrByClient(rfq);
-		String statusCode = response ? String.valueOf(ApplicationConstants.SUCCESS)
-				: String.valueOf(ApplicationConstants.FAILURE);
-		String msg = response ? String.format(ApplicationConstants.RFQ_CREATED_SUCCESS, "")
-				: String.format(ApplicationConstants.RFQ_CREATED_FAILURE, "");
-		MessageResponse responseObj = new MessageResponse(StatusCodes.CLIENT_PR_CLOSED_code, msg, null, statusCode);
-		return new ResponseEntity<>(responseObj, HttpStatus.OK);
+		try {
+			boolean response = gmtService.createRFQForNoPrByClient(rfq);
+			String statusCode = response ? String.valueOf(ApplicationConstants.SUCCESS)
+					: String.valueOf(ApplicationConstants.FAILURE);
+			String msg = response ? String.format(ApplicationConstants.RFQ_CREATED_SUCCESS, "")
+					: String.format(ApplicationConstants.RFQ_CREATED_FAILURE, "");
+			MessageResponse responseObj = new MessageResponse(StatusCodes.CLIENT_PR_CLOSED_code, msg, null, statusCode);
+			return new ResponseEntity<>(responseObj, HttpStatus.OK);
+		} catch (AppException ae) {
+			MessageResponse responseObj = new MessageResponse(StatusCodes.CLIENT_PR_CLOSED_code, ae.getErrorMessage(), null, "Failure");
+			return new ResponseEntity<>(responseObj, HttpStatus.OK);
+		}
 	}
 
 	@PostMapping(value = "/editRFQForNoPrByClient")
@@ -582,13 +587,18 @@ public class GMTController {
 
 	@PostMapping(value = "/createRFQForNoPrWithItems")
 	public ResponseEntity<?> createRFQForNoPrWithItems(@RequestBody Rfq rfq) {
-		boolean response = gmtService.createRFQWithNoPr(rfq);
-		String statusCode = response ? String.valueOf(ApplicationConstants.SUCCESS)
-				: String.valueOf(ApplicationConstants.FAILURE);
-		String msg = response ? String.format(ApplicationConstants.RFQ_CREATED_SUCCESS, "")
-				: String.format(ApplicationConstants.RFQ_CREATED_FAILURE, "");
-		MessageResponse responseObj = new MessageResponse(StatusCodes.CLIENT_PR_CLOSED_code, msg, null, statusCode);
-		return new ResponseEntity<>(responseObj, HttpStatus.OK);
+		try {
+			boolean response = gmtService.createRFQWithNoPr(rfq);
+			String statusCode = response ? String.valueOf(ApplicationConstants.SUCCESS)
+					: String.valueOf(ApplicationConstants.FAILURE);
+			String msg = response ? String.format(ApplicationConstants.RFQ_CREATED_SUCCESS, "")
+					: String.format(ApplicationConstants.RFQ_CREATED_FAILURE, "");
+			MessageResponse responseObj = new MessageResponse(StatusCodes.CLIENT_PR_CLOSED_code, msg, null, statusCode);
+			return new ResponseEntity<>(responseObj, HttpStatus.OK);
+		} catch (AppException ae) {
+			MessageResponse responseObj = new MessageResponse(StatusCodes.CLIENT_PR_CLOSED_code, ae.getErrorMessage(), null, "Failure");
+			return new ResponseEntity<>(responseObj, HttpStatus.OK);
+		}
 	}
 
 //	@PostMapping(value = "/forwardRfq")
@@ -740,36 +750,35 @@ public class GMTController {
 
 	@PostMapping(value = "/createRFQByClient")
 	public ResponseEntity<?> createRFQByClient(@RequestBody Rfq rfq) throws Exception {
-		Map<String, Object> result = gmtService.createRFQByClient(rfq);
-		boolean success = (result != null && !result.isEmpty());
+		try {
+			Map<String, Object> result = gmtService.createRFQByClient(rfq);
+			boolean success = (result != null && !result.isEmpty());
 
-		// business code (you can use your StatusCodes constants)
-		String businessCode = success ? "200" : "500";
+			// business code (you can use your StatusCodes constants)
+			String businessCode = success ? "200" : "500";
 
-		String msg = success ? "RFQ created successfully" : "Failed to create RFQ";
+			String msg = success ? "RFQ created successfully" : "Failed to create RFQ";
 
-		// data payload (rfq details on success, empty on failure)
-		Map<String, Object> data = success ? result : Map.of();
+			// data payload (rfq details on success, empty on failure)
+			Map<String, Object> data = success ? result : Map.of();
 
-		// Use your existing 5-arg constructor:
-		// MessageResponse(String code, String message, Object data, String status, Date
-		// timestamp)
-		MessageResponse response = new MessageResponse(businessCode, msg, data, success ? "Success" : "Failure", // this
-																													// becomes
-																													// the
-																													// "status"
-																													// in
-																													// JSON
-				new Date());
+			MessageResponse response = new MessageResponse(businessCode, msg, data, success ? "Success" : "Failure",
+					new Date());
 
-		// set error messages (MessageResponse#setErrorMsg expects List<String>)
-		if (!success) {
+			if (!success) {
+				List<String> errors = new ArrayList<>();
+				errors.add("Error occurred while creating RFQ");
+				response.setErrorMsg(errors);
+			}
+
+			return ResponseEntity.ok(response);
+		} catch (AppException ae) {
+			MessageResponse response = new MessageResponse("403", ae.getErrorMessage(), Map.of(), "Failure", new Date());
 			List<String> errors = new ArrayList<>();
-			errors.add("Error occurred while creating RFQ");
+			errors.add(ae.getErrorMessage());
 			response.setErrorMsg(errors);
+			return ResponseEntity.ok(response);
 		}
-
-		return ResponseEntity.ok(response); // always HTTP 200 as you requested
 	}
 
 //	@PostMapping("/sendEmail")

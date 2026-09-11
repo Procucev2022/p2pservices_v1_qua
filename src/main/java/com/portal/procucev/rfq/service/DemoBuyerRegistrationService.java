@@ -22,6 +22,8 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Date;
+
 /**
  * Creates a temporary/demo buyer account for unregistered email senders.
  *
@@ -59,7 +61,7 @@ public class DemoBuyerRegistrationService {
     @Value("${app.rfq.demo-phone:9999999991}")
     private String demoPhoneNumber;
 
-    @Value("${app.rfq.demo-password:}")
+    @Value("${app.rfq.demo-password:Welcome@123}")
     private String demoPassword;
 
     /**
@@ -83,6 +85,28 @@ public class DemoBuyerRegistrationService {
         if (existingUser != null) {
             log.info("User already exists for email {}: userId={}, verificationStatus={}",
                     normalizedEmail, existingUser.getId(), existingUser.getVerificationStatus());
+            if (StatusConstants.DEMO_BUYER.equals(existingUser.getVerificationStatus())) {
+                String expectedPhone = PhoneNumberUtils.normalize(demoPhoneNumber);
+                boolean changed = false;
+                if (expectedPhone != null && !expectedPhone.equals(existingUser.getPhone())) {
+                    log.info("Syncing demo buyer phone for {} from {} to {}", normalizedEmail, existingUser.getPhone(), expectedPhone);
+                    existingUser.setPhone(expectedPhone);
+                    if (existingUser.getOrg() != null) {
+                        existingUser.getOrg().setOrganizationPhonenumber(expectedPhone);
+                        clientDao.save(existingUser.getOrg());
+                    }
+                    changed = true;
+                }
+                String initialPassword = (demoPassword != null && !demoPassword.isBlank())
+                        ? demoPassword.trim() : "Welcome@123";
+                if (!initialPassword.equals(existingUser.getPassword())) {
+                    existingUser.setPassword(initialPassword);
+                    changed = true;
+                }
+                if (changed) {
+                    existingUser = userDao.save(existingUser);
+                }
+            }
             return existingUser;
         }
 
@@ -133,9 +157,11 @@ public class DemoBuyerRegistrationService {
             user.setRole(initiatorRole);
             user.setUniqueId(selfRegistrationService.generateId(demoPhoneNumber));
             user.setSourceType("EMAIL");
+            user.setActivityTs(null);
+            user.setCreatedTS(new Date());
             String initialPassword = (demoPassword != null && !demoPassword.isBlank())
                     ? demoPassword.trim()
-                    : new String(ProcucevUtils.generatePassword(8));
+                    : "Welcome@123";
             user.setPassword(initialPassword);
             // Mark as DEMO_BUYER — NOT eligible for RFQ creation until verified
             user.setVerificationStatus(StatusConstants.DEMO_BUYER);

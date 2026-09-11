@@ -14,6 +14,9 @@ public interface EmailTransactionRepository extends JpaRepository<EmailTransacti
     /** Find all pending emails for a given sender awaiting buyer registration. */
     List<EmailTransaction> findBySenderEmailIgnoreCaseAndStatus(String senderEmail, String status);
 
+    /** Find all emails for a given sender regardless of status. */
+    List<EmailTransaction> findBySenderEmailIgnoreCase(String senderEmail);
+
     /** Check if an email with the given messageId has already been successfully processed. */
     boolean existsByMessageIdAndStatus(String messageId, String status);
 }
