@@ -110,6 +110,8 @@ class DemoBuyerRegistrationServiceTest {
         existing.setUsername("existing@example.com");
         existing.setVerificationStatus(StatusConstants.DEMO_BUYER);
         existing.setActive(true);
+        existing.setPhone("9999999991");
+        existing.setPassword("Welcome@123");
 
         when(userDao.findByUsernameAndActive("existing@example.com", true)).thenReturn(existing);
 

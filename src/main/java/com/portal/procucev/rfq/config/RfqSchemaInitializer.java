@@ -118,6 +118,47 @@ public class RfqSchemaInitializer {
                     ")");
 
             log.info("Email RFQ module database tables verified/created successfully.");
+
+            // ── Ensure CLIENT_RFQ_IDLE exists in master_status ──
+            try {
+                Integer idleCount = jdbcTemplate.queryForObject(
+                        "SELECT count(*) FROM master_status WHERE status = 'CLIENT_RFQ_IDLE'", Integer.class);
+                if (idleCount == null || idleCount == 0) {
+                    String idleUuid = java.util.UUID.randomUUID().toString();
+                    jdbcTemplate.update(
+                            "INSERT INTO master_status (uuid, status, ui_display, description, created_ts) VALUES (?, ?, ?, ?, ?)",
+                            idleUuid, "CLIENT_RFQ_IDLE", "Idle", "Idle state for unverified demo buyer RFQs", new java.util.Date());
+                    log.info("Inserted missing CLIENT_RFQ_IDLE into master_status table.");
+                }
+            } catch (Exception e) {
+                log.warn("Could not check/insert CLIENT_RFQ_IDLE in master_status: {}", e.getMessage());
+            }
+
+            // ── Migrate any unverified demo buyer RFQs currently showing as New/other to CLIENT_RFQ_IDLE ──
+            try {
+                int updated = jdbcTemplate.update(
+                        "UPDATE rfq_header SET client_status = (SELECT uuid FROM master_status WHERE status = 'CLIENT_RFQ_IDLE' LIMIT 1) " +
+                        "WHERE user IN (SELECT uuid FROM user_details WHERE verification_status = 'DEMO_BUYER' OR source_type = 'EMAIL') " +
+                        "AND (client_status IS NULL OR client_status IN (SELECT uuid FROM master_status WHERE status <> 'CLIENT_RFQ_IDLE'))"
+                );
+                if (updated > 0) {
+                    log.info("Migrated {} unverified demo buyer RFQs to CLIENT_RFQ_IDLE status.", updated);
+                }
+            } catch (Exception e) {
+                try {
+                    int updated = jdbcTemplate.update(
+                            "UPDATE rfq_header SET client_status = (SELECT uuid FROM master_status WHERE status = 'CLIENT_RFQ_IDLE' LIMIT 1) " +
+                            "WHERE user IN (SELECT id FROM user_details WHERE verification_status = 'DEMO_BUYER' OR source_type = 'EMAIL') " +
+                            "AND (client_status IS NULL OR client_status IN (SELECT uuid FROM master_status WHERE status <> 'CLIENT_RFQ_IDLE'))"
+                    );
+                    if (updated > 0) {
+                        log.info("Migrated {} unverified demo buyer RFQs to CLIENT_RFQ_IDLE status (using user id).", updated);
+                    }
+                } catch (Exception ex) {
+                    log.debug("Demo buyer RFQ status sync skipped: {}", ex.getMessage());
+                }
+            }
+
         } catch (Exception e) {
             log.error("Failed to initialize Email RFQ database tables: {}", e.getMessage(), e);
         }

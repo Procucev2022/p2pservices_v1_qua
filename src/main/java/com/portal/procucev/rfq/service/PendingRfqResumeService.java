@@ -1,13 +1,19 @@
 package com.portal.procucev.rfq.service;
 
+import com.portal.procucev.dao.MasterStatusDao;
+import com.portal.procucev.dao.RfqDao;
 import com.portal.procucev.dao.UserDao;
+import com.portal.procucev.model.MasterStatus;
+import com.portal.procucev.model.Rfq;
 import com.portal.procucev.model.User;
 import com.portal.procucev.rfq.entity.EmailTransaction;
 import com.portal.procucev.rfq.model.EmailData;
 import com.portal.procucev.rfq.repository.EmailTransactionRepository;
+import com.portal.procucev.rfq.repository.RFQRepository;
 import com.portal.procucev.utils.StatusConstants;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -18,24 +24,6 @@ import java.util.Collections;
 import java.util.Date;
 import java.util.List;
 
-/**
- * Resumes RFQ processing for emails that were deferred because the sender was
- * unregistered at the time of arrival.
- *
- * <p>After the buyer completes their profile verification (email OTP, phone OTP,
- * pincode validation), this service retrieves the stored email data from
- * {@link EmailTransaction} and re-runs it through the normal RFQ creation pipeline
- * via {@link EmailProcessorService}.</p>
- *
- * <h3>Duplicate protection</h3>
- * <ul>
- *   <li>Only transactions with status {@code PENDING_BUYER_REGISTRATION} are eligible.</li>
- *   <li>Before calling AI extraction, the service checks that no RFQ has already been
- *       created for the same {@code messageId}.</li>
- *   <li>The existing {@code buildDeduplicationKey()} in {@code EmailProcessorService}
- *       provides item-level duplicate protection within the same email.</li>
- * </ul>
- */
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -45,6 +33,27 @@ public class PendingRfqResumeService {
     private final EmailProcessorService emailProcessorService;
     private final DemoBuyerRegistrationService demoBuyerRegistrationService;
     private final UserDao userDao;
+
+    @Autowired(required = false)
+    private RfqDao rfqDao;
+
+    @Autowired(required = false)
+    private RFQRepository rfqRepository;
+
+    @Autowired(required = false)
+    private MasterStatusDao masterStatusDao;
+
+    public void setRfqDao(RfqDao rfqDao) {
+        this.rfqDao = rfqDao;
+    }
+
+    public void setRfqRepository(RFQRepository rfqRepository) {
+        this.rfqRepository = rfqRepository;
+    }
+
+    public void setMasterStatusDao(MasterStatusDao masterStatusDao) {
+        this.masterStatusDao = masterStatusDao;
+    }
 
     /**
      * Resumes all pending RFQs for a buyer who has just completed verification.
@@ -73,19 +82,42 @@ public class PendingRfqResumeService {
             return 0;
         }
 
-        // ── Find all pending email transactions ──
+        int activatedIdleCount = 0;
+
+        // ── 1. Activate any existing IDLE RFQs created for this buyer ──
+        if (rfqDao != null && masterStatusDao != null) {
+            String orgId = user.getOrg() != null ? user.getOrg().getId() : null;
+            List<Rfq> idleRfqs = rfqDao.findIdleRfqsByUserOrOrg(user.getId(), orgId);
+            if (idleRfqs != null && !idleRfqs.isEmpty()) {
+                MasterStatus activeClientStatus = masterStatusDao.findByStatus(StatusConstants.CLIENT_RFQ_NEW);
+                for (Rfq idleRfq : idleRfqs) {
+                    idleRfq.setClientStatus(activeClientStatus);
+                    rfqDao.save(idleRfq);
+                    if (rfqRepository != null) {
+                        rfqRepository.findByRfqNumber(idleRfq.getRfqId()).ifPresent(entity -> {
+                            entity.setStatus("SUCCESS");
+                            rfqRepository.save(entity);
+                        });
+                    }
+                    activatedIdleCount++;
+                    log.info("Activated idle RFQ {} for newly verified buyer {}", idleRfq.getRfqId(), normalizedEmail);
+                }
+            }
+        }
+
+        // ── 2. Find all pending email transactions ──
         List<EmailTransaction> pendingTransactions = emailTransactionRepository
                 .findBySenderEmailIgnoreCaseAndStatus(normalizedEmail, StatusConstants.PENDING_BUYER_REGISTRATION);
 
         if (pendingTransactions.isEmpty()) {
             log.info("No pending email transactions found for {}", normalizedEmail);
-            return 0;
+            return activatedIdleCount;
         }
 
         log.info("Found {} pending email transaction(s) for {}. Resuming processing...",
                 pendingTransactions.size(), normalizedEmail);
 
-        int successCount = 0;
+        int successCount = activatedIdleCount;
 
         for (EmailTransaction transaction : pendingTransactions) {
             try {
@@ -94,6 +126,13 @@ public class PendingRfqResumeService {
                     log.info("Email {} already has RFQ_CREATED status. Skipping to prevent duplicate.",
                             transaction.getMessageId());
                     transaction.setStatus("SKIPPED_ALREADY_PROCESSED");
+                    emailTransactionRepository.save(transaction);
+                    continue;
+                }
+
+                // If an idle RFQ was already activated for this buyer, mark the transaction as RFQ_CREATED
+                if (activatedIdleCount > 0) {
+                    transaction.setStatus("RFQ_CREATED");
                     emailTransactionRepository.save(transaction);
                     continue;
                 }
@@ -122,8 +161,7 @@ public class PendingRfqResumeService {
             }
         }
 
-        log.info("Completed pending RFQ resume for {}: {}/{} successful",
-                normalizedEmail, successCount, pendingTransactions.size());
+        log.info("Completed pending RFQ resume for {}: {} successful", normalizedEmail, successCount);
         return successCount;
     }
 

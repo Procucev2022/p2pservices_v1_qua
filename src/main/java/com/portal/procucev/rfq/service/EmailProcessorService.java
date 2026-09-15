@@ -194,48 +194,36 @@ public class EmailProcessorService {
             emailTransactionRepository.save(transaction);
 
             Buyer buyer = buyerVerificationService.verifyAndGetBuyer(normalizedSender);
+            boolean isDemoBuyer = false;
+            User demoUser = null;
 
             if (buyer == null || !buyer.isVerified()) {
-                log.warn("Buyer validation: sender email {} is not a verified buyer. Initiating demo buyer registration flow.", normalizedSender);
-                log.info("No Gemini AI call will be executed for unverified sender.");
+                log.warn("Buyer validation: sender email {} is not a verified buyer. Initiating demo buyer registration with idle RFQ flow.", normalizedSender);
 
                 if (demoBuyerRegistrationService != null) {
-                    User demoUser = demoBuyerRegistrationService.createDemoBuyer(normalizedSender, email.getSenderName());
+                    demoUser = demoBuyerRegistrationService.createDemoBuyer(normalizedSender, email.getSenderName());
                     if (demoUser != null) {
-                        transaction.setEmailBody(email.getBody());
-                        transaction.setAttachmentText(email.getAttachmentText());
-                        if (email.getAttachments() != null && !email.getAttachments().isEmpty()) {
-                            String paths = email.getAttachments().stream()
-                                    .map(File::getAbsolutePath)
-                                    .collect(Collectors.joining(","));
-                            transaction.setAttachmentPaths(paths);
-                        }
-                        if (email.getReceivedDate() != null) {
-                            transaction.setReceivedDate(email.getReceivedDate().toInstant().atZone(ZoneId.systemDefault()).toLocalDateTime());
-                        }
-                        transaction.setStatus(StatusConstants.PENDING_BUYER_REGISTRATION);
-                        transaction.setErrorMessage(null);
-                        emailTransactionRepository.save(transaction);
-
-                        String buyerName = (demoUser.getFullName() != null && !demoUser.getFullName().isBlank())
-                                ? demoUser.getFullName() : (email.getSenderName() != null ? email.getSenderName() : "Valued Customer");
-                        String password = (demoUser.getPassword() != null && !demoUser.getPassword().isBlank())
-                                ? demoUser.getPassword() : null;
-                        acknowledgementEmailService.sendDemoBuyerRegistrationEmail(normalizedSender, buyerName, buyerPortalUrl, password);
-                        emailReaderService.moveMessageToFolder(email.getMessageId(), processedFolder);
-
-                        log.info("Demo buyer account established and email stored with status PENDING_BUYER_REGISTRATION for sender: {}", normalizedSender);
-                        return StatusConstants.PENDING_BUYER_REGISTRATION;
+                        isDemoBuyer = true;
+                        buyer = Buyer.builder()
+                                .email(normalizedSender)
+                                .userId(String.valueOf(demoUser.getId()))
+                                .orgId(demoUser.getOrg() != null ? String.valueOf(demoUser.getOrg().getId()) : null)
+                                .name((demoUser.getFullName() != null && !demoUser.getFullName().isBlank())
+                                        ? demoUser.getFullName() : (email.getSenderName() != null ? email.getSenderName() : "Valued Customer"))
+                                .verified(false)
+                                .build();
                     }
                 }
 
-                acknowledgementEmailService.sendUnregisteredBuyerAcknowledgement(normalizedSender);
-                emailReaderService.moveMessageToFolder(email.getMessageId(), errorFolder);
+                if (!isDemoBuyer) {
+                    acknowledgementEmailService.sendUnregisteredBuyerAcknowledgement(normalizedSender);
+                    emailReaderService.moveMessageToFolder(email.getMessageId(), errorFolder);
 
-                transaction.setStatus("INVALID_BUYER");
-                transaction.setErrorMessage("Sender email is not registered as a buyer");
-                emailTransactionRepository.save(transaction);
-                return "INVALID_BUYER";
+                    transaction.setStatus("INVALID_BUYER");
+                    transaction.setErrorMessage("Sender email is not registered as a buyer");
+                    emailTransactionRepository.save(transaction);
+                    return "INVALID_BUYER";
+                }
             }
 
             log.info("Buyer validation successful: buyerId={}, email={}", buyer.getUserId(), buyer.getEmail());
@@ -262,17 +250,29 @@ public class EmailProcessorService {
                 transaction.setExtractionJson(objectMapper.writeValueAsString(extractedRFQ));
                 log.info("AI extraction successful");
             } catch (Exception e) {
-                log.error("AI extraction failed for validated buyer {}: {}", buyer.getEmail(), e.getMessage());
-                log.warn("Email moved to Error folder because AI processing failed");
+                log.warn("AI extraction failed for validated buyer {}: {}. Attempting rule-based fallback extraction...",
+                        buyer.getEmail(), e.getMessage());
+                extractedRFQ = fallbackExtractRFQFromEmail(email);
+                if (extractedRFQ != null && extractedRFQ.getItems() != null && !extractedRFQ.getItems().isEmpty()) {
+                    try {
+                        transaction.setExtractionJson(objectMapper.writeValueAsString(extractedRFQ));
+                    } catch (Exception ex) {
+                        log.warn("Could not serialize fallback extracted RFQ JSON: {}", ex.getMessage());
+                    }
+                    log.info("Rule-based fallback extraction succeeded with {} item(s)", extractedRFQ.getItems().size());
+                } else {
+                    log.error("AI extraction and fallback both failed for validated buyer {}: {}", buyer.getEmail(), e.getMessage());
+                    log.warn("Email moved to Error folder because AI processing failed");
 
-                FailedRfqRequest failedReq = buildFailedRequestFromEmail(email, null, "AI Extraction failed: " + e.getMessage());
-                acknowledgementEmailService.sendFailureAcknowledgement(failedReq, buyer);
-                emailReaderService.moveMessageToFolder(email.getMessageId(), errorFolder);
+                    FailedRfqRequest failedReq = buildFailedRequestFromEmail(email, null, "AI Extraction failed: " + e.getMessage());
+                    acknowledgementEmailService.sendFailureAcknowledgement(failedReq, buyer);
+                    emailReaderService.moveMessageToFolder(email.getMessageId(), errorFolder);
 
-                transaction.setStatus("AI_FAILED");
-                transaction.setErrorMessage("AI Extraction failed: " + e.getMessage());
-                emailTransactionRepository.save(transaction);
-                return "AI_FAILED";
+                    transaction.setStatus("AI_FAILED");
+                    transaction.setErrorMessage("AI Extraction failed: " + e.getMessage());
+                    emailTransactionRepository.save(transaction);
+                    return "AI_FAILED";
+                }
             }
 
             if (extractedRFQ == null) {
@@ -555,6 +555,10 @@ public class EmailProcessorService {
                         .build();
 
                 RFQRequest rfqRequest = rfqBuilderService.buildRFQRequest(groupExtractedRFQ, buyer, email.getSubject(), email.getAttachments());
+                if (isDemoBuyer) {
+                    rfqRequest.setIdle(true);
+                    rfqRequest.setClientStatus(StatusConstants.CLIENT_RFQ_IDLE);
+                }
                 String generatedRfqNumber = rfqRequest.getRfqNumber();
 
                 log.info("Creating RFQ for buyerId={}, Category='{}', Location='{}', Date='{}'", buyer.getUserId(), groupCategory, groupLocation, groupDate);
@@ -566,7 +570,7 @@ public class EmailProcessorService {
                     RFQEntity rfqEntity = RFQEntity.builder()
                             .rfqNumber(generatedRfqNumber)
                             .buyerEmail(buyer.getEmail())
-                            .status("SUCCESS")
+                            .status(isDemoBuyer ? StatusConstants.CLIENT_RFQ_IDLE : "SUCCESS")
                             .rawSubject(email.getSubject())
                             .itemsJson(objectMapper.writeValueAsString(groupItems))
                             .deliveryLocation(groupLocation)
@@ -647,6 +651,33 @@ public class EmailProcessorService {
                 return STATUS_FILE_SIZE_EXCEEDED;
             }
 
+            if (isDemoBuyer && atLeastOneSuccess) {
+                transaction.setEmailBody(email.getBody());
+                transaction.setAttachmentText(email.getAttachmentText());
+                if (email.getAttachments() != null && !email.getAttachments().isEmpty()) {
+                    String paths = email.getAttachments().stream()
+                            .map(File::getAbsolutePath)
+                            .collect(Collectors.joining(","));
+                    transaction.setAttachmentPaths(paths);
+                }
+                if (email.getReceivedDate() != null) {
+                    transaction.setReceivedDate(email.getReceivedDate().toInstant().atZone(ZoneId.systemDefault()).toLocalDateTime());
+                }
+                transaction.setStatus(StatusConstants.PENDING_BUYER_REGISTRATION);
+                transaction.setErrorMessage(null);
+                emailTransactionRepository.save(transaction);
+
+                String buyerName = (demoUser != null && demoUser.getFullName() != null && !demoUser.getFullName().isBlank())
+                        ? demoUser.getFullName() : (email.getSenderName() != null ? email.getSenderName() : "Valued Customer");
+                String password = (demoUser != null && demoUser.getPassword() != null && !demoUser.getPassword().isBlank())
+                        ? demoUser.getPassword() : null;
+                acknowledgementEmailService.sendDemoBuyerRegistrationEmail(normalizedSender, buyerName, buyerPortalUrl, password);
+                emailReaderService.moveMessageToFolder(email.getMessageId(), processedFolder);
+
+                log.info("Demo buyer account established and idle RFQ created for sender: {}", normalizedSender);
+                return StatusConstants.PENDING_BUYER_REGISTRATION;
+            }
+
             acknowledgementEmailService.sendConsolidatedAcknowledgement(createdRfqs, failedItemsList, buyer, email.getSubject());
 
             if (atLeastOneSuccess && !hasFailures) {
@@ -692,7 +723,8 @@ public class EmailProcessorService {
     }
 
     private boolean isSuccessfulStatus(String status) {
-        return "RFQ_CREATED".equalsIgnoreCase(status);
+        return "RFQ_CREATED".equalsIgnoreCase(status)
+                || StatusConstants.PENDING_BUYER_REGISTRATION.equalsIgnoreCase(status);
     }
 
     private boolean isErrorStatus(String status) {
@@ -1363,6 +1395,259 @@ public class EmailProcessorService {
             sb.append(trimmed).append(" ");
         }
         return sb.toString().trim();
+    }
+
+    private ExtractedRFQ fallbackExtractRFQFromEmail(EmailData email) {
+        if (email == null) {
+            return null;
+        }
+
+        String body = email.getBody() != null ? email.getBody() : "";
+        String attachmentText = email.getAttachmentText() != null ? email.getAttachmentText() : "";
+        String subject = email.getSubject() != null ? email.getSubject() : "";
+        String combined = (body + "\n" + attachmentText).trim();
+
+        // 1. Delivery Location
+        String location = scanFieldFromEmail(email,
+                "(?i)(?:required\\s+)?(?:delivery\\s+location|delivery\\s+address|deliver(?:y)?\\s+to|shipping\\s+address|destination|site\\s+location|location)(?:\\s+is)?\\s*[:=]?\\s*[*\"']?([^*\"'\\r\\n]+?)(?:[*\"']|(?=\\s*,?\\s*and\\s+(?:the\\s+)?required)|(?=\\s*\\.\\s+[A-Z])|\\r|\\n|$)");
+        if (location == null || location.isBlank()) {
+            java.util.regex.Matcher locMatcher = java.util.regex.Pattern.compile(
+                    "(?i)(?:delivery\\s+location|delivery\\s+address|deliver(?:y)?\\s+to|shipping\\s+address|destination)(?:\\s+is)?\\s*[:=]?\\s*[*\"']?([^*\"'\\r\\n]+?)(?:[*\"']|(?=\\s*,?\\s*and\\s+(?:the\\s+)?required)|\\r|\\n|$)"
+            ).matcher(combined);
+            if (locMatcher.find()) {
+                location = locMatcher.group(1).trim();
+            }
+        }
+        if (location != null) {
+            location = location.replaceAll("^[*\"'\\s,;:\\-]+", "").replaceAll("[*\"'\\s,;:\\-]+$", "").trim();
+        }
+
+        // 2. Delivery Date
+        String dateStr = null;
+        java.util.regex.Matcher dateMatcher = java.util.regex.Pattern.compile(
+                "(?i)(?:required\\s+)?(?:delivery\\s+date|required\\s+date|expected\\s+delivery|deliver\\s+by|delivery\\s+by|required\\s+by|date)(?:\\s+is)?\\s*[:=]?\\s*[*\"']?([a-zA-Z0-9,\\-\\s/–]+?)(?:[*\"']|(?=\\s*,?\\s*(?:please|regards|and|\\r|\\n|\\.))|$)"
+        ).matcher(combined);
+        if (dateMatcher.find()) {
+            String rawDate = dateMatcher.group(1).trim();
+            rawDate = rawDate.replaceAll("^[*\"'\\s,;:\\-]+", "").replaceAll("[*\"'\\s,;:\\-]+$", "").trim();
+            dateStr = dateParser.toIsoDateString(rawDate);
+            if (dateStr == null) {
+                dateStr = dateParser.parseDateString(rawDate);
+            }
+        }
+        if (dateStr == null || dateStr.isBlank()) {
+            dateStr = dateParser.parseDateString(null);
+        }
+
+        // 3. City / State / Pincode
+        String city = "";
+        String state = "";
+        String pincode = "";
+        if (location != null && !location.isBlank()) {
+            String[] parsedCsp = parseCityStatePincodeFromLocation(location, "", "", "", null);
+            city = parsedCsp[0];
+            state = parsedCsp[1];
+            pincode = parsedCsp[2];
+        }
+
+        // 4. Line Items Extraction
+        List<RFQItem> items = extractItemsFallback(body, attachmentText, subject, location, dateStr);
+
+        // Fallback: If no items extracted via patterns, check subject for item name and body for quantity
+        if (items.isEmpty()) {
+            String subjectProduct = extractProductFromSubject(subject);
+            Double bodyQty = scanQuantityFromEmail(email);
+            if (bodyQty == null || bodyQty <= 0) {
+                bodyQty = parseQuantityFromText(combined);
+            }
+            if (!subjectProduct.isBlank() && bodyQty != null && bodyQty > 0) {
+                String uom = QuantityNormalizer.extractUom(combined);
+                if (uom == null || uom.isBlank()) {
+                    uom = "Units";
+                }
+                RFQItem item = RFQItem.builder()
+                        .itemDescription(subjectProduct)
+                        .quantity(bodyQty)
+                        .uom(uom)
+                        .deliveryLocation(location)
+                        .deliveryDate(dateStr)
+                        .build();
+                items.add(item);
+            }
+        }
+
+        if (items.isEmpty()) {
+            log.warn("Rule-based fallback extraction found no line items for subject '{}'", subject);
+            return null;
+        }
+
+        return ExtractedRFQ.builder()
+                .buyerEmail(email.getSenderEmail())
+                .deliveryLocation(location)
+                .deliveryCity(city)
+                .deliveryState(state)
+                .deliveryPincode(pincode)
+                .deliveryDate(dateStr)
+                .items(items)
+                .build();
+    }
+
+    private List<RFQItem> extractItemsFallback(String body, String attachmentText, String subject,
+                                               String location, String dateStr) {
+        List<RFQItem> items = new ArrayList<>();
+        String textToScan = ((body != null ? body : "") + "\n" + (attachmentText != null ? attachmentText : "")).trim();
+        if (textToScan.isBlank()) {
+            return items;
+        }
+
+        // Pattern 1: Highlighted/Bold or Quoted procurement requirement e.g. *500 bags of Ordinary Portland Cement (OPC)*
+        java.util.regex.Pattern highlightedPattern = java.util.regex.Pattern.compile(
+                "[*\"']\\s*(\\d+(?:[,\\.]\\d+)?)\\s*([a-zA-Z]+)?\\s*(?:of\\s+|-|–|—|:)?\\s*([^*\"'\\r\\n]+?)\\s*[*\"']");
+        java.util.regex.Matcher m1 = highlightedPattern.matcher(textToScan);
+        while (m1.find()) {
+            String qtyStr = m1.group(1);
+            String uomOrWord = m1.group(2);
+            String descCandidate = m1.group(3);
+
+            RFQItem item = buildFallbackItem(qtyStr, uomOrWord, descCandidate, textToScan, location, dateStr);
+            if (item != null) {
+                items.add(item);
+            }
+        }
+
+        if (!items.isEmpty()) {
+            return items;
+        }
+
+        // Pattern 2: Prose request e.g. "request quotation for 500 bags of Ordinary Portland Cement (OPC)"
+        java.util.regex.Pattern prosePattern = java.util.regex.Pattern.compile(
+                "(?i)(?:quotation\\s+for|quote\\s+for|require(?:ment\\s+for)?|need(?:s)?|procure|purchase|order\\s+for|supply\\s+of)\\s*[*\"']?\\s*(\\d+(?:[,\\.]\\d+)?)\\s*([a-zA-Z]+)?\\s*(?:of\\s+|-|–|—|:)?\\s*([a-zA-Z0-9][a-zA-Z0-9\\s\\(\\)/\\-\\.,]{2,100}?)(?:[*\"']|(?=\\s+(?:suitable|required|with|at|for\\s+our|to|having|delivery|deliver|regards|thanks|please|\\r|\\n|\\.)))");
+        java.util.regex.Matcher m2 = prosePattern.matcher(textToScan);
+        while (m2.find()) {
+            String qtyStr = m2.group(1);
+            String uomOrWord = m2.group(2);
+            String descCandidate = m2.group(3);
+
+            RFQItem item = buildFallbackItem(qtyStr, uomOrWord, descCandidate, textToScan, location, dateStr);
+            if (item != null) {
+                items.add(item);
+            }
+        }
+
+        if (!items.isEmpty()) {
+            return items;
+        }
+
+        // Pattern 3: Line-by-line / bullet item list e.g. "1. 500 bags - Ordinary Portland Cement"
+        java.util.regex.Pattern lineQtyFirstPattern = java.util.regex.Pattern.compile(
+                "(?m)^\\s*(?:(?:\\d+[\\.\\)]|[-*•])\\s*)?(\\d+(?:[,\\.]\\d+)?)\\s*([a-zA-Z]+)?\\s*(?:of\\s+|-|–|—|:)?\\s*([a-zA-Z0-9][a-zA-Z0-9\\s\\(\\)/\\-\\.,]{2,80}?)\\s*(?:\\r?\\n|$)");
+        java.util.regex.Matcher m3 = lineQtyFirstPattern.matcher(textToScan);
+        while (m3.find()) {
+            String qtyStr = m3.group(1);
+            String uomOrWord = m3.group(2);
+            String descCandidate = m3.group(3);
+
+            RFQItem item = buildFallbackItem(qtyStr, uomOrWord, descCandidate, textToScan, location, dateStr);
+            if (item != null) {
+                items.add(item);
+            }
+        }
+
+        if (!items.isEmpty()) {
+            return items;
+        }
+
+        // Pattern 4: Line item with product first e.g. "Ordinary Portland Cement (OPC) - 500 bags" or "Item: Cement, Qty: 500 bags"
+        java.util.regex.Pattern lineProductFirstPattern = java.util.regex.Pattern.compile(
+                "(?m)^\\s*(?:(?:\\d+[\\.\\)]|[-*•]|Item\\s*\\d*[:\\s])\\s*)?([a-zA-Z0-9][a-zA-Z0-9\\s\\(\\)/\\-\\.,]{2,80}?)\\s*[:\\-–—|,]\\s*(?:qty|quantity)?\\s*[:=]?\\s*(\\d+(?:[,\\.]\\d+)?)\\s*([a-zA-Z]+)?");
+        java.util.regex.Matcher m4 = lineProductFirstPattern.matcher(textToScan);
+        while (m4.find()) {
+            String descCandidate = m4.group(1);
+            String qtyStr = m4.group(2);
+            String uomOrWord = m4.group(3);
+
+            RFQItem item = buildFallbackItem(qtyStr, uomOrWord, descCandidate, textToScan, location, dateStr);
+            if (item != null) {
+                items.add(item);
+            }
+        }
+
+        return items;
+    }
+
+    private RFQItem buildFallbackItem(String qtyStr, String uomOrWord, String descCandidate,
+                                      String fullText, String location, String dateStr) {
+        if (descCandidate == null || descCandidate.isBlank() || qtyStr == null) {
+            return null;
+        }
+
+        String cleanDesc = descCandidate.trim().replaceAll("^[*\"'\\s,;:\\-]+", "").replaceAll("[*\"'\\s,;:\\-]+$", "");
+        if (cleanDesc.length() < 3) {
+            return null;
+        }
+
+        if (cleanDesc.replaceAll("[^a-zA-Z]", "").length() < 2) {
+            return null;
+        }
+
+        // Filter out pricing terms, delivery keywords, or greetings
+        String lowerDesc = cleanDesc.toLowerCase();
+        if (lowerDesc.startsWith("unit price") || lowerDesc.startsWith("applicable taxes")
+                || lowerDesc.startsWith("delivery location") || lowerDesc.startsWith("delivery date")
+                || lowerDesc.startsWith("regards") || lowerDesc.startsWith("dear")
+                || lowerDesc.contains("quotation validity") || lowerDesc.contains("payment terms")) {
+            return null;
+        }
+
+        // Filter out dates (e.g. "15-Feb-2029" or "Feb-2029")
+        if (cleanDesc.matches("(?i)^(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*[\\s\\-\\d,]+$")
+                || cleanDesc.matches("^\\d{1,4}[\\-/][a-zA-Z0-9]+[\\-/]\\d{1,4}$")) {
+            return null;
+        }
+
+        // Check if uomOrWord is a trade unit or part of the description
+        String uom;
+        if (uomOrWord != null && !uomOrWord.isBlank()) {
+            String extracted = QuantityNormalizer.extractUom(qtyStr + " " + uomOrWord);
+            if (extracted != null && !extracted.isBlank()) {
+                uom = extracted;
+            } else {
+                cleanDesc = uomOrWord + " " + cleanDesc;
+                uom = "Units";
+            }
+        } else {
+            uom = "Units";
+        }
+
+        Double qty = QuantityNormalizer.normalize(qtyStr);
+        if (qty == null || qty <= 0) {
+            return null;
+        }
+
+        if (cleanDesc.length() > 150) {
+            cleanDesc = cleanDesc.substring(0, 150).trim();
+        }
+
+        // Extract specification if present in prose (e.g. "suitable for construction applications")
+        String spec = null;
+        java.util.regex.Matcher specMatcher = java.util.regex.Pattern.compile(
+                "(?i)((?:suitable\\s+for|required\\s+for|specification[s]?\\s*[:=]?)\\s*[a-zA-Z0-9\\s,\\-/]+?)(?=\\.|\\r|\\n|The|Please|Regards|$)")
+                .matcher(fullText);
+        if (specMatcher.find()) {
+            spec = specMatcher.group(1).trim();
+            if (spec.length() > 100) {
+                spec = spec.substring(0, 100).trim();
+            }
+        }
+
+        return RFQItem.builder()
+                .itemDescription(cleanDesc)
+                .quantity(qty)
+                .uom(uom)
+                .specification(spec)
+                .deliveryLocation(location)
+                .deliveryDate(dateStr)
+                .build();
     }
 }
 

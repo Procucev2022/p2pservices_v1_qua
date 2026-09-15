@@ -97,7 +97,31 @@ JdbcTemplate jdbcTemplate;
 
 		try {
 			MasterStatus resultStatus = masterStatusDao.findByStatus(StatusConstants.pcprinprogress);
-			MasterStatus newStatus = masterStatusDao.findByStatus(StatusConstants.CLIENT_RFQ_NEW);
+			boolean shouldBeIdle = (rfq.getClientStatus() != null && StatusConstants.CLIENT_RFQ_IDLE.equals(rfq.getClientStatus().getStatus()))
+					|| isDemoBuyerRfq(rfq);
+
+			MasterStatus newStatus;
+			if (shouldBeIdle) {
+				MasterStatus idleStatus = masterStatusDao.findByStatus(StatusConstants.CLIENT_RFQ_IDLE);
+				if (idleStatus == null) {
+					idleStatus = new MasterStatus();
+					idleStatus.setId(java.util.UUID.randomUUID().toString());
+					idleStatus.setStatus(StatusConstants.CLIENT_RFQ_IDLE);
+					idleStatus.setUiDisplay("Idle");
+					idleStatus.setDescription("Idle state for unverified demo buyer RFQs");
+					try {
+						idleStatus = masterStatusDao.saveAndFlush(idleStatus);
+					} catch (Exception e) {
+						logger.warn("Could not save new CLIENT_RFQ_IDLE MasterStatus: {}", e.getMessage());
+						idleStatus = masterStatusDao.findByStatus(StatusConstants.CLIENT_RFQ_IDLE);
+					}
+				}
+				newStatus = idleStatus;
+			} else {
+				newStatus = (rfq.getClientStatus() != null)
+						? rfq.getClientStatus()
+						: masterStatusDao.findByStatus(StatusConstants.CLIENT_RFQ_NEW);
+			}
 
 			rfq.setByClient(true);
 			rfq.setStatus(resultStatus);
@@ -366,6 +390,30 @@ JdbcTemplate jdbcTemplate;
 		gmtItem.setUnitofMeasures(rfqItem.getUnitofMeasures());
 		gmtItem.setRfqItemId(rfqItem.getId());
 		return gmtItem;
+	}
+
+	private boolean isDemoBuyerRfq(Rfq rfq) {
+		if (rfq == null) return false;
+		if (rfq.getUser() != null && !rfq.getUser().isBlank()) {
+			User u = userDao.findById(rfq.getUser()).orElse(null);
+			if (u == null) {
+				u = userDao.findByUsernameAndActive(rfq.getUser(), true);
+			}
+			if (u != null) {
+				if (StatusConstants.DEMO_BUYER.equalsIgnoreCase(u.getVerificationStatus())) {
+					return true;
+				}
+				if ("EMAIL".equalsIgnoreCase(u.getSourceType())
+						&& !StatusConstants.PROFILE_COMPLETED.equalsIgnoreCase(u.getVerificationStatus())) {
+					return true;
+				}
+				if (u.getPhone() != null && (u.getPhone().contains("9999999991") || u.getPhone().contains("0000000000"))
+						&& !StatusConstants.PROFILE_COMPLETED.equalsIgnoreCase(u.getVerificationStatus())) {
+					return true;
+				}
+			}
+		}
+		return false;
 	}
 
 }

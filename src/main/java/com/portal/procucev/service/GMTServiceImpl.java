@@ -371,10 +371,13 @@ public class GMTServiceImpl implements GMTService {
 		}
 
 		if (user != null) {
-			boolean isEmailDemo = "EMAIL".equalsIgnoreCase(user.getSourceType())
+			boolean isDemo = "EMAIL".equalsIgnoreCase(user.getSourceType())
 					|| StatusConstants.DEMO_BUYER.equalsIgnoreCase(user.getVerificationStatus());
-			if (isEmailDemo && !StatusConstants.PROFILE_COMPLETED.equalsIgnoreCase(user.getVerificationStatus())) {
-				logger.warn("Blocked RFQ creation for unverified email demo buyer: userId={}, email={}, status={}",
+			boolean isVerified = StatusConstants.PROFILE_COMPLETED.equalsIgnoreCase(user.getVerificationStatus())
+					|| StatusConstants.PHONE_VERIFIED.equalsIgnoreCase(user.getVerificationStatus())
+					|| StatusConstants.EMAIL_VERIFIED.equalsIgnoreCase(user.getVerificationStatus());
+			if (isDemo && !isVerified) {
+				logger.warn("Blocked RFQ creation for unverified demo buyer: userId={}, email={}, status={}",
 						user.getId(), user.getUsername(), user.getVerificationStatus());
 				throw new AppException(HttpStatus.FORBIDDEN.value(),
 						"Account verification pending. Please complete your profile and verify your account with OTP before creating RFQs.",

@@ -185,18 +185,17 @@ class BuyerProfileCompletionControllerTest {
         User user = new User();
         user.setUsername("buyer@example.com");
         when(userDao.findByUsernameAndActive("buyer@example.com", true)).thenReturn(user);
-        when(pincodeDao.existsByPincode("999999")).thenReturn(false);
 
         BuyerProfileCompletionRequest request = BuyerProfileCompletionRequest.builder()
                 .email("buyer@example.com")
                 .phone("9876543210")
-                .pincode("999999")
+                .pincode("invalid")
                 .build();
 
         ResponseEntity<ApiResponse<Map<String, Object>>> response = controller.completeProfile(request);
 
         assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
-        assertTrue(response.getBody().getMessage().contains("Invalid delivery pincode"));
+        assertTrue(response.getBody().getMessage().contains("valid 6-digit Indian pincode"));
         verifyNoInteractions(pendingRfqResumeService);
     }
 
@@ -217,7 +216,6 @@ class BuyerProfileCompletionControllerTest {
         pincodeData.setState("Karnataka");
 
         when(userDao.findByUsernameAndActive("buyer@example.com", true)).thenReturn(user);
-        when(pincodeDao.existsByPincode("560001")).thenReturn(true);
         when(pincodeDao.findByPincode("560001")).thenReturn(pincodeData);
         when(buyerRepository.findByEmailIgnoreCase("buyer@example.com")).thenReturn(Optional.empty());
         when(pendingRfqResumeService.resumePendingRfqs("buyer@example.com")).thenReturn(2);
@@ -245,5 +243,108 @@ class BuyerProfileCompletionControllerTest {
         verify(buyerRepository).save(any(BuyerEntity.class));
         verify(pendingRfqResumeService).resumePendingRfqs("buyer@example.com");
         assertEquals(2, response.getBody().getData().get("resumedRfqsCount"));
+    }
+
+    @Test
+    @DisplayName("resendCredentials: updates password and sends registration email")
+    void testResendCredentials_Success() {
+        User user = new User();
+        user.setUsername("buyer@example.com");
+        user.setVerificationStatus(StatusConstants.DEMO_BUYER);
+        user.setPhone("+919999999991");
+
+        Organization org = new Organization();
+        user.setOrg(org);
+
+        when(userDao.findByUsernameAndActive("buyer@example.com", true)).thenReturn(user);
+
+        ResponseEntity<ApiResponse<String>> response = controller.resendCredentials("buyer@example.com", "NewPass@123", "9876543210");
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertTrue(response.getBody().isSuccess());
+        assertEquals("NewPass@123", user.getPassword());
+        assertEquals("+919876543210", user.getPhone());
+        verify(userDao).save(user);
+        verify(clientDao).save(org);
+    }
+
+    @Test
+    @DisplayName("resendCredentials: returns 404 when user not found")
+    void testResendCredentials_NotFound() {
+        when(userDao.findByUsernameAndActive("unknown@example.com", true)).thenReturn(null);
+
+        ResponseEntity<ApiResponse<String>> response = controller.resendCredentials("unknown@example.com", "Pass@123", null);
+
+        assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
+    }
+
+    @Test
+    @DisplayName("updateCredentials: successfully updates credentials for existing user")
+    void testUpdateCredentials_ExistingUser() {
+        User user = new User();
+        user.setUsername("buyer@example.com");
+        user.setVerificationStatus(StatusConstants.DEMO_BUYER);
+
+        Organization org = new Organization();
+        user.setOrg(org);
+
+        when(userDao.findByUsernameAndActive("buyer@example.com", true)).thenReturn(user);
+
+        ResponseEntity<ApiResponse<Map<String, Object>>> response = controller.updateCredentials("buyer@example.com", "Pass@123", "9876543210");
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertTrue(response.getBody().isSuccess());
+        assertEquals("Pass@123", user.getPassword());
+        assertEquals("+919876543210", user.getPhone());
+        assertTrue(user.isResetPassword());
+        assertNull(user.getActivityTs());
+        verify(userDao).save(user);
+        verify(clientDao).save(org);
+    }
+
+    @Test
+    @DisplayName("updateCredentials: returns 404 when user not found and demo buyer registration fails")
+    void testUpdateCredentials_NotFound() {
+        when(userDao.findByUsernameAndActive("unknown@example.com", true)).thenReturn(null);
+
+        ResponseEntity<ApiResponse<Map<String, Object>>> response = controller.updateCredentials("unknown@example.com", "Pass@123", "9876543210");
+
+        assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
+    }
+
+    @Test
+    @DisplayName("simulateExpiry: successfully sets createdTS in the past")
+    void testSimulateExpiry_Success() {
+        User user = new User();
+        user.setUsername("buyer@example.com");
+        user.setCreatedTS(new java.util.Date());
+
+        when(userDao.findByUsernameAndActive("buyer@example.com", true)).thenReturn(user);
+
+        ResponseEntity<ApiResponse<String>> response = controller.simulateExpiry("buyer@example.com", 185);
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertTrue(response.getBody().isSuccess());
+        assertNull(user.getActivityTs());
+        verify(userDao).save(user);
+    }
+
+    @Test
+    @DisplayName("simulateExpiry: returns 404 when user not found")
+    void testSimulateExpiry_NotFound() {
+        when(userDao.findByUsernameAndActive("unknown@example.com", true)).thenReturn(null);
+
+        ResponseEntity<ApiResponse<String>> response = controller.simulateExpiry("unknown@example.com", 185);
+
+        assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
+    }
+
+    @Test
+    @DisplayName("triggerCleanupExpired: triggers DemoBuyerCleanupService and returns success")
+    void testTriggerCleanupExpired() {
+        ResponseEntity<ApiResponse<String>> response = controller.triggerCleanupExpired();
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertTrue(response.getBody().isSuccess());
     }
 }

@@ -30,17 +30,25 @@ public interface RfqDao extends JpaRepository<Rfq, String>{
 			+ " WHERE r.user=:user and r.noPrFlag = true Order By r.createdTS DESC")
 	List<Rfq> findNoPrRfqByClient(@Param("user") String user);
 
-	@Query("SELECT r FROM Rfq r WHERE  (r.noPrFlag = true and r.byClient = false)or (r.byClient = true and r.clientStatus =:status )Order By r.createdTS DESC")
+	@Query("SELECT r FROM Rfq r WHERE ((r.noPrFlag = true and r.byClient = false) or (r.byClient = true and r.clientStatus =:status)) "
+			+ "and (r.clientStatus IS NOT NULL and r.clientStatus.status <> 'CLIENT_RFQ_IDLE') "
+			+ "and (r.user IS NULL or r.user NOT IN (SELECT u.id FROM User u WHERE u.verificationStatus = 'DEMO_BUYER')) Order By r.createdTS DESC")
 	List<Rfq> findAllRfqNoPrByCM(MasterStatus status);
 
 	@Query("SELECT r FROM Rfq r LEFT JOIN FETCH r.clientStatus"
-			+ " WHERE r.byClient = true and r.noPrFlag = true Order By r.createdTS DESC")
+			+ " WHERE r.byClient = true and r.noPrFlag = true "
+			+ "and (r.clientStatus IS NOT NULL and r.clientStatus.status <> 'CLIENT_RFQ_IDLE') "
+			+ "and (r.user IS NULL or r.user NOT IN (SELECT u.id FROM User u WHERE u.verificationStatus = 'DEMO_BUYER')) Order By r.createdTS DESC")
 	List<Rfq> findAllClientRfqNoPr();
 
 	// Explicit countQuery: the derived count cannot be built from a query containing a fetch join.
 	@Query(value = "SELECT r FROM Rfq r LEFT JOIN FETCH r.clientStatus"
-			+ " WHERE r.byClient = true AND r.noPrFlag = true ORDER BY r.createdTS DESC",
-			countQuery = "SELECT count(r) FROM Rfq r WHERE r.byClient = true AND r.noPrFlag = true")
+			+ " WHERE r.byClient = true AND r.noPrFlag = true "
+			+ "AND (r.clientStatus IS NOT NULL AND r.clientStatus.status <> 'CLIENT_RFQ_IDLE') "
+			+ "AND (r.user IS NULL OR r.user NOT IN (SELECT u.id FROM User u WHERE u.verificationStatus = 'DEMO_BUYER')) ORDER BY r.createdTS DESC",
+			countQuery = "SELECT count(r) FROM Rfq r WHERE r.byClient = true AND r.noPrFlag = true "
+			+ "AND (r.clientStatus IS NOT NULL AND r.clientStatus.status <> 'CLIENT_RFQ_IDLE') "
+			+ "AND (r.user IS NULL OR r.user NOT IN (SELECT u.id FROM User u WHERE u.verificationStatus = 'DEMO_BUYER'))")
 	Page<Rfq> findAllClientRfqNoPr(Pageable pageable);
 	
 	//Search for CategoryManager for Client RFQ with no PR
@@ -50,6 +58,8 @@ public interface RfqDao extends JpaRepository<Rfq, String>{
 	    LEFT JOIN FETCH r.clientStatus
 	    WHERE r.byClient = true
 	      AND r.noPrFlag = true
+	      AND (r.clientStatus IS NOT NULL AND r.clientStatus.status <> 'CLIENT_RFQ_IDLE')
+	      AND (r.user IS NULL OR r.user NOT IN (SELECT u.id FROM User u WHERE u.verificationStatus = 'DEMO_BUYER'))
 	      AND (
 	        (:searchType = 'rfqId'       AND LOWER(r.rfqId)       LIKE LOWER(CONCAT('%', :searchValue, '%')))
 	        OR
@@ -68,12 +78,17 @@ public interface RfqDao extends JpaRepository<Rfq, String>{
 	    LEFT JOIN FETCH r.clientStatus
 	    WHERE r.byClient = true
 	      AND r.noPrFlag = true
+	      AND (r.clientStatus IS NOT NULL AND r.clientStatus.status <> 'CLIENT_RFQ_IDLE')
+	      AND (r.user IS NULL OR r.user NOT IN (SELECT u.id FROM User u WHERE u.verificationStatus = 'DEMO_BUYER'))
 	      AND r.user IN :userIds
 	    ORDER BY r.createdTS DESC
 	    """)
 	List<Rfq> findAllClientRfqByUserIds(
 	    @Param("userIds") List<String> userIds
 	);
+
+	@Query("SELECT r FROM Rfq r WHERE (r.user = :user OR (r.org IS NOT NULL AND r.org.id = :orgId)) AND r.clientStatus IS NOT NULL AND r.clientStatus.status = 'CLIENT_RFQ_IDLE'")
+	List<Rfq> findIdleRfqsByUserOrOrg(@Param("user") String user, @Param("orgId") String orgId);
 
 	@Modifying
 	@Transactional
@@ -90,7 +105,9 @@ public interface RfqDao extends JpaRepository<Rfq, String>{
 	@Query("UPDATE  Rfq r SET r.quotationReceived = true, r.quoteCount = r.quoteCount + 1, r.quoteSubmittedDate = COALESCE(r.quoteSubmittedDate, CURRENT_TIMESTAMP), r.clientStatus= :quoteStatus WHERE  r.rfqId=:rfqId")
 	void updateRfqByRfqId(@Param("rfqId") String rfqId,@Param("quoteStatus") MasterStatus quoteStatus);
 
-	@Query("SELECT r FROM Rfq r WHERE  (r.noPrFlag = true and r.byClient = false)or (r.byClient = true and r.clientStatus =:status )Order By r.createdTS DESC")
+	@Query("SELECT r FROM Rfq r WHERE ((r.noPrFlag = true and r.byClient = false) or (r.byClient = true and r.clientStatus =:status)) "
+			+ "and (r.clientStatus IS NOT NULL and r.clientStatus.status <> 'CLIENT_RFQ_IDLE') "
+			+ "and (r.user IS NULL or r.user NOT IN (SELECT u.id FROM User u WHERE u.verificationStatus = 'DEMO_BUYER')) Order By r.createdTS DESC")
 	List<Rfq> findAllRfqNoPr(MasterStatus status);
 	
 //	@Query("SELECT r FROM Rfq r " +

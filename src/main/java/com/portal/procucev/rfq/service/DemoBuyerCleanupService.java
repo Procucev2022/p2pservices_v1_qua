@@ -19,9 +19,13 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.Date;
 import java.util.List;
 
+import com.portal.procucev.rfq.entity.RFQEntity;
+import com.portal.procucev.rfq.repository.RFQRepository;
+import org.springframework.beans.factory.annotation.Autowired;
+
 /**
  * Service to manage lifecycle expiration and automatic cleanup of unverified
- * email-registered demo buyers (1-hour validity window).
+ * email-registered demo buyers (3-hour validity window).
  */
 @Service
 @Slf4j
@@ -35,10 +39,17 @@ public class DemoBuyerCleanupService {
     private final EmailTransactionRepository emailTransactionRepository;
     private final RfqDao rfqDao;
 
-    public static final long EXPIRATION_DURATION_MS = 60 * 60 * 1000L; // 1 hour
+    @Autowired(required = false)
+    private RFQRepository rfqRepository;
+
+    public void setRfqRepository(RFQRepository rfqRepository) {
+        this.rfqRepository = rfqRepository;
+    }
+
+    public static final long EXPIRATION_DURATION_MS = 3 * 60 * 60 * 1000L; // 3 hours
 
     /**
-     * Checks if the given demo buyer has exceeded the 1-hour active window without logging in.
+     * Checks if the given demo buyer has exceeded the 3-hour active window without logging in.
      */
     public boolean isExpired(User user) {
         if (user == null) {
@@ -105,7 +116,7 @@ public class DemoBuyerCleanupService {
             for (EmailTransaction tx : txs) {
                 if (StatusConstants.PENDING_BUYER_REGISTRATION.equalsIgnoreCase(tx.getStatus())) {
                     tx.setStatus("EXPIRED_DELETED");
-                    tx.setErrorMessage("Account expired after 1 hour without login and was automatically removed.");
+                    tx.setErrorMessage("Account expired after 3 hours without login and was automatically removed.");
                     emailTransactionRepository.save(tx);
                 }
             }
@@ -128,6 +139,18 @@ public class DemoBuyerCleanupService {
             }
         } catch (Exception e) {
             log.warn("Error deleting unverified RFQs for {}: {}", email, e.getMessage());
+        }
+
+        // 4b. Remove unverified RFQ entities in rfq_records
+        try {
+            if (rfqRepository != null) {
+                List<RFQEntity> records = rfqRepository.findByBuyerEmail(email);
+                if (records != null && !records.isEmpty()) {
+                    rfqRepository.deleteAll(records);
+                }
+            }
+        } catch (Exception e) {
+            log.warn("Error deleting rfq_records for {}: {}", email, e.getMessage());
         }
 
         // 5. Delete User entity

@@ -327,4 +327,7 @@ public interface StatusConstants {
 	/** Predefined demo phone number used for auto-created buyer accounts. */
 	public static final String DEMO_PHONE_NUMBER = "9999999991";
 
+	/** Rfq.clientStatus: RFQ created in idle state pending buyer registration/OTP verification. */
+	public static final String CLIENT_RFQ_IDLE = "CLIENT_RFQ_IDLE";
+
 }

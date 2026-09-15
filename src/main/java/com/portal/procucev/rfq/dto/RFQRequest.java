@@ -24,6 +24,8 @@ public class RFQRequest {
     private String user;
     private String sourceType;
     private String remarks;
+    private boolean idle;
+    private String clientStatus;
     private List<LocationDto> clientdeliverylocationrfq;
     private List<RfqItemDto> rfqItem;
     private List<Object> vendors;

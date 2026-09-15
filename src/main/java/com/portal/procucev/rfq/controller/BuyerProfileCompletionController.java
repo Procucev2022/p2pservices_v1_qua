@@ -406,7 +406,7 @@ public class BuyerProfileCompletionController {
     @PostMapping("/simulate-expiry")
     public ResponseEntity<ApiResponse<String>> simulateExpiry(
             @RequestParam String email,
-            @RequestParam(required = false, defaultValue = "65") int minutesAgo) {
+            @RequestParam(required = false, defaultValue = "185") int minutesAgo) {
         String normalizedEmail = email != null ? email.trim().toLowerCase() : "";
         User user = userDao.findByUsernameAndActive(normalizedEmail, true);
         if (user == null) {

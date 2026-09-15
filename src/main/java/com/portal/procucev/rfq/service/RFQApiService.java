@@ -13,6 +13,11 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
+import com.portal.procucev.dao.MasterStatusDao;
+import com.portal.procucev.model.MasterStatus;
+import com.portal.procucev.utils.StatusConstants;
+import org.springframework.beans.factory.annotation.Autowired;
+
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Date;
@@ -20,7 +25,6 @@ import java.util.List;
 
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class RFQApiService {
 
     /** Status returned when creation was refused because a document exceeded the allowed size. */
@@ -28,6 +32,23 @@ public class RFQApiService {
 
     private final AutomaticRfqService automaticRfqService;
     private final DateParser dateParser;
+    private MasterStatusDao masterStatusDao;
+
+    @Autowired
+    public RFQApiService(AutomaticRfqService automaticRfqService, DateParser dateParser,
+                         @Autowired(required = false) MasterStatusDao masterStatusDao) {
+        this.automaticRfqService = automaticRfqService;
+        this.dateParser = dateParser;
+        this.masterStatusDao = masterStatusDao;
+    }
+
+    public RFQApiService(AutomaticRfqService automaticRfqService, DateParser dateParser) {
+        this(automaticRfqService, dateParser, null);
+    }
+
+    public void setMasterStatusDao(MasterStatusDao masterStatusDao) {
+        this.masterStatusDao = masterStatusDao;
+    }
 
     public RFQResponse submitRFQ(RFQRequest request) {
         log.info("Submitting internal RFQ request for RFQ Number: {}", request.getRfqNumber());
@@ -38,6 +59,29 @@ public class RFQApiService {
             rfq.setUser(request.getUser() != null ? request.getUser() : "1");
             rfq.setSourceType(request.getSourceType() != null && !request.getSourceType().isBlank() ? request.getSourceType() : "EMAIL");
             rfq.setNoPrFlag(true);
+
+            if (request.isIdle() || StatusConstants.CLIENT_RFQ_IDLE.equals(request.getClientStatus())) {
+                if (masterStatusDao != null) {
+                    MasterStatus idleStatus = masterStatusDao.findByStatus(StatusConstants.CLIENT_RFQ_IDLE);
+                    if (idleStatus == null) {
+                        idleStatus = new MasterStatus();
+                        idleStatus.setId(java.util.UUID.randomUUID().toString());
+                        idleStatus.setStatus(StatusConstants.CLIENT_RFQ_IDLE);
+                        idleStatus.setUiDisplay("Idle");
+                        idleStatus.setDescription("Idle state for unverified demo buyer RFQs");
+                        try {
+                            idleStatus = masterStatusDao.saveAndFlush(idleStatus);
+                        } catch (Exception e) {
+                            log.warn("Could not save new CLIENT_RFQ_IDLE MasterStatus: {}", e.getMessage());
+                            idleStatus = masterStatusDao.findByStatus(StatusConstants.CLIENT_RFQ_IDLE);
+                        }
+                    }
+                    if (idleStatus != null) {
+                        rfq.setClientStatus(idleStatus);
+                    }
+                }
+            }
+
             if (request.getOrg() != null && request.getOrg().getId() != null && !request.getOrg().getId().isBlank()) {
                 Organization org = new Organization();
                 org.setId(request.getOrg().getId());

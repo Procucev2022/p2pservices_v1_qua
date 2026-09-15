@@ -104,7 +104,10 @@ public class DemoBuyerRegistrationService {
                     changed = true;
                 }
                 if (changed) {
-                    existingUser = userDao.save(existingUser);
+                    User saved = userDao.save(existingUser);
+                    if (saved != null) {
+                        existingUser = saved;
+                    }
                 }
             }
             return existingUser;
