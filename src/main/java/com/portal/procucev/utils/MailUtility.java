@@ -1220,6 +1220,12 @@ public class MailUtility {
 			String subject = "Your QUA Seller Account Login Details";
 			StringBuilder email = new StringBuilder();
 
+			String baseHost = (host != null && !host.trim().isEmpty())
+					? host.trim().replaceAll("/+$", "")
+					: "https://qua.procucev.com";
+			String loginUrl = baseHost + "/login";
+			String displayMobile = (vendorMobileNumber != null) ? vendorMobileNumber : "";
+
 			email.append("<html><body>");
 
 			email.append("Dear Partner,<br><br>");
@@ -1227,13 +1233,13 @@ public class MailUtility {
 			email.append("Greetings from <b>Procucev!</b><br><br>");
 
 			email.append("Please login now to your QUA seller account at ");
-			email.append("<a href=\"https://qua.procucev.com/login\">https://qua.procucev.com/login</a> ");
+			email.append("<a href=\"").append(loginUrl).append("\">").append(loginUrl).append("</a> ");
 			email.append("to view full details and download the RFQ instantly. ");
 			email.append("This is a live enquiry, do not miss it.<br><br>");
 
 			email.append("<b>Your login details:</b><br>");
 			email.append("Username: <b>" + mailId + "</b><br>");
-			email.append("Mobile: <b>" + vendorMobileNumber + "</b><br>");
+			email.append("Mobile: <b>" + displayMobile + "</b><br>");
 			email.append("Password: <b>" + "Welcome@123" + "</b><br>");
 			email.append("(Use this password to log in for the first time to create your new password.)<br><br>");
 
@@ -1248,7 +1254,9 @@ public class MailUtility {
 			MimeMultipart multipart = new MimeMultipart();
 			multipart.addBodyPart(messageBodyPart);
 
-			JavaMailSender javaMailSender2 = getJavaMailSender(mailId2, password);
+			JavaMailSender javaMailSender2 = (password != null && !password.trim().isEmpty())
+					? getJavaMailSender(mailId2, password)
+					: (javaMailSender != null ? javaMailSender : getJavaMailSender(mailId2, password));
 			emailNotifierGenericNoPRBySenderList(subject, mailId, javaMailSender2, fromAddress, ccAdd, multipart,
 					mailId2);
 

@@ -181,7 +181,7 @@ Label mapping:
   Quantity / Qty                            -> quantity
   UOM / Unit                                -> uom
   Specification / Specs / Configuration     -> specification
-  Brand / Make / Manufacturer               -> brand
+  Brand / Make / Manufacturer / Mfr         -> brand (CRITICAL: "Make" ALWAYS means Brand)
   Location / Delivery Location / Ship To    -> deliveryLocation
   City                                      -> deliveryCity
   State                                     -> deliveryState
@@ -219,6 +219,35 @@ What must NOT happen with that email:
 The lines may arrive collapsed onto one line, like
 "Description: Laptop Quantity: 25 UOM: Nos Location: Bengaluru State: Karnataka".
 Split it on the labels and read it identically. A value ends where the next label begins.
+
+========================================================
+CRITICAL RULE #5D — TABLES, SPREADSHEETS AND IMAGE TABLES (VERY COMMON)
+========================================================
+Buyers frequently provide procurement requirements in a table layout (in the email body, in a
+spreadsheet attachment, or inside an attached image/screenshot of a table).
+Table column headers map to JSON fields as follows:
+  - "DESCRIPTION" / "ITEM DESCRIPTION" / "MATERIAL" / "PRODUCT" / "ITEM" -> itemDescription
+  - "PART NUMBER" / "PART NO" / "P/N" / "MODEL" / "CATALOG NO" / "ITEM CODE" -> partCode
+  - "MAKE" / "BRAND" / "MFR" / "MANUFACTURER" -> brand
+    CRITICAL: In procurement, "MAKE" ALWAYS MEANS "BRAND".
+    When a column or label says "MAKE", you MUST extract its value into "brand" (e.g. MAKE: BECKHOFF -> "brand": "BECKHOFF", MAKE: SIEMENS -> "brand": "SIEMENS").
+    NEVER leave brand as "Not Specified" when a "MAKE" is present!
+    NEVER put the make name into "specification"!
+  - "QTY" / "QUANTITY" / "REQ QTY" / "ORDER QTY" / "TOTAL QTY" -> quantity
+    CRITICAL: "QTY" is the universal abbreviation for purchase QUANTITY.
+    The number in the "QTY" column for each row is the explicit purchase quantity for that item!
+    Even if the DESCRIPTION or SPECIFICATION has numbers (e.g., "3-port junction", "1000/100 Mbit/s", "24 V DC"), the purchase quantity is ALWAYS the number in the "QTY" column (e.g. 32 -> quantity = 32).
+  - "UOM" / "UNIT" -> uom (e.g., 'Nos', 'Units', 'PCS', 'Meters')
+
+Worked example — Image or text table with columns:
+| DESCRIPTION | PART NUMBER | MAKE | QTY |
+| Infrastructure, media converter, 3-port junction, Ethernet/Ether CAT, 1000/100 Mbit/s, 24 V DC, SFP | CU1521-0020 | BECKHOFF | 32 |
+  → itemDescription = "Infrastructure, media converter, 3-port junction, Ethernet/Ether CAT, 1000/100 Mbit/s, 24 V DC, SFP"
+  → partCode = "CU1521-0020"
+  → brand = "BECKHOFF" (from the "MAKE" column!)
+  → quantity = 32 (from the "QTY" column!)
+  → uom = "Nos"
+  → specification = "3-port junction, Ethernet/Ether CAT, 1000/100 Mbit/s, 24 V DC, SFP"
 
 ========================================================
 CRITICAL RULE #5B — QUANTITY AND UOM MUST AGREE

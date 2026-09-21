@@ -99,9 +99,20 @@ public class RFQBuilderService {
             locStr = "";
         }
 
+        String buyerFullLoc = "";
+        if (buyer != null) {
+            List<String> bParts = new ArrayList<>();
+            if (buyer.getAddress() != null && !buyer.getAddress().isBlank()) bParts.add(buyer.getAddress().trim());
+            if (buyer.getCity() != null && !buyer.getCity().isBlank()) bParts.add(buyer.getCity().trim());
+            if (buyer.getState() != null && !buyer.getState().isBlank()) bParts.add(buyer.getState().trim());
+            if (buyer.getPincode() != null && !buyer.getPincode().isBlank()) bParts.add(buyer.getPincode().trim());
+            buyerFullLoc = String.join(", ", bParts);
+        }
+
         boolean isRegisteredAddressFallback = locStr.isBlank()
                 || locStr.equalsIgnoreCase("Registered Profile Address")
                 || locStr.equalsIgnoreCase("Email Delivery Location")
+                || (!buyerFullLoc.isBlank() && locStr.equalsIgnoreCase(buyerFullLoc))
                 || (buyer != null && buyer.getAddress() != null && locStr.equalsIgnoreCase(buyer.getAddress().trim()));
 
         boolean hasEmailLocation = !isRegisteredAddressFallback && (
@@ -186,8 +197,12 @@ public class RFQBuilderService {
                 if (pincode.isBlank() && buyer.getPincode() != null && !buyer.getPincode().isBlank()) {
                     pincode = buyer.getPincode().trim();
                 }
-                if ((address.isBlank() || isRegisteredAddressFallback) && buyer.getAddress() != null && !buyer.getAddress().isBlank()) {
-                    address = buyer.getAddress().trim();
+                if ((address.isBlank() || isRegisteredAddressFallback)) {
+                    if (buyer.getAddress() != null && !buyer.getAddress().isBlank()) {
+                        address = buyer.getAddress().trim();
+                    } else if (!buyerFullLoc.isBlank()) {
+                        address = buyerFullLoc;
+                    }
                 }
             }
             if (address.isBlank() || address.equalsIgnoreCase("Not Specified")) {
@@ -230,8 +245,16 @@ public class RFQBuilderService {
             for (RFQItem item : extractedRFQ.getItems()) {
                 String rawBrand = item.getBrand();
                 String brandVal = rawBrand != null ? sanitizeText(rawBrand) : "";
-                if (brandVal.isBlank() || brandVal.equalsIgnoreCase("null") || brandVal.equalsIgnoreCase("Not Specified")) {
-                    brandVal = "Brand: Not Specified";
+                if (brandVal.isBlank() || brandVal.equalsIgnoreCase("null") || brandVal.equalsIgnoreCase("Not Specified") || brandVal.equalsIgnoreCase("Brand: Not Specified")) {
+                    String extractedFromSpec = extractBrandFromText(item.getSpecification());
+                    if (extractedFromSpec.isBlank()) {
+                        extractedFromSpec = extractBrandFromText(item.getItemDescription());
+                    }
+                    if (!extractedFromSpec.isBlank()) {
+                        brandVal = "Brand: " + extractedFromSpec;
+                    } else {
+                        brandVal = "Brand: Not Specified";
+                    }
                 } else if (!brandVal.startsWith("Brand:")) {
                     brandVal = "Brand: " + brandVal.trim();
                 }
@@ -261,6 +284,15 @@ public class RFQBuilderService {
                     // The description carries the identifying size/dimension token, so it is the
                     // best available technical fallback. Never leave the specification blank.
                     specs = cleanItemDesc;
+                }
+
+                // Clean any embedded make/brand labels from specs if brand was extracted
+                if (!brandVal.equalsIgnoreCase("Brand: Not Specified") && !specs.isBlank()) {
+                    specs = specs.replaceAll("(?i)\\b(?:make|brand|mfr|manufacturer)\\s*[:=\\-–—]\\s*[A-Za-z0-9&.\\-_/ ]+?(?:[,;\\r\\n|]|$)", "")
+                            .replaceAll("^[,\\s-]+", "").replaceAll("[,\\s-]+$", "").trim();
+                    if (specs.isBlank()) {
+                        specs = cleanItemDesc;
+                    }
                 }
 
                 // Surface the part / model number in the specification too when it is not already
@@ -355,5 +387,19 @@ public class RFQBuilderService {
         return transliterated.replaceAll("[^\\x00-\\x7F]", "-").replaceAll("\\s+", " ").trim();
     }
 
+    private static final java.util.regex.Pattern MAKE_BRAND_PATTERN = java.util.regex.Pattern.compile(
+            "(?i)\\b(?:make|brand|mfr|manufacturer)\\s*[:=\\-–—]\\s*([A-Za-z0-9&.\\-_/ ]+?)(?:[,;\\r\\n|]|$)"
+    );
 
+    private String extractBrandFromText(String text) {
+        if (text == null || text.isBlank()) return "";
+        java.util.regex.Matcher m = MAKE_BRAND_PATTERN.matcher(text);
+        if (m.find()) {
+            String candidate = m.group(1).trim();
+            if (!candidate.isBlank() && candidate.length() <= 50 && !candidate.equalsIgnoreCase("Not Specified")) {
+                return candidate;
+            }
+        }
+        return "";
+    }
 }
