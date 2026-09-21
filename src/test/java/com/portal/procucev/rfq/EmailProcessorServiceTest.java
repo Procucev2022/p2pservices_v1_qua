@@ -3370,6 +3370,49 @@ public class EmailProcessorServiceTest {
         String res4 = emailProcessorService.processSingleEmail(email);
         assertEquals("RFQ_CREATED", res4);
     }
+
+    @Test
+    @DisplayName("Test table row scanning for quantity and brand (Make)")
+    void testTableRowQuantityAndBrandScanning() {
+        String tableText = """
+                Please submit offer as per below:
+                | DESCRIPTION | PART NUMBER | MAKE | QTY |
+                | Infrastructure, media converter, 3-port junction | CU1521-0020 | BECKHOFF | 32 |
+                """;
+
+        EmailData email = EmailData.builder()
+                .body(tableText)
+                .build();
+
+        RFQItem item = RFQItem.builder()
+                .itemDescription("Infrastructure, media converter, 3-port junction")
+                .partCode("CU1521-0020")
+                .build();
+
+        Double scannedQty = org.springframework.test.util.ReflectionTestUtils.invokeMethod(
+                emailProcessorService, "scanQuantityFromTableRow", email, item);
+        assertEquals(32.0, scannedQty);
+
+        String scannedBrand = org.springframework.test.util.ReflectionTestUtils.invokeMethod(
+                emailProcessorService, "scanBrandFromTableRow", email, item);
+        assertEquals("BECKHOFF", scannedBrand);
+    }
+
+    @Test
+    @DisplayName("Test brand extraction from item specification text with Make")
+    void testExtractBrandFromItemText() {
+        String brand1 = org.springframework.test.util.ReflectionTestUtils.invokeMethod(
+                emailProcessorService, "extractBrandFromItemText", "Make: BECKHOFF, 24 V DC");
+        assertEquals("BECKHOFF", brand1);
+
+        String brand2 = org.springframework.test.util.ReflectionTestUtils.invokeMethod(
+                emailProcessorService, "extractBrandFromItemText", "brand - SIEMENS, IP65 rating");
+        assertEquals("SIEMENS", brand2);
+
+        String brand3 = org.springframework.test.util.ReflectionTestUtils.invokeMethod(
+                emailProcessorService, "extractBrandFromItemText", "24 V DC, 1000 Mbit/s");
+        assertEquals("", brand3);
+    }
 }
 
 

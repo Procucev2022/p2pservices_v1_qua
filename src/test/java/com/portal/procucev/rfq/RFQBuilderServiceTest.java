@@ -1139,6 +1139,78 @@ public class RFQBuilderServiceTest {
         RFQRequest reqPinOnly2 = rfqBuilderService.buildRFQRequest(rfqPinOnly2, fullBuyer, "Sub", null);
         assertEquals("560001", reqPinOnly2.getClientdeliverylocationrfq().get(0).getPincode());
     }
+
+    @Test
+    @DisplayName("Test brand extraction from Make in specification")
+    void testBuildRFQRequestMakeInSpecificationExtractsBrand() {
+        ExtractedRFQ rfq = ExtractedRFQ.builder()
+                .items(List.of(RFQItem.builder()
+                        .itemDescription("Media Converter")
+                        .specification("Make: BECKHOFF, Ethernet/Ether CAT, 24 V DC, SFP")
+                        .partCode("CU1521-0020")
+                        .quantity(32.0)
+                        .brand("Not Specified")
+                        .build()))
+                .build();
+
+        Buyer buyer = Buyer.builder().name("User").email("user@test.com").build();
+        RFQRequest req = rfqBuilderService.buildRFQRequest(rfq, buyer, "Sub", null);
+
+        assertEquals("Brand: BECKHOFF", req.getRfqItem().get(0).getRemarks());
+        assertFalse(req.getRfqItem().get(0).getBrand().contains("Make: BECKHOFF"));
+        assertEquals(32.0, req.getRfqItem().get(0).getQuantity());
+    }
+
+    @Test
+    @DisplayName("Test default location to buyer registered location when not mentioned in RFQ")
+    void testBuildRFQRequestMissingLocationDefaultsToBuyerRegisteredLocation() {
+        ExtractedRFQ rfq = ExtractedRFQ.builder()
+                .items(List.of(RFQItem.builder().itemDescription("Item").quantity(5.0).build()))
+                .build();
+
+        Buyer buyer = Buyer.builder()
+                .name("Registered Buyer")
+                .email("buyer@corp.com")
+                .address("Plot 14, Hinjewadi Phase 1")
+                .city("Pune")
+                .state("Maharashtra")
+                .pincode("411057")
+                .build();
+
+        RFQRequest req = rfqBuilderService.buildRFQRequest(rfq, buyer, "Procurement", null);
+        assertNotNull(req);
+        assertEquals(1, req.getClientdeliverylocationrfq().size());
+        assertEquals("Plot 14, Hinjewadi Phase 1", req.getClientdeliverylocationrfq().get(0).getAddress());
+        assertEquals("Pune", req.getClientdeliverylocationrfq().get(0).getCity());
+        assertEquals("Maharashtra", req.getClientdeliverylocationrfq().get(0).getState());
+        assertEquals("411057", req.getClientdeliverylocationrfq().get(0).getPincode());
+    }
+
+    @Test
+    @DisplayName("Test default location when deliveryLocation was set to resolveDeliveryLocation output")
+    void testBuildRFQRequestRegisteredFallbackStringMatchesBuyerFullLoc() {
+        Buyer buyer = Buyer.builder()
+                .name("Registered Buyer")
+                .email("buyer@corp.com")
+                .address("Plot 14, Hinjewadi Phase 1")
+                .city("Pune")
+                .state("Maharashtra")
+                .pincode("411057")
+                .build();
+
+        ExtractedRFQ rfq = ExtractedRFQ.builder()
+                .deliveryLocation("Plot 14, Hinjewadi Phase 1, Pune, Maharashtra, 411057")
+                .items(List.of(RFQItem.builder().itemDescription("Item").quantity(5.0).build()))
+                .build();
+
+        RFQRequest req = rfqBuilderService.buildRFQRequest(rfq, buyer, "Procurement", null);
+        assertNotNull(req);
+        assertEquals(1, req.getClientdeliverylocationrfq().size());
+        assertEquals("Plot 14, Hinjewadi Phase 1", req.getClientdeliverylocationrfq().get(0).getAddress());
+        assertEquals("Pune", req.getClientdeliverylocationrfq().get(0).getCity());
+        assertEquals("Maharashtra", req.getClientdeliverylocationrfq().get(0).getState());
+        assertEquals("411057", req.getClientdeliverylocationrfq().get(0).getPincode());
+    }
 }
 
 
