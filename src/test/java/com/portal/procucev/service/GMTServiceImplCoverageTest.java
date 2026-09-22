@@ -44,6 +44,7 @@ import com.portal.procucev.model.Role;
 import com.portal.procucev.model.User;
 import com.portal.procucev.utils.ApplicationConstants;
 import com.portal.procucev.utils.MailUtility;
+import com.portal.procucev.utils.PhoneNumberUtils;
 import com.portal.procucev.utils.StatusConstants;
 
 import jakarta.mail.Flags;
@@ -821,6 +822,136 @@ class GMTServiceImplCoverageTest {
 
             doThrow(new ConcurrencyFailureException("db down")).when(rfqVendorDao).saveAll(anyList());
             assertFalse(service.sendRfqToVendors(List.of(persisted), rfq));
+        }
+    }
+
+    @Test
+    void sendRfqToVendorsCoversNewUserForwardAndInviteBranches() throws Exception {
+        authenticate("buyer@test.com");
+
+        MasterStatus sent = masterStatus(StatusConstants.pcRfqSent, "Sent");
+        MasterStatus fresh = masterStatus(StatusConstants.vendorRfqNew, "New");
+        when(masterStatusDao.findByStatusIn(anyList())).thenReturn(List.of(sent, fresh));
+
+        when(emailUserRepo.findByEmail("buyer@test.com")).thenReturn(null);
+        ReflectionTestUtils.setField(service, "emailPassword", "envPass");
+        ReflectionTestUtils.setField(service, "mailFom", "envFrom@test.com");
+        when(userDao.findByUsernameAndActive("buyer@test.com", true)).thenReturn(user);
+
+        // 1. Vendor with non-prefixed phone, new user created today, requestType "Forward", count 0, rfqVendor != null
+        Organization vendor1 = organization("V1", "v1@test.com", "9876543210");
+        vendor1.setId("V1");
+        vendor1.setRequestType("Forward");
+
+        User newUser1 = new User();
+        newUser1.setCreatedTS(new Date());
+        when(userDao.findByUsernameAndPhoneAndActive("v1@test.com", "+919876543210", true)).thenReturn(newUser1);
+
+        RfqVendor rfqVendor1 = new RfqVendor();
+        rfqVendor1.setId("1");
+        when(rfqVendorDao.countCredentialEmailsSent("V1")).thenReturn(0L);
+        when(rfqVendorDao.findLatestByOrganizationUuid("V1")).thenReturn(rfqVendor1);
+
+        // 2. Vendor with null phone, user found by username fallback, requestType "Invite", count 0
+        Organization vendor2 = organization("V2", "v2@test.com", null);
+        vendor2.setId("V2");
+        vendor2.setRequestType("Invite");
+
+        User newUser2 = new User();
+        newUser2.setCreatedTS(new Date());
+        when(userDao.findByUsernameAndActive("v2@test.com", true)).thenReturn(newUser2);
+
+        RfqVendor rfqVendor2 = new RfqVendor();
+        rfqVendor2.setId("2");
+        when(rfqVendorDao.countCredentialEmailsSent("V2")).thenReturn(0L);
+        when(rfqVendorDao.findLatestByOrganizationUuid("V2")).thenReturn(rfqVendor2);
+
+        // 3. Vendor with count > 0, requestType "Forward"
+        Organization vendor3 = organization("V3", "v3@test.com", "+911234567890");
+        vendor3.setId("V3");
+        vendor3.setRequestType("Forward");
+
+        User newUser3 = new User();
+        newUser3.setCreatedTS(new Date());
+        when(userDao.findByUsernameAndPhoneAndActive("v3@test.com", "+911234567890", true)).thenReturn(newUser3);
+        when(rfqVendorDao.countCredentialEmailsSent("V3")).thenReturn(1L);
+        when(rfqVendorDao.findLatestByOrganizationUuid("V3")).thenReturn(null);
+
+        // 4. Vendor with count > 0, requestType "Invite"
+        Organization vendor4 = organization("V4", "v4@test.com", "+919999999999");
+        vendor4.setId("V4");
+        vendor4.setRequestType("Invite");
+
+        User newUser4 = new User();
+        newUser4.setCreatedTS(new Date());
+        when(userDao.findByUsernameAndPhoneAndActive("v4@test.com", "+919999999999", true)).thenReturn(newUser4);
+        when(rfqVendorDao.countCredentialEmailsSent("V4")).thenReturn(2L);
+        when(rfqVendorDao.findLatestByOrganizationUuid("V4")).thenReturn(null);
+
+        // 5. Vendor with existing user (created in past), requestType "Invite"
+        Organization vendor5 = organization("V5", "v5@test.com", "+918888888888");
+        vendor5.setId("V5");
+        vendor5.setRequestType("Invite");
+
+        User oldUser5 = new User();
+        oldUser5.setCreatedTS(Date.from(Instant.now().minus(5, ChronoUnit.DAYS)));
+        when(userDao.findByUsernameAndPhoneAndActive("v5@test.com", "+918888888888", true)).thenReturn(oldUser5);
+
+        // 6. Vendor with user normalized phone lookup
+        Organization vendor6 = organization("V6", "v6@test.com", "091-7777777777");
+        vendor6.setId("V6");
+        vendor6.setRequestType("Forward");
+        User user6 = new User();
+        user6.setCreatedTS(Date.from(Instant.now().minus(3, ChronoUnit.DAYS)));
+        when(userDao.findByUsernameAndPhoneAndActive("v6@test.com", "+91091-7777777777", true)).thenReturn(null);
+        String norm6 = PhoneNumberUtils.normalize("091-7777777777");
+        when(userDao.findByUsernameAndPhoneAndActive("v6@test.com", norm6, true)).thenReturn(user6);
+
+        rfq.setVendors(List.of(vendor1, vendor2, vendor3, vendor4, vendor5, vendor6));
+
+        RfqVendor persisted = new RfqVendor();
+        persisted.setRfq(rfq);
+        when(rfqDao.findById(rfq.getId())).thenReturn(Optional.of(rfq));
+
+        try (MockedStatic<MailUtility> mail = mockStatic(MailUtility.class)) {
+            assertTrue(service.sendRfqToVendors(List.of(persisted), rfq));
+            verify(rfqVendorDao, times(2)).save(any(RfqVendor.class));
+        }
+    }
+
+    @Test
+    void sendRfqToVendorsCoversRemainingBranchesAndNullFallbacks() throws Exception {
+        authenticate("nobuyer@test.com");
+
+        when(masterStatusDao.findByStatusIn(anyList())).thenReturn(Collections.emptyList());
+
+        when(emailUserRepo.findByEmail("nobuyer@test.com")).thenReturn(null);
+        ReflectionTestUtils.setField(service, "emailPassword", null);
+        ReflectionTestUtils.setField(service, "mailFom", null);
+        ReflectionTestUtils.setField(service, "pswd", "defaultPswd");
+        ReflectionTestUtils.setField(service, "mail", "defaultMail@test.com");
+        when(userDao.findByUsernameAndActive("nobuyer@test.com", true)).thenReturn(null);
+
+        // Vendor with null id, blank phone, null user
+        Organization vendorNullId = organization(null, "nullid@test.com", "   ");
+        vendorNullId.setId(null);
+        vendorNullId.setRequestType(null);
+
+        // Vendor with user having null createdTS
+        Organization vendorNullCreatedTS = organization("VNullTS", "nullts@test.com", null);
+        vendorNullCreatedTS.setId("VNullTS");
+        User userNullTS = new User();
+        userNullTS.setCreatedTS(null);
+        when(userDao.findByUsernameAndActive("nullts@test.com", true)).thenReturn(userNullTS);
+
+        rfq.setVendors(List.of(vendorNullId, vendorNullCreatedTS));
+
+        RfqVendor persisted = new RfqVendor();
+        persisted.setRfq(rfq);
+        when(rfqDao.findById(rfq.getId())).thenReturn(Optional.of(rfq));
+
+        try (MockedStatic<MailUtility> mail = mockStatic(MailUtility.class)) {
+            assertTrue(service.sendRfqToVendors(List.of(persisted), rfq));
         }
     }
 
@@ -2146,6 +2277,48 @@ class GMTServiceImplCoverageTest {
         assertTrue(Boolean.TRUE.equals(res));
 
         SecurityContextHolder.clearContext();
+    }
+
+    @Test
+    void testIsAuthorizedCategoryManager_UserWithNullRoleAndExceptionHandling() {
+        authenticate("norole@test.com");
+        User userNoRole = new User();
+        userNoRole.setUsername("norole@test.com");
+        userNoRole.setRole(null);
+        when(userDao.findByUsernameAndActive("norole@test.com", true)).thenReturn(userNoRole);
+
+        Boolean res = ReflectionTestUtils.invokeMethod(service, "isAuthorizedCategoryManager");
+        assertFalse(Boolean.TRUE.equals(res));
+
+        when(userDao.findByUsernameAndActive("norole@test.com", true)).thenThrow(new RuntimeException("DB error"));
+        Boolean resErr = ReflectionTestUtils.invokeMethod(service, "isAuthorizedCategoryManager");
+        assertFalse(Boolean.TRUE.equals(resErr));
+
+        SecurityContextHolder.clearContext();
+    }
+
+    @Test
+    void testBuildAiTokenUsageDto_FallbackWithNullGeminiPricingServiceAndNullCreatedTS() {
+        Rfq rfqHist = new Rfq();
+        rfqHist.setId("HIST-UUID");
+        rfqHist.setRfqId("RFQ-HIST-NULL");
+        rfqHist.setSourceType("EMAIL");
+        rfqHist.setCreatedTS(null);
+
+        when(rfqAiTokenUsageRepository.findByRfqNumber("RFQ-HIST-NULL")).thenReturn(Optional.empty());
+
+        com.portal.procucev.rfq.service.GeminiPricingService originalPricing =
+                (com.portal.procucev.rfq.service.GeminiPricingService) ReflectionTestUtils.getField(service, "geminiPricingService");
+        try {
+            ReflectionTestUtils.setField(service, "geminiPricingService", null);
+            com.portal.procucev.Dto.RfqAiTokenUsageDTO dto =
+                    ReflectionTestUtils.invokeMethod(service, "buildAiTokenUsageDto", rfqHist);
+            assertNotNull(dto);
+            assertNotNull(dto.getEstimatedCostInr());
+            assertNotNull(dto.getCreatedAt());
+        } finally {
+            ReflectionTestUtils.setField(service, "geminiPricingService", originalPricing);
+        }
     }
 
     @SuppressWarnings("unused")
