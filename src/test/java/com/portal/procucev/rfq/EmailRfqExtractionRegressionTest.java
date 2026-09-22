@@ -284,6 +284,7 @@ class EmailRfqExtractionRegressionTest {
     }
 
     @Test
+    @org.junit.jupiter.api.Timeout(30)
     void excelDeliveryLocationRowSurvivesFlattening() throws Exception {
         File xlsx = tempDir.resolve("with-location.xlsx").toFile();
         try (Workbook wb = new XSSFWorkbook()) {

@@ -283,6 +283,7 @@ public class AIExtractionService {
                 + "  - a labelled field block: \"Description: Laptop\" / \"Quantity: 25\" / \"UOM: Nos\"\n"
                 + "  - a label block collapsed onto one line: \"Description: Laptop Quantity: 25 UOM: Nos\"\n"
                 + "  - a table row or column, where the quantity sits in its own cell\n"
+                + "  - a table (or table image) with column headers 'QTY' and 'MAKE': 'QTY' is the purchase quantity (e.g. 32) and 'MAKE' is the brand\n"
                 + "  - a number BEFORE the item name: \"500 Nos of Plain Washers M10\", \"we require 10 laptops\"\n"
                 + "  - text inside an attached image\n"
                 + "A thousands separator means a LARGE number: \"1,000\" is 1000, never 1.\n"

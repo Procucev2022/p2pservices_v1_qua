@@ -345,14 +345,33 @@ public class EmailProcessorService {
                     }
                 }
 
-                // Fallback scan for brand if missing (only for single item or item-specific text)
+                // Fallback scan for brand if missing
                 if (item.getBrand() == null || item.getBrand().isBlank() || item.getBrand().equalsIgnoreCase("Not Specified")) {
-                    if (!isMultiItemPayload) {
-                        String scannedBrand = scanFieldFromEmail(email, "(?i)\\b(?:brand|make|manufacturer)\\b[:\\s=]*([^\\r\\n]+)");
-                        // Only accept a scanned value that actually reads like a brand name; the
-                        // line-tail capture otherwise pulls in whole sentences.
-                        if (scannedBrand != null && !scannedBrand.isBlank() && looksLikeBrandName(scannedBrand)) {
-                            item.setBrand(scannedBrand.trim());
+                    String fromSpec = extractBrandFromItemText(item.getSpecification());
+                    if (fromSpec.isBlank()) {
+                        fromSpec = extractBrandFromItemText(item.getItemDescription());
+                    }
+                    if (!fromSpec.isBlank() && looksLikeBrandName(fromSpec)) {
+                        log.info("Brand recovered from specification/description for item '{}': '{}'", desc, fromSpec);
+                        item.setBrand(fromSpec);
+                        if (item.getSpecification() != null) {
+                            String cleanedSpec = item.getSpecification()
+                                    .replaceAll("(?i)\\b(?:make|brand|mfr|manufacturer)\\s*[:=\\-–—]\\s*[A-Za-z0-9&.\\-_/ ]+?(?:[,;\\r\\n|]|$)", "")
+                                    .replaceAll("^[,\\s-]+", "").replaceAll("[,\\s-]+$", "").trim();
+                            item.setSpecification(cleanedSpec.isBlank() ? null : cleanedSpec);
+                        }
+                    } else {
+                        String scannedRowBrand = scanBrandFromTableRow(email, item);
+                        if (scannedRowBrand != null && !scannedRowBrand.isBlank() && looksLikeBrandName(scannedRowBrand)) {
+                            log.info("Brand recovered from table row for item '{}': '{}'", desc, scannedRowBrand);
+                            item.setBrand(scannedRowBrand);
+                        } else if (!isMultiItemPayload) {
+                            String scannedBrand = scanFieldFromEmail(email, "(?i)\\b(?:brand|make|manufacturer)\\b[:\\s=]*([^\\r\\n]+)");
+                            // Only accept a scanned value that actually reads like a brand name; the
+                            // line-tail capture otherwise pulls in whole sentences.
+                            if (scannedBrand != null && !scannedBrand.isBlank() && looksLikeBrandName(scannedBrand)) {
+                                item.setBrand(scannedBrand.trim());
+                            }
                         }
                     }
                 }
@@ -361,7 +380,7 @@ public class EmailProcessorService {
                 if (item.getDeliveryLocation() == null || item.getDeliveryLocation().isBlank()
                         || item.getDeliveryLocation().equalsIgnoreCase("Not Specified")
                         || item.getDeliveryLocation().equalsIgnoreCase("null")) {
-                    String scannedLoc = scanFieldFromEmail(email, "(?i)(?:delivery\\s+location|delivery\\s+address|ship\\s+to|deliver\\s+to|location|plant|warehouse|address)[:\\s=]*([^\\r\\n]+)");
+                    String scannedLoc = scanFieldFromEmail(email, "(?i)(?:delivery\\s+location|delivery\\s+address|ship\\s+to|shipping\\s+address|deliver\\s+to|destination)[:\\s=]*([^\\r\\n]+)");
                     if (scannedLoc != null && !scannedLoc.isBlank()) {
                         log.info("Delivery location recovered by fallback scan for item '{}': '{}'", desc, scannedLoc);
                         item.setDeliveryLocation(scannedLoc);
@@ -394,6 +413,12 @@ public class EmailProcessorService {
                         item.setQuantity(perItemQty.quantity());
                         if (perItemQty.uom() != null && (item.getUom() == null || item.getUom().isBlank())) {
                             item.setUom(perItemQty.uom());
+                        }
+                    } else {
+                        Double tableRowQty = scanQuantityFromTableRow(email, item);
+                        if (tableRowQty != null && tableRowQty > 0) {
+                            log.info("Quantity recovered from table row for item '{}': {}", desc, tableRowQty);
+                            item.setQuantity(tableRowQty);
                         }
                     }
                 }
@@ -844,7 +869,8 @@ public class EmailProcessorService {
     }
 
     private String resolveDeliveryLocation(String extractedLoc, Buyer buyer) {
-        if (extractedLoc != null && !extractedLoc.isBlank() && !extractedLoc.equalsIgnoreCase("Not Specified")) {
+        if (extractedLoc != null && !extractedLoc.isBlank() && !extractedLoc.equalsIgnoreCase("Not Specified")
+                && !extractedLoc.equalsIgnoreCase("Registered Profile Address")) {
             return extractedLoc.trim();
         }
         List<String> parts = new ArrayList<>();
@@ -924,6 +950,150 @@ public class EmailProcessorService {
             }
         }
         return words <= MAX_BRAND_NAME_TOKENS;
+    }
+
+    private static final java.util.regex.Pattern ITEM_MAKE_BRAND_PATTERN = java.util.regex.Pattern.compile(
+            "(?i)\\b(?:make|brand|mfr|manufacturer)\\s*[:=\\-–—]\\s*([A-Za-z0-9&.\\-_/ ]+?)(?:[,;\\r\\n|]|$)"
+    );
+
+    private String extractBrandFromItemText(String text) {
+        if (text == null || text.isBlank()) return "";
+        java.util.regex.Matcher m = ITEM_MAKE_BRAND_PATTERN.matcher(text);
+        if (m.find()) {
+            String candidate = m.group(1).trim();
+            if (!candidate.isBlank() && !candidate.equalsIgnoreCase("Not Specified")) {
+                return candidate;
+            }
+        }
+        return "";
+    }
+
+    private Double scanQuantityFromTableRow(EmailData email, RFQItem item) {
+        if (email == null || item == null) return null;
+        String[] sources = {email.getBody(), email.getAttachmentText()};
+        String partCode = item.getEffectivePartNumber();
+        String desc = item.getItemDescription();
+
+        for (String source : sources) {
+            if (source == null || source.isBlank()) continue;
+            String[] lines = source.split("\\r?\\n");
+            int qtyColIdx = -1;
+
+            // First pass: look for a table header line
+            for (String line : lines) {
+                if (!line.contains("|") && !line.contains("\t")) continue;
+                String[] cells = splitTableLine(line);
+                for (int i = 0; i < cells.length; i++) {
+                    String lower = cells[i].toLowerCase().trim();
+                    if (lower.equals("qty") || lower.equals("quantity") || lower.contains("req qty") || lower.contains("order qty")) {
+                        qtyColIdx = i;
+                        break;
+                    }
+                }
+                if (qtyColIdx >= 0) break;
+            }
+
+            // Second pass: match data row
+            for (String line : lines) {
+                if (!line.contains("|") && !line.contains("\t")) continue;
+                boolean match = false;
+                if (partCode != null && !partCode.isBlank() && line.toLowerCase().contains(partCode.toLowerCase())) {
+                    match = true;
+                } else if (desc != null && !desc.isBlank()) {
+                    String normDesc = desc.replaceAll("[^a-zA-Z0-9 ]+", " ").trim();
+                    String firstFewWords = normDesc.length() > 20 ? normDesc.substring(0, 20) : normDesc;
+                    if (!firstFewWords.isBlank() && line.toLowerCase().contains(firstFewWords.toLowerCase())) {
+                        match = true;
+                    }
+                }
+                if (match) {
+                    String[] cells = splitTableLine(line);
+                    if (qtyColIdx >= 0 && qtyColIdx < cells.length) {
+                        Double val = com.portal.procucev.rfq.util.QuantityNormalizer.normalize(cells[qtyColIdx]);
+                        if (val != null && val > 0) return val;
+                    }
+                    for (int i = cells.length - 1; i >= 0; i--) {
+                        String cell = cells[i].trim();
+                        if (cell.matches("^\\d+(?:\\.\\d+)?$")) {
+                            try {
+                                double val = Double.parseDouble(cell);
+                                if (val > 0) return val;
+                            } catch (Exception ignored) {}
+                        }
+                    }
+                }
+            }
+        }
+        return null;
+    }
+
+    private String scanBrandFromTableRow(EmailData email, RFQItem item) {
+        if (email == null || item == null) return null;
+        String[] sources = {email.getBody(), email.getAttachmentText()};
+        String partCode = item.getEffectivePartNumber();
+        String desc = item.getItemDescription();
+
+        for (String source : sources) {
+            if (source == null || source.isBlank()) continue;
+            String[] lines = source.split("\\r?\\n");
+            int brandColIdx = -1;
+
+            // First pass: look for a table header line
+            for (String line : lines) {
+                if (!line.contains("|") && !line.contains("\t")) continue;
+                String[] cells = splitTableLine(line);
+                for (int i = 0; i < cells.length; i++) {
+                    String lower = cells[i].toLowerCase().trim();
+                    if (lower.equals("make") || lower.equals("brand") || lower.contains("mfr") || lower.contains("manufacturer")) {
+                        brandColIdx = i;
+                        break;
+                    }
+                }
+                if (brandColIdx >= 0) break;
+            }
+
+            // Second pass: match data row
+            for (String line : lines) {
+                if (!line.contains("|") && !line.contains("\t")) continue;
+                boolean match = false;
+                if (partCode != null && !partCode.isBlank() && line.toLowerCase().contains(partCode.toLowerCase())) {
+                    match = true;
+                } else if (desc != null && !desc.isBlank()) {
+                    String normDesc = desc.replaceAll("[^a-zA-Z0-9 ]+", " ").trim();
+                    String firstFewWords = normDesc.length() > 20 ? normDesc.substring(0, 20) : normDesc;
+                    if (!firstFewWords.isBlank() && line.toLowerCase().contains(firstFewWords.toLowerCase())) {
+                        match = true;
+                    }
+                }
+                if (match) {
+                    String[] cells = splitTableLine(line);
+                    if (brandColIdx >= 0 && brandColIdx < cells.length) {
+                        String candidate = cells[brandColIdx].trim();
+                        if (!candidate.isBlank() && !candidate.equalsIgnoreCase("Not Specified")) {
+                            return candidate;
+                        }
+                    }
+                    for (String cell : cells) {
+                        String cand = extractBrandFromItemText(cell);
+                        if (!cand.isBlank()) return cand;
+                    }
+                }
+            }
+        }
+        return null;
+    }
+
+    private String[] splitTableLine(String line) {
+        String delim = line.contains("|") ? "\\|" : "\\t";
+        String[] raw = line.split(delim);
+        List<String> list = new ArrayList<>();
+        for (String c : raw) {
+            String t = c.trim();
+            if (!t.isEmpty() || raw.length <= 2) {
+                list.add(t);
+            }
+        }
+        return list.toArray(new String[0]);
     }
 
     /** Field labels that must never be accepted as the body of a specification. */
@@ -1220,7 +1390,7 @@ public class EmailProcessorService {
         String combined = ((email != null && email.getSubject() != null ? email.getSubject() : "") + " "
                 + (email != null && email.getBody() != null ? email.getBody() : "") + " "
                 + (email != null && email.getAttachmentText() != null ? email.getAttachmentText() : "")).toLowerCase();
-        if (java.util.regex.Pattern.compile("(?i)(?:delivery\\s+location|delivery\\s+address|location|plant|warehouse|address|ship\\s+to|deliver\\s+to|destination|pincode|zipcode)\\s*[:=]?\\s*([a-z0-9,\\-\\s]+)").matcher(combined).find()) {
+        if (java.util.regex.Pattern.compile("(?i)(?:delivery\\s+location|delivery\\s+address|shipping\\s+address|ship\\s+to|deliver\\s+to|destination|location|plant|warehouse|pincode|zipcode)\\s*[:=]?\\s*([a-z0-9,\\-\\s]+)").matcher(combined).find()) {
             return true;
         }
         
