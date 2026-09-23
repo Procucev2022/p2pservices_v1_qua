@@ -1360,12 +1360,6 @@ public class GMTServiceImpl implements GMTService {
 
 	    logger.info("fetchAllClientGMTRfqsForCMSearch | searchType: {}, searchValue: {}", searchType, searchValue);
 
-	    if (searchType == null || searchValue == null || searchValue.trim().length() < 2) {
-	        logger.warn("Search value too short or searchType null: searchType={}, searchValue={}", searchType, searchValue);
-	        return Collections.emptyList();
-	    }
-	    searchValue = searchValue.trim();
-
 	    List<Rfq> rfqList;
 	    List<User> matchedUsers = new ArrayList<>();
 
@@ -1410,15 +1404,7 @@ public class GMTServiceImpl implements GMTService {
 	            return Collections.emptyList();
 	    }
 
-	    if (rfqList == null || rfqList.isEmpty()) {
-	        return Collections.emptyList();
-	    }
-
 	    logger.info("RFQs found: {}", rfqList.size());
-
-	    if (rfqList.size() > 200) {
-	        rfqList = rfqList.subList(0, 200);
-	    }
 
 	    return mapClientRfqsInBatch(rfqList);
 	}
