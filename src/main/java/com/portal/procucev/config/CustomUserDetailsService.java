@@ -4,6 +4,7 @@ import java.util.ArrayList;
 
 import com.portal.procucev.Dto.AuthUserView;
 import com.portal.procucev.dao.UserDao;
+import com.portal.procucev.utils.PhoneNumberUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
@@ -37,6 +38,13 @@ public class CustomUserDetailsService implements UserDetailsService {
      */
     public UserDetails loadUserByUsernameAndPhone(String username, String phone) {
         AuthUserView user = userRepository.findAuthViewByUsernameAndPhone(username, phone);
+
+        if (user == null && phone != null) {
+            String candidate = phone.startsWith("+91") ? phone.substring(3) : PhoneNumberUtils.normalize(phone);
+            if (candidate != null && !candidate.equals(phone)) {
+                user = userRepository.findAuthViewByUsernameAndPhone(username, candidate);
+            }
+        }
 
         if (user == null) {
             throw new UsernameNotFoundException("User not found with username and phone");

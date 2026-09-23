@@ -133,6 +133,15 @@ class GMTServiceImplTest {
     void testCreateRFQForNoPrByClient() {
         assertDoesNotThrow(() -> service.createRFQForNoPrByClient(rfq));
     }
+
+    @Test
+    void testCreateRFQForNoPrByClient_NullItems() {
+        Rfq nullItemsRfq = new Rfq();
+        nullItemsRfq.setRfqItem(null);
+        when(masterStatusDao.findByStatus(anyString())).thenReturn(masterStatus);
+        when(rfqDao.save(nullItemsRfq)).thenReturn(nullItemsRfq);
+        assertThrows(NullPointerException.class, () -> service.createRFQForNoPrByClient(nullItemsRfq));
+    }
     void testGetClientRfqIds_NullUser_And_EmptyList() {
         assertThrows(AppException.class, () -> service.getClientRfqIds(null));
         when(rfqDao.findRFQIdsNoPrRfqByClient(anyString())).thenReturn(Collections.emptyList());
