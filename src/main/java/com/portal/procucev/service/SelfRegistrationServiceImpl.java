@@ -718,7 +718,7 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 
 	@Override
 	public boolean validateUser(String username, String phoneNumber) {
-		User user = userDao.findByUsernameAndPhoneAndActive(username, phoneNumber, true);
+		User user = findUserByEmailAndAnyPhoneFormat(username, phoneNumber);
 		return user != null;
 	}
 
@@ -762,7 +762,7 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 			throw new IllegalArgumentException("Email and phone must not be null");
 		}
 
-		User userOpt = userDao.findByUsernameAndPhoneAndActive(email, phone, true);
+		User userOpt = findUserByEmailAndAnyPhoneFormat(email, phone);
 		if (userOpt != null) {
 			return userOpt.getPassword(); // Assuming getPassword() returns encoded password
 		} else {
@@ -776,7 +776,7 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 			return false;
 		}
 
-		User user = userDao.findByUsernameAndPhoneAndActive(email, organizationPhonenumber, true);
+		User user = findUserByEmailAndAnyPhoneFormat(email, organizationPhonenumber);
 		return user != null;
 	}
 
@@ -1521,7 +1521,7 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 	public boolean validateUserApproval(String username, String phone) {
 
 	    // Fetch user by username, phone and active = true
-	    User user = userDao.findByUsernameAndPhoneAndActive(username, phone, true);
+	    User user = findUserByEmailAndAnyPhoneFormat(username, phone);
 
 	    // If no user found → fail
 	    if (user == null) {
@@ -1536,6 +1536,20 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 
 	    // If selfClient = true → must be approved
 	    return user.isApproved();
+	}
+
+	private User findUserByEmailAndAnyPhoneFormat(String email, String phone) {
+		if (email == null || phone == null) {
+			return null;
+		}
+		User user = userDao.findByUsernameAndPhoneAndActive(email, phone, true);
+		if (user == null) {
+			String alternate = phone.startsWith("+91") ? phone.substring(3) : PhoneNumberUtils.normalize(phone);
+			if (alternate != null && !alternate.equals(phone)) {
+				user = userDao.findByUsernameAndPhoneAndActive(email, alternate, true);
+			}
+		}
+		return user;
 	}
 
 	@Override

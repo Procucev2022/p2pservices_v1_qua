@@ -1849,8 +1849,16 @@ public class GMTServiceImpl implements GMTService {
 					vendor.setOrgType(orgTypeObject);
 					vendor.setVendorStatus(vendorStatus);
 					vendor.setStatus(evalStatus);
+					vendor.setSourceType(ApplicationConstants.TOOL);
 					vendor.setVendorcategory(savedRfq.getCategory());
+					vendor.setGmtName("GMT Basic");
+					vendor.setBfsName(StatusConstants.BFS_PRO);
+					vendor.setRfqCredits(2);
 					savedVendor = orgDao.save(vendor);
+
+					User user = new User();
+					user.setOrg(savedVendor);
+					setUserDetails(vendor, user);
 				} else {
 					// Use the existing organization
 					logger.info("Saving the existing vendor with other email");
@@ -2066,6 +2074,7 @@ public class GMTServiceImpl implements GMTService {
 			        vendor.setVendorcategory(savedRfq.getCategory());
 			        vendor.setGmtName("GMT Basic");
 					vendor.setBfsName(StatusConstants.BFS_PRO);
+					vendor.setRfqCredits(2);
 					vendor.setOrganizationPhonenumber(vendor.getOrganizationPhonenumber());
 
 			        savedVendor = orgDao.save(vendor);
@@ -2136,27 +2145,23 @@ public class GMTServiceImpl implements GMTService {
 		logger.info("Setting user details for email: {} and phone: {}", organization.getEmail(),
 				organization.getOrganizationPhonenumber());
 		
-		String mobile ="";
-		if(!organization.getOrganizationPhonenumber().startsWith("+91")) {
-			mobile= "+91"+organization.getOrganizationPhonenumber();
-		}else {
-			mobile=organization.getOrganizationPhonenumber();
+		String mobile = "";
+		if (!organization.getOrganizationPhonenumber().startsWith("+91")) {
+			mobile = "+91" + organization.getOrganizationPhonenumber();
+		} else {
+			mobile = organization.getOrganizationPhonenumber();
 		}
 		User savedUser;
 
 		// Check for duplicate user
-	    User existingUsers = userDao.findByUsernameAndPhoneAndActive(
-	            organization.getEmail(),mobile
-	           ,true
-	    );
-	    logger.info("User from DB : {}",existingUsers);
+		User existingUsers = userDao.findByUsernameAndPhoneAndActive(
+				organization.getEmail(), mobile, true);
+		logger.info("User from DB : {}", existingUsers);
 
-	    if (existingUsers!=null) {
-	    	logger.info("Existing User..");
-	    	return existingUsers;
-	      
-	    }
-	   
+		if (existingUsers != null) {
+			logger.info("Existing User..");
+			return existingUsers;
+		}
 
 		// Fetch client status
 		MasterStatus status = masterStatusDao.findByStatus(StatusConstants.SELF_REGISTER_VC_ACCEPTED);
@@ -2173,8 +2178,9 @@ public class GMTServiceImpl implements GMTService {
 		}
 
 		// Populate user
+		user.setOrg(organization);
 		user.setUsername(organization.getEmail());
-		user.setFullName(organization.getName());
+		user.setFullName(organization.getName() != null ? organization.getName() : organization.getCompanyName());
 		user.setPhone(PhoneNumberUtils.normalize(organization.getOrganizationPhonenumber()));
 		user.setResetPassword(true);
 		user.setActive(true);
@@ -2183,10 +2189,9 @@ public class GMTServiceImpl implements GMTService {
 		user.setRole(initiatorRole);
 		user.setUniqueId(generateUserId(organization.getOrganizationPhonenumber()));
 		user.setSourceType(organization.getSourceType());
-		user.setPassword(new String("Welcome@123"));
+		user.setPassword("Welcome@123");
 	//	user.setApproved(true);
 		user.setVerificationStatus(StatusConstants.EMAIL_VERIFIED);
-		
 
 		// Save user
 		try {
