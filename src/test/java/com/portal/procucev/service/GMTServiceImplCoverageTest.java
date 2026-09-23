@@ -635,6 +635,8 @@ class GMTServiceImplCoverageTest {
 
         when(masterStatusDao.findByStatus(anyString())).thenReturn(status);
         when(orgTypeDao.findByTypeName(ApplicationConstants.VENDOR)).thenReturn(new OrgType());
+        when(roleDao.findByRoleNameAndActive(anyString(), eq(true))).thenReturn(new Role());
+        when(userDao.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(selfRegistrationService.checkOrgexist("Brand New")).thenReturn(false);
         when(rfqDao.save(request)).thenReturn(saved);
         when(orgDao.save(newVendor)).thenAnswer(invocation -> {
@@ -656,6 +658,7 @@ class GMTServiceImplCoverageTest {
         assertTrue(spyService.createRFQWithNoPr(request));
 
         verify(orgDao).save(newVendor);
+        verify(userDao).save(any(User.class));
         verify(orgDao).updateOtherEmail("copy@test.com", "EX1");
         verify(orgDao, never()).updateOtherEmail(any(), eq("EX2"));
         verify(gmtRfqVendorDao, times(2)).save(any(GmtRfqVendors.class));
@@ -693,6 +696,61 @@ class GMTServiceImplCoverageTest {
         when(rfqDao.save(request)).thenReturn(simpleRfq("SAVED", "RFQ-SAVED"));
 
         assertTrue(spyService.createRFQWithNoPr(request));
+    }
+
+    @Test
+    void testSetUserDetails_AllBranches() {
+        Organization org = new Organization();
+        org.setEmail("v@test.com");
+        org.setOrganizationPhonenumber("+919876543210");
+        org.setName("Vendor Name");
+        org.setCompanyName("Vendor Company");
+
+        User existing = new User();
+        existing.setUsername("v@test.com");
+        when(userDao.findByUsernameAndPhoneAndActive("v@test.com", "+919876543210", true)).thenReturn(existing);
+
+        // Branch 1: existing user returns immediately
+        User resultExisting = service.setUserDetails(org, new User());
+        assertEquals(existing, resultExisting);
+
+        // Branch 2: new user, org name not null, phone starts with +91, success
+        when(userDao.findByUsernameAndPhoneAndActive("v@test.com", "+919876543210", true)).thenReturn(null);
+        when(masterStatusDao.findByStatus(StatusConstants.SELF_REGISTER_VC_ACCEPTED)).thenReturn(status);
+        Role role = new Role();
+        role.setRoleName("VENDOR");
+        when(roleDao.findByRoleNameAndActive(StatusConstants.VENDOR, true)).thenReturn(role);
+        when(userDao.save(any(User.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        User userToPopulate = new User();
+        User saved = service.setUserDetails(org, userToPopulate);
+        assertNotNull(saved);
+        assertEquals(org, saved.getOrg());
+        assertEquals("v@test.com", saved.getUsername());
+        assertEquals("Vendor Name", saved.getFullName());
+        assertEquals("Welcome@123", saved.getPassword());
+        assertTrue(saved.isResetPassword());
+
+        // Branch 3: org name is null -> fallback to company name
+        org.setName(null);
+        org.setOrganizationPhonenumber("9876543210");
+        when(userDao.findByUsernameAndPhoneAndActive("v@test.com", "+919876543210", true)).thenReturn(null);
+        User saved2 = service.setUserDetails(org, new User());
+        assertEquals("Vendor Company", saved2.getFullName());
+
+        // Branch 4: status not found
+        when(masterStatusDao.findByStatus(StatusConstants.SELF_REGISTER_VC_ACCEPTED)).thenReturn(null);
+        assertThrows(AppException.class, () -> service.setUserDetails(org, new User()));
+
+        // Branch 5: role not found
+        when(masterStatusDao.findByStatus(StatusConstants.SELF_REGISTER_VC_ACCEPTED)).thenReturn(status);
+        when(roleDao.findByRoleNameAndActive(StatusConstants.VENDOR, true)).thenReturn(null);
+        assertThrows(AppException.class, () -> service.setUserDetails(org, new User()));
+
+        // Branch 6: save throws exception
+        when(roleDao.findByRoleNameAndActive(StatusConstants.VENDOR, true)).thenReturn(role);
+        when(userDao.save(any(User.class))).thenThrow(new RuntimeException("DB error"));
+        assertThrows(AppException.class, () -> service.setUserDetails(org, new User()));
     }
 
     // ------------------------------------------------------------------
