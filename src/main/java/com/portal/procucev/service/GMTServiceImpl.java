@@ -30,6 +30,7 @@ import java.util.Optional;
 import java.util.Properties;
 import java.util.Random;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 import java.util.regex.Matcher;
@@ -50,6 +51,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.dao.DataAccessException;
 import org.springframework.data.domain.Page;
@@ -1378,6 +1380,7 @@ public class GMTServiceImpl implements GMTService {
 	            List<String> userIdsByCompany = matchedUsers.stream()
 	                    .map(User::getId)
 	                    .distinct()
+	                    .limit(500)
 	                    .toList();
 	            rfqList = rfqDao.findAllClientRfqByUserIds(userIdsByCompany);
 	            break;
@@ -1391,6 +1394,7 @@ public class GMTServiceImpl implements GMTService {
 	            List<String> userIdsByPhone = matchedUsers.stream()
 	                    .map(User::getId)
 	                    .distinct()
+	                    .limit(500)
 	                    .toList();
 	            rfqList = rfqDao.findAllClientRfqByUserIds(userIdsByPhone);
 	            break;
@@ -1564,6 +1568,7 @@ public class GMTServiceImpl implements GMTService {
 
 	}
 
+	@Cacheable(value = "allVendors", key = "'all'")
 	@Override
 	public List<VendorRFQDto> getAllVendors() {
 		logger.info("Entered To Get All Vendor");
@@ -2701,6 +2706,7 @@ public class GMTServiceImpl implements GMTService {
 
 	}
 
+	@Cacheable(value = "gmtBuyers", key = "'buyers'")
 	@Override
 	public List<User> getGmtBuyers() {
 		logger.info("Fetching GMT users with role: {}", ApplicationConstants.ClientInitiator);

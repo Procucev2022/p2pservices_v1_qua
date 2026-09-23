@@ -305,8 +305,18 @@ public interface OrgDao  extends JpaRepository<Organization, String> {
 	Page<Organization> findByOrgType(OrgType orgTypeObject, Pageable pageable);
 
 
-	    @Query("""
+	    @Query(value = """
 	        SELECT o
+	        FROM Organization o
+	        WHERE o.orgType = :orgType
+	          AND (:sourceType IS NULL OR o.sourceType = :sourceType)
+	          AND (
+	                :search IS NULL OR :search = '' OR
+	                LOWER(o.companyName) LIKE LOWER(CONCAT('%', :search, '%')) OR
+	                LOWER(o.email) LIKE LOWER(CONCAT('%', :search, '%')) 
+	                )
+	    """, countQuery = """
+	        SELECT count(o.id)
 	        FROM Organization o
 	        WHERE o.orgType = :orgType
 	          AND (:sourceType IS NULL OR o.sourceType = :sourceType)
