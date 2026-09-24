@@ -37,6 +37,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.http.HttpStatus;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
@@ -300,6 +301,7 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 		}
 	}
 
+	@CacheEvict(value = "gmtBuyers", allEntries = true)
 	public void setUserDetails(Organization organization, User user) throws AppException {
 		logger.info("Setting user details for email: {} and phone: {}", organization.getEmail(),
 				organization.getOrganizationPhonenumber());

@@ -51,6 +51,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.dao.DataAccessException;
@@ -2443,6 +2444,7 @@ public class GMTServiceImpl implements GMTService {
 		}
 	}
 
+	@CacheEvict(value = "gmtBuyers", allEntries = true)
 	@Override
 	public boolean editUser(User user) {
 		logger.info("Entered To Edit User");
@@ -2466,6 +2468,7 @@ public class GMTServiceImpl implements GMTService {
 		}
 	}
 
+	@CacheEvict(value = "gmtBuyers", allEntries = true)
 	@Override
 	public boolean acceptSelfClient(User user) throws UnsupportedEncodingException {
 		logger.info("Entered To Accept Self Client");
@@ -2494,12 +2497,23 @@ public class GMTServiceImpl implements GMTService {
 
 	}
 
+	@CacheEvict(value = "gmtBuyers", allEntries = true)
 	@Override
 	public boolean ignoreClient(User user) {
 		logger.info("Entered To Ignore Self Client");
 		if (user != null) {
 			Optional<User> userData = userDao.findById(user.getId());
 			MasterStatus status = masterStatusDao.findByStatus(StatusConstants.USER_IGNORED);
+			if (status == null) {
+				status = masterStatusDao.findByStatus("IGNORED");
+			}
+			if (status == null) {
+				status = new MasterStatus();
+				status.setStatus(StatusConstants.USER_IGNORED);
+				status.setUiDisplay("Ignored");
+				status.setDescription("User Ignored");
+				status = masterStatusDao.save(status);
+			}
 			if (userData.isPresent()) {
 				userDao.updateClientStatus(user, status);
 			}
@@ -2512,6 +2526,7 @@ public class GMTServiceImpl implements GMTService {
 
 	}
 
+	@CacheEvict(value = "gmtBuyers", allEntries = true)
 	@Override
 	public boolean disableUser(User user) {
 		logger.info("Entered To Disable User");
@@ -3747,6 +3762,7 @@ public class GMTServiceImpl implements GMTService {
 
 		// Build Response
 		VendorInfoDto dto = new VendorInfoDto();
+		dto.setId(org.getId());
 		dto.setCompanyName(org.getCompanyName());
 		dto.setOrganizationPhonenumber(org.getOrganizationPhonenumber());
 		dto.setEmail(org.getEmail());
