@@ -146,12 +146,14 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 	private final Map<String, OtpDetails> otpMap = new ConcurrentHashMap<>();
 
 	@Override
+	@CacheEvict(value = "gmtBuyers", allEntries = true)
 	public boolean selfclientRegistration(Organization organization) {
 		// TODO Auto-generated method stub
 		return false;
 	}
 
 	@Override
+	@CacheEvict(value = "gmtBuyers", allEntries = true)
 	public ClientRegistrationStatus selfclientRegistrationData(Organization organization) throws AppException {
 		logger.info("Entered self client registration");
 
@@ -342,7 +344,8 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 		user.setClientStatus(status);
 		user.setRole(initiatorRole);
 		user.setUniqueId(generateUserId(organization.getOrganizationPhonenumber()));
-		user.setSourceType(organization.getSourceType());
+		user.setSourceType(organization.getSourceType() != null ? organization.getSourceType() : ApplicationConstants.TOOL);
+		user.setWebApp(true);
 		user.setPassword(new String(ProcucevUtils.generatePassword(8)));
 		user.setVerificationStatus(StatusConstants.PENDING_EMAIL_VERIFICATION);
 
@@ -487,6 +490,7 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 	}
 
 	@Override
+	@CacheEvict(value = { "allVendors", "gmtBuyers" }, allEntries = true)
 	public boolean vendorRegistration(Organization organization) throws UnsupportedEncodingException {
 		logger.info("Starting vendor registration for email: {}",
 				organization != null ? organization.getEmail() : "null");
@@ -899,6 +903,7 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 	}
 
 	@Override
+	@CacheEvict(value = "gmtBuyers", allEntries = true)
 	public Map<String, Object> selfclientRegistrationDataByApp(Organization organization) {
 		logger.info("Entered self client registration");
 
@@ -951,6 +956,7 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 				}
 				String normalizedPhone = PhoneNumberUtils.normalize(organization.getOrganizationPhonenumber());
 				organization.setOrganizationPhonenumber(normalizedPhone);
+				organization.setSourceType(organization.getSourceType() != null ? organization.getSourceType() : ApplicationConstants.TOOL);
 
 				Organization savedOrg = clientDao.save(organization);
 				logger.info("Saved Org ID: {}", savedOrg.getId());
@@ -990,6 +996,7 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 	}
 
 	@Override
+	@CacheEvict(value = { "allVendors", "gmtBuyers" }, allEntries = true)
 	public Map<String, Object> sellerRegistration(Organization organization) {
 		// TODO Auto-generated method stub
 		logger.info("Entered Buyer registration");
@@ -1033,7 +1040,7 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 			organization.setCompanyId(companyId);
 			organization.setRfqCredits(2);
 
-			// organization.setSourceType(ApplicationConstants.TOOL);
+			organization.setSourceType(organization.getSourceType() != null ? organization.getSourceType() : ApplicationConstants.TOOL);
 			logger.info("Company Id: {}", companyId);
 
 			PincodeData pincodeData = getCityByPincode(organization.getZipCode());
@@ -1111,6 +1118,7 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 	}
 
 	@Override
+	@CacheEvict(value = { "allVendors", "gmtBuyers" }, allEntries = true)
 	public void registerFromExcel(MultipartFile file) throws Exception {
 		try (InputStream inputStream = file.getInputStream()) {
 			Workbook workbook = WorkbookFactory.create(inputStream);
