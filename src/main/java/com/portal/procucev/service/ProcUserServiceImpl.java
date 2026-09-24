@@ -18,6 +18,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -796,6 +797,7 @@ public class ProcUserServiceImpl implements UserService {
 	}
 
 	@Override
+	@CacheEvict(value = "gmtBuyers", allEntries = true)
 	public boolean updateBuyer(Organization updatedOrg) {
 		// TODO Auto-generated method stub
 		if (updatedOrg == null) {
