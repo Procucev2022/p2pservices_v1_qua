@@ -297,7 +297,7 @@ public class UserController {
 	public ResponseEntity<Map<String, Object>> getVendorSummary(
 
 	        @RequestParam(defaultValue = "0") int page,
-	        @RequestParam(defaultValue = "100") int size,
+	        @RequestParam(defaultValue = "1000") int size,
 	        @RequestParam(required = false) String search,
 	        @RequestParam(required = false) String sourceType
 	) {

@@ -309,7 +309,7 @@ public interface OrgDao  extends JpaRepository<Organization, String> {
 	        SELECT o
 	        FROM Organization o
 	        WHERE o.orgType = :orgType
-	          AND (:sourceType IS NULL OR o.sourceType = :sourceType)
+	          AND (:sourceType IS NULL OR :sourceType = '' OR o.sourceType = :sourceType)
 	          AND (
 	                :search IS NULL OR :search = '' OR
 	                LOWER(o.companyName) LIKE LOWER(CONCAT('%', :search, '%')) OR
@@ -319,7 +319,7 @@ public interface OrgDao  extends JpaRepository<Organization, String> {
 	        SELECT count(o.id)
 	        FROM Organization o
 	        WHERE o.orgType = :orgType
-	          AND (:sourceType IS NULL OR o.sourceType = :sourceType)
+	          AND (:sourceType IS NULL OR :sourceType = '' OR o.sourceType = :sourceType)
 	          AND (
 	                :search IS NULL OR :search = '' OR
 	                LOWER(o.companyName) LIKE LOWER(CONCAT('%', :search, '%')) OR

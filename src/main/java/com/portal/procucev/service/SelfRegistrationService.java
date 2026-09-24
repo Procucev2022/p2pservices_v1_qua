@@ -7,6 +7,7 @@ import java.util.Map;
 
 import org.apache.poi.EncryptedDocumentException;
 import org.apache.poi.openxml4j.exceptions.InvalidFormatException;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.web.multipart.MultipartFile;
 
 import com.portal.procucev.model.Organization;
@@ -18,10 +19,12 @@ import jakarta.servlet.http.HttpServletRequest;
 
 public interface SelfRegistrationService {
 
+	@CacheEvict(value = "gmtBuyers", allEntries = true)
 	boolean selfclientRegistration(Organization organization);
 	
 	Organization getClientByPan(Organization org);
 
+	@CacheEvict(value = "gmtBuyers", allEntries = true)
 	ClientRegistrationStatus selfclientRegistrationData(Organization organization);
 	
 	boolean validateClient(Organization org);
@@ -34,6 +37,7 @@ public interface SelfRegistrationService {
 
 	boolean upGradeVendorJob();
 
+	@CacheEvict(value = { "allVendors", "gmtBuyers" }, allEntries = true)
 	boolean vendorRegistration(Organization organization) throws UnsupportedEncodingException;
 
 	String generateId(String company) throws Exception;
@@ -54,10 +58,13 @@ public interface SelfRegistrationService {
 
 	List<User> getUsersByPhoneNumber(String phone);
 
+	@CacheEvict(value = "gmtBuyers", allEntries = true)
 	Map<String, Object> selfclientRegistrationDataByApp(Organization organization);
 
+	@CacheEvict(value = { "allVendors", "gmtBuyers" }, allEntries = true)
 	Map<String, Object> sellerRegistration(Organization organization);
 
+	@CacheEvict(value = { "allVendors", "gmtBuyers" }, allEntries = true)
 	void registerFromExcel(MultipartFile file) throws Exception;
 
 	void importCategoriesFromExcel(MultipartFile file) throws IOException;
