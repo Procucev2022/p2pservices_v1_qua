@@ -1120,40 +1120,19 @@ public class GMTServiceImpl implements GMTService {
 		List<String> userIds = rfqs.stream().map(Rfq::getUser).filter(Objects::nonNull).distinct().toList();
 		List<String> rfqIds = rfqs.stream().map(Rfq::getId).toList();
 
-		Map<String, User> userMap = Collections.emptyMap();
-		if (!userIds.isEmpty()) {
-			try {
-				List<User> users = userDao.findUsersByIds(userIds);
-				if (users != null && !users.isEmpty()) {
-					userMap = users.stream()
-							.collect(Collectors.toMap(User::getId, Function.identity(), (first, second) -> first));
-				}
-			} catch (Exception e) {
-				logger.warn("Batch user lookup failed, falling back to individual lookups", e);
-			}
-		}
+		Map<String, User> userMap = userIds.isEmpty() ? Collections.emptyMap()
+				: userDao.findUsersByIds(userIds).stream()
+						.collect(Collectors.toMap(User::getId, Function.identity(), (first, second) -> first));
 
 		Map<String, Long> vendorCountMap = new HashMap<>();
-		try {
-			List<Object[]> vendorCounts = gmtRfqVendorDao.countVendorsByRfqIds(rfqIds);
-			if (vendorCounts != null) {
-				for (Object[] row : vendorCounts) {
-					vendorCountMap.put((String) row[0], (Long) row[1]);
-				}
-			}
-		} catch (Exception e) {
-			logger.warn("Batch vendor count lookup failed, falling back to individual lookups", e);
+		for (Object[] row : gmtRfqVendorDao.countVendorsByRfqIds(rfqIds)) {
+			vendorCountMap.put((String) row[0], (Long) row[1]);
 		}
 
-		Map<String, User> finalUserMap = userMap;
-		return rfqs.stream().map(rfq -> mapToDtoBatch(rfq, finalUserMap, vendorCountMap)).collect(Collectors.toList());
+		return rfqs.stream().map(rfq -> mapToDto(rfq, userMap, vendorCountMap)).collect(Collectors.toList());
 	}
 
-	private RfqDTO mapToDto(Rfq rfq) {
-		return mapToDtoBatch(rfq, null, null);
-	}
-
-	private RfqDTO mapToDtoBatch(Rfq rfq, Map<String, User> userMap, Map<String, Long> vendorCountMap) {
+	private RfqDTO mapToDto(Rfq rfq, Map<String, User> userMap, Map<String, Long> vendorCountMap) {
 		RfqDTO rfqDto = new RfqDTO();
 		rfqDto.setId(rfq.getId());
 		rfqDto.setCreatedBy(rfq.getCreatedBy());
@@ -1167,18 +1146,9 @@ public class GMTServiceImpl implements GMTService {
 		rfqDto.setQuotationReceived(rfq.isQuotationReceived());
 		rfqDto.setNoOfQuotes(rfq.getQuoteCount());
 		rfqDto.setSourceType(rfq.getSourceType());
-
-		if (vendorCountMap != null && vendorCountMap.containsKey(rfq.getId())) {
-			rfqDto.setNoOfVendors(vendorCountMap.get(rfq.getId()));
-		} else {
-			try {
-				rfqDto.setNoOfVendors(gmtRfqVendorDao.findByVendorsByRfq(rfq.getId()));
-			} catch (Exception e) {
-				rfqDto.setNoOfVendors(0L);
-			}
-		}
-
+		rfqDto.setNoOfVendors(vendorCountMap.getOrDefault(rfq.getId(), 0L));
 		rfqDto.setQuoteSubmittedDate(rfq.getQuoteSubmittedDate());
+
 		if (rfq.getClientStatus() != null) {
 			rfqDto.setClientStatus(rfq.getClientStatus());
 			rfqDto.setClientStatusId(rfq.getClientStatus().getId());
@@ -1186,30 +1156,15 @@ public class GMTServiceImpl implements GMTService {
 		}
 		rfqDto.setNewCommentAvailableVendor(rfq.isNewCommentAvailableVendor());
 
-		String userId = rfq.getUser();
-		if (userId != null) {
-			User user = userMap != null ? userMap.get(userId) : null;
-			if (user != null) {
-				if (user.getOrg() != null) {
-					rfqDto.setCompanyName(user.getOrg().getCompanyName());
-					rfqDto.setCompanyId(user.getOrg().getId());
-				}
-				rfqDto.setPhoneNumber(user.getPhone());
-			} else {
-				String companyName = userDao.findByUser(userId);
-				if (companyName != null) {
-					rfqDto.setCompanyName(companyName);
-				}
-				String companyId = userDao.findOrgIdByUser(userId);
-				if (companyId != null) {
-					rfqDto.setCompanyId(companyId);
-				}
-				String phone = userDao.findPhoneByUser(userId);
-				if (phone != null) {
-					rfqDto.setPhoneNumber(phone);
-				}
+		User user = userMap.get(rfq.getUser());
+		if (user != null) {
+			if (user.getOrg() != null) {
+				rfqDto.setCompanyName(user.getOrg().getCompanyName());
+				rfqDto.setCompanyId(user.getOrg().getId());
 			}
+			rfqDto.setPhoneNumber(user.getPhone());
 		}
+
 		return rfqDto;
 	}
 
@@ -1422,25 +1377,23 @@ public class GMTServiceImpl implements GMTService {
 
 	    logger.info("fetchAllClientGMTRfqsForCMSearch | searchType: {}, searchValue: {}", searchType, searchValue);
 
-	    if (searchType == null || searchValue == null || searchValue.trim().isEmpty()) {
+	    if (searchType == null || StringUtils.isBlank(searchValue)) {
 	        return Collections.emptyList();
 	    }
-	    searchValue = searchValue.trim();
+	    String trimmedSearch = searchValue.trim();
 
 	    List<Rfq> rfqList;
-	    List<User> matchedUsers = new ArrayList<>();
+	    List<User> matchedUsers;
 
 	    switch (searchType.toLowerCase()) {
 
 	        case "rfqid":
 	        case "description":
-	            // Search directly on rfq_header
-	            rfqList = rfqDao.findAllClientRfqByRfqIdOrDescription(searchType, searchValue);
+	            rfqList = rfqDao.findAllClientRfqByRfqIdOrDescription(searchType, trimmedSearch);
 	            break;
 
 	        case "companyname":
-	            // Find users whose org name matches, then fetch their RFQs
-	            matchedUsers = userDao.findUsersByOrgCompanyName(searchValue);
+	            matchedUsers = userDao.findUsersByOrgCompanyName(trimmedSearch);
 	            if (matchedUsers.isEmpty()) {
 	                return Collections.emptyList();
 	            }
@@ -1453,8 +1406,7 @@ public class GMTServiceImpl implements GMTService {
 	            break;
 
 	        case "contactnumber":
-	            // Find users whose phone matches, then fetch their RFQs
-	            matchedUsers = userDao.findUsersByPhone(searchValue);
+	            matchedUsers = userDao.findUsersByPhone(trimmedSearch);
 	            if (matchedUsers.isEmpty()) {
 	                return Collections.emptyList();
 	            }
@@ -1469,10 +1421,6 @@ public class GMTServiceImpl implements GMTService {
 	        default:
 	            logger.warn("Unknown searchType: {}", searchType);
 	            return Collections.emptyList();
-	    }
-
-	    if (rfqList == null || rfqList.isEmpty()) {
-	        return Collections.emptyList();
 	    }
 
 	    if (rfqList.size() > 100) {
