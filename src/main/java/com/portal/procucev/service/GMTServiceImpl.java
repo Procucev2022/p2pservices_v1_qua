@@ -1103,16 +1103,36 @@ public class GMTServiceImpl implements GMTService {
 
 		logger.info("Found {} RFQs for PR Flag True", rfqsList.size());
 
-		return rfqsList.stream().map(this::mapToDto).collect(Collectors.toList());
+		return mapRfqsInBatch(rfqsList);
 	}
 
 	/**
-	 * Maps an RFQ entity to its corresponding DTO.
-	 * 
-	 * @param rfq The RFQ entity.
-	 * @return The RFQ DTO.
+	 * Maps a batch of RFQs to DTOs in batch to avoid N+1 query explosion.
+	 *
+	 * @param rfqs the RFQs to map
+	 * @return list of RfqDTOs
 	 */
-	private RfqDTO mapToDto(Rfq rfq) {
+	private List<RfqDTO> mapRfqsInBatch(List<Rfq> rfqs) {
+		if (rfqs.isEmpty()) {
+			return Collections.emptyList();
+		}
+
+		List<String> userIds = rfqs.stream().map(Rfq::getUser).filter(Objects::nonNull).distinct().toList();
+		List<String> rfqIds = rfqs.stream().map(Rfq::getId).toList();
+
+		Map<String, User> userMap = userIds.isEmpty() ? Collections.emptyMap()
+				: userDao.findUsersByIds(userIds).stream()
+						.collect(Collectors.toMap(User::getId, Function.identity(), (first, second) -> first));
+
+		Map<String, Long> vendorCountMap = new HashMap<>();
+		for (Object[] row : gmtRfqVendorDao.countVendorsByRfqIds(rfqIds)) {
+			vendorCountMap.put((String) row[0], (Long) row[1]);
+		}
+
+		return rfqs.stream().map(rfq -> mapToDto(rfq, userMap, vendorCountMap)).collect(Collectors.toList());
+	}
+
+	private RfqDTO mapToDto(Rfq rfq, Map<String, User> userMap, Map<String, Long> vendorCountMap) {
 		RfqDTO rfqDto = new RfqDTO();
 		rfqDto.setId(rfq.getId());
 		rfqDto.setCreatedBy(rfq.getCreatedBy());
@@ -1125,11 +1145,10 @@ public class GMTServiceImpl implements GMTService {
 		rfqDto.setCount(rfq.getCount());
 		rfqDto.setQuotationReceived(rfq.isQuotationReceived());
 		rfqDto.setNoOfQuotes(rfq.getQuoteCount());
-		//Updateing Source Type
 		rfqDto.setSourceType(rfq.getSourceType());
-		//rfqDto.setNoOfVendors(rfqVendorDao.findByVendorsByRfq(rfq.getId()));
-		rfqDto.setNoOfVendors(gmtRfqVendorDao.findByVendorsByRfq(rfq.getId()));
+		rfqDto.setNoOfVendors(vendorCountMap.getOrDefault(rfq.getId(), 0L));
 		rfqDto.setQuoteSubmittedDate(rfq.getQuoteSubmittedDate());
+
 		if (rfq.getClientStatus() != null) {
 			rfqDto.setClientStatus(rfq.getClientStatus());
 			rfqDto.setClientStatusId(rfq.getClientStatus().getId());
@@ -1137,18 +1156,15 @@ public class GMTServiceImpl implements GMTService {
 		}
 		rfqDto.setNewCommentAvailableVendor(rfq.isNewCommentAvailableVendor());
 
-		String companyName = userDao.findByUser(rfq.getUser());
-		if (companyName != null) {
-			rfqDto.setCompanyName(companyName);
+		User user = userMap.get(rfq.getUser());
+		if (user != null) {
+			if (user.getOrg() != null) {
+				rfqDto.setCompanyName(user.getOrg().getCompanyName());
+				rfqDto.setCompanyId(user.getOrg().getId());
+			}
+			rfqDto.setPhoneNumber(user.getPhone());
 		}
-		String companyId = userDao.findOrgIdByUser(rfq.getUser());
-		if (companyId != null) {
-			rfqDto.setCompanyId(companyId);
-		}
-		String phone = userDao.findPhoneByUser(rfq.getUser());
-		if (phone != null) {
-			rfqDto.setPhoneNumber(phone);
-		}
+
 		return rfqDto;
 	}
 
@@ -1361,41 +1377,43 @@ public class GMTServiceImpl implements GMTService {
 
 	    logger.info("fetchAllClientGMTRfqsForCMSearch | searchType: {}, searchValue: {}", searchType, searchValue);
 
+	    if (searchType == null || StringUtils.isBlank(searchValue)) {
+	        return Collections.emptyList();
+	    }
+	    String trimmedSearch = searchValue.trim();
+
 	    List<Rfq> rfqList;
-	    List<User> matchedUsers = new ArrayList<>();
+	    List<User> matchedUsers;
 
 	    switch (searchType.toLowerCase()) {
 
 	        case "rfqid":
 	        case "description":
-	            // Search directly on rfq_header
-	            rfqList = rfqDao.findAllClientRfqByRfqIdOrDescription(searchType, searchValue);
+	            rfqList = rfqDao.findAllClientRfqByRfqIdOrDescription(searchType, trimmedSearch);
 	            break;
 
 	        case "companyname":
-	            // Find users whose org name matches, then fetch their RFQs
-	            matchedUsers = userDao.findUsersByOrgCompanyName(searchValue);
+	            matchedUsers = userDao.findUsersByOrgCompanyName(trimmedSearch);
 	            if (matchedUsers.isEmpty()) {
 	                return Collections.emptyList();
 	            }
 	            List<String> userIdsByCompany = matchedUsers.stream()
 	                    .map(User::getId)
 	                    .distinct()
-	                    .limit(500)
+	                    .limit(100)
 	                    .toList();
 	            rfqList = rfqDao.findAllClientRfqByUserIds(userIdsByCompany);
 	            break;
 
 	        case "contactnumber":
-	            // Find users whose phone matches, then fetch their RFQs
-	            matchedUsers = userDao.findUsersByPhone(searchValue);
+	            matchedUsers = userDao.findUsersByPhone(trimmedSearch);
 	            if (matchedUsers.isEmpty()) {
 	                return Collections.emptyList();
 	            }
 	            List<String> userIdsByPhone = matchedUsers.stream()
 	                    .map(User::getId)
 	                    .distinct()
-	                    .limit(500)
+	                    .limit(100)
 	                    .toList();
 	            rfqList = rfqDao.findAllClientRfqByUserIds(userIdsByPhone);
 	            break;
@@ -1403,6 +1421,10 @@ public class GMTServiceImpl implements GMTService {
 	        default:
 	            logger.warn("Unknown searchType: {}", searchType);
 	            return Collections.emptyList();
+	    }
+
+	    if (rfqList.size() > 100) {
+	        rfqList = rfqList.subList(0, 100);
 	    }
 
 	    logger.info("RFQs found: {}", rfqList.size());

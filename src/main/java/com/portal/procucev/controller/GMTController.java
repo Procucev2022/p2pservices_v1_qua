@@ -385,7 +385,15 @@ public class GMTController {
 		 // If both params are absent → return all records unpaginated
 	    if (page == null && size == null) {
 	    	logger.info("With No Pagination..");
-	    	List<VendorRFQDto> allVendors = gmtService.getAllVendors();
+	    	List<VendorRFQDto> allVendors;
+	    	try {
+	    		allVendors = gmtService.getAllVendors();
+	    	} catch (AppException e) {
+	    		if (e.getErrorCode() == HttpStatus.NO_CONTENT.value()) {
+	    			return ResponseEntity.ok(Collections.emptyList());
+	    		}
+	    		throw e;
+	    	}
 	        return ResponseEntity.ok(allVendors);
 	    }
 
@@ -395,8 +403,16 @@ public class GMTController {
 	            size != null ? size : 50
 	    );
 	    
-	  //  List<VendorRFQDto> responsePage = gmtService.getAllVendors(pageable);
-	    SimplePageResponse<VendorRFQDto> responsePage = gmtService.getAllVendors(pageable);
+	    SimplePageResponse<VendorRFQDto> responsePage;
+	    try {
+	    	responsePage = gmtService.getAllVendors(pageable);
+	    } catch (AppException e) {
+	    	if (e.getErrorCode() == HttpStatus.NO_CONTENT.value()) {
+	    		responsePage = new SimplePageResponse<>(0L, Collections.emptyList());
+	    	} else {
+	    		throw e;
+	    	}
+	    }
 	    
 	    if (responsePage.getData() == null || responsePage.getData().isEmpty()) {
 
