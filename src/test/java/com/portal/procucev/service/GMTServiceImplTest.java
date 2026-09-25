@@ -724,10 +724,8 @@ class GMTServiceImplTest {
         rfq.setClientStatus(null);
         rfq.setUser("USER1");
         when(rfqDao.findAllRfqNoPrByCM(anyList())).thenReturn(List.of(rfq));
-        when(gmtRfqVendorDao.findByVendorsByRfq(anyString())).thenReturn(2L);
-        when(userDao.findByUser("USER1")).thenReturn("Company");
-        when(userDao.findOrgIdByUser("USER1")).thenReturn("ORG1");
-        when(userDao.findPhoneByUser("USER1")).thenReturn("9999999999");
+        when(userDao.findUsersByIds(anyList())).thenReturn(List.of(user));
+        when(gmtRfqVendorDao.countVendorsByRfqIds(anyList())).thenReturn(List.<Object[]>of(new Object[]{rfq.getId(), 2L}));
         assertEquals(1, service.getAllRfqForCM().size());
 
         when(rfqDao.findAllClientRfqNoPr()).thenReturn(Collections.emptyList());

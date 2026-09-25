@@ -487,23 +487,49 @@ class GMTServiceImplCoverageTest {
         Rfq enriched = simpleRfq("R1", "RFQ-R1");
         enriched.setClientStatus(status);
         enriched.setUser("U1");
+
         Rfq bare = simpleRfq("R2", "RFQ-R2");
         bare.setUser("U2");
 
-        when(rfqDao.findAllRfqNoPrByCM(anyList())).thenReturn(List.of(enriched, bare));
-        when(gmtRfqVendorDao.findByVendorsByRfq(anyString())).thenReturn(1L);
-        when(userDao.findByUser("U1")).thenReturn("Company One");
-        when(userDao.findOrgIdByUser("U1")).thenReturn("ORG1");
-        when(userDao.findPhoneByUser("U1")).thenReturn("9876543210");
+        Rfq userWithoutOrg = simpleRfq("R3", "RFQ-R3");
+        userWithoutOrg.setUser("U3");
+
+        Rfq nullUserRfq = simpleRfq("R4", "RFQ-R4");
+        nullUserRfq.setUser(null);
+
+        User u1 = new User();
+        u1.setId("U1");
+        Organization org1 = new Organization();
+        org1.setId("ORG1");
+        org1.setCompanyName("Company One");
+        u1.setOrg(org1);
+        u1.setPhone("9876543210");
+
+        User u1Duplicate = new User();
+        u1Duplicate.setId("U1");
+
+        User u3 = new User();
+        u3.setId("U3");
+        u3.setPhone("5555555555");
+        u3.setOrg(null);
+
+        when(rfqDao.findAllRfqNoPrByCM(anyList())).thenReturn(List.of(enriched, bare, userWithoutOrg, nullUserRfq));
+        when(userDao.findUsersByIds(anyList())).thenReturn(List.of(u1, u1Duplicate, u3));
+        when(gmtRfqVendorDao.countVendorsByRfqIds(anyList())).thenReturn(List.<Object[]>of(new Object[]{"R1", 5L}));
 
         List<RfqDTO> result = service.getAllRfqForCM();
 
+        assertEquals(4, result.size());
         assertEquals("OPEN", result.get(0).getClientStatusName());
         assertEquals("Company One", result.get(0).getCompanyName());
+        assertEquals(5L, result.get(0).getNoOfVendors());
         assertNull(result.get(1).getClientStatusName());
         assertNull(result.get(1).getCompanyName());
         assertNull(result.get(1).getCompanyId());
         assertNull(result.get(1).getPhoneNumber());
+        assertEquals(0L, result.get(1).getNoOfVendors());
+        assertEquals("5555555555", result.get(2).getPhoneNumber());
+        assertNull(result.get(2).getCompanyName());
     }
 
     @Test
@@ -538,9 +564,12 @@ class GMTServiceImplCoverageTest {
         orgless.setPhone("1111111111");
         orgless.setOrg(null);
 
+        User duplicateUser = new User();
+        duplicateUser.setId("USER1");
+
         when(rfqDao.findAllClientRfqNoPr(pageable))
                 .thenReturn(new PageImpl<>(List.of(known, unknownUser, userWithoutOrg)));
-        when(userDao.findUsersByIds(anyList())).thenReturn(List.of(user, orgless));
+        when(userDao.findUsersByIds(anyList())).thenReturn(List.of(user, duplicateUser, orgless));
         when(gmtRfqVendorDao.countVendorsByRfqIds(anyList()))
                 .thenReturn(List.<Object[]>of(new Object[]{"P1", 4L}));
 
@@ -569,6 +598,18 @@ class GMTServiceImplCoverageTest {
 
         assertEquals(1, service.fetchAllClientGMTRfqsForCMSearch("companyname", "Company1").size());
         assertEquals(1, service.fetchAllClientGMTRfqsForCMSearch("contactnumber", "9876543210").size());
+
+        assertTrue(service.fetchAllClientGMTRfqsForCMSearch(null, "Company1").isEmpty());
+        assertTrue(service.fetchAllClientGMTRfqsForCMSearch("companyname", null).isEmpty());
+        assertTrue(service.fetchAllClientGMTRfqsForCMSearch("companyname", "   ").isEmpty());
+        assertTrue(service.fetchAllClientGMTRfqsForCMSearch("unknown", "Company1").isEmpty());
+
+        List<Rfq> largeList = new ArrayList<>();
+        for (int i = 0; i < 105; i++) {
+            largeList.add(simpleRfq("L" + i, "RFQ-L" + i));
+        }
+        when(rfqDao.findAllClientRfqByRfqIdOrDescription("rfqid", "RFQ-L")).thenReturn(largeList);
+        assertEquals(100, service.fetchAllClientGMTRfqsForCMSearch("rfqid", "RFQ-L").size());
     }
 
     // ------------------------------------------------------------------
@@ -1085,6 +1126,17 @@ class GMTServiceImplCoverageTest {
 
         assertTrue(service.ignoreClient(user));
         verify(userDao, never()).updateClientStatus(any(), any());
+    }
+
+    @Test
+    void ignoreClientCreatesMasterStatusWhenMissing() {
+        when(userDao.findById("USER1")).thenReturn(Optional.of(user));
+        when(masterStatusDao.findByStatus(anyString())).thenReturn(null);
+        when(masterStatusDao.save(any(MasterStatus.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        assertTrue(service.ignoreClient(user));
+        verify(masterStatusDao).save(any(MasterStatus.class));
+        verify(userDao).updateClientStatus(eq(user), any(MasterStatus.class));
     }
 
     @Test
