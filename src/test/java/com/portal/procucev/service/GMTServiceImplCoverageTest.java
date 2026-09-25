@@ -507,6 +507,25 @@ class GMTServiceImplCoverageTest {
     }
 
     @Test
+    void getAllRfqForCmMapsInBatchUsingBulkQueries() {
+        when(masterStatusDao.findByStatusIn(anyList())).thenReturn(List.of(status));
+
+        Rfq rfq1 = simpleRfq("R1", "RFQ-R1");
+        rfq1.setClientStatus(status);
+        rfq1.setUser("USER1");
+
+        when(rfqDao.findAllRfqNoPrByCM(anyList())).thenReturn(List.of(rfq1));
+        when(userDao.findUsersByIds(anyList())).thenReturn(List.of(user));
+        when(gmtRfqVendorDao.countVendorsByRfqIds(anyList())).thenReturn(List.<Object[]>of(new Object[]{"R1", 5L}));
+
+        List<RfqDTO> result = service.getAllRfqForCM();
+
+        assertEquals(1, result.size());
+        assertEquals(5L, result.get(0).getNoOfVendors());
+        assertEquals("Company1", result.get(0).getCompanyName());
+    }
+
+    @Test
     void fetchAllClientRfqsToleratesMissingUserLookups() {
         Rfq bare = simpleRfq("R2", "RFQ-R2");
         bare.setClientStatus(status);

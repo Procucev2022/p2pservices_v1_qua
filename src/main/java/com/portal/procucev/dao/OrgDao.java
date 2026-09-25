@@ -52,7 +52,7 @@ public interface OrgDao  extends JpaRepository<Organization, String> {
 //			""")
 //			List<VendorRFQDto> getAllVendor(@Param("orgType") OrgType orgType);
 	
-	@Query("""
+	@Query(value = """
 			SELECT new com.portal.procucev.Dto.VendorRFQDto(
 			       v.id,
 			       v.companyName,
@@ -64,8 +64,9 @@ public interface OrgDao  extends JpaRepository<Organization, String> {
 			FROM Organization v
 			WHERE v.orgType=:orgType
 			ORDER BY v.createdTS DESC
-			""")
-			Page<VendorRFQDto> getAllVendor(@Param("orgType") OrgType orgType,Pageable pageable);
+			""",
+			countQuery = "SELECT count(v.id) FROM Organization v WHERE v.orgType=:orgType")
+			Page<VendorRFQDto> getAllVendor(@Param("orgType") OrgType orgType, Pageable pageable);
 	
 	//getAllVendors Search
 	@Query("""
