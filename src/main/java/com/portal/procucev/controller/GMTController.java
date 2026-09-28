@@ -11,6 +11,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.time.LocalDate;
+import java.time.format.DateTimeParseException;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -29,6 +31,8 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.portal.procucev.Dto.ClientRFQDto;
+import com.portal.procucev.Dto.DailyRfqReportDispatchResponse;
+import com.portal.procucev.Dto.DailyRfqReportPreviewDto;
 import com.portal.procucev.Dto.DeliveryLocationUpdateRequest;
 import com.portal.procucev.Dto.ForwardRfqVendorRequest;
 import com.portal.procucev.Dto.GMTRfqVendorDto;
@@ -41,6 +45,7 @@ import com.portal.procucev.customexception.AppException;
 import com.portal.procucev.customexception.MessageResponse;
 import com.portal.procucev.customexception.RfqStatusResponse;
 import com.portal.procucev.model.CategoryDivision;
+import com.portal.procucev.model.DailyRfqReportLog;
 import com.portal.procucev.model.EmailRequest;
 import com.portal.procucev.model.GmtItems;
 import com.portal.procucev.model.GmtRfqVendors;
@@ -51,6 +56,7 @@ import com.portal.procucev.model.RfqStatusRequest;
 import com.portal.procucev.model.RfqVendor;
 import com.portal.procucev.model.SubscriptionPlan;
 import com.portal.procucev.model.User;
+import com.portal.procucev.service.DailyRfqReportService;
 import com.portal.procucev.service.GMTService;
 import com.portal.procucev.utils.ApplicationConstants;
 import com.portal.procucev.utils.StatusCodes;
@@ -68,6 +74,9 @@ public class GMTController {
 
 	@Autowired
 	private JavaMailSender javaMailSender;
+
+	@Autowired
+	private DailyRfqReportService dailyRfqReportService;
 
 	@PostMapping(value = "/getClientRfqIds")
 	public ResponseEntity<?> getClientRfqIds(@RequestBody User user) {
@@ -1073,4 +1082,68 @@ public class GMTController {
 				rfq != null ? (rfq.getRfqId() != null ? rfq.getRfqId() : rfq.getId()) : null);
 		return gmtService.getRfqAiTokenConsumption(rfq);
 	}
-}
+
+	@PostMapping(value = "/reports/daily-rfq/dispatch")
+	public ResponseEntity<?> dispatchDailyRfqReport(
+			@RequestParam(value = "targetDate", required = false) String targetDate,
+			@RequestParam(value = "force", required = false, defaultValue = "false") boolean force,
+			@RequestParam(value = "to", required = false) String to) {
+		try {
+			LocalDate date = (targetDate != null && !targetDate.trim().isEmpty())
+					? LocalDate.parse(targetDate.trim())
+					: null;
+			DailyRfqReportDispatchResponse response = dailyRfqReportService.dispatchDailyReport(date, force, to);
+			return new ResponseEntity<>(response, HttpStatus.OK);
+		} catch (DateTimeParseException e) {
+			logger.error("Invalid targetDate format provided: {}", targetDate, e);
+			Map<String, String> err = new HashMap<>();
+			err.put("status", "ERROR");
+			err.put("message", "Invalid targetDate format. Expected YYYY-MM-DD.");
+			return new ResponseEntity<>(err, HttpStatus.BAD_REQUEST);
+		} catch (Exception e) {
+			logger.error("Error dispatching daily RFQ report", e);
+			Map<String, String> err = new HashMap<>();
+			err.put("status", "ERROR");
+			err.put("message", e.getMessage() != null ? e.getMessage() : "Internal server error");
+			return new ResponseEntity<>(err, HttpStatus.INTERNAL_SERVER_ERROR);
+		}
+	}
+
+	@GetMapping(value = "/reports/daily-rfq/preview")
+	public ResponseEntity<?> previewDailyRfqReport(
+			@RequestParam(value = "targetDate", required = false) String targetDate) {
+		try {
+			LocalDate date = (targetDate != null && !targetDate.trim().isEmpty())
+					? LocalDate.parse(targetDate.trim())
+					: null;
+			DailyRfqReportPreviewDto preview = dailyRfqReportService.previewDailyReport(date);
+			return new ResponseEntity<>(preview, HttpStatus.OK);
+		} catch (DateTimeParseException e) {
+			logger.error("Invalid targetDate format provided: {}", targetDate, e);
+			Map<String, String> err = new HashMap<>();
+			err.put("status", "ERROR");
+			err.put("message", "Invalid targetDate format. Expected YYYY-MM-DD.");
+			return new ResponseEntity<>(err, HttpStatus.BAD_REQUEST);
+		} catch (Exception e) {
+			logger.error("Error previewing daily RFQ report", e);
+			Map<String, String> err = new HashMap<>();
+			err.put("status", "ERROR");
+			err.put("message", e.getMessage() != null ? e.getMessage() : "Internal server error");
+			return new ResponseEntity<>(err, HttpStatus.INTERNAL_SERVER_ERROR);
+		}
+	}
+
+	@GetMapping(value = "/reports/daily-rfq/history")
+	public ResponseEntity<?> getDailyRfqReportHistory() {
+		try {
+			List<DailyRfqReportLog> history = dailyRfqReportService.getReportHistory();
+			return new ResponseEntity<>(history, HttpStatus.OK);
+		} catch (Exception e) {
+			logger.error("Error fetching daily RFQ report history", e);
+			Map<String, String> err = new HashMap<>();
+			err.put("status", "ERROR");
+			err.put("message", e.getMessage() != null ? e.getMessage() : "Internal server error");
+			return new ResponseEntity<>(err, HttpStatus.INTERNAL_SERVER_ERROR);
+		}
+	}
+}

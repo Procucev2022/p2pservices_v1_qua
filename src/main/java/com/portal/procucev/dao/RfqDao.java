@@ -366,6 +366,8 @@ public interface RfqDao extends JpaRepository<Rfq, String>{
 		        @Param("endDate") Date endDate
 		);
 
-
+	@Query("SELECT r FROM Rfq r WHERE r.createdTS >= :startUtc AND r.createdTS <= :endUtc AND r.byClient = true AND r.noPrFlag = true ORDER BY r.createdTS ASC")
+	List<Rfq> findDailyIntakeRfqs(@Param("startUtc") Date startUtc, @Param("endUtc") Date endUtc);
 
 }
+
