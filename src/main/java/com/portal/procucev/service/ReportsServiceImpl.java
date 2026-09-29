@@ -45,7 +45,7 @@ public class ReportsServiceImpl  implements ReportsService {
 	@Override
 	public List<?> getSellerReports(String startDate, String endDate, String requestType) throws ParseException {
 		   Date fromDate = new SimpleDateFormat("yyyy-MM-dd").parse(startDate);
-	        Date toDate = new SimpleDateFormat("yyyy-MM-dd").parse(endDate);
+	        Date toDate = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").parse(endDate + " 23:59:59");
 
 		    // Step 1: Vendor Org Type
 		    OrgType orgTypeObject =
@@ -72,7 +72,7 @@ public class ReportsServiceImpl  implements ReportsService {
 	) throws ParseException {
 
 	    Date fromDate = new SimpleDateFormat("yyyy-MM-dd").parse(startDate);
-	    Date toDate = new SimpleDateFormat("yyyy-MM-dd").parse(endDate);
+	    Date toDate = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").parse(endDate + " 23:59:59");
 
 	    List<Object[]> rows =
 	            userDao.getSellerCategoryRawData(fromDate, toDate);
@@ -159,7 +159,7 @@ public class ReportsServiceImpl  implements ReportsService {
 	        String startDate, String endDate) throws ParseException {
 
 	    Date fromDate = new SimpleDateFormat("yyyy-MM-dd").parse(startDate);
-	    Date toDate   = new SimpleDateFormat("yyyy-MM-dd").parse(endDate);
+	    Date toDate   = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").parse(endDate + " 23:59:59");
 
 	    List<Object[]> rows = userDao.getBuyerCategoryRawData(fromDate, toDate);
 
