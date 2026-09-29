@@ -34,6 +34,9 @@ class GMTControllerTest {
     @Mock
     private GMTService gmtService;
 
+    @Mock
+    private com.portal.procucev.service.DailyRfqReportService dailyRfqReportService;
+
     @InjectMocks
     private GMTController controller;
 
@@ -695,4 +698,80 @@ class GMTControllerTest {
         ResponseEntity<?> resp4 = controller.getRfqAiTokenConsumption(null);
         assertEquals(HttpStatus.OK, resp4.getStatusCode());
     }
+
+    @Test
+    void testDispatchDailyRfqReport_Success() {
+        DailyRfqReportDispatchResponse mockResponse = DailyRfqReportDispatchResponse.builder()
+                .status("SUCCESS")
+                .message("Dispatched")
+                .build();
+        when(dailyRfqReportService.dispatchDailyReport(any(), anyBoolean(), any()))
+                .thenReturn(mockResponse);
+
+        ResponseEntity<?> response = controller.dispatchDailyRfqReport("2026-09-27", false, "test@test.com");
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertEquals(mockResponse, response.getBody());
+    }
+
+    @Test
+    void testDispatchDailyRfqReport_InvalidDateFormat() {
+        ResponseEntity<?> response = controller.dispatchDailyRfqReport("not-a-date", false, null);
+        assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
+        assertTrue(response.getBody().toString().contains("Invalid targetDate format"));
+    }
+
+    @Test
+    void testDispatchDailyRfqReport_Exception() {
+        when(dailyRfqReportService.dispatchDailyReport(any(), anyBoolean(), any()))
+                .thenThrow(new RuntimeException("Dispatch failed"));
+
+        ResponseEntity<?> response = controller.dispatchDailyRfqReport(null, false, null);
+        assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, response.getStatusCode());
+    }
+
+    @Test
+    void testPreviewDailyRfqReport_Success() {
+        DailyRfqReportPreviewDto mockPreview = DailyRfqReportPreviewDto.builder()
+                .totalCount(5)
+                .build();
+        when(dailyRfqReportService.previewDailyReport(any())).thenReturn(mockPreview);
+
+        ResponseEntity<?> response = controller.previewDailyRfqReport("2026-09-27");
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertEquals(mockPreview, response.getBody());
+    }
+
+    @Test
+    void testPreviewDailyRfqReport_InvalidDateFormat() {
+        ResponseEntity<?> response = controller.previewDailyRfqReport("invalid-date");
+        assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
+    }
+
+    @Test
+    void testPreviewDailyRfqReport_Exception() {
+        when(dailyRfqReportService.previewDailyReport(any()))
+                .thenThrow(new RuntimeException("Preview error"));
+
+        ResponseEntity<?> response = controller.previewDailyRfqReport(null);
+        assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, response.getStatusCode());
+    }
+
+    @Test
+    void testGetDailyRfqReportHistory_Success() {
+        DailyRfqReportLog logItem = DailyRfqReportLog.builder().id(1L).totalCount(3).build();
+        when(dailyRfqReportService.getReportHistory()).thenReturn(Collections.singletonList(logItem));
+
+        ResponseEntity<?> response = controller.getDailyRfqReportHistory();
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertEquals(1, ((List<?>) response.getBody()).size());
+    }
+
+    @Test
+    void testGetDailyRfqReportHistory_Exception() {
+        when(dailyRfqReportService.getReportHistory()).thenThrow(new RuntimeException("DB error"));
+
+        ResponseEntity<?> response = controller.getDailyRfqReportHistory();
+        assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, response.getStatusCode());
+    }
 }
+
