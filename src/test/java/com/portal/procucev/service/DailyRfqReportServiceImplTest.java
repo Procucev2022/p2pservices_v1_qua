@@ -244,6 +244,22 @@ class DailyRfqReportServiceImplTest {
     }
 
     @Test
+    void testDispatchDailyReportWithSemicolonAndSpacedRecipients() {
+        LocalDate date = LocalDate.of(2026, 9, 27);
+        when(rfqDao.findDailyIntakeRfqs(any(Date.class), any(Date.class))).thenReturn(Collections.emptyList());
+        when(dailyRfqReportLogDao.findByReportDate(date)).thenReturn(Optional.empty());
+        when(javaMailSender.createMimeMessage()).thenReturn(mimeMessage);
+        when(dailyRfqReportLogDao.save(any(DailyRfqReportLog.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        DailyRfqReportDispatchResponse response = service.dispatchDailyReport(date, false, "quateam@procucev.com ; veerababu.v@procucev.com");
+
+        assertNotNull(response);
+        assertEquals("SUCCESS", response.getStatus());
+        verify(javaMailSender).send(any(MimeMessage.class));
+        assertEquals("quateam@procucev.com ; veerababu.v@procucev.com", response.getLog().getRecipient());
+    }
+
+    @Test
     void testDispatchDailyReportFallbackRfqIdWhenNullOrBlank() {
         LocalDate date = LocalDate.of(2026, 9, 27);
 

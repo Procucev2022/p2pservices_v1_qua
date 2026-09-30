@@ -236,10 +236,11 @@ public class DailyRfqReportServiceImpl implements DailyRfqReportService {
             MimeMessageHelper helper = new MimeMessageHelper(mimeMessage, false, StandardCharsets.UTF_8.name());
             helper.setFrom(new InternetAddress(defaultFromEmail));
 
-            if (recipient.contains(",")) {
-                helper.setTo(InternetAddress.parse(recipient));
+            String normalizedRecipient = (recipient != null) ? recipient.replace(";", ",") : "";
+            if (normalizedRecipient.contains(",")) {
+                helper.setTo(InternetAddress.parse(normalizedRecipient));
             } else {
-                helper.setTo(recipient);
+                helper.setTo(normalizedRecipient.trim());
             }
 
             helper.setSubject(subject);
