@@ -103,9 +103,9 @@ public interface GmtRfqVendorDao extends JpaRepository<GmtRfqVendors, String> {
 		        v.quoteSubmittedDate,
 		        v.query
 		    )
-		    FROM GmtRfqVendors v
-		    JOIN v.rfq r
-		    JOIN v.vendor o
+		    FROM Rfq r
+		    LEFT JOIN GmtRfqVendors v ON v.rfq = r
+		    LEFT JOIN v.vendor o
 		    LEFT JOIN r.clientdeliverylocationrfq d ON d.rfq.id = r.id
 		    LEFT JOIN User u ON u.org.id = o.id
 		    WHERE r.createdTS BETWEEN :startDate AND :endDate
