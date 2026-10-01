@@ -36,7 +36,7 @@ public class RFQItem {
     @com.fasterxml.jackson.annotation.JsonAlias({"unitOfMeasure", "unit_of_measure", "unitofMeasures", "unit"})
     private String uom;
 
-    @com.fasterxml.jackson.annotation.JsonAlias({"make", "manufacturer"})
+    @com.fasterxml.jackson.annotation.JsonAlias({"make", "Make", "MAKE", "manufacturer", "Manufacturer", "brandName", "brand_name", "preferredBrand", "preferred_brand"})
     private String brand;
     private String remarks;
     private String deliveryLocation;

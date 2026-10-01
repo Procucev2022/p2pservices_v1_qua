@@ -72,6 +72,40 @@ class CustomUserDetailsServiceTest {
     }
 
     @Test
+    void testLoadUserByUsernameAndPhone_NormalizedFallbackSuccess() {
+        when(userDao.findAuthViewByUsernameAndPhone("testuser", "9876543210")).thenReturn(null);
+        when(userDao.findAuthViewByUsernameAndPhone("testuser", "+919876543210"))
+                .thenReturn(authView("testuser", "+919876543210", "pass"));
+
+        UserDetails userDetails = service.loadUserByUsernameAndPhone("testuser", "9876543210");
+        assertNotNull(userDetails);
+        assertEquals("testuser", userDetails.getUsername());
+        assertEquals("pass", userDetails.getPassword());
+    }
+
+    @Test
+    void testLoadUserByUsernameAndPhone_Bare10DigitFallbackSuccess() {
+        when(userDao.findAuthViewByUsernameAndPhone("testuser", "+919876543210")).thenReturn(null);
+        when(userDao.findAuthViewByUsernameAndPhone("testuser", "9876543210"))
+                .thenReturn(authView("testuser", "9876543210", "pass"));
+
+        UserDetails userDetails = service.loadUserByUsernameAndPhone("testuser", "+919876543210");
+        assertNotNull(userDetails);
+        assertEquals("testuser", userDetails.getUsername());
+        assertEquals("pass", userDetails.getPassword());
+    }
+
+    @Test
+    void testLoadUserByUsernameAndPhone_EmptyPhoneThrows() {
+        assertThrows(UsernameNotFoundException.class, () -> service.loadUserByUsernameAndPhone("testuser", ""));
+    }
+
+    @Test
+    void testLoadUserByUsernameAndPhone_NullPhoneThrows() {
+        assertThrows(UsernameNotFoundException.class, () -> service.loadUserByUsernameAndPhone("testuser", null));
+    }
+
+    @Test
     void testLoadUserByUsername_Unsupported() {
         assertThrows(UsernameNotFoundException.class, () -> service.loadUserByUsername("testuser"));
     }

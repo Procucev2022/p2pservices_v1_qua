@@ -44,6 +44,7 @@ import com.portal.procucev.model.Role;
 import com.portal.procucev.model.User;
 import com.portal.procucev.utils.ApplicationConstants;
 import com.portal.procucev.utils.MailUtility;
+import com.portal.procucev.utils.PhoneNumberUtils;
 import com.portal.procucev.utils.StatusConstants;
 
 import jakarta.mail.Flags;
@@ -486,23 +487,49 @@ class GMTServiceImplCoverageTest {
         Rfq enriched = simpleRfq("R1", "RFQ-R1");
         enriched.setClientStatus(status);
         enriched.setUser("U1");
+
         Rfq bare = simpleRfq("R2", "RFQ-R2");
         bare.setUser("U2");
 
-        when(rfqDao.findAllRfqNoPrByCM(anyList())).thenReturn(List.of(enriched, bare));
-        when(gmtRfqVendorDao.findByVendorsByRfq(anyString())).thenReturn(1L);
-        when(userDao.findByUser("U1")).thenReturn("Company One");
-        when(userDao.findOrgIdByUser("U1")).thenReturn("ORG1");
-        when(userDao.findPhoneByUser("U1")).thenReturn("9876543210");
+        Rfq userWithoutOrg = simpleRfq("R3", "RFQ-R3");
+        userWithoutOrg.setUser("U3");
+
+        Rfq nullUserRfq = simpleRfq("R4", "RFQ-R4");
+        nullUserRfq.setUser(null);
+
+        User u1 = new User();
+        u1.setId("U1");
+        Organization org1 = new Organization();
+        org1.setId("ORG1");
+        org1.setCompanyName("Company One");
+        u1.setOrg(org1);
+        u1.setPhone("9876543210");
+
+        User u1Duplicate = new User();
+        u1Duplicate.setId("U1");
+
+        User u3 = new User();
+        u3.setId("U3");
+        u3.setPhone("5555555555");
+        u3.setOrg(null);
+
+        when(rfqDao.findAllRfqNoPrByCM(anyList())).thenReturn(List.of(enriched, bare, userWithoutOrg, nullUserRfq));
+        when(userDao.findUsersByIds(anyList())).thenReturn(List.of(u1, u1Duplicate, u3));
+        when(gmtRfqVendorDao.countVendorsByRfqIds(anyList())).thenReturn(List.<Object[]>of(new Object[]{"R1", 5L}));
 
         List<RfqDTO> result = service.getAllRfqForCM();
 
+        assertEquals(4, result.size());
         assertEquals("OPEN", result.get(0).getClientStatusName());
         assertEquals("Company One", result.get(0).getCompanyName());
+        assertEquals(5L, result.get(0).getNoOfVendors());
         assertNull(result.get(1).getClientStatusName());
         assertNull(result.get(1).getCompanyName());
         assertNull(result.get(1).getCompanyId());
         assertNull(result.get(1).getPhoneNumber());
+        assertEquals(0L, result.get(1).getNoOfVendors());
+        assertEquals("5555555555", result.get(2).getPhoneNumber());
+        assertNull(result.get(2).getCompanyName());
     }
 
     @Test
@@ -537,9 +564,12 @@ class GMTServiceImplCoverageTest {
         orgless.setPhone("1111111111");
         orgless.setOrg(null);
 
+        User duplicateUser = new User();
+        duplicateUser.setId("USER1");
+
         when(rfqDao.findAllClientRfqNoPr(pageable))
                 .thenReturn(new PageImpl<>(List.of(known, unknownUser, userWithoutOrg)));
-        when(userDao.findUsersByIds(anyList())).thenReturn(List.of(user, orgless));
+        when(userDao.findUsersByIds(anyList())).thenReturn(List.of(user, duplicateUser, orgless));
         when(gmtRfqVendorDao.countVendorsByRfqIds(anyList()))
                 .thenReturn(List.<Object[]>of(new Object[]{"P1", 4L}));
 
@@ -568,6 +598,18 @@ class GMTServiceImplCoverageTest {
 
         assertEquals(1, service.fetchAllClientGMTRfqsForCMSearch("companyname", "Company1").size());
         assertEquals(1, service.fetchAllClientGMTRfqsForCMSearch("contactnumber", "9876543210").size());
+
+        assertTrue(service.fetchAllClientGMTRfqsForCMSearch(null, "Company1").isEmpty());
+        assertTrue(service.fetchAllClientGMTRfqsForCMSearch("companyname", null).isEmpty());
+        assertTrue(service.fetchAllClientGMTRfqsForCMSearch("companyname", "   ").isEmpty());
+        assertTrue(service.fetchAllClientGMTRfqsForCMSearch("unknown", "Company1").isEmpty());
+
+        List<Rfq> largeList = new ArrayList<>();
+        for (int i = 0; i < 105; i++) {
+            largeList.add(simpleRfq("L" + i, "RFQ-L" + i));
+        }
+        when(rfqDao.findAllClientRfqByRfqIdOrDescription("rfqid", "RFQ-L")).thenReturn(largeList);
+        assertEquals(100, service.fetchAllClientGMTRfqsForCMSearch("rfqid", "RFQ-L").size());
     }
 
     // ------------------------------------------------------------------
@@ -634,6 +676,8 @@ class GMTServiceImplCoverageTest {
 
         when(masterStatusDao.findByStatus(anyString())).thenReturn(status);
         when(orgTypeDao.findByTypeName(ApplicationConstants.VENDOR)).thenReturn(new OrgType());
+        when(roleDao.findByRoleNameAndActive(anyString(), eq(true))).thenReturn(new Role());
+        when(userDao.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(selfRegistrationService.checkOrgexist("Brand New")).thenReturn(false);
         when(rfqDao.save(request)).thenReturn(saved);
         when(orgDao.save(newVendor)).thenAnswer(invocation -> {
@@ -655,6 +699,7 @@ class GMTServiceImplCoverageTest {
         assertTrue(spyService.createRFQWithNoPr(request));
 
         verify(orgDao).save(newVendor);
+        verify(userDao).save(any(User.class));
         verify(orgDao).updateOtherEmail("copy@test.com", "EX1");
         verify(orgDao, never()).updateOtherEmail(any(), eq("EX2"));
         verify(gmtRfqVendorDao, times(2)).save(any(GmtRfqVendors.class));
@@ -692,6 +737,61 @@ class GMTServiceImplCoverageTest {
         when(rfqDao.save(request)).thenReturn(simpleRfq("SAVED", "RFQ-SAVED"));
 
         assertTrue(spyService.createRFQWithNoPr(request));
+    }
+
+    @Test
+    void testSetUserDetails_AllBranches() {
+        Organization org = new Organization();
+        org.setEmail("v@test.com");
+        org.setOrganizationPhonenumber("+919876543210");
+        org.setName("Vendor Name");
+        org.setCompanyName("Vendor Company");
+
+        User existing = new User();
+        existing.setUsername("v@test.com");
+        when(userDao.findByUsernameAndPhoneAndActive("v@test.com", "+919876543210", true)).thenReturn(existing);
+
+        // Branch 1: existing user returns immediately
+        User resultExisting = service.setUserDetails(org, new User());
+        assertEquals(existing, resultExisting);
+
+        // Branch 2: new user, org name not null, phone starts with +91, success
+        when(userDao.findByUsernameAndPhoneAndActive("v@test.com", "+919876543210", true)).thenReturn(null);
+        when(masterStatusDao.findByStatus(StatusConstants.SELF_REGISTER_VC_ACCEPTED)).thenReturn(status);
+        Role role = new Role();
+        role.setRoleName("VENDOR");
+        when(roleDao.findByRoleNameAndActive(StatusConstants.VENDOR, true)).thenReturn(role);
+        when(userDao.save(any(User.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        User userToPopulate = new User();
+        User saved = service.setUserDetails(org, userToPopulate);
+        assertNotNull(saved);
+        assertEquals(org, saved.getOrg());
+        assertEquals("v@test.com", saved.getUsername());
+        assertEquals("Vendor Name", saved.getFullName());
+        assertEquals("Welcome@123", saved.getPassword());
+        assertTrue(saved.isResetPassword());
+
+        // Branch 3: org name is null -> fallback to company name
+        org.setName(null);
+        org.setOrganizationPhonenumber("9876543210");
+        when(userDao.findByUsernameAndPhoneAndActive("v@test.com", "+919876543210", true)).thenReturn(null);
+        User saved2 = service.setUserDetails(org, new User());
+        assertEquals("Vendor Company", saved2.getFullName());
+
+        // Branch 4: status not found
+        when(masterStatusDao.findByStatus(StatusConstants.SELF_REGISTER_VC_ACCEPTED)).thenReturn(null);
+        assertThrows(AppException.class, () -> service.setUserDetails(org, new User()));
+
+        // Branch 5: role not found
+        when(masterStatusDao.findByStatus(StatusConstants.SELF_REGISTER_VC_ACCEPTED)).thenReturn(status);
+        when(roleDao.findByRoleNameAndActive(StatusConstants.VENDOR, true)).thenReturn(null);
+        assertThrows(AppException.class, () -> service.setUserDetails(org, new User()));
+
+        // Branch 6: save throws exception
+        when(roleDao.findByRoleNameAndActive(StatusConstants.VENDOR, true)).thenReturn(role);
+        when(userDao.save(any(User.class))).thenThrow(new RuntimeException("DB error"));
+        assertThrows(AppException.class, () -> service.setUserDetails(org, new User()));
     }
 
     // ------------------------------------------------------------------
@@ -824,6 +924,136 @@ class GMTServiceImplCoverageTest {
         }
     }
 
+    @Test
+    void sendRfqToVendorsCoversNewUserForwardAndInviteBranches() throws Exception {
+        authenticate("buyer@test.com");
+
+        MasterStatus sent = masterStatus(StatusConstants.pcRfqSent, "Sent");
+        MasterStatus fresh = masterStatus(StatusConstants.vendorRfqNew, "New");
+        when(masterStatusDao.findByStatusIn(anyList())).thenReturn(List.of(sent, fresh));
+
+        when(emailUserRepo.findByEmail("buyer@test.com")).thenReturn(null);
+        ReflectionTestUtils.setField(service, "emailPassword", "envPass");
+        ReflectionTestUtils.setField(service, "mailFom", "envFrom@test.com");
+        when(userDao.findByUsernameAndActive("buyer@test.com", true)).thenReturn(user);
+
+        // 1. Vendor with non-prefixed phone, new user created today, requestType "Forward", count 0, rfqVendor != null
+        Organization vendor1 = organization("V1", "v1@test.com", "9876543210");
+        vendor1.setId("V1");
+        vendor1.setRequestType("Forward");
+
+        User newUser1 = new User();
+        newUser1.setCreatedTS(new Date());
+        when(userDao.findByUsernameAndPhoneAndActive("v1@test.com", "+919876543210", true)).thenReturn(newUser1);
+
+        RfqVendor rfqVendor1 = new RfqVendor();
+        rfqVendor1.setId("1");
+        when(rfqVendorDao.countCredentialEmailsSent("V1")).thenReturn(0L);
+        when(rfqVendorDao.findLatestByOrganizationUuid("V1")).thenReturn(rfqVendor1);
+
+        // 2. Vendor with null phone, user found by username fallback, requestType "Invite", count 0
+        Organization vendor2 = organization("V2", "v2@test.com", null);
+        vendor2.setId("V2");
+        vendor2.setRequestType("Invite");
+
+        User newUser2 = new User();
+        newUser2.setCreatedTS(new Date());
+        when(userDao.findByUsernameAndActive("v2@test.com", true)).thenReturn(newUser2);
+
+        RfqVendor rfqVendor2 = new RfqVendor();
+        rfqVendor2.setId("2");
+        when(rfqVendorDao.countCredentialEmailsSent("V2")).thenReturn(0L);
+        when(rfqVendorDao.findLatestByOrganizationUuid("V2")).thenReturn(rfqVendor2);
+
+        // 3. Vendor with count > 0, requestType "Forward"
+        Organization vendor3 = organization("V3", "v3@test.com", "+911234567890");
+        vendor3.setId("V3");
+        vendor3.setRequestType("Forward");
+
+        User newUser3 = new User();
+        newUser3.setCreatedTS(new Date());
+        when(userDao.findByUsernameAndPhoneAndActive("v3@test.com", "+911234567890", true)).thenReturn(newUser3);
+        when(rfqVendorDao.countCredentialEmailsSent("V3")).thenReturn(1L);
+        when(rfqVendorDao.findLatestByOrganizationUuid("V3")).thenReturn(null);
+
+        // 4. Vendor with count > 0, requestType "Invite"
+        Organization vendor4 = organization("V4", "v4@test.com", "+919999999999");
+        vendor4.setId("V4");
+        vendor4.setRequestType("Invite");
+
+        User newUser4 = new User();
+        newUser4.setCreatedTS(new Date());
+        when(userDao.findByUsernameAndPhoneAndActive("v4@test.com", "+919999999999", true)).thenReturn(newUser4);
+        when(rfqVendorDao.countCredentialEmailsSent("V4")).thenReturn(2L);
+        when(rfqVendorDao.findLatestByOrganizationUuid("V4")).thenReturn(null);
+
+        // 5. Vendor with existing user (created in past), requestType "Invite"
+        Organization vendor5 = organization("V5", "v5@test.com", "+918888888888");
+        vendor5.setId("V5");
+        vendor5.setRequestType("Invite");
+
+        User oldUser5 = new User();
+        oldUser5.setCreatedTS(Date.from(Instant.now().minus(5, ChronoUnit.DAYS)));
+        when(userDao.findByUsernameAndPhoneAndActive("v5@test.com", "+918888888888", true)).thenReturn(oldUser5);
+
+        // 6. Vendor with user normalized phone lookup
+        Organization vendor6 = organization("V6", "v6@test.com", "091-7777777777");
+        vendor6.setId("V6");
+        vendor6.setRequestType("Forward");
+        User user6 = new User();
+        user6.setCreatedTS(Date.from(Instant.now().minus(3, ChronoUnit.DAYS)));
+        when(userDao.findByUsernameAndPhoneAndActive("v6@test.com", "+91091-7777777777", true)).thenReturn(null);
+        String norm6 = PhoneNumberUtils.normalize("091-7777777777");
+        when(userDao.findByUsernameAndPhoneAndActive("v6@test.com", norm6, true)).thenReturn(user6);
+
+        rfq.setVendors(List.of(vendor1, vendor2, vendor3, vendor4, vendor5, vendor6));
+
+        RfqVendor persisted = new RfqVendor();
+        persisted.setRfq(rfq);
+        when(rfqDao.findById(rfq.getId())).thenReturn(Optional.of(rfq));
+
+        try (MockedStatic<MailUtility> mail = mockStatic(MailUtility.class)) {
+            assertTrue(service.sendRfqToVendors(List.of(persisted), rfq));
+            verify(rfqVendorDao, times(2)).save(any(RfqVendor.class));
+        }
+    }
+
+    @Test
+    void sendRfqToVendorsCoversRemainingBranchesAndNullFallbacks() throws Exception {
+        authenticate("nobuyer@test.com");
+
+        when(masterStatusDao.findByStatusIn(anyList())).thenReturn(Collections.emptyList());
+
+        when(emailUserRepo.findByEmail("nobuyer@test.com")).thenReturn(null);
+        ReflectionTestUtils.setField(service, "emailPassword", null);
+        ReflectionTestUtils.setField(service, "mailFom", null);
+        ReflectionTestUtils.setField(service, "pswd", "defaultPswd");
+        ReflectionTestUtils.setField(service, "mail", "defaultMail@test.com");
+        when(userDao.findByUsernameAndActive("nobuyer@test.com", true)).thenReturn(null);
+
+        // Vendor with null id, blank phone, null user
+        Organization vendorNullId = organization(null, "nullid@test.com", "   ");
+        vendorNullId.setId(null);
+        vendorNullId.setRequestType(null);
+
+        // Vendor with user having null createdTS
+        Organization vendorNullCreatedTS = organization("VNullTS", "nullts@test.com", null);
+        vendorNullCreatedTS.setId("VNullTS");
+        User userNullTS = new User();
+        userNullTS.setCreatedTS(null);
+        when(userDao.findByUsernameAndActive("nullts@test.com", true)).thenReturn(userNullTS);
+
+        rfq.setVendors(List.of(vendorNullId, vendorNullCreatedTS));
+
+        RfqVendor persisted = new RfqVendor();
+        persisted.setRfq(rfq);
+        when(rfqDao.findById(rfq.getId())).thenReturn(Optional.of(rfq));
+
+        try (MockedStatic<MailUtility> mail = mockStatic(MailUtility.class)) {
+            assertTrue(service.sendRfqToVendors(List.of(persisted), rfq));
+        }
+    }
+
     // ------------------------------------------------------------------
     // forwardRfqForNoPr
     // ------------------------------------------------------------------
@@ -896,6 +1126,17 @@ class GMTServiceImplCoverageTest {
 
         assertTrue(service.ignoreClient(user));
         verify(userDao, never()).updateClientStatus(any(), any());
+    }
+
+    @Test
+    void ignoreClientCreatesMasterStatusWhenMissing() {
+        when(userDao.findById("USER1")).thenReturn(Optional.of(user));
+        when(masterStatusDao.findByStatus(anyString())).thenReturn(null);
+        when(masterStatusDao.save(any(MasterStatus.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        assertTrue(service.ignoreClient(user));
+        verify(masterStatusDao).save(any(MasterStatus.class));
+        verify(userDao).updateClientStatus(eq(user), any(MasterStatus.class));
     }
 
     @Test
@@ -2146,6 +2387,48 @@ class GMTServiceImplCoverageTest {
         assertTrue(Boolean.TRUE.equals(res));
 
         SecurityContextHolder.clearContext();
+    }
+
+    @Test
+    void testIsAuthorizedCategoryManager_UserWithNullRoleAndExceptionHandling() {
+        authenticate("norole@test.com");
+        User userNoRole = new User();
+        userNoRole.setUsername("norole@test.com");
+        userNoRole.setRole(null);
+        when(userDao.findByUsernameAndActive("norole@test.com", true)).thenReturn(userNoRole);
+
+        Boolean res = ReflectionTestUtils.invokeMethod(service, "isAuthorizedCategoryManager");
+        assertFalse(Boolean.TRUE.equals(res));
+
+        when(userDao.findByUsernameAndActive("norole@test.com", true)).thenThrow(new RuntimeException("DB error"));
+        Boolean resErr = ReflectionTestUtils.invokeMethod(service, "isAuthorizedCategoryManager");
+        assertFalse(Boolean.TRUE.equals(resErr));
+
+        SecurityContextHolder.clearContext();
+    }
+
+    @Test
+    void testBuildAiTokenUsageDto_FallbackWithNullGeminiPricingServiceAndNullCreatedTS() {
+        Rfq rfqHist = new Rfq();
+        rfqHist.setId("HIST-UUID");
+        rfqHist.setRfqId("RFQ-HIST-NULL");
+        rfqHist.setSourceType("EMAIL");
+        rfqHist.setCreatedTS(null);
+
+        when(rfqAiTokenUsageRepository.findByRfqNumber("RFQ-HIST-NULL")).thenReturn(Optional.empty());
+
+        com.portal.procucev.rfq.service.GeminiPricingService originalPricing =
+                (com.portal.procucev.rfq.service.GeminiPricingService) ReflectionTestUtils.getField(service, "geminiPricingService");
+        try {
+            ReflectionTestUtils.setField(service, "geminiPricingService", null);
+            com.portal.procucev.Dto.RfqAiTokenUsageDTO dto =
+                    ReflectionTestUtils.invokeMethod(service, "buildAiTokenUsageDto", rfqHist);
+            assertNotNull(dto);
+            assertNotNull(dto.getEstimatedCostInr());
+            assertNotNull(dto.getCreatedAt());
+        } finally {
+            ReflectionTestUtils.setField(service, "geminiPricingService", originalPricing);
+        }
     }
 
     @SuppressWarnings("unused")

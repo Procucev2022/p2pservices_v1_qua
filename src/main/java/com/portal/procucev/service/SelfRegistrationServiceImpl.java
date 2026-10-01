@@ -37,6 +37,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.http.HttpStatus;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
@@ -145,12 +146,14 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 	private final Map<String, OtpDetails> otpMap = new ConcurrentHashMap<>();
 
 	@Override
+	@CacheEvict(value = "gmtBuyers", allEntries = true)
 	public boolean selfclientRegistration(Organization organization) {
 		// TODO Auto-generated method stub
 		return false;
 	}
 
 	@Override
+	@CacheEvict(value = "gmtBuyers", allEntries = true)
 	public ClientRegistrationStatus selfclientRegistrationData(Organization organization) throws AppException {
 		logger.info("Entered self client registration");
 
@@ -300,6 +303,7 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 		}
 	}
 
+	@CacheEvict(value = "gmtBuyers", allEntries = true)
 	public void setUserDetails(Organization organization, User user) throws AppException {
 		logger.info("Setting user details for email: {} and phone: {}", organization.getEmail(),
 				organization.getOrganizationPhonenumber());
@@ -340,7 +344,8 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 		user.setClientStatus(status);
 		user.setRole(initiatorRole);
 		user.setUniqueId(generateUserId(organization.getOrganizationPhonenumber()));
-		user.setSourceType(organization.getSourceType());
+		user.setSourceType(organization.getSourceType() != null ? organization.getSourceType() : ApplicationConstants.TOOL);
+		user.setWebApp(true);
 		user.setPassword(new String(ProcucevUtils.generatePassword(8)));
 		user.setVerificationStatus(StatusConstants.PENDING_EMAIL_VERIFICATION);
 
@@ -485,6 +490,7 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 	}
 
 	@Override
+	@CacheEvict(value = { "allVendors", "gmtBuyers" }, allEntries = true)
 	public boolean vendorRegistration(Organization organization) throws UnsupportedEncodingException {
 		logger.info("Starting vendor registration for email: {}",
 				organization != null ? organization.getEmail() : "null");
@@ -718,7 +724,7 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 
 	@Override
 	public boolean validateUser(String username, String phoneNumber) {
-		User user = userDao.findByUsernameAndPhoneAndActive(username, phoneNumber, true);
+		User user = findUserByEmailAndAnyPhoneFormat(username, phoneNumber);
 		return user != null;
 	}
 
@@ -762,7 +768,7 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 			throw new IllegalArgumentException("Email and phone must not be null");
 		}
 
-		User userOpt = userDao.findByUsernameAndPhoneAndActive(email, phone, true);
+		User userOpt = findUserByEmailAndAnyPhoneFormat(email, phone);
 		if (userOpt != null) {
 			return userOpt.getPassword(); // Assuming getPassword() returns encoded password
 		} else {
@@ -776,7 +782,7 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 			return false;
 		}
 
-		User user = userDao.findByUsernameAndPhoneAndActive(email, organizationPhonenumber, true);
+		User user = findUserByEmailAndAnyPhoneFormat(email, organizationPhonenumber);
 		return user != null;
 	}
 
@@ -897,6 +903,7 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 	}
 
 	@Override
+	@CacheEvict(value = "gmtBuyers", allEntries = true)
 	public Map<String, Object> selfclientRegistrationDataByApp(Organization organization) {
 		logger.info("Entered self client registration");
 
@@ -949,6 +956,7 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 				}
 				String normalizedPhone = PhoneNumberUtils.normalize(organization.getOrganizationPhonenumber());
 				organization.setOrganizationPhonenumber(normalizedPhone);
+				organization.setSourceType(organization.getSourceType() != null ? organization.getSourceType() : ApplicationConstants.TOOL);
 
 				Organization savedOrg = clientDao.save(organization);
 				logger.info("Saved Org ID: {}", savedOrg.getId());
@@ -988,6 +996,7 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 	}
 
 	@Override
+	@CacheEvict(value = { "allVendors", "gmtBuyers" }, allEntries = true)
 	public Map<String, Object> sellerRegistration(Organization organization) {
 		// TODO Auto-generated method stub
 		logger.info("Entered Buyer registration");
@@ -1031,7 +1040,7 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 			organization.setCompanyId(companyId);
 			organization.setRfqCredits(2);
 
-			// organization.setSourceType(ApplicationConstants.TOOL);
+			organization.setSourceType(organization.getSourceType() != null ? organization.getSourceType() : ApplicationConstants.TOOL);
 			logger.info("Company Id: {}", companyId);
 
 			PincodeData pincodeData = getCityByPincode(organization.getZipCode());
@@ -1109,6 +1118,7 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 	}
 
 	@Override
+	@CacheEvict(value = { "allVendors", "gmtBuyers" }, allEntries = true)
 	public void registerFromExcel(MultipartFile file) throws Exception {
 		try (InputStream inputStream = file.getInputStream()) {
 			Workbook workbook = WorkbookFactory.create(inputStream);
@@ -1521,7 +1531,7 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 	public boolean validateUserApproval(String username, String phone) {
 
 	    // Fetch user by username, phone and active = true
-	    User user = userDao.findByUsernameAndPhoneAndActive(username, phone, true);
+	    User user = findUserByEmailAndAnyPhoneFormat(username, phone);
 
 	    // If no user found → fail
 	    if (user == null) {
@@ -1536,6 +1546,20 @@ public class SelfRegistrationServiceImpl implements SelfRegistrationService {
 
 	    // If selfClient = true → must be approved
 	    return user.isApproved();
+	}
+
+	private User findUserByEmailAndAnyPhoneFormat(String email, String phone) {
+		if (email == null || phone == null) {
+			return null;
+		}
+		User user = userDao.findByUsernameAndPhoneAndActive(email, phone, true);
+		if (user == null) {
+			String alternate = phone.startsWith("+91") ? phone.substring(3) : PhoneNumberUtils.normalize(phone);
+			if (alternate != null && !alternate.equals(phone)) {
+				user = userDao.findByUsernameAndPhoneAndActive(email, alternate, true);
+			}
+		}
+		return user;
 	}
 
 	@Override

@@ -662,4 +662,68 @@ class MailUtilityTest {
         boolean res3 = MailUtility.forwardMessage("invalid", javaMailSender, "from@forward.com", null, "secret");
         assertFalse(res3);
     }
+
+    @Test
+    void testEmailSendVendorLoginCredentialsAllBranches() throws Exception {
+        // 1. host == null, vendorMobileNumber == null, password == null with javaMailSender != null
+        assertTrue(MailUtility.emailSendVendorLoginCredentials(
+                javaMailSender, null, "to@test.com", "from@test.com", null,
+                "12345", "Full Name", "mail2@test.com", null, null));
+
+        // 2. host == "   ", password == "   ", javaMailSender == null
+        assertTrue(MailUtility.emailSendVendorLoginCredentials(
+                null, "   ", "to@test.com", "from@test.com", null,
+                "12345", "Full Name", "mail2@test.com", "   ", "9876543210"));
+
+        // 3. host with trailing slashes, password non-empty
+        assertTrue(MailUtility.emailSendVendorLoginCredentials(
+                javaMailSender, "https://qua.procucev.com///", "to@test.com", "from@test.com", null,
+                "12345", "Full Name", "mail2@test.com", "validPass", "9876543210"));
+
+        // 4. Exception branch (when javaMailSender throws runtime exception)
+        JavaMailSender failingSender = mock(JavaMailSender.class);
+        when(failingSender.createMimeMessage()).thenThrow(new RuntimeException("Mime failure"));
+        assertThrows(RuntimeException.class, () -> MailUtility.emailSendVendorLoginCredentials(
+                failingSender, "http://host", "to@test.com", "from@test.com", null,
+                "12345", "Full Name", "mail2@test.com", null, "9876543210"));
+    }
+
+    @Test
+    void testMailingVerificationLinkWithSelfUserLoginBranches() {
+        // 1. user with email != null, javaMailSender != null
+        user.setEmail("buyer@test.com");
+        assertDoesNotThrow(() -> MailUtility.mailingVerificationLinkWithSelfUserLogin(
+                javaMailSender, "admin@procucev.com", internetAddress, "pass", "https://qua.procucev.com", user));
+
+        // 2. user with email == null, fallback to username, and javaMailSender == null
+        user.setEmail(null);
+        user.setUsername("usernamebuyer@test.com");
+        assertDoesNotThrow(() -> MailUtility.mailingVerificationLinkWithSelfUserLogin(
+                null, "admin@procucev.com", internetAddress, "pass", "https://qua.procucev.com", user));
+
+        // 3. user with blank email
+        user.setEmail("   ");
+        user.setUsername("username2@test.com");
+        assertDoesNotThrow(() -> MailUtility.mailingVerificationLinkWithSelfUserLogin(
+                javaMailSender, "admin@procucev.com", internetAddress, "pass", "https://qua.procucev.com", user));
+
+        // 4. Exception branch throws AppException
+        JavaMailSender failingSender = mock(JavaMailSender.class);
+        when(failingSender.createMimeMessage()).thenReturn(mimeMessage);
+        doThrow(new RuntimeException("Send fail")).when(failingSender).send(any(MimeMessage.class));
+        assertThrows(AppException.class, () -> MailUtility.mailingVerificationLinkWithSelfUserLogin(
+                failingSender, "admin@procucev.com", internetAddress, "pass", "https://qua.procucev.com", user));
+    }
+
+    @Test
+    void testMailingVerificationLinkWithUserLoginBranches() {
+        assertDoesNotThrow(() -> MailUtility.mailingVerificationLinkWithUserLogin(
+                javaMailSender, "from@test.com", internetAddress, "pass", "http://host", user));
+
+        JavaMailSender failingSender = mock(JavaMailSender.class);
+        when(failingSender.createMimeMessage()).thenReturn(mimeMessage);
+        doThrow(new RuntimeException("Send fail")).when(failingSender).send(any(MimeMessage.class));
+        assertThrows(AppException.class, () -> MailUtility.mailingVerificationLinkWithUserLogin(
+                failingSender, "from@test.com", internetAddress, "pass", "http://host", user));
+    }
 }

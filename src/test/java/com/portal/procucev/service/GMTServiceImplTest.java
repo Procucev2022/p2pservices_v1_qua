@@ -133,6 +133,15 @@ class GMTServiceImplTest {
     void testCreateRFQForNoPrByClient() {
         assertDoesNotThrow(() -> service.createRFQForNoPrByClient(rfq));
     }
+
+    @Test
+    void testCreateRFQForNoPrByClient_NullItems() {
+        Rfq nullItemsRfq = new Rfq();
+        nullItemsRfq.setRfqItem(null);
+        when(masterStatusDao.findByStatus(anyString())).thenReturn(masterStatus);
+        when(rfqDao.save(nullItemsRfq)).thenReturn(nullItemsRfq);
+        assertThrows(NullPointerException.class, () -> service.createRFQForNoPrByClient(nullItemsRfq));
+    }
     void testGetClientRfqIds_NullUser_And_EmptyList() {
         assertThrows(AppException.class, () -> service.getClientRfqIds(null));
         when(rfqDao.findRFQIdsNoPrRfqByClient(anyString())).thenReturn(Collections.emptyList());
@@ -715,10 +724,8 @@ class GMTServiceImplTest {
         rfq.setClientStatus(null);
         rfq.setUser("USER1");
         when(rfqDao.findAllRfqNoPrByCM(anyList())).thenReturn(List.of(rfq));
-        when(gmtRfqVendorDao.findByVendorsByRfq(anyString())).thenReturn(2L);
-        when(userDao.findByUser("USER1")).thenReturn("Company");
-        when(userDao.findOrgIdByUser("USER1")).thenReturn("ORG1");
-        when(userDao.findPhoneByUser("USER1")).thenReturn("9999999999");
+        when(userDao.findUsersByIds(anyList())).thenReturn(List.of(user));
+        when(gmtRfqVendorDao.countVendorsByRfqIds(anyList())).thenReturn(List.<Object[]>of(new Object[]{rfq.getId(), 2L}));
         assertEquals(1, service.getAllRfqForCM().size());
 
         when(rfqDao.findAllClientRfqNoPr()).thenReturn(Collections.emptyList());
@@ -1207,6 +1214,24 @@ class GMTServiceImplTest {
             assertSame(vendorNew, persisted.getVendorStatus());
             verify(rfqVendorDao).saveAll(anyList());
             verify(rfqVendorDao, times(2)).save(any(RfqVendor.class));
+
+            // FNEW0 (New vendor, count=0, Forward): receives RFQ email AND login credentials email
+            mail.verify(() -> MailUtility.emailNewRfqForNoPR(any(), any(), any(), any(), any(), eq("forward-new0@example.com"),
+                    any(), any(), any(), any(), any(), any(), any(), any(), any()), times(1));
+            mail.verify(() -> MailUtility.emailSendVendorLoginCredentials(any(), any(), eq("forward-new0@example.com"),
+                    any(), any(), any(), any(), any(), any(), any()), times(1));
+
+            // FNEW1 (New vendor, count=1, Forward): receives RFQ email only, NO login credentials email
+            mail.verify(() -> MailUtility.emailNewRfqForNoPRForExistingUsers(any(), any(), any(), any(), any(), eq("forward-new1@example.com"),
+                    any(), any(), any(), any(), any(), any(), any(), any(), any()), times(1));
+            mail.verify(() -> MailUtility.emailSendVendorLoginCredentials(any(), any(), eq("forward-new1@example.com"),
+                    any(), any(), any(), any(), any(), any(), any()), never());
+
+            // FEX (Existing vendor, Forward): receives RFQ email only, NO login credentials email
+            mail.verify(() -> MailUtility.emailNewRfqForNoPRForExistingUsers(any(), any(), any(), any(), any(), eq("forward-existing@example.com"),
+                    any(), any(), any(), any(), any(), any(), any(), any(), any()), times(1));
+            mail.verify(() -> MailUtility.emailSendVendorLoginCredentials(any(), any(), eq("forward-existing@example.com"),
+                    any(), any(), any(), any(), any(), any(), any()), never());
 
             // INEW0 (New vendor, count=0): receives RFQ email AND login credentials email
             mail.verify(() -> MailUtility.emailInviteRfq(any(), any(), any(), eq("invite-new0@example.com"),

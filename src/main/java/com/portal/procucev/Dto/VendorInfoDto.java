@@ -6,6 +6,7 @@ import lombok.Data;
 
 @Data
 public class VendorInfoDto {
+	private String id;
 	private String companyName;
     private String organizationPhonenumber;
     private String email;

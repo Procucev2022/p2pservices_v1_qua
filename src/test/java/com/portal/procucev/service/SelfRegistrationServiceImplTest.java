@@ -1092,6 +1092,49 @@ class SelfRegistrationServiceImplTest {
         row.createCell(14).setCellValue("Products");
     }
 
+    @Test
+    void testValidateUser_AndPhoneVariations() {
+        User u = new User();
+        u.setUsername("vendor@test.com");
+        u.setPhone("9876543210");
+        u.setPassword("encodedPass");
+        u.setApproved(true);
+
+        when(userDao.findByUsernameAndPhoneAndActive("vendor@test.com", "9876543210", true)).thenReturn(u);
+        when(userDao.findByUsernameAndPhoneAndActive("vendor@test.com", "+919876543210", true)).thenReturn(null);
+
+        // Direct match
+        assertTrue(service.validateUser("vendor@test.com", "9876543210"));
+        // Alternate fallback from +91 to 10-digit
+        assertTrue(service.validateUser("vendor@test.com", "+919876543210"));
+        // Null inputs
+        assertFalse(service.validateUser(null, "9876543210"));
+        assertFalse(service.validateUser("vendor@test.com", null));
+
+        // When user has +91 in DB
+        User uPlus91 = new User();
+        uPlus91.setUsername("vendor2@test.com");
+        uPlus91.setPhone("+919876543210");
+        uPlus91.setPassword("encodedPass2");
+        uPlus91.setSelfClient(true);
+        uPlus91.setApproved(false);
+
+        when(userDao.findByUsernameAndPhoneAndActive("vendor2@test.com", "9876543210", true)).thenReturn(null);
+        when(userDao.findByUsernameAndPhoneAndActive("vendor2@test.com", "+919876543210", true)).thenReturn(uPlus91);
+
+        // Alternate fallback from 10-digit to +91
+        assertTrue(service.validateUser("vendor2@test.com", "9876543210"));
+        assertTrue(service.userExistsByEmailAndPhone("vendor2@test.com", "9876543210"));
+        assertEquals("encodedPass2", service.fetchPasswordByEmailAndPhone("vendor2@test.com", "9876543210"));
+        assertFalse(service.validateUserApproval("vendor2@test.com", "9876543210"));
+
+        // User not found
+        assertFalse(service.validateUser("none@test.com", "9876543210"));
+        assertThrows(org.springframework.security.core.userdetails.UsernameNotFoundException.class,
+                () -> service.fetchPasswordByEmailAndPhone("none@test.com", "9876543210"));
+        assertFalse(service.validateUserApproval("none@test.com", "9876543210"));
+    }
+
     private static final class MultipartFileThrowingInput implements org.springframework.web.multipart.MultipartFile {
         @Override public String getName() { return "broken"; }
         @Override public String getOriginalFilename() { return "broken.csv"; }

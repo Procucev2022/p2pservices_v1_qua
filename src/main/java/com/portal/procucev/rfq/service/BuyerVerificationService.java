@@ -87,13 +87,17 @@ public class BuyerVerificationService {
         String a2 = portalUser.getOrg().getAddress2() != null ? portalUser.getOrg().getAddress2().trim() : "";
         String buyerAddress = (a1 + " " + a2).trim();
         if (buyerAddress.isEmpty()) {
-            buyerAddress = null;
+            java.util.List<String> locParts = new java.util.ArrayList<>();
+            if (buyerCity != null && !buyerCity.isBlank()) locParts.add(buyerCity.trim());
+            if (buyerState != null && !buyerState.isBlank()) locParts.add(buyerState.trim());
+            if (buyerPincode != null && !buyerPincode.isBlank()) locParts.add(buyerPincode.trim());
+            buyerAddress = locParts.isEmpty() ? null : String.join(", ", locParts);
         }
 
         // Cache/Sync to rfq_buyers table
         BuyerEntity buyerEntity = buyerRepository.findByEmailIgnoreCase(normalizedEmail).orElse(null);
         if (buyerEntity == null) {
-            buyerEntity = BuyerEntity.builder()
+            BuyerEntity newEntity = BuyerEntity.builder()
                     .email(normalizedEmail)
                     .contactPerson(personName)
                     .companyName(compName)
@@ -106,15 +110,33 @@ public class BuyerVerificationService {
                     .pincode(buyerPincode)
                     .address(buyerAddress)
                     .build();
-            buyerEntity = buyerRepository.save(buyerEntity);
+            BuyerEntity saved = buyerRepository.save(newEntity);
+            buyerEntity = saved != null ? saved : newEntity;
         } else if (!buyerEntity.isVerified() || buyerEntity.getAddress() == null) {
             buyerEntity.setVerified(true);
+            buyerEntity.setOrgId(orgId);
+            buyerEntity.setUserId(userId);
+            buyerEntity.setCompanyName(compName);
+            buyerEntity.setContactPerson(personName);
+            buyerEntity.setPhone(portalUser.getPhone());
+            buyerEntity.setCity(buyerCity);
+            buyerEntity.setState(buyerState);
+            buyerEntity.setPincode(buyerPincode);
             buyerEntity.setAddress(buyerAddress);
-            buyerEntity = buyerRepository.save(buyerEntity);
+            BuyerEntity saved = buyerRepository.save(buyerEntity);
+            if (saved != null) {
+                buyerEntity = saved;
+            }
         }
 
+        Long buyerId = buyerEntity != null ? buyerEntity.getId() : null;
+        String finalCity = buyerCity != null ? buyerCity : (buyerEntity != null ? buyerEntity.getCity() : null);
+        String finalState = buyerState != null ? buyerState : (buyerEntity != null ? buyerEntity.getState() : null);
+        String finalPincode = buyerPincode != null ? buyerPincode : (buyerEntity != null ? buyerEntity.getPincode() : null);
+        String finalAddress = buyerAddress != null ? buyerAddress : (buyerEntity != null ? buyerEntity.getAddress() : null);
+
         return Buyer.builder()
-                .id(buyerEntity.getId())
+                .id(buyerId)
                 .email(normalizedEmail)
                 .name(personName)
                 .orgId(orgId)
@@ -122,10 +144,10 @@ public class BuyerVerificationService {
                 .companyName(compName)
                 .contactPerson(personName)
                 .phone(portalUser.getPhone())
-                .city(buyerCity)
-                .state(buyerState)
-                .pincode(buyerPincode)
-                .address(buyerAddress)
+                .city(finalCity)
+                .state(finalState)
+                .pincode(finalPincode)
+                .address(finalAddress)
                 .verified(true)
                 .build();
     }

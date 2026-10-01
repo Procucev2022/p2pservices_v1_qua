@@ -30,6 +30,7 @@ import java.util.Optional;
 import java.util.Properties;
 import java.util.Random;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 import java.util.regex.Matcher;
@@ -50,6 +51,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.dao.DataAccessException;
 import org.springframework.data.domain.Page;
@@ -1100,16 +1103,36 @@ public class GMTServiceImpl implements GMTService {
 
 		logger.info("Found {} RFQs for PR Flag True", rfqsList.size());
 
-		return rfqsList.stream().map(this::mapToDto).collect(Collectors.toList());
+		return mapRfqsInBatch(rfqsList);
 	}
 
 	/**
-	 * Maps an RFQ entity to its corresponding DTO.
-	 * 
-	 * @param rfq The RFQ entity.
-	 * @return The RFQ DTO.
+	 * Maps a batch of RFQs to DTOs in batch to avoid N+1 query explosion.
+	 *
+	 * @param rfqs the RFQs to map
+	 * @return list of RfqDTOs
 	 */
-	private RfqDTO mapToDto(Rfq rfq) {
+	private List<RfqDTO> mapRfqsInBatch(List<Rfq> rfqs) {
+		if (rfqs.isEmpty()) {
+			return Collections.emptyList();
+		}
+
+		List<String> userIds = rfqs.stream().map(Rfq::getUser).filter(Objects::nonNull).distinct().toList();
+		List<String> rfqIds = rfqs.stream().map(Rfq::getId).toList();
+
+		Map<String, User> userMap = userIds.isEmpty() ? Collections.emptyMap()
+				: userDao.findUsersByIds(userIds).stream()
+						.collect(Collectors.toMap(User::getId, Function.identity(), (first, second) -> first));
+
+		Map<String, Long> vendorCountMap = new HashMap<>();
+		for (Object[] row : gmtRfqVendorDao.countVendorsByRfqIds(rfqIds)) {
+			vendorCountMap.put((String) row[0], (Long) row[1]);
+		}
+
+		return rfqs.stream().map(rfq -> mapToDto(rfq, userMap, vendorCountMap)).collect(Collectors.toList());
+	}
+
+	private RfqDTO mapToDto(Rfq rfq, Map<String, User> userMap, Map<String, Long> vendorCountMap) {
 		RfqDTO rfqDto = new RfqDTO();
 		rfqDto.setId(rfq.getId());
 		rfqDto.setCreatedBy(rfq.getCreatedBy());
@@ -1122,11 +1145,10 @@ public class GMTServiceImpl implements GMTService {
 		rfqDto.setCount(rfq.getCount());
 		rfqDto.setQuotationReceived(rfq.isQuotationReceived());
 		rfqDto.setNoOfQuotes(rfq.getQuoteCount());
-		//Updateing Source Type
 		rfqDto.setSourceType(rfq.getSourceType());
-		//rfqDto.setNoOfVendors(rfqVendorDao.findByVendorsByRfq(rfq.getId()));
-		rfqDto.setNoOfVendors(gmtRfqVendorDao.findByVendorsByRfq(rfq.getId()));
+		rfqDto.setNoOfVendors(vendorCountMap.getOrDefault(rfq.getId(), 0L));
 		rfqDto.setQuoteSubmittedDate(rfq.getQuoteSubmittedDate());
+
 		if (rfq.getClientStatus() != null) {
 			rfqDto.setClientStatus(rfq.getClientStatus());
 			rfqDto.setClientStatusId(rfq.getClientStatus().getId());
@@ -1134,18 +1156,15 @@ public class GMTServiceImpl implements GMTService {
 		}
 		rfqDto.setNewCommentAvailableVendor(rfq.isNewCommentAvailableVendor());
 
-		String companyName = userDao.findByUser(rfq.getUser());
-		if (companyName != null) {
-			rfqDto.setCompanyName(companyName);
+		User user = userMap.get(rfq.getUser());
+		if (user != null) {
+			if (user.getOrg() != null) {
+				rfqDto.setCompanyName(user.getOrg().getCompanyName());
+				rfqDto.setCompanyId(user.getOrg().getId());
+			}
+			rfqDto.setPhoneNumber(user.getPhone());
 		}
-		String companyId = userDao.findOrgIdByUser(rfq.getUser());
-		if (companyId != null) {
-			rfqDto.setCompanyId(companyId);
-		}
-		String phone = userDao.findPhoneByUser(rfq.getUser());
-		if (phone != null) {
-			rfqDto.setPhoneNumber(phone);
-		}
+
 		return rfqDto;
 	}
 
@@ -1358,39 +1377,43 @@ public class GMTServiceImpl implements GMTService {
 
 	    logger.info("fetchAllClientGMTRfqsForCMSearch | searchType: {}, searchValue: {}", searchType, searchValue);
 
+	    if (searchType == null || StringUtils.isBlank(searchValue)) {
+	        return Collections.emptyList();
+	    }
+	    String trimmedSearch = searchValue.trim();
+
 	    List<Rfq> rfqList;
-	    List<User> matchedUsers = new ArrayList<>();
+	    List<User> matchedUsers;
 
 	    switch (searchType.toLowerCase()) {
 
 	        case "rfqid":
 	        case "description":
-	            // Search directly on rfq_header
-	            rfqList = rfqDao.findAllClientRfqByRfqIdOrDescription(searchType, searchValue);
+	            rfqList = rfqDao.findAllClientRfqByRfqIdOrDescription(searchType, trimmedSearch);
 	            break;
 
 	        case "companyname":
-	            // Find users whose org name matches, then fetch their RFQs
-	            matchedUsers = userDao.findUsersByOrgCompanyName(searchValue);
+	            matchedUsers = userDao.findUsersByOrgCompanyName(trimmedSearch);
 	            if (matchedUsers.isEmpty()) {
 	                return Collections.emptyList();
 	            }
 	            List<String> userIdsByCompany = matchedUsers.stream()
 	                    .map(User::getId)
 	                    .distinct()
+	                    .limit(100)
 	                    .toList();
 	            rfqList = rfqDao.findAllClientRfqByUserIds(userIdsByCompany);
 	            break;
 
 	        case "contactnumber":
-	            // Find users whose phone matches, then fetch their RFQs
-	            matchedUsers = userDao.findUsersByPhone(searchValue);
+	            matchedUsers = userDao.findUsersByPhone(trimmedSearch);
 	            if (matchedUsers.isEmpty()) {
 	                return Collections.emptyList();
 	            }
 	            List<String> userIdsByPhone = matchedUsers.stream()
 	                    .map(User::getId)
 	                    .distinct()
+	                    .limit(100)
 	                    .toList();
 	            rfqList = rfqDao.findAllClientRfqByUserIds(userIdsByPhone);
 	            break;
@@ -1398,6 +1421,10 @@ public class GMTServiceImpl implements GMTService {
 	        default:
 	            logger.warn("Unknown searchType: {}", searchType);
 	            return Collections.emptyList();
+	    }
+
+	    if (rfqList.size() > 100) {
+	        rfqList = rfqList.subList(0, 100);
 	    }
 
 	    logger.info("RFQs found: {}", rfqList.size());
@@ -1564,6 +1591,7 @@ public class GMTServiceImpl implements GMTService {
 
 	}
 
+	@Cacheable(value = "allVendors", key = "'all'")
 	@Override
 	public List<VendorRFQDto> getAllVendors() {
 		logger.info("Entered To Get All Vendor");
@@ -1844,8 +1872,16 @@ public class GMTServiceImpl implements GMTService {
 					vendor.setOrgType(orgTypeObject);
 					vendor.setVendorStatus(vendorStatus);
 					vendor.setStatus(evalStatus);
+					vendor.setSourceType(ApplicationConstants.TOOL);
 					vendor.setVendorcategory(savedRfq.getCategory());
+					vendor.setGmtName("GMT Basic");
+					vendor.setBfsName(StatusConstants.BFS_PRO);
+					vendor.setRfqCredits(2);
 					savedVendor = orgDao.save(vendor);
+
+					User user = new User();
+					user.setOrg(savedVendor);
+					setUserDetails(vendor, user);
 				} else {
 					// Use the existing organization
 					logger.info("Saving the existing vendor with other email");
@@ -2061,6 +2097,7 @@ public class GMTServiceImpl implements GMTService {
 			        vendor.setVendorcategory(savedRfq.getCategory());
 			        vendor.setGmtName("GMT Basic");
 					vendor.setBfsName(StatusConstants.BFS_PRO);
+					vendor.setRfqCredits(2);
 					vendor.setOrganizationPhonenumber(vendor.getOrganizationPhonenumber());
 
 			        savedVendor = orgDao.save(vendor);
@@ -2131,27 +2168,23 @@ public class GMTServiceImpl implements GMTService {
 		logger.info("Setting user details for email: {} and phone: {}", organization.getEmail(),
 				organization.getOrganizationPhonenumber());
 		
-		String mobile ="";
-		if(!organization.getOrganizationPhonenumber().startsWith("+91")) {
-			mobile= "+91"+organization.getOrganizationPhonenumber();
-		}else {
-			mobile=organization.getOrganizationPhonenumber();
+		String mobile = "";
+		if (!organization.getOrganizationPhonenumber().startsWith("+91")) {
+			mobile = "+91" + organization.getOrganizationPhonenumber();
+		} else {
+			mobile = organization.getOrganizationPhonenumber();
 		}
 		User savedUser;
 
 		// Check for duplicate user
-	    User existingUsers = userDao.findByUsernameAndPhoneAndActive(
-	            organization.getEmail(),mobile
-	           ,true
-	    );
-	    logger.info("User from DB : {}",existingUsers);
+		User existingUsers = userDao.findByUsernameAndPhoneAndActive(
+				organization.getEmail(), mobile, true);
+		logger.info("User from DB : {}", existingUsers);
 
-	    if (existingUsers!=null) {
-	    	logger.info("Existing User..");
-	    	return existingUsers;
-	      
-	    }
-	   
+		if (existingUsers != null) {
+			logger.info("Existing User..");
+			return existingUsers;
+		}
 
 		// Fetch client status
 		MasterStatus status = masterStatusDao.findByStatus(StatusConstants.SELF_REGISTER_VC_ACCEPTED);
@@ -2168,8 +2201,9 @@ public class GMTServiceImpl implements GMTService {
 		}
 
 		// Populate user
+		user.setOrg(organization);
 		user.setUsername(organization.getEmail());
-		user.setFullName(organization.getName());
+		user.setFullName(organization.getName() != null ? organization.getName() : organization.getCompanyName());
 		user.setPhone(PhoneNumberUtils.normalize(organization.getOrganizationPhonenumber()));
 		user.setResetPassword(true);
 		user.setActive(true);
@@ -2178,10 +2212,9 @@ public class GMTServiceImpl implements GMTService {
 		user.setRole(initiatorRole);
 		user.setUniqueId(generateUserId(organization.getOrganizationPhonenumber()));
 		user.setSourceType(organization.getSourceType());
-		user.setPassword(new String("Welcome@123"));
+		user.setPassword("Welcome@123");
 	//	user.setApproved(true);
 		user.setVerificationStatus(StatusConstants.EMAIL_VERIFIED);
-		
 
 		// Save user
 		try {
@@ -2228,12 +2261,12 @@ public class GMTServiceImpl implements GMTService {
 		String rfqDueDate = buildingRfqDueDate(rfqData.getDeliveryDate());
 		logger.info("username-->", username);
 		EmailUser res = emailUserRepo.findByEmail(username);
-		if (res != null) {
+		if (res != null && res.getPassword() != null) {
 			mailIdWrapper[0] = res.getEmail();
 			passwordWrapper[0] = res.getPassword();
 		} else {
-			mailIdWrapper[0] = mailFom;
-			passwordWrapper[0] = emailPassword;
+			mailIdWrapper[0] = (mailFom != null) ? mailFom : mail;
+			passwordWrapper[0] = (emailPassword != null) ? emailPassword : pswd;
 		}
 		logger.info("Mail is sending from::", mailIdWrapper[0]);
 		MasterStatus pcRfqSent = null, vendorRfqNew = null;
@@ -2288,97 +2321,76 @@ public class GMTServiceImpl implements GMTService {
 
 				try {
 					
-					String mobile ="";
-					if(!vendor.getOrganizationPhonenumber().startsWith("+91")) {
-						mobile= "+91"+vendor.getOrganizationPhonenumber();
-					}else {
-						mobile=vendor.getOrganizationPhonenumber();
+					String mobile = "";
+					String phone = vendor.getOrganizationPhonenumber();
+					if (phone != null && !phone.isBlank()) {
+						String rawPhone = phone.trim();
+						mobile = rawPhone.startsWith("+91") ? rawPhone : "+91" + rawPhone;
 					}
 					logger.info("Inside RFQ Forwarding mail Block...");
-					logger.info("email : {}  phone : {}", vendor.getEmail(),vendor.getOrganizationPhonenumber());
-					User user = userDao.findByUsernameAndPhoneAndActive(
-				            vendor.getEmail(),
-				            mobile,true
-				    );
-					logger.info("User: {}",user);
-					
-					Date createdTS = user.getCreatedTS();
-					
+					logger.info("email : {}  phone : {}", vendor.getEmail(), phone);
+					User user = null;
+					if (!mobile.isEmpty()) {
+						user = userDao.findByUsernameAndPhoneAndActive(vendor.getEmail(), mobile, true);
+					}
+					if (user == null && phone != null) {
+						String normalized = PhoneNumberUtils.normalize(phone);
+						if (normalized != null) {
+							user = userDao.findByUsernameAndPhoneAndActive(vendor.getEmail(), normalized, true);
+						}
+					}
+					if (user == null) {
+						user = userDao.findByUsernameAndActive(vendor.getEmail(), true);
+					}
+					logger.info("User: {}", user);
 
-					LocalDate createdDate = createdTS.toInstant()
-					        .atZone(ZoneId.systemDefault())
-					        .toLocalDate();
-					logger.info("CreatedTs : {} ",createdDate);
-
-					LocalDate today = LocalDate.now();
-					logger.info("Todays Date : {} ",today);
-
-					if (createdDate.equals(today)) {
-						 logger.info("created today");
-						 isExistingUser=false;
-						
+					if (user != null && user.getCreatedTS() != null) {
+						LocalDate createdDate = user.getCreatedTS().toInstant()
+								.atZone(ZoneId.systemDefault())
+								.toLocalDate();
+						logger.info("CreatedTs : {} ", createdDate);
+						isExistingUser = !createdDate.equals(LocalDate.now());
 					} else {
-						isExistingUser=true;
+						isExistingUser = false;
 					}
 					
 					String requestType = vendor.getRequestType(); // assuming you have this field in RFQ
-					logger.info("Request Type : {}",requestType);
+					logger.info("Request Type : {}", requestType);
 
-					if ("Forward".equalsIgnoreCase(requestType)) {
-						if(isExistingUser==false) {
-							long count = rfqVendorDao.countCredentialEmailsSent(vendor.getId());
-							RfqVendor rfqVendor = rfqVendorDao.findLatestByOrganizationUuid(vendor.getId());
-							logger.info("id : {}",rfqVendor.getId());
-							logger.info("notification status : {}",rfqVendor.getIsRfqNotified());
-		                       if (count==0) {
-		                         rfqVendor.setIsRfqNotified((byte) 1);
-		                          rfqVendorDao.save(rfqVendor);
-		                          logger.info("New User Forward Email with credentials...");
-									MailUtility.emailNewRfqForNoPR(subjectPrefix,"NewRfq", javaMailSender, rfqData, host, vendor.getEmail(),
-											username, vendor.getOtherEmails(), phoneNumber, rfqDueDate, fullName, mailIdWrapper[0],
-											passwordWrapper[0], vendor.getId(),vendor.getOrganizationPhonenumber());
-		                         }else {
-		                        	 logger.info("New User Forward Email without credentials...");
-		                        	 MailUtility.emailNewRfqForNoPRForExistingUsers(subjectPrefix,"NewRfq", javaMailSender, rfqData, host, vendor.getEmail(),
-		 									username, vendor.getOtherEmails(), phoneNumber, rfqDueDate, fullName, mailIdWrapper[0],
-		 									passwordWrapper[0], vendor.getId(),vendor.getOrganizationPhonenumber());
-		                         }
-							
-							
-						}else {
-							logger.info("Existing User Forward Email...");
-							MailUtility.emailNewRfqForNoPRForExistingUsers(subjectPrefix,"NewRfq", javaMailSender, rfqData, host, vendor.getEmail(),
+					String vendorId = vendor.getId();
+					long count = (vendorId != null) ? rfqVendorDao.countCredentialEmailsSent(vendorId) : 0L;
+					RfqVendor rfqVendor = (vendorId != null) ? rfqVendorDao.findLatestByOrganizationUuid(vendorId) : null;
+					if (rfqVendor != null) {
+						logger.info("id : {}, notification status : {}", rfqVendor.getId(), rfqVendor.getIsRfqNotified());
+					}
+
+					boolean isForward = "Forward".equalsIgnoreCase(requestType);
+					if (!isExistingUser && count == 0) {
+						if (rfqVendor != null) {
+							rfqVendor.setIsRfqNotified((byte) 1);
+							rfqVendorDao.save(rfqVendor);
+						}
+						if (isForward) {
+							logger.info("New User Forward Email with credentials...");
+							MailUtility.emailNewRfqForNoPR(subjectPrefix, "NewRfq", javaMailSender, rfqData, host, vendor.getEmail(),
 									username, vendor.getOtherEmails(), phoneNumber, rfqDueDate, fullName, mailIdWrapper[0],
-									passwordWrapper[0], vendor.getId(),vendor.getOrganizationPhonenumber());
+									passwordWrapper[0], vendor.getId(), vendor.getOrganizationPhonenumber());
+						} else {
+							logger.info("New User Invite Email with credentials...");
+							MailUtility.emailInviteRfq(javaMailSender, rfqData, host, vendor.getEmail(), username,
+									vendor.getOtherEmails(), phoneNumber, fullName, mailIdWrapper[0], passwordWrapper[0], vendor.getOrganizationPhonenumber());
 						}
-						
+						MailUtility.emailSendVendorLoginCredentials(javaMailSender, host, vendor.getEmail(), username,
+								vendor.getOtherEmails(), phoneNumber, fullName, mailIdWrapper[0], passwordWrapper[0], vendor.getOrganizationPhonenumber());
+					} else if (isForward) {
+						logger.info("Forward Email to vendor...");
+						MailUtility.emailNewRfqForNoPRForExistingUsers(subjectPrefix, "NewRfq", javaMailSender, rfqData, host, vendor.getEmail(),
+								username, vendor.getOtherEmails(), phoneNumber, rfqDueDate, fullName, mailIdWrapper[0],
+								passwordWrapper[0], vendor.getId(), vendor.getOrganizationPhonenumber());
 					} else {
-						// Send the new “invite” email
-						if(isExistingUser==false) {
-							
-							RfqVendor rfqVendor = rfqVendorDao.findLatestByOrganizationUuid(vendor.getId());
-							long count = rfqVendorDao.countCredentialEmailsSent(vendor.getId());
-		                       if (count==0) {
-		                         rfqVendor.setIsRfqNotified((byte) 1);
-		                          rfqVendorDao.save(rfqVendor);
-		                          logger.info("New User Invite Email with credentials...");
-							        MailUtility.emailInviteRfq(javaMailSender, rfqData, host, vendor.getEmail(), username,
-											vendor.getOtherEmails(), phoneNumber, fullName, mailIdWrapper[0], passwordWrapper[0],vendor.getOrganizationPhonenumber());
-									MailUtility.emailSendVendorLoginCredentials(javaMailSender, host, vendor.getEmail(), username,
-											vendor.getOtherEmails(), phoneNumber, fullName, mailIdWrapper[0], passwordWrapper[0],vendor.getOrganizationPhonenumber());
-		                         }else {
-		                        	 logger.info("New User Invite Email without credentials...");
-		                        	 MailUtility.emailInviteRfqForExistingUsers(javaMailSender, rfqData, host, vendor.getEmail(), username,
-												vendor.getOtherEmails(), phoneNumber, fullName, mailIdWrapper[0], passwordWrapper[0],vendor.getOrganizationPhonenumber());
-		                         }
-					       
-						}else {
-							
-							 logger.info("Existing User Invite Email...");
-						        MailUtility.emailInviteRfqForExistingUsers(javaMailSender, rfqData, host, vendor.getEmail(), username,
-										vendor.getOtherEmails(), phoneNumber, fullName, mailIdWrapper[0], passwordWrapper[0],vendor.getOrganizationPhonenumber());
-						}
-						
+						logger.info("Invite Email to vendor...");
+						MailUtility.emailInviteRfqForExistingUsers(javaMailSender, rfqData, host, vendor.getEmail(), username,
+								vendor.getOtherEmails(), phoneNumber, fullName, mailIdWrapper[0], passwordWrapper[0], vendor.getOrganizationPhonenumber());
 					}
 					
 				} catch (MessagingException e) {
@@ -2454,6 +2466,7 @@ public class GMTServiceImpl implements GMTService {
 		}
 	}
 
+	@CacheEvict(value = "gmtBuyers", allEntries = true)
 	@Override
 	public boolean editUser(User user) {
 		logger.info("Entered To Edit User");
@@ -2477,6 +2490,7 @@ public class GMTServiceImpl implements GMTService {
 		}
 	}
 
+	@CacheEvict(value = "gmtBuyers", allEntries = true)
 	@Override
 	public boolean acceptSelfClient(User user) throws UnsupportedEncodingException {
 		logger.info("Entered To Accept Self Client");
@@ -2505,12 +2519,23 @@ public class GMTServiceImpl implements GMTService {
 
 	}
 
+	@CacheEvict(value = "gmtBuyers", allEntries = true)
 	@Override
 	public boolean ignoreClient(User user) {
 		logger.info("Entered To Ignore Self Client");
 		if (user != null) {
 			Optional<User> userData = userDao.findById(user.getId());
 			MasterStatus status = masterStatusDao.findByStatus(StatusConstants.USER_IGNORED);
+			if (status == null) {
+				status = masterStatusDao.findByStatus("IGNORED");
+			}
+			if (status == null) {
+				status = new MasterStatus();
+				status.setStatus(StatusConstants.USER_IGNORED);
+				status.setUiDisplay("Ignored");
+				status.setDescription("User Ignored");
+				status = masterStatusDao.save(status);
+			}
 			if (userData.isPresent()) {
 				userDao.updateClientStatus(user, status);
 			}
@@ -2523,6 +2548,7 @@ public class GMTServiceImpl implements GMTService {
 
 	}
 
+	@CacheEvict(value = "gmtBuyers", allEntries = true)
 	@Override
 	public boolean disableUser(User user) {
 		logger.info("Entered To Disable User");
@@ -2722,6 +2748,7 @@ public class GMTServiceImpl implements GMTService {
 
 	}
 
+	@Cacheable(value = "gmtBuyers", key = "'buyers'")
 	@Override
 	public List<User> getGmtBuyers() {
 		logger.info("Fetching GMT users with role: {}", ApplicationConstants.ClientInitiator);
@@ -3757,6 +3784,7 @@ public class GMTServiceImpl implements GMTService {
 
 		// Build Response
 		VendorInfoDto dto = new VendorInfoDto();
+		dto.setId(org.getId());
 		dto.setCompanyName(org.getCompanyName());
 		dto.setOrganizationPhonenumber(org.getOrganizationPhonenumber());
 		dto.setEmail(org.getEmail());
