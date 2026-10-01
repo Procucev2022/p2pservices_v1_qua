@@ -109,6 +109,7 @@ public interface GmtRfqVendorDao extends JpaRepository<GmtRfqVendors, String> {
 		    LEFT JOIN r.clientdeliverylocationrfq d ON d.rfq.id = r.id
 		    LEFT JOIN User u ON u.org.id = o.id
 		    WHERE r.createdTS BETWEEN :startDate AND :endDate
+		    ORDER BY r.createdTS ASC, r.rfqId ASC
 		""")
 		List<SellerReportDto> getSellerReport(
 		        @Param("startDate") Date startDate,
