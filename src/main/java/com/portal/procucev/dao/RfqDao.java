@@ -304,7 +304,7 @@ public interface RfqDao extends JpaRepository<Rfq, String>{
 		    )
 		    FROM Rfq r
 		    JOIN r.org o
-		    LEFT JOIN User u ON u.org = o
+		    LEFT JOIN User u ON u.org.id = o.id
 		        AND u.selfClient = true
 		    LEFT JOIN r.clientdeliverylocationrfq d
 		    LEFT JOIN r.rfqItem i
@@ -312,7 +312,7 @@ public interface RfqDao extends JpaRepository<Rfq, String>{
 		    WHERE r.createdTS BETWEEN :startDate AND :endDate
 		    GROUP BY
 		        r.createdTS, r.rfqId, u.fullName, u.username,
-		        u.phone, o.companyName, o.address1,
+		        u.phone, o.companyName, o.city,
 		        r.description, r.projectDesc,
 		        i.category,
 		        d.address, d.city, d.state, d.pincode
@@ -353,7 +353,7 @@ public interface RfqDao extends JpaRepository<Rfq, String>{
 		    )
 		    FROM Rfq r
 		    JOIN r.org o
-		    LEFT JOIN User u ON u.org = o
+		    LEFT JOIN User u ON u.org.id = o.id
 		        AND u.selfClient = true
 		    LEFT JOIN r.clientdeliverylocationrfq d
 		    LEFT JOIN GmtRfqVendors v ON v.rfq = r
