@@ -205,15 +205,19 @@ public class ReportsServiceImpl  implements ReportsService {
 	@Override
 	public List<?> getRfqReports(String startDate, String endDate, 
 	                              String requestType) throws ParseException {
+		logger.info("Entering into rfqReports Service...");
+		logger.info("RequestType : {}, startDate : {}, endDate : {}", requestType, startDate, endDate);
 
 	    Date fromDate = new SimpleDateFormat("yyyy-MM-dd").parse(startDate);
 	    Date toDate   = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").parse(endDate + " 23:59:59");
 
 	    if ("rfqReport".equalsIgnoreCase(requestType)) {
+	    	logger.info("Inside rfqReport...");
 	        return rfqDao.getRfqReport(fromDate, toDate);
 	    }
 
 	    if ("rfqSummaryReport".equalsIgnoreCase(requestType)) {
+	    	logger.info("Inside rfqSummaryReport...");
 	        return rfqDao.getRfqSummaryReport(fromDate, toDate);
 	    }
 
