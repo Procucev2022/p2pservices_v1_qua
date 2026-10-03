@@ -169,12 +169,15 @@ public interface UserDao extends JpaRepository<User, String> {
 					    	        u.activityTs,
 					    	        c.category
 					    	    FROM Organization o
-					    	    LEFT JOIN User u ON u.org = o
+					    	    LEFT JOIN User u ON u.org.id = o.id
 					    	    LEFT JOIN OrgDivisionCategory c ON c.organization = o
 					    	    WHERE o.createdTS BETWEEN :fromDate AND :toDate
 					    	    ORDER BY o.createdTS ASC
 			""")
-	List<Object[]> getSellerCategoryRawData(Date fromDate, Date toDate);
+	List<Object[]> getSellerCategoryRawData(
+	        @Param("fromDate") Date fromDate,
+	        @Param("toDate") Date toDate
+	);
 
 //	List<?> getSellerReport(String startDate, String endDate);
 //
