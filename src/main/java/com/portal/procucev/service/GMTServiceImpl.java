@@ -2466,7 +2466,6 @@ public class GMTServiceImpl implements GMTService {
 		}
 	}
 
-	@CacheEvict(value = "gmtBuyers", allEntries = true)
 	@Override
 	public boolean editUser(User user) {
 		logger.info("Entered To Edit User");
@@ -2490,25 +2489,28 @@ public class GMTServiceImpl implements GMTService {
 		}
 	}
 
-	@CacheEvict(value = "gmtBuyers", allEntries = true)
 	@Override
 	public boolean acceptSelfClient(User user) throws UnsupportedEncodingException {
 		logger.info("Entered To Accept Self Client");
 		if (user != null) {
 			Optional<User> userData = userDao.findById(user.getId());
-			Organization org = userData.get().getOrg();
-			if (org != null) {
-				logger.info("Updating Client Status To Approved");
-				MasterStatus status = masterStatusDao.findByStatus(StatusConstants.CLIENT_USER_APPROVED);
-				orgDao.updateClientStatus(status, org.getId());
-			}
-			logger.info("Updating Client User Status To Accepted");
-			MasterStatus status = masterStatusDao.findByStatus(StatusConstants.USER_ACCEPTED);
 			if (userData.isPresent()) {
-				userDao.updateClientStatus(user, status);
+				User existingUser = userData.get();
+				Organization org = existingUser.getOrg();
+				if (org != null) {
+					logger.info("Updating Client Status To Approved");
+					MasterStatus clientApprovedStatus = masterStatusDao.findByStatus(StatusConstants.CLIENT_USER_APPROVED);
+					orgDao.updateClientStatus(clientApprovedStatus, org.getId());
+				}
+				logger.info("Updating Client User Status To Accepted");
+				MasterStatus userAcceptedStatus = masterStatusDao.findByStatus(StatusConstants.USER_ACCEPTED);
+				existingUser.setClientStatus(userAcceptedStatus);
+				existingUser.setApproved(true);
+				userDao.save(existingUser);
+				userDao.updateClientStatus(user, userAcceptedStatus);
 				InternetAddress add = new InternetAddress(mail, "<DO-NOT-REPLY>");
 				MailUtility.mailingVerificationLinkWithSelfUserLogin(javaMailSender, mail, add, pswd, host,
-						userData.get());
+						existingUser);
 			}
 			return true;
 		} else {
@@ -2519,7 +2521,6 @@ public class GMTServiceImpl implements GMTService {
 
 	}
 
-	@CacheEvict(value = "gmtBuyers", allEntries = true)
 	@Override
 	public boolean ignoreClient(User user) {
 		logger.info("Entered To Ignore Self Client");
@@ -2548,7 +2549,6 @@ public class GMTServiceImpl implements GMTService {
 
 	}
 
-	@CacheEvict(value = "gmtBuyers", allEntries = true)
 	@Override
 	public boolean disableUser(User user) {
 		logger.info("Entered To Disable User");
@@ -2748,7 +2748,6 @@ public class GMTServiceImpl implements GMTService {
 
 	}
 
-	@Cacheable(value = "gmtBuyers", key = "'buyers'")
 	@Override
 	public List<User> getGmtBuyers() {
 		logger.info("Fetching GMT users with role: {}", ApplicationConstants.ClientInitiator);

@@ -72,9 +72,9 @@ public interface UserDao extends JpaRepository<User, String> {
 	void updateUserDetails(@Param("id") String id, @Param("username") String username,
 			@Param("fullName") String fullName, @Param("phone") String phone);
 
-	@Modifying
+	@Modifying(clearAutomatically = true, flushAutomatically = true)
 	@Transactional
-	@Query("UPDATE User u SET u.clientStatus = :status, u.isApproved = true  WHERE u=:user")
+	@Query("UPDATE User u SET u.clientStatus = :status, u.isApproved = true WHERE u=:user")
 	void updateClientStatus(@Param("user") User user, @Param("status") MasterStatus status);
 
 	List<User> findByUsernameAndPhone(String email, String organizationPhonenumber);
